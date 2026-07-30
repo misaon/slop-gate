@@ -3047,13 +3047,15 @@ export async function buildWorkspaceGraph(rootDir: string): Promise<WorkspaceGra
   const found = new Map<string, WorkspaceNode>()
   for (const pattern of positive) {
     for await (const match of glob(`${pattern}/package.json`, { cwd: rootDir })) {
-      const dir = toPosix(dirname(match))
-      // `WorkspaceNode.dir` is contractually repo-relative, and downstream code joins it onto the
-      // root. A pattern like `../shared/*` would otherwise emit a node pointing outside the repo.
+      // Resolve then re-relativise so `..` is collapsed wherever it appears, not just at the
+      // start. `WorkspaceNode.dir` is contractually repo-relative and downstream code joins it
+      // onto the root, so a pattern like `../shared/*` or `packages/../../shared/*` must not
+      // produce a node at all.
+      const dir = toPosix(relative(rootDir, resolve(rootDir, dirname(match))))
       if (dir === '..' || dir.startsWith('../')) {
         throw new ConfigError(`workspace pattern "${pattern}" resolves outside the repository root`)
       }
-      if (dir === '.' || isExcluded(dir) || found.has(dir)) continue
+      if (dir === '' || isExcluded(dir) || found.has(dir)) continue
       const manifest = await readJson(join(rootDir, match))
       const name = typeof manifest?.['name'] === 'string' ? manifest['name'] : dir.slice(dir.lastIndexOf('/') + 1)
       found.set(dir, { name, dir })
