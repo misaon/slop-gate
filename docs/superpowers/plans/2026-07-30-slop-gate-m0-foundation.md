@@ -2123,9 +2123,14 @@ test('rejects a default export that is not an object', async () => {
   await expect(loadConfig(dir)).rejects.toThrow(/must export a configuration object/)
 })
 
-test('reports a syntax error as a ConfigError naming the file', async () => {
+test('reports a syntax error with the real parse diagnostic, not a misleading one', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { rules: `)
+
+  // Asserting only on the filename would pass even when the "no default export" branch fires,
+  // which is what an earlier version of this code actually did.
+  await expect(loadConfig(dir)).rejects.toThrow(/could not be parsed/)
   await expect(loadConfig(dir)).rejects.toThrow(/slop-gate\.config\.ts/)
+  await expect(loadConfig(dir)).rejects.not.toThrow(/default export/)
 })
 
 test('explains path aliases when an import cannot be resolved', async () => {
@@ -2228,20 +2233,36 @@ async function importModule(file: string): Promise<unknown> {
  * the original rather than to a temp directory so relative imports inside the config still resolve.
  */
 async function importTransformed(file: string, originalCause: unknown): Promise<unknown> {
-  const source = await readFile(file, 'utf8')
-  const { transform } = await import('oxc-transform')
   const { dir, name } = parsePath(file)
-  const token = createHash('sha256').update(source).digest('hex').slice(0, 8)
-  const scratch = join(dir, `${name}.${token}.sgate.mjs`)
+  let scratch: string | undefined
 
   try {
-    const result = transform(file, source, { sourcemap: false })
+    const source = await readFile(file, 'utf8')
+    const { transform } = await import('oxc-transform')
+    const result = await transform(file, source, { sourcemap: false })
+
+    // oxc-transform is error-tolerant: a total parse failure yields `code: ''` plus a populated
+    // `errors`, and an empty module imports perfectly well. Without this check the caller reaches
+    // the "no default export" branch and the user is told to add an export when their real problem
+    // is an unclosed brace — while oxc's own precise diagnostic is thrown away.
+    const [firstError] = result.errors
+    if (firstError !== undefined) {
+      // `codeframe` carries the exact source location; `message` alone loses it.
+      throw new ConfigError(`${file} could not be parsed: ${firstError.codeframe ?? firstError.message}`)
+    }
+
+    const token = createHash('sha256').update(source).digest('hex').slice(0, 8)
+    scratch = join(dir, `${name}.${token}.sgate.mjs`)
     await writeFile(scratch, result.code, 'utf8')
     return await import(pathToFileURL(scratch).href)
   } catch (cause) {
-    throw new ConfigError(`failed to load ${file}: ${describe(originalCause)}`, { cause })
+    if (cause instanceof ConfigError) throw cause
+    throw new ConfigError(
+      `failed to load ${file}: ${describe(originalCause)} (fallback also failed: ${describe(cause)})`,
+      { cause },
+    )
   } finally {
-    await rm(scratch, { force: true })
+    if (scratch !== undefined) await rm(scratch, { force: true })
   }
 }
 
@@ -2263,7 +2284,11 @@ function describe(error: unknown): string {
 Run: `pnpm test -- config/load`
 Expected: PASS, 9 tests.
 
-If the "syntax error" test fails because the fallback path throws something other than `ConfigError`, check that `transform` genuinely rejects the malformed source. `oxc-transform` is error-tolerant by design, so it may return code that then fails at import time — in that case the `catch` around the dynamic `import(scratch)` still produces a `ConfigError`, which is what the test asserts. Do not weaken the test; fix the implementation so both routes end in `ConfigError`.
+`oxc-transform` is error-tolerant by design: on a total parse failure it does not throw, it returns
+`code: ''` with a populated `errors` array. An empty `.mjs` is valid ESM, so it imports cleanly and
+the failure never reaches the fallback's own `catch`. That is why the implementation inspects
+`result.errors` explicitly rather than relying on an exception, and why the test asserts on the parse
+message rather than only on the filename — the filename appears in the misleading message too.
 
 - [ ] **Step 7: Export from the package surface**
 
