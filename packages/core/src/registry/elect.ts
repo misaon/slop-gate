@@ -1,4 +1,5 @@
 import type { LanguageId } from '../languages.ts'
+import { compareStrings } from '../ordering.ts'
 import { ENGINE_PREFERENCE, ruleRefKey, type Capability, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
 
 export type SuppressionReason = 'lower-tier' | 'engine-preference' | 'rule-id-tiebreak' | 'pinned-owner'
@@ -27,11 +28,6 @@ export type ElectionResult = {
 }
 
 const refOf = (entry: RuleEntry): RuleRef => ({ engine: entry.engine, engineRuleId: entry.engineRuleId })
-
-// Plain code-unit order, not `localeCompare`: the elected ruleset is hashed into a lockfile in a
-// later milestone, and a comparison that routes through `Intl` would make the winner depend on
-// the ICU data of whichever machine, CI runner, or JS runtime produced the hash.
-const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 export function electOwners(input: ElectionInput): ElectionResult {
   const preference = input.enginePreference ?? ENGINE_PREFERENCE

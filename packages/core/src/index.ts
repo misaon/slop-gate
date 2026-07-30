@@ -25,6 +25,7 @@ export {
 export { validateCatalogue } from './concepts/validate.ts'
 
 export { LANGUAGES, SCRIPT_LANGUAGES, type LanguageId } from './languages.ts'
+export { compareStrings } from './ordering.ts'
 export {
   ENGINE_PREFERENCE,
   ruleRefKey,
