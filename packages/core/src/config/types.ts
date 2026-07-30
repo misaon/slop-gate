@@ -36,11 +36,17 @@ export function isRuleLevel(value: unknown): value is RuleLevel {
   return typeof value === 'string' && RULE_LEVELS.includes(value as RuleLevel)
 }
 
+/**
+ * Narrows on `typeof === 'string'`, not `Array.isArray`. A `readonly` tuple is not assignable to
+ * `Array.isArray`'s `any[]` predicate, so that form narrows in neither direction: the tuple branch
+ * degrades to `any` and the string branch still needs a cast. Both sides then escape strict
+ * checking entirely, which is exactly what this function exists to provide.
+ */
 export function splitRuleSetting(setting: RuleSetting): {
   level: RuleLevel
   options: Record<string, unknown>
 } {
-  return Array.isArray(setting)
-    ? { level: setting[0], options: setting[1] }
-    : { level: setting as RuleLevel, options: {} }
+  return typeof setting === 'string'
+    ? { level: setting, options: {} }
+    : { level: setting[0], options: setting[1] }
 }

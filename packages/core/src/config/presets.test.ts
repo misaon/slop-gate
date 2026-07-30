@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import { isConceptId } from '../concepts/catalogue.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { PRESETS } from './presets.ts'
-import { isRuleLevel, splitRuleSetting, type RuleKey } from './types.ts'
+import { isRuleLevel, splitRuleSetting, type RuleKey, type RuleSetting } from './types.ts'
 
 const allKeys = Object.values(PRESETS).flatMap((map) => Object.keys(map) as RuleKey[])
 
@@ -39,4 +39,12 @@ test('strict is at least as strict as recommended', () => {
 test('splitRuleSetting normalises both shapes', () => {
   expect(splitRuleSetting('warn')).toEqual({ level: 'warn', options: {} })
   expect(splitRuleSetting(['error', { max: 80 }])).toEqual({ level: 'error', options: { max: 80 } })
+})
+
+test('splitRuleSetting reads level and options from the tuple in order', () => {
+  const setting: RuleSetting = ['error', { max: 80, allow: ['a'] }]
+  const { level, options } = splitRuleSetting(setting)
+
+  expect(level).toBe('error')
+  expect(options).toEqual({ max: 80, allow: ['a'] })
 })
