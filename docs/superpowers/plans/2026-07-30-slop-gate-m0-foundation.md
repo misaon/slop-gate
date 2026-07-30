@@ -4031,6 +4031,10 @@ export type RunContext = {
 export type EngineConfigHandle = {
   readonly path: string
   readonly rulesetHash: string
+  /** How many rules this config enables, when the engine can report it. Lets `run` assert that the
+   *  engine activated exactly the elected set — catching both unelected rules leaking in and
+   *  elected rules silently not running. */
+  readonly ruleCount?: number
   dispose(): Promise<void>
 }
 
@@ -4471,6 +4475,8 @@ import { relative } from 'node:path'
 import { EngineError, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
 
 type OxlintSpan = { offset: number; length: number }
+type OxlintPayload = { diagnostics?: OxlintDiagnostic[]; number_of_rules?: number }
+
 type OxlintDiagnostic = {
   message: string
   code: string
@@ -4499,18 +4505,41 @@ const SEVERITIES: Readonly<Record<string, RawSeverity>> = {
   info: 'info',
 }
 
-export function parseOxlintOutput(stdout: string, rootDir: string): RawDiagnostic[] {
+export function parseOxlintOutput(
+  stdout: string,
+  rootDir: string,
+  expected?: { ruleCount: number },
+): RawDiagnostic[] {
   const trimmed = stdout.trim()
   if (trimmed === '') return []
 
-  let parsed: { diagnostics?: OxlintDiagnostic[] }
+  // oxlint can print a plain-text preamble before the JSON — notably `No files found to lint.` when
+  // a batch path no longer exists, which is routine in a caching linter. Parsing from the first
+  // brace keeps a vanished file from destroying the whole batch under a misdiagnosing error.
+  const jsonStart = trimmed.indexOf('{')
+  if (jsonStart === -1) {
+    throw new EngineError('oxlint', `oxlint produced no json output: ${trimmed.slice(0, 200)}`)
+  }
+
+  let parsed: OxlintPayload
   try {
-    parsed = JSON.parse(trimmed) as { diagnostics?: OxlintDiagnostic[] }
+    parsed = JSON.parse(trimmed.slice(jsonStart)) as OxlintPayload
   } catch (cause) {
     throw new EngineError('oxlint', `could not parse oxlint json output: ${trimmed.slice(0, 200)}`, { cause })
   }
   if (!Array.isArray(parsed.diagnostics)) {
     throw new EngineError('oxlint', 'oxlint json output has no diagnostics array')
+  }
+
+  // Every payload reports how many rules actually ran. Comparing it to the elected count turns two
+  // otherwise-silent failures loud: a category we forgot to disable leaking rules in (count too
+  // high), and an elected rule oxlint never activated (count too low).
+  if (expected !== undefined && parsed.number_of_rules !== expected.ruleCount) {
+    throw new EngineError(
+      'oxlint',
+      `expected ${expected.ruleCount} rule(s) to run, oxlint ran ${parsed.number_of_rules}. ` +
+        `The materialised config is not selecting exactly the elected ruleset.`,
+    )
   }
 
   const results: RawDiagnostic[] = []
@@ -4589,7 +4618,15 @@ export async function materializeOxlintConfig(
       .map(([ruleId, level]) => [ruleId, LEVEL_TO_OXLINT[level] ?? 'warn']),
   )
 
-  const config = { categories: ALL_CATEGORIES_OFF, rules }
+  // oxlint only activates a rule whose scope is listed in `plugins`. Without this, an elected rule
+  // from any scope beyond eslint/typescript/unicorn/oxc is silently ignored: no warning, no config
+  // rejection, `number_of_rules: 0`. That is the mirror image of the categories defect — instead of
+  // unelected rules running, elected rules do not.
+  const plugins = [
+    ...new Set(Object.keys(rules).flatMap((id) => (id.includes('/') ? [id.split('/')[0]!] : []))),
+  ].sort(compareStrings)
+
+  const config = { categories: ALL_CATEGORIES_OFF, plugins, rules }
   const rulesetHash = hashJson(config)
 
   await mkdir(context.tmpDir, { recursive: true })
@@ -4599,6 +4636,7 @@ export async function materializeOxlintConfig(
   return {
     path,
     rulesetHash,
+    ruleCount: Object.keys(rules).length,
     async dispose() {
       await rm(path, { force: true })
     },
@@ -4842,7 +4880,11 @@ async function* execute(
     }
   }
 
-  yield* parseOxlintOutput(stdout, context.rootDir)
+  yield* parseOxlintOutput(
+    stdout,
+    context.rootDir,
+    handle.ruleCount === undefined ? undefined : { ruleCount: handle.ruleCount },
+  )
 }
 ```
 
