@@ -107,3 +107,15 @@ export {
 } from './cache/keys.ts'
 export { openStatIndex, type StatIndex } from './cache/stat-index.ts'
 export { openResultStore, type ResultStore } from './cache/result-store.ts'
+
+export type {
+  Engine,
+  EngineCapabilities,
+  EngineConfigHandle,
+  EngineRuleSelection,
+  FileBatch,
+  RawDiagnostic,
+  RawSeverity,
+  RunContext,
+} from './engine/types.ts'
+export { normalizeDiagnostics, type NormalizeInput } from './engine/normalize.ts'

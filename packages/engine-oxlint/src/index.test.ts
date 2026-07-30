@@ -1,0 +1,118 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, expect, test } from 'vitest'
+import type { InventoryFile, RawDiagnostic } from '@misaon/slop-gate-core'
+import { createOxlintEngine } from './index.ts'
+
+let dir: string
+let context: { rootDir: string; tmpDir: string }
+
+const file = (path: string): InventoryFile => ({
+  path,
+  language: 'ts',
+  workspace: '',
+  size: 0,
+  mtimeMs: 0,
+})
+
+const collect = async (iterable: AsyncIterable<RawDiagnostic>): Promise<RawDiagnostic[]> => {
+  const out: RawDiagnostic[] = []
+  for await (const item of iterable) out.push(item)
+  return out
+}
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), 'sgate-oxlint-'))
+  context = { rootDir: dir, tmpDir: join(dir, '.slop-gate', 'tmp') }
+  await mkdir(join(dir, 'src'), { recursive: true })
+})
+
+afterEach(async () => {
+  await rm(dir, { recursive: true, force: true })
+})
+
+test('reports its version', async () => {
+  expect(await createOxlintEngine().version()).toMatch(/^\d+\.\d+\.\d+/)
+})
+
+test('declares file granularity and script languages', () => {
+  const engine = createOxlintEngine()
+  expect(engine.capabilities.granularity).toBe('file')
+  expect(engine.capabilities.languages).toContain('ts')
+  expect(engine.id).toBe('oxlint')
+})
+
+test('materialises a config containing only the selected rules', async () => {
+  const handle = await createOxlintEngine().materializeConfig(
+    new Map([
+      ['no-debugger', 'error'],
+      ['no-var', 'off'],
+    ]),
+    context,
+  )
+  const written = JSON.parse(await readFile(handle.path, 'utf8')) as { rules: Record<string, string>; categories: unknown }
+
+  expect(written.rules).toEqual({ 'no-debugger': 'error' })
+  expect(written.categories).toEqual({
+    correctness: 'off',
+    suspicious: 'off',
+    pedantic: 'off',
+    perf: 'off',
+    style: 'off',
+    restriction: 'off',
+    nursery: 'off',
+  })
+  await handle.dispose()
+})
+
+test('produces the same ruleset hash regardless of selection order', async () => {
+  const engine = createOxlintEngine()
+  const a = await engine.materializeConfig(new Map([['no-debugger', 'error'], ['no-var', 'warn']]), context)
+  const b = await engine.materializeConfig(new Map([['no-var', 'warn'], ['no-debugger', 'error']]), context)
+
+  expect(b.rulesetHash).toBe(a.rulesetHash)
+  await a.dispose()
+  await b.dispose()
+})
+
+test('finds a real violation in a real file', async () => {
+  await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
+  const engine = createOxlintEngine()
+  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+
+  const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
+
+  expect(found).toHaveLength(1)
+  expect(found[0]?.engineRuleId).toBe('no-debugger')
+  expect(found[0]?.file).toBe('src/a.ts')
+  await handle.dispose()
+})
+
+test('yields nothing for a clean file', async () => {
+  await writeFile(join(dir, 'src/clean.ts'), 'export const a = 1\n')
+  const engine = createOxlintEngine()
+  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+
+  expect(await collect(engine.run({ files: [file('src/clean.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await handle.dispose()
+})
+
+test('yields nothing for an empty batch without spawning a process', async () => {
+  const engine = createOxlintEngine()
+  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+
+  expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(1000)))).toEqual([])
+  await handle.dispose()
+})
+
+test('raises an EngineError when the binary is missing', async () => {
+  const engine = createOxlintEngine({ binaryPath: join(dir, 'does-not-exist') })
+  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+  await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
+
+  await expect(
+    collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000))),
+  ).rejects.toThrow(/oxlint/)
+  await handle.dispose()
+})
