@@ -1,0 +1,112 @@
+import { execFile } from 'node:child_process'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
+import { afterEach, beforeEach, expect, test } from 'vitest'
+import { buildInventory, createGitFileSource, createWalkFileSource, selectFileSource } from './inventory.ts'
+
+const run = promisify(execFile)
+let dir: string
+
+const write = async (relative: string, content = 'export const a = 1\n'): Promise<void> => {
+  const target = join(dir, relative)
+  await mkdir(join(target, '..'), { recursive: true })
+  await writeFile(target, content)
+}
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), 'sgate-inv-'))
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture' }))
+})
+
+afterEach(async () => {
+  await rm(dir, { recursive: true, force: true })
+})
+
+test('collects files with language and workspace attribution', async () => {
+  await write('src/a.ts')
+  await write('src/b.css', 'a{}')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path).sort()
+
+  expect(paths).toContain('src/a.ts')
+  expect(inventory.files.find((f) => f.path === 'src/a.ts')?.language).toBe('ts')
+  expect(inventory.files.find((f) => f.path === 'src/b.css')?.language).toBe('css')
+  expect(inventory.files.every((f) => f.workspace === '')).toBe(true)
+})
+
+test('reports the set of languages present', async () => {
+  await write('src/a.ts')
+  await write('src/a.vue', '<template />')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  expect(inventory.languages.has('ts')).toBe(true)
+  expect(inventory.languages.has('vue')).toBe(true)
+  expect(inventory.languages.has('scss')).toBe(false)
+})
+
+test('records size and mtime for the cache pre-check', async () => {
+  await write('src/a.ts', 'const a = 1\n')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const file = inventory.files.find((f) => f.path === 'src/a.ts')
+  expect(file?.size).toBe(12)
+  expect(file?.mtimeMs).toBeGreaterThan(0)
+})
+
+test('applies ignore patterns', async () => {
+  await write('src/a.ts')
+  await write('generated/b.ts')
+
+  const inventory = await buildInventory({
+    rootDir: dir,
+    source: createWalkFileSource(),
+    ignore: ['generated/**'],
+  })
+  expect(inventory.files.map((f) => f.path)).not.toContain('generated/b.ts')
+  expect(inventory.files.map((f) => f.path)).toContain('src/a.ts')
+})
+
+test('the walker skips node_modules and .git without being told to', async () => {
+  await write('node_modules/dep/index.js')
+  await write('src/a.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  expect(inventory.files.some((f) => f.path.startsWith('node_modules/'))).toBe(false)
+})
+
+test('always emits repo-relative POSIX paths', async () => {
+  await write('src/nested/deep/a.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  expect(inventory.files.map((f) => f.path)).toContain('src/nested/deep/a.ts')
+  expect(inventory.files.every((f) => !f.path.includes('\\'))).toBe(true)
+  expect(inventory.files.every((f) => !f.path.startsWith('/'))).toBe(true)
+})
+
+test('the git source respects .gitignore and includes untracked files', async () => {
+  await run('git', ['init', '-q'], { cwd: dir })
+  await run('git', ['config', 'user.email', 't@t.test'], { cwd: dir })
+  await run('git', ['config', 'user.name', 'Test'], { cwd: dir })
+  await write('.gitignore', 'ignored/\n')
+  await write('src/tracked.ts')
+  await run('git', ['add', '.'], { cwd: dir })
+  await run('git', ['commit', '-qm', 'init'], { cwd: dir })
+  await write('src/untracked.ts')
+  await write('ignored/hidden.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createGitFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+
+  expect(paths).toContain('src/tracked.ts')
+  expect(paths).toContain('src/untracked.ts')
+  expect(paths).not.toContain('ignored/hidden.ts')
+})
+
+test('selects the git source inside a repository and the walker outside one', async () => {
+  expect((await selectFileSource(dir)).id).toBe('walk')
+  await run('git', ['init', '-q'], { cwd: dir })
+  expect((await selectFileSource(dir)).id).toBe('git')
+})

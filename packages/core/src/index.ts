@@ -84,3 +84,12 @@ export {
   type WorkspaceGraph,
   type WorkspaceNode,
 } from './discovery/workspaces.ts'
+
+export {
+  buildInventory,
+  createGitFileSource,
+  createWalkFileSource,
+  selectFileSource,
+  type BuildInventoryOptions,
+  type FileSource,
+} from './discovery/inventory.ts'
