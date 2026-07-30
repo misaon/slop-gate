@@ -56,9 +56,22 @@ test('rejects a default export that is not an object', async () => {
   await expect(loadConfig(dir)).rejects.toThrow(/must export a configuration object/)
 })
 
-test('reports a syntax error as a ConfigError naming the file', async () => {
+test('reports a syntax error with the real parse diagnostic, not a misleading one', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { rules: `)
+
+  // Asserting only on the filename would pass even when the "no default export" branch fires,
+  // which is what an earlier version of this code actually did.
+  await expect(loadConfig(dir)).rejects.toThrow(/could not be parsed/)
   await expect(loadConfig(dir)).rejects.toThrow(/slop-gate\.config\.ts/)
+  await expect(loadConfig(dir)).rejects.not.toThrow(/default export/)
+})
+
+test('leaves no scratch file behind when the config cannot be parsed', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { rules: `)
+  await expect(loadConfig(dir)).rejects.toThrow()
+
+  const { readdir } = await import('node:fs/promises')
+  expect((await readdir(dir)).filter((f) => f.endsWith('.sgate.mjs'))).toEqual([])
 })
 
 test('explains path aliases when an import cannot be resolved', async () => {
