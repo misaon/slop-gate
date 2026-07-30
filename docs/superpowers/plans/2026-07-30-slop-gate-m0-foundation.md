@@ -6487,7 +6487,8 @@ const main = defineCommand({
   },
   subCommands: {
     check: () => import('./commands/check.ts').then((module) => module.check),
-    init: () => import('./commands/init.ts').then((module) => module.init),
+    // `init` is registered in Task 15, which creates ./commands/init.ts. Listing it here first
+    // would fail typecheck and build against a module that does not exist yet.
   },
 })
 
@@ -6508,7 +6509,7 @@ node packages/cli/bin/sgate.js check --format json | head -40
 echo "exit=$?"
 ```
 
-Expected: `--help` lists `check` and `init`. `check` produces a JSON document with `version: 1`. Exit code is 0 or 1 — never 2 or 3. A `2` means config loading broke; a `3` means the oxlint adapter cannot run and Task 11 needs revisiting.
+Expected: `--help` lists `check` (Task 15 adds `init`). `check` produces a JSON document with `version: 1`. Exit code is 0 or 1 — never 2 or 3. A `2` means config loading broke; a `3` means the oxlint adapter cannot run and Task 11 needs revisiting.
 
 - [ ] **Step 8: Commit**
 
@@ -6688,7 +6689,18 @@ test('running init twice changes nothing the second time', async () => {
 })
 ```
 
-- [ ] **Step 5: Implement init**
+- [ ] **Step 5: Implement init and register it**
+
+Register the subcommand in `packages/cli/src/main.ts`, replacing the placeholder comment Task 14 left:
+
+```ts
+  subCommands: {
+    check: () => import('./commands/check.ts').then((module) => module.check),
+    init: () => import('./commands/init.ts').then((module) => module.init),
+  },
+```
+
+Then implement the command itself.
 
 `packages/cli/src/commands/init.ts`:
 
