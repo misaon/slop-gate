@@ -5842,10 +5842,13 @@ test('handles a finding on the first line', () => {
   expect(frame).not.toContain('0 |')
 })
 
-test('underlines the full span on a single line', () => {
+test('puts the caret under the character at the start column', () => {
   const frame = renderCodeFrame(source, { startLine: 1, startColumn: 7, endLine: 1, endColumn: 8 })
-  const underline = frame.split('\n').find((line) => line.includes('^'))
-  expect(underline?.indexOf('^')).toBe(frame.split('\n')[0]!.indexOf('const'))
+  const [codeLine, underline] = frame.split('\n')
+
+  // `const` begins at the code line's column 1, so column 7 is six characters further right. Both
+  // rows carry the same gutter, so the indices are directly comparable.
+  expect(underline!.indexOf('^')).toBe(codeLine!.indexOf('const') + 6)
 })
 
 test('underlines only to end of line for a multi-line span', () => {
@@ -5990,6 +5993,16 @@ test('summarises counts, cache use and duration', () => {
   expect(output).toContain('42')
 })
 
+test('pluralises the words a developer reads on every run', () => {
+  const singular = capture([{ type: 'done', result: result({ stats: { filesScanned: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 } }) }])
+  expect(singular).toContain('1 file,')
+  expect(singular).not.toContain('1 files')
+
+  const plural = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 2, info: 0 } }) }])
+  expect(plural).toContain('2 warnings')
+  expect(plural).not.toContain('2 warns')
+})
+
 test('says so plainly when nothing was found', () => {
   const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
   expect(output).toMatch(/no issues/i)
@@ -6072,6 +6085,14 @@ const SEVERITY_STYLE: Readonly<Record<Severity, Parameters<typeof styleText>[0]>
   info: 'blue',
 }
 
+const SEVERITY_LABEL: Readonly<Record<Severity, string>> = {
+  error: 'error',
+  warn: 'warning',
+  info: 'note',
+}
+
+const plural = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? '' : 's'}`
+
 export function createPrettyReporter(context: ReporterContext): Reporter {
   const paint = (style: Parameters<typeof styleText>[0], text: string): string =>
     context.color ? styleText(style, text) : text
@@ -6107,7 +6128,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
 
     const parts = (['error', 'warn', 'info'] as const)
       .filter((severity) => result.counts[severity] > 0)
-      .map((severity) => paint(SEVERITY_STYLE[severity], `${result.counts[severity]} ${severity}${result.counts[severity] === 1 ? '' : 's'}`))
+      .map((severity) => paint(SEVERITY_STYLE[severity], plural(result.counts[severity], SEVERITY_LABEL[severity])))
 
     context.write('\n')
     context.write(
@@ -6118,20 +6139,26 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     context.write(
       paint(
         'dim',
-        `${result.stats.filesScanned} files, ${result.stats.filesFromCache} cached, ${result.stats.durationMs}ms`,
+        `${plural(result.stats.filesScanned, 'file')}, ${result.stats.filesFromCache} cached, ${result.stats.durationMs}ms`,
       ),
     )
     context.write('\n')
 
     if (result.ruleset.suppressed > 0) {
-      const count = result.ruleset.suppressed
       context.write(
-        paint('dim', `${count} rule overlap${count === 1 ? '' : 's'} resolved — run \`sgate rules conflicts\` for detail.\n`),
+        paint(
+          'dim',
+          `${plural(result.ruleset.suppressed, 'rule overlap')} resolved — run \`sgate rules conflicts\` for detail.\n`,
+        ),
       )
     }
     if (result.ruleset.uncovered.length > 0) {
+      const count = result.ruleset.uncovered.length
       context.write(
-        paint('yellow', `${result.ruleset.uncovered.length} enabled concepts have no capable engine in this repo.\n`),
+        paint(
+          'yellow',
+          `${plural(count, 'enabled concept')} ${count === 1 ? 'has' : 'have'} no capable engine in this repo.\n`,
+        ),
       )
     }
   }
@@ -6212,7 +6239,7 @@ Expected: PASS, 16 tests across the three files.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add packages/reporters
+git add packages/reporters pnpm-lock.yaml
 git commit -m "feat(reporters): streaming pretty output and versioned json
 
 Pretty prints each diagnostic on arrival with a header when the file
