@@ -20,6 +20,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "oxc-transform": "^0.142.0"
+    "oxc-transform": "^0.142.0",
+    "picomatch": "^4.0.5"
+  },
+  "devDependencies": {
+    "@types/picomatch": "^4.0.3"
   }
 }

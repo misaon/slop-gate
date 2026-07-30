@@ -65,3 +65,13 @@ export { PRESETS } from './config/presets.ts'
 
 export { ConfigError, EngineError } from './errors.ts'
 export { findConfigFile, loadConfig } from './config/load.ts'
+
+export {
+  createRuleSetResolver,
+  type ProvenanceLayer,
+  type ProvenanceStep,
+  type ResolveInput,
+  type ResolvedRuleSet,
+  type RuleResolution,
+  type RuleSetResolver,
+} from './config/resolve.ts'
