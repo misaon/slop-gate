@@ -11,10 +11,8 @@ export type FingerprintInput = {
 }
 
 export function fingerprint(input: FingerprintInput): string {
-  const lineRange = createLineIndex(input.source).lineRangeOf(input.range)
-  const window = Buffer.from(input.source, 'utf8')
-    .subarray(lineRange.start, lineRange.end)
-    .toString('utf8')
+  const index = createLineIndex(input.source)
+  const window = index.sliceBytes(index.lineRangeOf(input.range))
   const normalized = window.replace(/\s+/g, ' ').trim()
 
   return createHash('sha256')

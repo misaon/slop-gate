@@ -6,6 +6,7 @@ const decoder = new TextDecoder()
 export type LineIndex = {
   positionAt(byteOffset: number): { line: number; column: number }
   lineRangeOf(range: ByteRange): ByteRange
+  sliceBytes(range: ByteRange): string
 }
 
 export function createLineIndex(source: string): LineIndex {
@@ -41,6 +42,11 @@ export function createLineIndex(source: string): LineIndex {
         start: lineStarts[startLine]!,
         end: nextLineStart === undefined ? bytes.length : nextLineStart - 1,
       }
+    },
+    sliceBytes(range) {
+      const start = Math.max(0, Math.min(range.start, bytes.length))
+      const end = Math.max(start, Math.min(range.end, bytes.length))
+      return decoder.decode(bytes.subarray(start, end))
     },
   }
 }

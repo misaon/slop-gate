@@ -40,3 +40,19 @@ test('expands a range to whole lines', () => {
   const index = createLineIndex('aaa\nbbb\nccc\n')
   expect(index.lineRangeOf({ start: 5, end: 6 })).toEqual({ start: 4, end: 7 })
 })
+
+test('slices bytes back into a string', () => {
+  const index = createLineIndex('aaa\nbbb\nccc\n')
+  expect(index.sliceBytes({ start: 4, end: 7 })).toBe('bbb')
+})
+
+test('slices multi-byte characters without splitting them', () => {
+  const source = 'čč x'
+  const index = createLineIndex(source)
+  expect(index.sliceBytes({ start: 0, end: 4 })).toBe('čč')
+})
+
+test('expands a range to whole lines when the last line has no trailing newline', () => {
+  const index = createLineIndex('aaa\nbbb')
+  expect(index.lineRangeOf({ start: 5, end: 6 })).toEqual({ start: 4, end: 7 })
+})
