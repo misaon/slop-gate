@@ -59,6 +59,7 @@ export type RuleEntry = {
   readonly concepts: readonly ConceptId[]
   readonly classify?: readonly ClassifyRule[]
   readonly tier: EngineTier
+  /** Tiebreaker for conflicting fixes. Reserved: not consulted during arbitration in M0. */
   readonly priority: number
   readonly severityDefault: Severity
   readonly fixKind: FixKind | 'none'

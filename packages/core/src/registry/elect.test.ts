@@ -242,3 +242,83 @@ test('ignores concepts that are not enabled', () => {
   expect(result.selection.size).toBe(0)
   expect(result.uncovered).toEqual([])
 })
+
+test('suppression order is independent of entry order in the pinned path', () => {
+  const entries = [
+    entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] }),
+    entry({ engine: 'astgrep', engineRuleId: 'mid', concepts: ['style.no-var'] }),
+    entry({ engine: 'tsc', engineRuleId: 'other', concepts: ['style.no-var'] }),
+    entry({ engine: 'knip', engineRuleId: 'slow', concepts: ['style.no-var'], tier: 2 }),
+  ]
+  const suppressedFor = (list: RuleEntry[]): string[] =>
+    electOwners({
+      entries: list,
+      enabledConcepts: new Set(['style.no-var']),
+      pinnedOwners: { 'style.no-var': 'knip' },
+      capabilities: NO_CAPABILITIES,
+      languages: ALL_LANGUAGES,
+    }).suppressed.map((s) => `${s.suppressed.engine}/${s.suppressed.engineRuleId}`)
+
+  expect(suppressedFor([...entries].reverse())).toEqual(suppressedFor(entries))
+})
+
+test('labels a pinned suppression only when the pin is what rejected the rule', () => {
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] }),
+      entry({ engine: 'knip', engineRuleId: 'zeta', concepts: ['style.no-var'], tier: 2 }),
+      entry({ engine: 'knip', engineRuleId: 'alpha', concepts: ['style.no-var'], tier: 2 }),
+    ],
+    enabledConcepts: new Set(['style.no-var']),
+    pinnedOwners: { 'style.no-var': 'knip' },
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+  })
+  const reasonByRule = new Map(result.suppressed.map((s) => [s.suppressed.engineRuleId, s.reason]))
+
+  expect(result.owners.get('style.no-var')?.engineRuleId).toBe('alpha')
+  expect(reasonByRule.get('fast')).toBe('pinned-owner')
+  expect(reasonByRule.get('zeta')).toBe('rule-id-tiebreak')
+})
+
+test('a pin that agrees with arbitration still reports the real reason', () => {
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] }),
+      entry({ engine: 'eslint', engineRuleId: 'slow', concepts: ['style.no-var'], tier: 2 }),
+    ],
+    enabledConcepts: new Set(['style.no-var']),
+    pinnedOwners: { 'style.no-var': 'oxlint' },
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+  })
+
+  expect(result.suppressed[0]?.reason).toBe('lower-tier')
+})
+
+test('never records the winner as its own loser', () => {
+  const duplicated = entry({ engine: 'oxlint', engineRuleId: 'dupe', concepts: ['style.no-var'] })
+  const result = electOwners({
+    entries: [duplicated, { ...duplicated, languages: ['ts', 'vue'] }],
+    enabledConcepts: new Set(['style.no-var']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+  })
+
+  expect(result.suppressed).toEqual([])
+})
+
+test('orders rule ids by code unit rather than locale collation', () => {
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'apple', concepts: ['style.no-var'] }),
+      entry({ engine: 'oxlint', engineRuleId: 'Zebra', concepts: ['style.no-var'] }),
+    ],
+    enabledConcepts: new Set(['style.no-var']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+  })
+
+  // 'Z' (U+005A) precedes 'a' (U+0061) by code unit; locale collation would invert this.
+  expect(result.owners.get('style.no-var')?.engineRuleId).toBe('Zebra')
+})

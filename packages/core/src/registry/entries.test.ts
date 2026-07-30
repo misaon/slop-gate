@@ -92,3 +92,8 @@ test('the shipped registry contains a real overlap and resolves it to oxlint', (
   expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('oxlint')
   expect(result.suppressed[0]?.reason).toBe('lower-tier')
 })
+
+test('no two entries share an engine and rule id', () => {
+  const keys = WIDENED_ENTRIES.map(ruleRefKey)
+  expect(keys).toEqual([...new Set(keys)])
+})

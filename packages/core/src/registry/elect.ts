@@ -1,5 +1,5 @@
 import type { LanguageId } from '../languages.ts'
-import { ENGINE_PREFERENCE, type Capability, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
+import { ENGINE_PREFERENCE, ruleRefKey, type Capability, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
 
 export type SuppressionReason = 'lower-tier' | 'engine-preference' | 'rule-id-tiebreak' | 'pinned-owner'
 
@@ -28,6 +28,11 @@ export type ElectionResult = {
 
 const refOf = (entry: RuleEntry): RuleRef => ({ engine: entry.engine, engineRuleId: entry.engineRuleId })
 
+// Plain code-unit order, not `localeCompare`: the elected ruleset is hashed into a lockfile in a
+// later milestone, and a comparison that routes through `Intl` would make the winner depend on
+// the ICU data of whichever machine, CI runner, or JS runtime produced the hash.
+const compareStrings = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
 export function electOwners(input: ElectionInput): ElectionResult {
   const preference = input.enginePreference ?? ENGINE_PREFERENCE
   const rank = new Map(preference.map((engine, index) => [engine, index]))
@@ -45,32 +50,41 @@ export function electOwners(input: ElectionInput): ElectionResult {
   const compare = (a: RuleEntry, b: RuleEntry): number =>
     a.tier - b.tier ||
     (rank.get(a.engine) ?? preference.length) - (rank.get(b.engine) ?? preference.length) ||
-    a.engineRuleId.localeCompare(b.engineRuleId)
+    compareStrings(a.engineRuleId, b.engineRuleId)
 
-  for (const concept of [...input.enabledConcepts].sort()) {
-    const applicable = input.entries.filter((e) => e.concepts.includes(concept as never) && isApplicable(e))
+  for (const concept of [...input.enabledConcepts].sort(compareStrings)) {
+    const ranked = input.entries
+      .filter((e) => e.concepts.includes(concept as never) && isApplicable(e))
+      .sort(compare)
     const pinned = input.pinnedOwners?.[concept]
-    const eligible = pinned === undefined ? applicable : applicable.filter((e) => e.engine === pinned)
+    const eligible = pinned === undefined ? ranked : ranked.filter((e) => e.engine === pinned)
 
     if (eligible.length === 0) {
       uncovered.push(concept)
       continue
     }
 
-    const [winner, ...losers] = [...eligible].sort(compare)
-    owners.set(concept, refOf(winner!))
+    const winner = eligible[0]!
+    owners.set(concept, refOf(winner))
 
-    const enabled = selection.get(winner!.engine) ?? new Set<string>()
-    enabled.add(winner!.engineRuleId)
-    selection.set(winner!.engine, enabled)
+    const enabled = selection.get(winner.engine) ?? new Set<string>()
+    enabled.add(winner.engineRuleId)
+    selection.set(winner.engine, enabled)
 
-    const alsoRejectedByPin = pinned === undefined ? [] : applicable.filter((e) => e.engine !== pinned)
-    for (const loser of [...losers, ...alsoRejectedByPin]) {
+    const winnerKey = ruleRefKey(winner)
+    for (const loser of ranked) {
+      if (ruleRefKey(loser) === winnerKey) continue
+      // A pin only explains a suppression for a candidate that arbitration would otherwise have
+      // ranked ahead of the winner (`compare(loser, winner) < 0`) — checking `loser.engine !==
+      // pinned` instead mislabels any non-pinned-engine loser as 'pinned-owner' even when it
+      // would have lost to the winner anyway, so a pin that merely agrees with what arbitration
+      // would already have picked hides the real reason (finding 2).
+      const pinOverrode = pinned !== undefined && compare(loser, winner) < 0
       suppressed.push({
         concept,
         suppressed: refOf(loser),
-        winner: refOf(winner!),
-        reason: reasonFor(winner!, loser, pinned !== undefined),
+        winner: refOf(winner),
+        reason: reasonFor(winner, loser, pinOverrode),
       })
     }
   }
@@ -78,8 +92,8 @@ export function electOwners(input: ElectionInput): ElectionResult {
   return { owners, selection, suppressed, uncovered }
 }
 
-function reasonFor(winner: RuleEntry, loser: RuleEntry, isPinned: boolean): SuppressionReason {
-  if (isPinned) return 'pinned-owner'
+function reasonFor(winner: RuleEntry, loser: RuleEntry, pinOverrode: boolean): SuppressionReason {
+  if (pinOverrode) return 'pinned-owner'
   if (winner.tier !== loser.tier) return 'lower-tier'
   if (winner.engine !== loser.engine) return 'engine-preference'
   return 'rule-id-tiebreak'
