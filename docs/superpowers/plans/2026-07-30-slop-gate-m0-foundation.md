@@ -2735,6 +2735,9 @@ test.each([
   ['index.html', 'html'],
   ['package.json', 'json'],
   ['tsconfig.json', 'jsonc'],
+  ['tsconfig.build.json', 'jsonc'],
+  ['packages/app/tsconfig.node.json', 'jsonc'],
+  ['jsconfig.app.json', 'jsonc'],
   ['.oxlintrc.json', 'jsonc'],
   ['config.yaml', 'yaml'],
   ['config.yml', 'yaml'],
@@ -2814,6 +2817,9 @@ const BY_EXTENSION: Readonly<Record<string, LanguageId>> = {
 /** Files whose name, not extension, decides the language. */
 const JSONC_BASENAMES = new Set(['tsconfig.json', 'jsconfig.json', '.oxlintrc.json', 'biome.json'])
 
+/** `tsconfig.build.json`, `jsconfig.app.json` — the project-references naming convention. */
+const JSONC_PATTERN = /^(?:tsconfig|jsconfig)\..+\.json$/
+
 const WORKFLOW_PATTERN = /^\.github\/workflows\/[^/]+\.ya?ml$/
 
 export function detectLanguage(relativePath: string): LanguageId {
@@ -2823,7 +2829,7 @@ export function detectLanguage(relativePath: string): LanguageId {
 
   if (WORKFLOW_PATTERN.test(normalized)) return 'github-workflow'
   if (lower === 'dockerfile' || lower.startsWith('dockerfile.')) return 'dockerfile'
-  if (JSONC_BASENAMES.has(lower) || lower.endsWith('.tsconfig.json')) return 'jsonc'
+  if (JSONC_BASENAMES.has(lower) || JSONC_PATTERN.test(lower) || lower.endsWith('.tsconfig.json')) return 'jsonc'
 
   const dot = lower.lastIndexOf('.')
   if (dot <= 0) return 'unknown'
@@ -2918,6 +2924,39 @@ test('does not attribute a file to a workspace it merely shares a name prefix wi
   expect(graph.attribute('packages/app-legacy/src/a.ts').dir).toBe('')
 })
 
+test('rejects a malformed pnpm-workspace.yaml instead of silently finding no workspaces', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "unclosed\n   bad: [')
+
+  await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/pnpm-workspace\.yaml/)
+})
+
+test('accepts a pnpm-workspace.yaml that parses but declares no packages', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'onlyBuiltDependencies:\n  - esbuild\n')
+
+  expect((await buildWorkspaceGraph(dir)).nodes).toEqual([{ name: 'root', dir: '' }])
+})
+
+test('rejects a workspace pattern that escapes the repository root', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "../outside/*"\n')
+  await writePackage('../outside/leaked', '@x/leaked')
+
+  await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/outside the repository root/)
+})
+
+test('reads the object form of package.json workspaces', async () => {
+  await writeFile(
+    join(dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['apps/*'] } }),
+  )
+  await writePackage('apps/web', '@x/web')
+
+  const graph = await buildWorkspaceGraph(dir)
+  expect(graph.nodes.map((n) => n.dir).sort()).toEqual(['', 'apps/web'])
+})
+
 test('falls back to the directory name when a package has no name', async () => {
   await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }))
   const target = join(dir, 'packages', 'anon')
@@ -2943,6 +2982,7 @@ import { glob, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import picomatch from 'picomatch'
 import { parse as parseYaml } from 'yaml'
+import { ConfigError } from '../errors.ts'
 
 export type WorkspaceNode = {
   readonly name: string
@@ -2967,11 +3007,19 @@ const readJson = async (path: string): Promise<Record<string, unknown> | null> =
 
 async function readPatterns(rootDir: string): Promise<string[]> {
   const pnpmFile = join(rootDir, 'pnpm-workspace.yaml')
-  try {
-    const parsed = parseYaml(await readFile(pnpmFile, 'utf8')) as { packages?: unknown }
+  const pnpmSource = await readFile(pnpmFile, 'utf8').catch(() => null)
+
+  // A missing file legitimately means "not a pnpm workspace". A malformed one does not: swallowing
+  // it would silently produce a root-only graph, so every file attributes to the root and any
+  // per-workspace config is ignored without explanation.
+  if (pnpmSource !== null) {
+    let parsed: { packages?: unknown }
+    try {
+      parsed = parseYaml(pnpmSource) as { packages?: unknown }
+    } catch (cause) {
+      throw new ConfigError(`${pnpmFile} is not valid YAML`, { cause })
+    }
     if (Array.isArray(parsed?.packages)) return parsed.packages.filter((p): p is string => typeof p === 'string')
-  } catch {
-    // No pnpm workspace file; fall through to package.json.
   }
 
   const rootPackage = await readJson(join(rootDir, 'package.json'))
@@ -3000,6 +3048,11 @@ export async function buildWorkspaceGraph(rootDir: string): Promise<WorkspaceGra
   for (const pattern of positive) {
     for await (const match of glob(`${pattern}/package.json`, { cwd: rootDir })) {
       const dir = toPosix(dirname(match))
+      // `WorkspaceNode.dir` is contractually repo-relative, and downstream code joins it onto the
+      // root. A pattern like `../shared/*` would otherwise emit a node pointing outside the repo.
+      if (dir === '..' || dir.startsWith('../')) {
+        throw new ConfigError(`workspace pattern "${pattern}" resolves outside the repository root`)
+      }
       if (dir === '.' || isExcluded(dir) || found.has(dir)) continue
       const manifest = await readJson(join(rootDir, match))
       const name = typeof manifest?.['name'] === 'string' ? manifest['name'] : dir.slice(dir.lastIndexOf('/') + 1)
