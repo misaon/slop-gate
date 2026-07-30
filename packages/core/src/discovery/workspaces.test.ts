@@ -18,6 +18,9 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
+  // The escape-guard tests write a sibling directory outside `dir`; `force` makes this a no-op
+  // for every other test.
+  await rm(join(dir, '..', 'outside'), { recursive: true, force: true })
 })
 
 test('a repo with no workspaces has only the root', async () => {
@@ -102,13 +105,15 @@ test('rejects a workspace pattern that escapes the repository root', async () =>
   await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "../outside/*"\n')
   await writePackage('../outside/leaked', '@x/leaked')
 
-  // The leaked directory is a sibling of `dir`, not nested inside it, so the shared afterEach
-  // cannot reach it — clean it up locally regardless of assertion outcome.
-  try {
-    await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/outside the repository root/)
-  } finally {
-    await rm(join(dir, '..', 'outside'), { recursive: true, force: true })
-  }
+  await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/outside the repository root/)
+})
+
+test('rejects a workspace pattern that escapes the root via a non-leading ..', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/../../outside/*"\n')
+  await writePackage('../outside/leaked', '@x/leaked')
+
+  await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/outside the repository root/)
 })
 
 test('reads the object form of package.json workspaces', async () => {
