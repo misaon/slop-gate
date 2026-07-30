@@ -4093,11 +4093,14 @@ const unusedVars: RuleEntry = {
   since: '0.1.0',
 }
 
+// `classify` is omitted rather than set to `undefined`: `exactOptionalPropertyTypes` rejects an
+// explicit `undefined` for an optional property.
+const { classify: _unusedClassify, ...unusedVarsWithoutClassify } = unusedVars
+
 const noDebugger: RuleEntry = {
-  ...unusedVars,
+  ...unusedVarsWithoutClassify,
   engineRuleId: 'no-debugger',
   concepts: ['correctness.no-debugger'],
-  classify: undefined,
   severityDefault: 'error',
   docsUrl: 'https://example.test/no-debugger',
 }
@@ -4559,6 +4562,22 @@ const LEVEL_TO_OXLINT: Readonly<Record<string, string>> = {
   off: 'off',
 }
 
+/**
+ * oxlint enables 114 rules by default regardless of whether `categories` is absent or `{}` —
+ * confirmed against the real binary. Every category must be turned off explicitly, or a rule the
+ * registry never elected still reports and bypasses arbitration. `"all"` is a CLI-only shorthand
+ * and is rejected by the config parser.
+ */
+const ALL_CATEGORIES_OFF = {
+  correctness: 'off',
+  suspicious: 'off',
+  pedantic: 'off',
+  perf: 'off',
+  style: 'off',
+  restriction: 'off',
+  nursery: 'off',
+} as const
+
 export async function materializeOxlintConfig(
   selection: EngineRuleSelection,
   context: RunContext,
@@ -4570,10 +4589,7 @@ export async function materializeOxlintConfig(
       .map(([ruleId, level]) => [ruleId, LEVEL_TO_OXLINT[level] ?? 'warn']),
   )
 
-  // `categories: {}` disables oxlint's own defaults so slop-gate's ruleset is the only source
-  // of enabled rules. Without it, oxlint's `correctness` category would report rules the
-  // registry never elected, bypassing arbitration entirely.
-  const config = { $schema: undefined, categories: {}, rules }
+  const config = { categories: ALL_CATEGORIES_OFF, rules }
   const rulesetHash = hashJson(config)
 
   await mkdir(context.tmpDir, { recursive: true })
@@ -4590,7 +4606,15 @@ export async function materializeOxlintConfig(
 }
 ```
 
-`info` maps to oxlint's `warn` because oxlint has no third level; the distinction is preserved in our own diagnostics because normalization takes severity from the resolved level, not from the engine (Task 11 Step 5).
+`info` maps to oxlint's `warn` because oxlint has no third level; the distinction is preserved in our
+own diagnostics because normalization takes severity from the resolved level, not from the engine
+(Task 11 Step 5).
+
+The exhaustive `categories` block is not defensive padding. An earlier draft of this plan used
+`categories: {}` on the assumption that an empty object disables the defaults. It does not — oxlint
+still enables 114 rules — and no test in this task would have caught it, because every rule these
+tests select happens to also be default-on. Arbitration would have been silently bypassed for any
+default-on rule the registry chose *not* to elect.
 
 - [ ] **Step 12: Write the failing engine tests**
 
@@ -4716,6 +4740,7 @@ test('raises an EngineError when the binary is missing', async () => {
 ```ts
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   EngineError,
@@ -4737,10 +4762,15 @@ const run = promisify(execFile)
 /** oxlint exits 1 when it reports findings; only higher codes are real failures. */
 const MAX_FINDINGS_EXIT_CODE = 1
 
+/**
+ * oxlint's `exports` map does not list `./bin/oxlint`, so `require.resolve('oxlint/bin/oxlint')`
+ * always throws `ERR_PACKAGE_PATH_NOT_EXPORTED`. `./package.json` is exported, so resolve that and
+ * join the package's own documented binary path.
+ */
 function resolveBinary(): string {
   const require = createRequire(import.meta.url)
   try {
-    return require.resolve('oxlint/bin/oxlint')
+    return join(dirname(require.resolve('oxlint/package.json')), 'bin', 'oxlint')
   } catch {
     return 'oxlint'
   }
@@ -4761,7 +4791,8 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
 
     async version() {
       const { stdout } = await run(binary, ['--version'], { encoding: 'utf8' })
-      return stdout.trim().replace(/^oxlint\s+/, '')
+      // Prints `Version: 1.76.0`, not `oxlint 1.76.0`.
+      return stdout.trim().replace(/^version:\s*/i, '')
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
@@ -4789,7 +4820,6 @@ async function* execute(
     '--disable-nested-config',
     '--format',
     'json',
-    '--silent',
     ...batch.files.map((file) => file.path),
   ]
 
@@ -4816,7 +4846,12 @@ async function* execute(
 }
 ```
 
-`--silent` suppresses oxlint's own rendering while `--format json` still writes the machine output, and `--disable-nested-config` stops oxlint from picking up `.oxlintrc.json` files left in the repository — slop-gate's materialised config must be the only one in effect, or arbitration is bypassed.
+`--disable-nested-config` stops oxlint from picking up `.oxlintrc.json` files left in the repository —
+slop-gate's materialised config must be the only one in effect, or arbitration is bypassed.
+
+There is deliberately no `--silent`. It reads as "suppress oxlint's own rendering, keep the machine
+output", but under `--format json` it empties the `diagnostics` array, so every run reports zero
+findings.
 
 The `--format json` flag exists alongside a native `agent` format in oxlint 1.75. We deliberately consume `json`: our `agent` reporter (M4) renders every engine uniformly, and adopting one engine's agent format would make the others inconsistent.
 
@@ -4843,10 +4878,11 @@ git add packages
 git commit -m "feat(engine-oxlint): oxlint adapter behind the Engine interface
 
 Rule ids and output shape were recorded from the real binary before the
-parser was written. Materialised configs set categories to {} so only
-rules the registry elected can run; nested .oxlintrc.json files are
-ignored for the same reason. Normalization emits at most one diagnostic
-per finding, attributing multi-concept rules via registry classify data."
+parser was written. Materialised configs turn every oxlint category off
+explicitly so only rules the registry elected can run; nested
+.oxlintrc.json files are ignored for the same reason. Normalization emits
+at most one diagnostic per finding, attributing multi-concept rules via
+registry classify data."
 ```
 
 ---
