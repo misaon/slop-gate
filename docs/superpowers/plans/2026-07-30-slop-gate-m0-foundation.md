@@ -1855,6 +1855,9 @@ export type SlopGateConfig = {
 
 const RULE_LEVELS: readonly RuleLevel[] = ['off', 'info', 'warn', 'error']
 
+/** Ordinal strength, for "the strongest level any layer assigns". */
+export const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
+
 export function isRuleLevel(value: unknown): value is RuleLevel {
   return typeof value === 'string' && RULE_LEVELS.includes(value as RuleLevel)
 }
@@ -2549,8 +2552,6 @@ export type RuleSetResolver = {
 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
-
-const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
 
 export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const rootSource = input.configFile ?? 'slop-gate.config.ts'
@@ -5169,8 +5170,6 @@ export type PlanInput = {
   resolver: RuleSetResolver
 }
 
-const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
-
 export function buildPlan(input: PlanInput): EngineAssignment[] {
   const conceptsByRule = new Map<string, string[]>()
   for (const [concept, owner] of input.election.owners) {
@@ -5618,7 +5617,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               entries,
               owners: election.owners,
               sourceOf: () => source,
-              levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level,
+              // Defaults to `off`, not `undefined`. Now that election considers override-only
+              // concepts, a rule scoped to `legacy/**` is configured on the engine for the whole
+              // run — and normalizeDiagnostics treats an undefined level as "use the registry
+              // default severity", which would report it on every file instead of the matching glob.
+              levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
             })
 
             if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
@@ -5661,7 +5664,9 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
         durationMs: Math.round(performance.now() - startedAt),
       },
       ruleset: {
-        enabledConcepts: resolver.base.enabledConcepts.size,
+        // `anyEnabledConcepts`, not `base`: a concept enabled only by an override is still checked
+        // on the files it matches, so reporting the base count would undercount the run.
+        enabledConcepts: resolver.anyEnabledConcepts.size,
         suppressed: election.suppressed.length,
         uncovered: election.uncovered,
         unknownKeys: resolver.base.unknownKeys,
