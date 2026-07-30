@@ -89,6 +89,18 @@ test('finds a real violation in a real file', async () => {
   await handle.dispose()
 })
 
+test('does not report a default-on rule the registry did not elect', async () => {
+  await writeFile(join(dir, 'src/a.ts'), 'export const dupe = { a: 1, a: 2 }\nexport function f() {\n  debugger\n}\n')
+  const engine = createOxlintEngine()
+  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+
+  const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
+
+  // `no-dupe-keys` is default-on in oxlint and violated by this file, but was never elected.
+  expect(found.map((d) => d.engineRuleId)).toEqual(['no-debugger'])
+  await handle.dispose()
+})
+
 test('yields nothing for a clean file', async () => {
   await writeFile(join(dir, 'src/clean.ts'), 'export const a = 1\n')
   const engine = createOxlintEngine()

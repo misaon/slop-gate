@@ -43,7 +43,15 @@ export async function materializeOxlintConfig(
       .map(([ruleId, level]) => [ruleId, LEVEL_TO_OXLINT[level] ?? 'warn']),
   )
 
-  const config = { categories: ALL_CATEGORIES_OFF, rules }
+  // oxlint only activates a rule whose scope is listed in `plugins`. Without this, an elected rule
+  // from any scope beyond eslint/typescript/unicorn/oxc is silently ignored: no warning, no config
+  // rejection, `number_of_rules: 0`. That is the mirror image of the categories defect — instead of
+  // unelected rules running, elected rules do not. `eslint` itself is always available and never
+  // needs to appear here (confirmed: an empty `plugins` array does not narrow out bare rule ids).
+  const scopes = Object.keys(rules).flatMap((id) => (id.includes('/') ? [id.split('/')[0]!] : []))
+  const plugins = [...new Set(scopes)].sort(compareStrings)
+
+  const config = { categories: ALL_CATEGORIES_OFF, plugins, rules }
   const rulesetHash = hashJson(config)
 
   await mkdir(context.tmpDir, { recursive: true })
@@ -53,6 +61,7 @@ export async function materializeOxlintConfig(
   return {
     path,
     rulesetHash,
+    ruleCount: Object.keys(rules).length,
     async dispose() {
       await rm(path, { force: true })
     },

@@ -83,3 +83,20 @@ test('returns nothing for empty output', () => {
 test('throws on output that is not oxlint json', () => {
   expect(() => parseOxlintOutput('not json at all', '/repo')).toThrow(/oxlint/)
 })
+
+test('tolerates a plain-text preamble before the json, such as a stale-path warning', () => {
+  const preambled = `No files found to lint. Please check your paths and ignore patterns.\n${JSON.stringify({
+    diagnostics: [],
+    number_of_files: 0,
+    number_of_rules: 1,
+  })}`
+  expect(parseOxlintOutput(preambled, '/repo')).toEqual([])
+})
+
+test('does not throw when the reported rule count matches what was elected', () => {
+  expect(parseOxlintOutput(SAMPLE, '/repo', { ruleCount: 2 })).toHaveLength(2)
+})
+
+test('throws when oxlint activated a different number of rules than were elected', () => {
+  expect(() => parseOxlintOutput(SAMPLE, '/repo', { ruleCount: 3 })).toThrow(/expected 3 rule/)
+})

@@ -11,6 +11,7 @@ type OxlintDiagnostic = {
   filename: string
   labels?: Array<{ span: OxlintSpan }>
 }
+type OxlintPayload = { diagnostics?: OxlintDiagnostic[]; number_of_rules?: number }
 
 const CODE_PATTERN = /^([a-z0-9-]+)\(([^)]+)\)$/
 
@@ -30,18 +31,41 @@ const SEVERITIES: Readonly<Record<string, RawSeverity>> = {
   info: 'info',
 }
 
-export function parseOxlintOutput(stdout: string, rootDir: string): RawDiagnostic[] {
+export function parseOxlintOutput(
+  stdout: string,
+  rootDir: string,
+  expected?: { ruleCount: number },
+): RawDiagnostic[] {
   const trimmed = stdout.trim()
   if (trimmed === '') return []
 
-  let parsed: { diagnostics?: OxlintDiagnostic[] }
+  // oxlint can print a plain-text preamble before the JSON — notably `No files found to lint.`
+  // when a batch path no longer exists, which is routine in a caching linter. Parsing from the
+  // first brace keeps a vanished file from destroying the whole batch under a misdiagnosing error.
+  const jsonStart = trimmed.indexOf('{')
+  if (jsonStart === -1) {
+    throw new EngineError('oxlint', `oxlint produced no json output: ${trimmed.slice(0, 200)}`)
+  }
+
+  let parsed: OxlintPayload
   try {
-    parsed = JSON.parse(trimmed) as { diagnostics?: OxlintDiagnostic[] }
+    parsed = JSON.parse(trimmed.slice(jsonStart)) as OxlintPayload
   } catch (cause) {
     throw new EngineError('oxlint', `could not parse oxlint json output: ${trimmed.slice(0, 200)}`, { cause })
   }
   if (!Array.isArray(parsed.diagnostics)) {
     throw new EngineError('oxlint', 'oxlint json output has no diagnostics array')
+  }
+
+  // Every payload reports how many rules actually ran. Comparing it to the elected count turns two
+  // otherwise-silent failures loud: a category we forgot to disable leaking rules in (count too
+  // high), and an elected rule oxlint never activated (count too low).
+  if (expected !== undefined && parsed.number_of_rules !== expected.ruleCount) {
+    throw new EngineError(
+      'oxlint',
+      `expected ${expected.ruleCount} rule(s) to run, oxlint ran ${parsed.number_of_rules}. ` +
+        `The materialised config is not selecting exactly the elected ruleset.`,
+    )
   }
 
   const results: RawDiagnostic[] = []

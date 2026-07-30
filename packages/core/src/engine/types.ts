@@ -36,6 +36,10 @@ export type RunContext = {
 export type EngineConfigHandle = {
   readonly path: string
   readonly rulesetHash: string
+  /** How many rules this config enables, when the engine can report it. Lets `run` assert that the
+   *  engine activated exactly the elected set — catching both unelected rules leaking in and
+   *  elected rules silently not running. */
+  readonly ruleCount?: number
   dispose(): Promise<void>
 }
 

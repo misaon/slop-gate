@@ -102,5 +102,6 @@ async function* execute(
     }
   }
 
-  yield* parseOxlintOutput(stdout, context.rootDir)
+  const expected = handle.ruleCount === undefined ? undefined : { ruleCount: handle.ruleCount }
+  yield* parseOxlintOutput(stdout, context.rootDir, expected)
 }
