@@ -1,4 +1,4 @@
-import type { RuleLevel } from '../config/types.ts'
+import { LEVEL_STRENGTH, type RuleLevel } from '../config/types.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import type { Engine, EngineRuleSelection } from '../engine/types.ts'
@@ -18,8 +18,6 @@ export type PlanInput = {
   election: ElectionResult
   resolver: RuleSetResolver
 }
-
-const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
 
 export function buildPlan(input: PlanInput): EngineAssignment[] {
   const conceptsByRule = new Map<string, string[]>()

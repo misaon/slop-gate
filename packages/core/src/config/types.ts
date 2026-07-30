@@ -32,6 +32,9 @@ export type SlopGateConfig = {
 
 const RULE_LEVELS: readonly RuleLevel[] = ['off', 'info', 'warn', 'error']
 
+/** Ordinal strength, for "the strongest level any layer assigns". */
+export const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
+
 export function isRuleLevel(value: unknown): value is RuleLevel {
   return typeof value === 'string' && RULE_LEVELS.includes(value as RuleLevel)
 }

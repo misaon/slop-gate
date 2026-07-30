@@ -3,7 +3,15 @@ import { isConceptId } from '../concepts/catalogue.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { ruleRefKey, type EngineId } from '../registry/types.ts'
 import { PRESETS } from './presets.ts'
-import { splitRuleSetting, type RuleKey, type RuleLevel, type RuleMap, type RuleSetting, type SlopGateConfig } from './types.ts'
+import {
+  LEVEL_STRENGTH,
+  splitRuleSetting,
+  type RuleKey,
+  type RuleLevel,
+  type RuleMap,
+  type RuleSetting,
+  type SlopGateConfig,
+} from './types.ts'
 
 export type ProvenanceLayer = 'preset' | 'root-config' | 'workspace-config' | 'override'
 
@@ -47,8 +55,6 @@ export type RuleSetResolver = {
   /** The strongest level any layer assigns to a concept, or `off` if no layer mentions it. */
   maxLevelOf(concept: string): RuleLevel
 }
-
-const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
 

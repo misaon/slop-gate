@@ -237,7 +237,9 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
         durationMs: Math.round(performance.now() - startedAt),
       },
       ruleset: {
-        enabledConcepts: resolver.base.enabledConcepts.size,
+        // `anyEnabledConcepts`, not `base`: a concept enabled only by an override is still checked
+        // on the files it matches, so reporting the base count would undercount the run.
+        enabledConcepts: resolver.anyEnabledConcepts.size,
         suppressed: election.suppressed.length,
         uncovered: election.uncovered,
         unknownKeys: resolver.base.unknownKeys,

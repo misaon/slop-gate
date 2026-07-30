@@ -229,4 +229,5 @@ test('an override can enable a concept the base config never mentions, scoped to
   const files = result.diagnostics.map((d) => d.file)
   expect(files).toContain('legacy/a.ts')
   expect(files).not.toContain('src/a.ts')
+  expect(result.ruleset.enabledConcepts).toBeGreaterThan(0)
 })
