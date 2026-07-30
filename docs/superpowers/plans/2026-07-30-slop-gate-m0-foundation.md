@@ -3538,6 +3538,7 @@ Expected: FAIL, cannot resolve `./keys.ts`.
 
 ```ts
 import { createHash } from 'node:crypto'
+import { compareStrings } from '../ordering.ts'
 
 export const RESULT_SCHEMA_VERSION = 1
 
@@ -3562,7 +3563,7 @@ export function hashJson(value: unknown): string {
 }
 
 export function hashRuleSelection(ruleIds: Iterable<string>): string {
-  return hashContent([...ruleIds].sort().join('\0'))
+  return hashJson([...ruleIds].sort(compareStrings))
 }
 
 export type ResultKeyInput = {
@@ -3573,17 +3574,14 @@ export type ResultKeyInput = {
   configHash: string
 }
 
+/**
+ * Hashes the structured input rather than joining components with a separator. A `\0` join is not
+ * injective over untyped strings: `{engineId: 'a', engineVersion: 'b\0c'}` and
+ * `{engineId: 'a\0b', engineVersion: 'c'}` produce the same joined string and therefore the same
+ * cache key. JSON escaping removes that whole class of boundary-shift collision.
+ */
 export function deriveResultKey(input: ResultKeyInput): string {
-  return hashContent(
-    [
-      String(RESULT_SCHEMA_VERSION),
-      input.engineId,
-      input.engineVersion,
-      input.engineRulesetHash,
-      input.fileHash,
-      input.configHash,
-    ].join('\0'),
-  )
+  return hashJson({ schema: RESULT_SCHEMA_VERSION, ...input })
 }
 ```
 
@@ -3692,6 +3690,7 @@ Expected: FAIL, cannot resolve `./stat-index.ts`.
 `packages/core/src/cache/stat-index.ts`:
 
 ```ts
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { InventoryFile } from '../discovery/types.ts'
@@ -3728,7 +3727,7 @@ export async function openStatIndex(cacheDir: string): Promise<StatIndex> {
       if (!dirty) return
       await mkdir(cacheDir, { recursive: true })
       const target = join(cacheDir, INDEX_FILE)
-      const scratch = `${target}.${process.pid}.tmp`
+      const scratch = `${target}.${randomUUID()}.tmp`
       await writeFile(scratch, JSON.stringify(Object.fromEntries(entries)), 'utf8')
       await rename(scratch, target)
       dirty = false
@@ -3840,17 +3839,19 @@ Expected: FAIL, cannot resolve `./result-store.ts`.
 `packages/core/src/cache/result-store.ts`:
 
 ```ts
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Diagnostic } from '../diagnostics/types.ts'
-import { RESULT_SCHEMA_VERSION } from './keys.ts'
+import { RESULT_SCHEMA_VERSION, type ResultKeyInput } from './keys.ts'
 
 export type ResultStore = {
   get(key: string): Promise<Diagnostic[] | null>
-  set(key: string, diagnostics: readonly Diagnostic[]): Promise<void>
+  set(key: string, diagnostics: readonly Diagnostic[], components: ResultKeyInput): Promise<void>
 }
 
-type StoredResult = { schema: number; diagnostics: Diagnostic[] }
+/** `key` records what produced this entry, so a surprising cache hit can be explained. */
+type StoredResult = { schema: number; key: ResultKeyInput; diagnostics: Diagnostic[] }
 
 export function openResultStore(cacheDir: string): ResultStore {
   const pathFor = (key: string): string => join(cacheDir, 'results', key.slice(0, 2), `${key}.json`)
@@ -3866,11 +3867,15 @@ export function openResultStore(cacheDir: string): ResultStore {
       }
     },
 
-    async set(key, diagnostics) {
+    async set(key, diagnostics, components) {
       const target = pathFor(key)
       await mkdir(dirname(target), { recursive: true })
-      const payload: StoredResult = { schema: RESULT_SCHEMA_VERSION, diagnostics: [...diagnostics] }
-      const scratch = `${target}.${process.pid}.tmp`
+      const payload: StoredResult = {
+        schema: RESULT_SCHEMA_VERSION,
+        key: components,
+        diagnostics: [...diagnostics],
+      }
+      const scratch = `${target}.${randomUUID()}.tmp`
       await writeFile(scratch, JSON.stringify(payload), 'utf8')
       await rename(scratch, target)
     },
@@ -5311,7 +5316,7 @@ Expected: FAIL, cannot resolve `./check.ts`.
 ```ts
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { deriveResultKey, hashJson } from '../cache/keys.ts'
+import { deriveResultKey, hashJson, type ResultKeyInput } from '../cache/keys.ts'
 import { openResultStore } from '../cache/result-store.ts'
 import { openStatIndex } from '../cache/stat-index.ts'
 import { createRuleSetResolver } from '../config/resolve.ts'
@@ -5432,16 +5437,19 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       try {
         const pending: InventoryFile[] = []
         const keys = new Map<string, string>()
+        const keyInputs = new Map<string, ResultKeyInput>()
 
         for (const file of assignment.files) {
-          const key = deriveResultKey({
+          const components = {
             engineId: engine.id,
             engineVersion: version,
             engineRulesetHash: handle.rulesetHash,
             fileHash: await statIndex.hashOf(options.rootDir, file),
             configHash,
-          })
+          }
+          const key = deriveResultKey(components)
           keys.set(file.path, key)
+          keyInputs.set(file.path, components)
 
           const hit = useCache ? await resultStore.get(key) : null
           if (hit === null) {
@@ -5480,7 +5488,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level,
             })
 
-            if (useCache) await resultStore.set(keys.get(path)!, normalized)
+            if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
             for (const diagnostic of normalized) {
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
