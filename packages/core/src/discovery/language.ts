@@ -32,6 +32,9 @@ const BY_EXTENSION: Readonly<Record<string, LanguageId>> = {
 /** Files whose name, not extension, decides the language. */
 const JSONC_BASENAMES = new Set(['tsconfig.json', 'jsconfig.json', '.oxlintrc.json', 'biome.json'])
 
+/** `tsconfig.build.json`, `jsconfig.app.json` — the project-references naming convention. */
+const JSONC_PATTERN = /^(?:tsconfig|jsconfig)\..+\.json$/
+
 const WORKFLOW_PATTERN = /^\.github\/workflows\/[^/]+\.ya?ml$/
 
 export function detectLanguage(relativePath: string): LanguageId {
@@ -41,7 +44,7 @@ export function detectLanguage(relativePath: string): LanguageId {
 
   if (WORKFLOW_PATTERN.test(normalized)) return 'github-workflow'
   if (lower === 'dockerfile' || lower.startsWith('dockerfile.')) return 'dockerfile'
-  if (JSONC_BASENAMES.has(lower) || lower.endsWith('.tsconfig.json')) return 'jsonc'
+  if (JSONC_BASENAMES.has(lower) || JSONC_PATTERN.test(lower) || lower.endsWith('.tsconfig.json')) return 'jsonc'
 
   const dot = lower.lastIndexOf('.')
   if (dot <= 0) return 'unknown'

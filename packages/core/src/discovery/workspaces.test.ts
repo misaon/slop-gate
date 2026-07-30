@@ -82,3 +82,39 @@ test('falls back to the directory name when a package has no name', async () => 
   const graph = await buildWorkspaceGraph(dir)
   expect(graph.nodes.find((n) => n.dir === 'packages/anon')?.name).toBe('anon')
 })
+
+test('rejects a malformed pnpm-workspace.yaml instead of silently finding no workspaces', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "unclosed\n   bad: [')
+
+  await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/pnpm-workspace\.yaml/)
+})
+
+test('accepts a pnpm-workspace.yaml that parses but declares no packages', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'onlyBuiltDependencies:\n  - esbuild\n')
+
+  expect((await buildWorkspaceGraph(dir)).nodes).toEqual([{ name: 'root', dir: '' }])
+})
+
+test('rejects a workspace pattern that escapes the repository root', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "../outside/*"\n')
+  await writePackage('../outside/leaked', '@x/leaked')
+
+  // The leaked directory is a sibling of `dir`, not nested inside it, so the shared afterEach
+  // cannot reach it — clean it up locally regardless of assertion outcome.
+  try {
+    await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/outside the repository root/)
+  } finally {
+    await rm(join(dir, '..', 'outside'), { recursive: true, force: true })
+  }
+})
+
+test('reads the object form of package.json workspaces', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root', workspaces: { packages: ['apps/*'] } }))
+  await writePackage('apps/web', '@x/web')
+
+  const graph = await buildWorkspaceGraph(dir)
+  expect(graph.nodes.map((n) => n.dir).sort()).toEqual(['', 'apps/web'])
+})

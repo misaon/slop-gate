@@ -2,6 +2,7 @@ import { glob, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import picomatch from 'picomatch'
 import { parse as parseYaml } from 'yaml'
+import { ConfigError } from '../errors.ts'
 
 export type WorkspaceNode = {
   readonly name: string
@@ -26,11 +27,19 @@ const readJson = async (path: string): Promise<Record<string, unknown> | null> =
 
 async function readPatterns(rootDir: string): Promise<string[]> {
   const pnpmFile = join(rootDir, 'pnpm-workspace.yaml')
-  try {
-    const parsed = parseYaml(await readFile(pnpmFile, 'utf8')) as { packages?: unknown }
+  const pnpmSource = await readFile(pnpmFile, 'utf8').catch(() => null)
+
+  // A missing file legitimately means "not a pnpm workspace". A malformed one does not: swallowing
+  // it would silently produce a root-only graph, so every file attributes to the root and any
+  // per-workspace config is ignored without explanation.
+  if (pnpmSource !== null) {
+    let parsed: { packages?: unknown }
+    try {
+      parsed = parseYaml(pnpmSource) as { packages?: unknown }
+    } catch (cause) {
+      throw new ConfigError(`${pnpmFile} is not valid YAML`, { cause })
+    }
     if (Array.isArray(parsed?.packages)) return parsed.packages.filter((p): p is string => typeof p === 'string')
-  } catch {
-    // No pnpm workspace file; fall through to package.json.
   }
 
   const rootPackage = await readJson(join(rootDir, 'package.json'))
@@ -59,6 +68,11 @@ export async function buildWorkspaceGraph(rootDir: string): Promise<WorkspaceGra
   for (const pattern of positive) {
     for await (const match of glob(`${pattern}/package.json`, { cwd: rootDir })) {
       const dir = toPosix(dirname(match))
+      // `WorkspaceNode.dir` is contractually repo-relative, and downstream code joins it onto the
+      // root. A pattern like `../shared/*` would otherwise emit a node pointing outside the repo.
+      if (dir === '..' || dir.startsWith('../')) {
+        throw new ConfigError(`workspace pattern "${pattern}" resolves outside the repository root`)
+      }
       if (dir === '.' || isExcluded(dir) || found.has(dir)) continue
       const manifest = await readJson(join(rootDir, match))
       const name = typeof manifest?.['name'] === 'string' ? manifest['name'] : dir.slice(dir.lastIndexOf('/') + 1)

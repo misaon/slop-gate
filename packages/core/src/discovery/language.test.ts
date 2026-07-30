@@ -24,6 +24,9 @@ test.each([
   ['Cargo.toml', 'toml'],
   ['README.md', 'markdown'],
   ['LICENSE', 'unknown'],
+  ['tsconfig.build.json', 'jsonc'],
+  ['packages/app/tsconfig.node.json', 'jsonc'],
+  ['jsconfig.app.json', 'jsonc'],
 ])('detects %s as %s', (path, expected) => {
   expect(detectLanguage(path)).toBe(expected)
 })
