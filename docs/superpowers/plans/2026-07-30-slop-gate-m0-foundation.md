@@ -3525,6 +3525,15 @@ test('the same inputs produce the same key', () => {
 test('keys are filesystem-safe hex', () => {
   expect(deriveResultKey(base)).toMatch(/^[0-9a-f]{64}$/)
 })
+
+test('cannot be collided by shifting content across a component boundary', () => {
+  // The separator itself must be the shifted character. Using an ordinary space here would pass
+  // against a naive `\0`-join too, so the test would prove nothing.
+  const a = { ...base, engineId: 'a', engineVersion: 'b\u0000c' }
+  const b = { ...base, engineId: 'a\u0000b', engineVersion: 'c' }
+
+  expect(deriveResultKey(a)).not.toBe(deriveResultKey(b))
+})
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
