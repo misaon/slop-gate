@@ -45,7 +45,7 @@ const planWith = (args: {
   const resolver = createRuleSetResolver({ config: { rules: args.rules as never } })
   const election = electOwners({
     entries: args.entries,
-    enabledConcepts: resolver.base.enabledConcepts,
+    enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(),
     languages: new Set(args.files.map((f) => f.language)),
   })
@@ -53,7 +53,6 @@ const planWith = (args: {
     engines: args.engines,
     election,
     resolver,
-    entries: args.entries,
     inventory: {
       root: '/repo',
       files: args.files,
@@ -101,7 +100,7 @@ test('gives an engine only files in languages it supports', () => {
 
 test('omits an engine that supports no file in the inventory', () => {
   const plan = planWith({
-    entries: [entry({ engine: 'oxlint', engineRuleId: 'r', concepts: ['correctness.no-debugger'], languages: ['css'] })],
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'r', concepts: ['correctness.no-debugger'] })],
     engines: [fakeEngine('oxlint', ['css'])],
     files: [file('a.ts', 'ts')],
     rules: { 'correctness.no-debugger': 'error' },

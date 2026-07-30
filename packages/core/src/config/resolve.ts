@@ -37,7 +37,18 @@ export type RuleSetResolver = {
   base: ResolvedRuleSet
   forFile(relativePath: string): ResolvedRuleSet
   bucketCount(): number
+  /**
+   * Concepts enabled by the base config **or by any override block**. The planner elects and
+   * configures against this, not against `base`: an override that enables a concept only under
+   * `legacy/**` must still cause the engine to run that rule, or the override is silently dead.
+   * Per-file severity is then applied during normalization via `forFile`.
+   */
+  anyEnabledConcepts: ReadonlySet<string>
+  /** The strongest level any layer assigns to a concept, or `off` if no layer mentions it. */
+  maxLevelOf(concept: string): RuleLevel
 }
+
+const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
 
@@ -72,6 +83,21 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const base = materialize(baseLayers, pinnedOwners)
   const buckets = new Map<string, ResolvedRuleSet>([['', base]])
 
+  // Strongest level any single layer assigns, which is not the same as merging the layers: a
+  // last-wins merge would let an override that switches a rule `off` for one directory hide it
+  // from the planner everywhere.
+  const maxLevels = new Map<string, RuleLevel>()
+  for (const layer of [...baseLayers, ...overrides]) {
+    for (const [key, setting] of Object.entries(layer.rules)) {
+      if (setting === undefined) continue
+      const { level } = splitRuleSetting(setting)
+      if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[maxLevels.get(key) ?? 'off']) maxLevels.set(key, level)
+    }
+  }
+  const anyEnabledConcepts = new Set(
+    [...maxLevels].filter(([key, level]) => level !== 'off' && isConceptId(key)).map(([key]) => key),
+  )
+
   return {
     base,
     forFile(relativePath) {
@@ -90,6 +116,10 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
     },
     bucketCount() {
       return buckets.size
+    },
+    anyEnabledConcepts,
+    maxLevelOf(concept) {
+      return maxLevels.get(concept) ?? 'off'
     },
   }
 }

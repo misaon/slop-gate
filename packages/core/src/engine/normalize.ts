@@ -15,7 +15,7 @@ export type NormalizeInput = {
   levelOf: (concept: string) => RuleLevel | undefined
 }
 
-const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Severity>> = {
+export const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Severity>> = {
   error: 'error',
   warn: 'warn',
   info: 'info',

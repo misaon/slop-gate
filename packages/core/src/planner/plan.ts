@@ -4,7 +4,7 @@ import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import type { Engine, EngineRuleSelection } from '../engine/types.ts'
 import { compareStrings } from '../ordering.ts'
 import type { ElectionResult } from '../registry/elect.ts'
-import type { EngineId, RuleEntry } from '../registry/types.ts'
+import type { EngineId } from '../registry/types.ts'
 
 export type EngineAssignment = {
   readonly engineId: EngineId
@@ -17,7 +17,6 @@ export type PlanInput = {
   inventory: FileInventory
   election: ElectionResult
   resolver: RuleSetResolver
-  entries: readonly RuleEntry[]
 }
 
 const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
@@ -40,7 +39,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
     if (files.length === 0) continue
 
     const selection = new Map<string, RuleLevel>()
-    for (const ruleId of [...ruleIds].sort()) {
+    for (const ruleId of [...ruleIds].sort(compareStrings)) {
       const concepts = conceptsByRule.get(`${engine.id}/${ruleId}`) ?? []
       const level = strongestLevel(concepts, input.resolver)
       if (level !== 'off') selection.set(ruleId, level)
@@ -56,7 +55,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
 function strongestLevel(concepts: readonly string[], resolver: RuleSetResolver): RuleLevel {
   let strongest: RuleLevel = 'off'
   for (const concept of concepts) {
-    const level = resolver.base.rules.get(concept as never)?.level ?? 'off'
+    const level = resolver.maxLevelOf(concept)
     if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[strongest]) strongest = level
   }
   return strongest

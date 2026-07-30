@@ -8,7 +8,7 @@ import type { SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Severity } from '../diagnostics/types.ts'
 import { buildInventory, type FileSource } from '../discovery/inventory.ts'
 import type { InventoryFile } from '../discovery/types.ts'
-import { normalizeDiagnostics } from '../engine/normalize.ts'
+import { LEVEL_TO_SEVERITY, normalizeDiagnostics } from '../engine/normalize.ts'
 import type { Engine, RawDiagnostic } from '../engine/types.ts'
 import { compareStrings } from '../ordering.ts'
 import { buildPlan } from '../planner/plan.ts'
@@ -74,13 +74,16 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
 
   const election = electOwners({
     entries,
-    enabledConcepts: resolver.base.enabledConcepts,
+    enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(),
     languages: inventory.languages,
     pinnedOwners: resolver.base.pinnedOwners,
   })
 
-  const configHash = hashJson({ config: options.config, entries: entries.map(ruleRefKey) })
+  // Hashes the full entries, not just their ids: normalization bakes `concepts`, `classify`,
+  // `severityDefault` and `docsUrl` into every cached diagnostic, so an upgrade that changes any of
+  // them without adding or removing a rule would otherwise serve stale attribution forever.
+  const configHash = hashJson({ config: options.config, entries })
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
   const engineById = new Map(options.engines.map((engine) => [engine.id, engine]))
@@ -104,94 +107,115 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     yield { type: 'diagnostic', diagnostic }
   }
 
-  const plan = buildPlan({ engines: options.engines, inventory, election, resolver, entries })
+  const plan = buildPlan({ engines: options.engines, inventory, election, resolver })
 
-  for (const assignment of plan) {
-    const engine = engineById.get(assignment.engineId)
-    if (engine === undefined) continue
-
-    try {
-      const version = await engine.version()
-      const handle = await engine.materializeConfig(assignment.selection, {
-        rootDir: options.rootDir,
-        tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
-      })
-      enginesRun += 1
+  // Wrapped so a consumer that stops iterating early (breaking out of a `for await`) still
+  // triggers this `finally` via the generator's implicit `return()` — otherwise every hash
+  // `statIndex.hashOf` computed so far this run would be lost, not just deferred.
+  try {
+    for (const assignment of plan) {
+      const engine = engineById.get(assignment.engineId)
+      if (engine === undefined) continue
 
       try {
-        const pending: InventoryFile[] = []
-        const keys = new Map<string, string>()
-        const keyInputs = new Map<string, ResultKeyInput>()
+        const version = await engine.version()
+        const handle = await engine.materializeConfig(assignment.selection, {
+          rootDir: options.rootDir,
+          tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
+        })
+        enginesRun += 1
 
-        for (const file of assignment.files) {
-          const components = {
-            engineId: engine.id,
-            engineVersion: version,
-            engineRulesetHash: handle.rulesetHash,
-            fileHash: await statIndex.hashOf(options.rootDir, file),
-            configHash,
-          }
-          const key = deriveResultKey(components)
-          keys.set(file.path, key)
-          keyInputs.set(file.path, components)
+        try {
+          const pending: InventoryFile[] = []
+          const keys = new Map<string, string>()
+          const keyInputs = new Map<string, ResultKeyInput>()
 
-          const hit = useCache ? await resultStore.get(key) : null
-          if (hit === null) {
-            pending.push(file)
-            continue
-          }
-          filesFromCache += 1
-          for (const diagnostic of hit) {
-            collected.push(diagnostic)
-            yield { type: 'diagnostic', diagnostic }
-          }
-        }
+          for (const file of assignment.files) {
+            const components = {
+              engineId: engine.id,
+              engineVersion: version,
+              engineRulesetHash: handle.rulesetHash,
+              fileHash: await statIndex.hashOf(options.rootDir, file),
+              configHash,
+            }
+            const key = deriveResultKey(components)
+            keys.set(file.path, key)
+            keyInputs.set(file.path, components)
 
-        const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
-        for (let index = 0; index < pending.length; index += batchSize) {
-          const batch = pending.slice(index, index + batchSize)
-          const raws: RawDiagnostic[] = []
-          for await (const raw of engine.run(
-            { files: batch },
-            handle,
-            { rootDir: options.rootDir, tmpDir: join(options.rootDir, '.slop-gate', 'tmp') },
-            signal,
-          )) {
-            raws.push(raw)
-          }
-
-          const byFile = new Map<string, RawDiagnostic[]>(batch.map((file) => [file.path, []]))
-          for (const raw of raws) byFile.get(raw.file)?.push(raw)
-
-          for (const [path, fileRaws] of byFile) {
-            const source = await readSource(path)
-            const normalized = normalizeDiagnostics({
-              engine: engine.id,
-              raws: fileRaws,
-              entries,
-              owners: election.owners,
-              sourceOf: () => source,
-              levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level,
-            })
-
-            if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
-            for (const diagnostic of normalized) {
+            const hit = useCache ? await resultStore.get(key) : null
+            if (hit === null) {
+              pending.push(file)
+              continue
+            }
+            filesFromCache += 1
+            for (const diagnostic of hit) {
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
             }
           }
-        }
-      } finally {
-        await handle.dispose()
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      engineFailures.push({ engine: assignment.engineId, message })
-      yield { type: 'engine-failed', engine: assignment.engineId, message }
-    }
-  }
 
-  await statIndex.persist()
+          const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
+          for (let index = 0; index < pending.length; index += batchSize) {
+            const batch = pending.slice(index, index + batchSize)
+            const raws: RawDiagnostic[] = []
+            for await (const raw of engine.run(
+              { files: batch },
+              handle,
+              { rootDir: options.rootDir, tmpDir: join(options.rootDir, '.slop-gate', 'tmp') },
+              signal,
+            )) {
+              raws.push(raw)
+            }
+
+            const byFile = new Map<string, RawDiagnostic[]>(batch.map((file) => [file.path, []]))
+            for (const raw of raws) byFile.get(raw.file)?.push(raw)
+
+            for (const [path, fileRaws] of byFile) {
+              // Reading unconditionally would pull the whole source tree into memory a second
+              // time — the stat index already read every file to hash it — for no benefit:
+              // normalization only touches the source when there is a finding to position.
+              if (fileRaws.length === 0) {
+                if (useCache) await resultStore.set(keys.get(path)!, [], keyInputs.get(path)!)
+                continue
+              }
+
+              const source = await readSource(path)
+              const normalized = normalizeDiagnostics({
+                engine: engine.id,
+                raws: fileRaws,
+                entries,
+                owners: election.owners,
+                sourceOf: () => source,
+                // Defaults to 'off', not undefined: `normalizeDiagnostics` treats an undefined
+                // level as "use the rule's default severity", which is right for a rule that is
+                // simply unconfigured. But a concept only ever reaches here because some layer
+                // (base or an override) enabled it — `isOwned` already filtered out everything
+                // else — so if *this file's* resolution has no opinion, the layer that enabled it
+                // must be an override that doesn't match this file. Falling back to undefined
+                // there would let an override scoped to one glob fire at default severity on every
+                // other file the engine touches, which defeats the point of scoping it.
+                levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
+              })
+
+              if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
+              for (const diagnostic of normalized) {
+                collected.push(diagnostic)
+                yield { type: 'diagnostic', diagnostic }
+              }
+            }
+          }
+        } finally {
+          await handle.dispose()
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        engineFailures.push({ engine: assignment.engineId, message })
+        yield { type: 'engine-failed', engine: assignment.engineId, message }
+      }
+    }
+  } finally {
+    await statIndex.persist()
+  }
 
   collected.sort(
     (a, b) => compareStrings(a.file, b.file) || a.range.start - b.range.start || compareStrings(a.concept, b.concept),
@@ -236,7 +260,7 @@ function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
       concept,
       ruleId: `slop-gate/${concept}`,
       engine: 'slop-gate',
-      severity: level === 'error' ? 'error' : level === 'info' ? 'info' : 'warn',
+      severity: LEVEL_TO_SEVERITY[level],
       message,
       file: input.configFile,
       range: { start: 0, end: 0 },

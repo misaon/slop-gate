@@ -126,6 +126,17 @@ test('re-runs the engine after a file changes', async () => {
   expect(runs).toBe(2)
 })
 
+test('re-runs the engine after a rule entry changes without adding or removing a rule id', async () => {
+  let runs = 0
+  const engine = () => stubEngine({ findings: [debuggerFinding('src/a.ts')], onRun: () => (runs += 1) })
+
+  await runCheck({ ...baseOptions(), engines: [engine()] })
+  const mutatedEntries: RuleEntry[] = [{ ...ENTRIES[0]!, severityDefault: 'warn' }]
+  await runCheck({ ...baseOptions(), entries: mutatedEntries, engines: [engine()] })
+
+  expect(runs).toBe(2)
+})
+
 test('bypasses the cache when asked', async () => {
   let runs = 0
   const engine = () => stubEngine({ findings: [debuggerFinding('src/a.ts')], onRun: () => (runs += 1) })
@@ -200,4 +211,22 @@ test('streams diagnostics before the done event', async () => {
 test('reports the ruleset summary', async () => {
   const result = await runCheck({ ...baseOptions(), engines: [stubEngine({})] })
   expect(result.ruleset.enabledConcepts).toBeGreaterThan(0)
+})
+
+test('an override can enable a concept the base config never mentions, scoped to its glob', async () => {
+  await mkdir(join(dir, 'legacy'), { recursive: true })
+  await writeFile(join(dir, 'legacy/a.ts'), 'export function f() {\n  debugger\n}\n')
+
+  const result = await runCheck({
+    ...baseOptions(),
+    config: {
+      rules: {},
+      overrides: [{ files: ['legacy/**'], rules: { 'correctness.no-debugger': 'error' } }],
+    } as never,
+    engines: [stubEngine({ findings: [debuggerFinding('legacy/a.ts'), debuggerFinding('src/a.ts')] })],
+  })
+
+  const files = result.diagnostics.map((d) => d.file)
+  expect(files).toContain('legacy/a.ts')
+  expect(files).not.toContain('src/a.ts')
 })
