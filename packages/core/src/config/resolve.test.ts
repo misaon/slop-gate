@@ -41,6 +41,25 @@ test('a rule set to off is retained but not enabled', () => {
   expect(base.enabledConcepts.has('correctness.no-debugger')).toBe(false)
 })
 
+test('an override that enables a concept widens the planner view without reviving a disabled rule', () => {
+  const { anyEnabledConcepts, maxLevelOf } = createRuleSetResolver({
+    config: {
+      extends: ['recommended'],
+      rules: { 'correctness.no-debugger': 'off' },
+      overrides: [{ files: ['legacy/**'], rules: { 'style.no-var': 'error' } }],
+    },
+  })
+
+  // Turned off by the root config on top of the preset: the base cascade is last-wins, so this
+  // must stay off for the planner too.
+  expect(anyEnabledConcepts.has('correctness.no-debugger')).toBe(false)
+  expect(maxLevelOf('correctness.no-debugger')).toBe('off')
+
+  // Enabled only by an override: the engine must still be configured to run it.
+  expect(anyEnabledConcepts.has('style.no-var')).toBe(true)
+  expect(maxLevelOf('style.no-var')).toBe('error')
+})
+
 test('options replace rather than merge', () => {
   const { base } = createRuleSetResolver({
     config: {

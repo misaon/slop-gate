@@ -89,12 +89,16 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const base = materialize(baseLayers, pinnedOwners)
   const buckets = new Map<string, ResolvedRuleSet>([['', base]])
 
-  // Strongest level any single layer assigns, which is not the same as merging the layers: a
-  // last-wins merge would let an override that switches a rule `off` for one directory hide it
-  // from the planner everywhere.
+  // Seeded from the already-resolved base, then maxed against overrides only. The base cascade
+  // (preset -> root -> workspace) is last-wins by contract, so maxing across it would revive a rule
+  // the user turned off with the commonest idiom there is: `extends: ['recommended']` plus an
+  // explicit `'some.concept': 'off'`. Overrides are different — they apply to a subset of files, so
+  // a rule any override enables must still be configured on the engine for the whole run, and
+  // `forFile` narrows it back down during normalization.
   const maxLevels = new Map<string, RuleLevel>()
-  for (const layer of [...baseLayers, ...overrides]) {
-    for (const [key, setting] of Object.entries(layer.rules)) {
+  for (const [key, resolution] of base.rules) maxLevels.set(key, resolution.level)
+  for (const override of overrides) {
+    for (const [key, setting] of Object.entries(override.rules)) {
       if (setting === undefined) continue
       const { level } = splitRuleSetting(setting)
       if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[maxLevels.get(key) ?? 'off']) maxLevels.set(key, level)
