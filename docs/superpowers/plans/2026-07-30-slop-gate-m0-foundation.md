@@ -3490,8 +3490,8 @@ test('hashes content deterministically', () => {
   expect(hashContent('a')).not.toBe(hashContent('b'))
 })
 
-test('hashes a string and an equivalent buffer identically', () => {
-  expect(hashContent('abc')).toBe(hashContent(Buffer.from('abc', 'utf8')))
+test('hashes a string and its utf-8 bytes identically', () => {
+  expect(hashContent('abc')).toBe(hashContent(new TextEncoder().encode('abc')))
 })
 
 test('stringifies objects with sorted keys so key order cannot change a hash', () => {
@@ -3541,7 +3541,7 @@ import { createHash } from 'node:crypto'
 
 export const RESULT_SCHEMA_VERSION = 1
 
-export function hashContent(content: string | Buffer): string {
+export function hashContent(content: string | Uint8Array): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
