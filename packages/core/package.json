@@ -1,0 +1,13 @@
+{
+  "name": "@misaon/slop-gate-core",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=24" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
