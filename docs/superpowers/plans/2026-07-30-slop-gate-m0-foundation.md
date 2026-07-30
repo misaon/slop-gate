@@ -2537,9 +2537,20 @@ export type RuleSetResolver = {
   base: ResolvedRuleSet
   forFile(relativePath: string): ResolvedRuleSet
   bucketCount(): number
+  /**
+   * Concepts enabled by the base config **or by any override block**. The planner elects and
+   * configures against this, not against `base`: an override that enables a concept only under
+   * `legacy/**` must still cause the engine to run that rule, or the override is silently dead.
+   * Per-file severity is then applied during normalization via `forFile`.
+   */
+  anyEnabledConcepts: ReadonlySet<string>
+  /** The strongest level any layer assigns to a concept, or `off` if no layer mentions it. */
+  maxLevelOf(concept: string): RuleLevel
 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
+
+const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
 
 export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const rootSource = input.configFile ?? 'slop-gate.config.ts'
@@ -2572,8 +2583,27 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const base = materialize(baseLayers, pinnedOwners)
   const buckets = new Map<string, ResolvedRuleSet>([['', base]])
 
+  // Strongest level any single layer assigns, which is not the same as merging the layers: a
+  // last-wins merge would let an override that switches a rule `off` for one directory hide it
+  // from the planner everywhere.
+  const maxLevels = new Map<string, RuleLevel>()
+  for (const layer of [...baseLayers, ...overrides]) {
+    for (const [key, setting] of Object.entries(layer.rules)) {
+      if (setting === undefined) continue
+      const { level } = splitRuleSetting(setting)
+      if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[maxLevels.get(key) ?? 'off']) maxLevels.set(key, level)
+    }
+  }
+  const anyEnabledConcepts = new Set(
+    [...maxLevels].filter(([key, level]) => level !== 'off' && isConceptId(key)).map(([key]) => key),
+  )
+
   return {
     base,
+    anyEnabledConcepts,
+    maxLevelOf(concept) {
+      return maxLevels.get(concept) ?? 'off'
+    },
     forFile(relativePath) {
       const matched = overrides.filter((override) => override.isMatch(relativePath))
       const key = matched.map((override) => override.source).join('|')
@@ -4258,7 +4288,7 @@ export type NormalizeInput = {
   levelOf: (concept: string) => RuleLevel | undefined
 }
 
-const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Severity>> = {
+export const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Severity>> = {
   error: 'error',
   warn: 'warn',
   info: 'info',
@@ -5008,7 +5038,7 @@ const planWith = (args: {
   const resolver = createRuleSetResolver({ config: { rules: args.rules as never } })
   const election = electOwners({
     entries: args.entries,
-    enabledConcepts: resolver.base.enabledConcepts,
+    enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(),
     languages: new Set(args.files.map((f) => f.language)),
   })
@@ -5137,7 +5167,6 @@ export type PlanInput = {
   inventory: FileInventory
   election: ElectionResult
   resolver: RuleSetResolver
-  entries: readonly RuleEntry[]
 }
 
 const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
@@ -5160,7 +5189,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
     if (files.length === 0) continue
 
     const selection = new Map<string, RuleLevel>()
-    for (const ruleId of [...ruleIds].sort()) {
+    for (const ruleId of [...ruleIds].sort(compareStrings)) {
       const concepts = conceptsByRule.get(`${engine.id}/${ruleId}`) ?? []
       const level = strongestLevel(concepts, input.resolver)
       if (level !== 'off') selection.set(ruleId, level)
@@ -5176,7 +5205,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
 function strongestLevel(concepts: readonly string[], resolver: RuleSetResolver): RuleLevel {
   let strongest: RuleLevel = 'off'
   for (const concept of concepts) {
-    const level = resolver.base.rules.get(concept as never)?.level ?? 'off'
+    const level = resolver.maxLevelOf(concept)
     if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[strongest]) strongest = level
   }
   return strongest
@@ -5490,7 +5519,10 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     pinnedOwners: resolver.base.pinnedOwners,
   })
 
-  const configHash = hashJson({ config: options.config, entries: entries.map(ruleRefKey) })
+  // Hashes the full entries, not just their ids: normalization bakes `concepts`, `classify`,
+  // `severityDefault` and `docsUrl` into every cached diagnostic, so an upgrade that changes any of
+  // them without adding or removing a rule would otherwise serve stale attribution forever.
+  const configHash = hashJson({ config: options.config, entries })
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
   const engineById = new Map(options.engines.map((engine) => [engine.id, engine]))
@@ -5514,7 +5546,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     yield { type: 'diagnostic', diagnostic }
   }
 
-  const plan = buildPlan({ engines: options.engines, inventory, election, resolver, entries })
+  const plan = buildPlan({ engines: options.engines, inventory, election, resolver })
 
   for (const assignment of plan) {
     const engine = engineById.get(assignment.engineId)
@@ -5572,6 +5604,13 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           for (const raw of raws) byFile.get(raw.file)?.push(raw)
 
           for (const [path, fileRaws] of byFile) {
+            // Reading unconditionally would pull the whole source tree into memory a second time —
+            // the stat index already read every file to hash it — for no benefit: normalization
+            // only touches the source when there is a finding to position.
+            if (fileRaws.length === 0) {
+              if (useCache) await resultStore.set(keys.get(path)!, [], keyInputs.get(path)!)
+              continue
+            }
             const source = await readSource(path)
             const normalized = normalizeDiagnostics({
               engine: engine.id,
@@ -5599,8 +5638,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     }
   }
 
-  await statIndex.persist()
-
+  // In a `finally` because a consumer breaking out of the stream early — the entire point of
+  // streaming — would otherwise discard every hash computed this run.
   collected.sort(
     (a, b) =>
       compareStrings(a.file, b.file) || a.range.start - b.range.start || compareStrings(a.concept, b.concept),
@@ -5645,7 +5684,7 @@ function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
       concept,
       ruleId: `slop-gate/${concept}`,
       engine: 'slop-gate',
-      severity: level === 'error' ? 'error' : level === 'info' ? 'info' : 'warn',
+      severity: LEVEL_TO_SEVERITY[level],
       message,
       file: input.configFile,
       range: { start: 0, end: 0 },
