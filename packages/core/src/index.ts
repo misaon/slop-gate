@@ -75,3 +75,12 @@ export {
   type RuleResolution,
   type RuleSetResolver,
 } from './config/resolve.ts'
+
+export type { FileInventory, InventoryFile } from './discovery/types.ts'
+export { detectLanguage } from './discovery/language.ts'
+export {
+  buildWorkspaceGraph,
+  relativePosix,
+  type WorkspaceGraph,
+  type WorkspaceNode,
+} from './discovery/workspaces.ts'
