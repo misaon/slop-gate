@@ -181,6 +181,7 @@ packages:
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "declaration": true,
     "noEmit": true
@@ -5518,8 +5519,7 @@ test('underlines only to end of line for a multi-line span', () => {
 
 test('emits no escape codes when colour is off', () => {
   const frame = renderCodeFrame(source, { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 }, { color: false })
-  // eslint-disable-next-line no-control-regex
-  expect(frame).not.toMatch(/\[/)
+  expect(frame).not.toContain('\u001B[')
 })
 ```
 
@@ -5675,8 +5675,7 @@ test('mentions suppressed overlaps in the summary', () => {
 
 test('emits no escape codes when colour is off', () => {
   const output = capture([{ type: 'diagnostic', diagnostic: diagnostic() }, { type: 'done', result: result() }])
-  // eslint-disable-next-line no-control-regex
-  expect(output).not.toMatch(/\[/)
+  expect(output).not.toContain('\u001B[')
 })
 ```
 
