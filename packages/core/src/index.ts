@@ -95,3 +95,15 @@ export {
 } from './discovery/inventory.ts'
 
 export { toPosix } from './paths.ts'
+
+export {
+  RESULT_SCHEMA_VERSION,
+  deriveResultKey,
+  hashContent,
+  hashJson,
+  hashRuleSelection,
+  stableStringify,
+  type ResultKeyInput,
+} from './cache/keys.ts'
+export { openStatIndex, type StatIndex } from './cache/stat-index.ts'
+export { openResultStore, type ResultStore } from './cache/result-store.ts'
