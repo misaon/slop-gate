@@ -46,6 +46,7 @@ slop-gate/
     ├── core/                     @misaon/slop-gate-core
     │   └── src/
     │       ├── index.ts                    public surface
+    │       ├── ordering.ts                 locale-free string comparator
     │       ├── diagnostics/
     │       │   ├── types.ts                Diagnostic, Edit, Severity, ByteRange
     │       │   ├── position.ts             byte offset → UTF-16 line/column
@@ -939,7 +940,7 @@ a typo in a config is a type error rather than a silent no-op."
 This is the mechanism the whole product rests on (§5). Read spec §5.1–§5.3 before starting.
 
 **Files:**
-- Create: `packages/core/src/languages.ts`
+- Create: `packages/core/src/languages.ts`, `packages/core/src/ordering.ts`
 - Create: `packages/core/src/registry/types.ts`, `packages/core/src/registry/entries.ts`, `packages/core/src/registry/elect.ts`, `packages/core/src/registry/ownership.ts`
 - Test: `packages/core/src/registry/elect.test.ts`, `packages/core/src/registry/entries.test.ts`, `packages/core/src/registry/ownership.test.ts`
 - Modify: `packages/core/src/index.ts`
@@ -986,6 +987,22 @@ export const LANGUAGES = [
 export type LanguageId = (typeof LANGUAGES)[number]
 
 export const SCRIPT_LANGUAGES: readonly LanguageId[] = ['ts', 'tsx', 'js', 'jsx']
+```
+
+Also create `packages/core/src/ordering.ts`. Several outputs in this project are hashed or compared
+byte-for-byte across machines, CI runners and three runtimes — the elected ruleset (M1's lockfile),
+the engine ruleset hash that forms part of a cache key, the file inventory order, and the diagnostic
+order golden reports assert on. `String.prototype.localeCompare` is unfit for all of them: it is not
+total (`'abc'.localeCompare('a​bc')` is `0` for two distinct strings, leaving the winner
+dependent on input order) and not locale-invariant (plain-ASCII identifiers collate differently under
+`da-DK`, and a `small-icu` build collapses to root collation). Every ordering that feeds a hash or a
+golden file goes through this comparator instead.
+
+```ts
+/** Code-unit ordering: total, locale-free, identical on every runtime. */
+export function compareStrings(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
 ```
 
 - [ ] **Step 2: Create the registry types**
@@ -1334,6 +1351,7 @@ Expected: FAIL, cannot resolve `./elect.ts`.
 
 ```ts
 import type { LanguageId } from '../languages.ts'
+import { compareStrings } from '../ordering.ts'
 import { ENGINE_PREFERENCE, type Capability, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
 
 export type SuppressionReason = 'lower-tier' | 'engine-preference' | 'rule-id-tiebreak' | 'pinned-owner'
@@ -1380,32 +1398,40 @@ export function electOwners(input: ElectionInput): ElectionResult {
   const compare = (a: RuleEntry, b: RuleEntry): number =>
     a.tier - b.tier ||
     (rank.get(a.engine) ?? preference.length) - (rank.get(b.engine) ?? preference.length) ||
-    a.engineRuleId.localeCompare(b.engineRuleId)
+    compareStrings(a.engineRuleId, b.engineRuleId)
 
-  for (const concept of [...input.enabledConcepts].sort()) {
-    const applicable = input.entries.filter((e) => e.concepts.includes(concept as never) && isApplicable(e))
+  for (const concept of [...input.enabledConcepts].sort(compareStrings)) {
+    const ranked = input.entries
+      .filter((e) => e.concepts.includes(concept as never) && isApplicable(e))
+      .sort(compare)
     const pinned = input.pinnedOwners?.[concept]
-    const eligible = pinned === undefined ? applicable : applicable.filter((e) => e.engine === pinned)
+    const eligible = pinned === undefined ? ranked : ranked.filter((e) => e.engine === pinned)
 
     if (eligible.length === 0) {
       uncovered.push(concept)
       continue
     }
 
-    const [winner, ...losers] = [...eligible].sort(compare)
-    owners.set(concept, refOf(winner!))
+    const winner = eligible[0]!
+    owners.set(concept, refOf(winner))
 
-    const enabled = selection.get(winner!.engine) ?? new Set<string>()
-    enabled.add(winner!.engineRuleId)
-    selection.set(winner!.engine, enabled)
+    const enabled = selection.get(winner.engine) ?? new Set<string>()
+    enabled.add(winner.engineRuleId)
+    selection.set(winner.engine, enabled)
 
-    const alsoRejectedByPin = pinned === undefined ? [] : applicable.filter((e) => e.engine !== pinned)
-    for (const loser of [...losers, ...alsoRejectedByPin]) {
+    const winnerKey = ruleRefKey(winner)
+    for (const loser of ranked) {
+      if (ruleRefKey(loser) === winnerKey) continue
+      // A pin only explains a suppression for a candidate arbitration would otherwise have ranked
+      // ahead of the winner. Testing `loser.engine !== pinned` instead mislabels every
+      // other-engine loser as 'pinned-owner', so a pin that merely agrees with what arbitration
+      // would have chosen anyway hides the real reason.
+      const pinOverrode = pinned !== undefined && compare(loser, winner) < 0
       suppressed.push({
         concept,
         suppressed: refOf(loser),
-        winner: refOf(winner!),
-        reason: reasonFor(winner!, loser, pinned !== undefined),
+        winner: refOf(winner),
+        reason: reasonFor(winner, loser, pinOverrode),
       })
     }
   }
@@ -1413,15 +1439,24 @@ export function electOwners(input: ElectionInput): ElectionResult {
   return { owners, selection, suppressed, uncovered }
 }
 
-function reasonFor(winner: RuleEntry, loser: RuleEntry, isPinned: boolean): SuppressionReason {
-  if (isPinned) return 'pinned-owner'
+function reasonFor(winner: RuleEntry, loser: RuleEntry, pinOverrode: boolean): SuppressionReason {
+  if (pinOverrode) return 'pinned-owner'
   if (winner.tier !== loser.tier) return 'lower-tier'
   if (winner.engine !== loser.engine) return 'engine-preference'
   return 'rule-id-tiebreak'
 }
 ```
 
-Iterating `[...input.enabledConcepts].sort()` is not cosmetic: it makes `suppressed` and `uncovered` ordering independent of `Set` insertion order, which is what the order-independence test pins down. A non-deterministic election would produce a non-deterministic lockfile hash in M1.
+Three details here are load-bearing for M1's lockfile hash, and every one of them was a bug in an
+earlier draft of this plan:
+
+- Concepts are iterated in sorted order, so `suppressed` and `uncovered` do not inherit `Set`
+  insertion order.
+- Everything derives from the single `ranked` list, so the loser order does not inherit
+  `input.entries` order either. Ranking once and filtering the ranked list is the whole trick.
+- Losers sharing the winner's `ruleRefKey` are skipped, so a duplicated rule identity cannot record
+  the winner as its own loser. The `entries.test.ts` uniqueness invariant should make that
+  unreachable; this guard keeps the hashed output sane if it ever is not.
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
@@ -1711,6 +1746,7 @@ Append to `packages/core/src/index.ts`:
 
 ```ts
 export { LANGUAGES, SCRIPT_LANGUAGES, type LanguageId } from './languages.ts'
+export { compareStrings } from './ordering.ts'
 export {
   ENGINE_PREFERENCE,
   ruleRefKey,
@@ -3205,6 +3241,7 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import picomatch from 'picomatch'
 import type { LanguageId } from '../languages.ts'
+import { compareStrings } from '../ordering.ts'
 import { detectLanguage } from './language.ts'
 import { createGitFileSource, createWalkFileSource, selectFileSource, type FileSource } from './sources.ts'
 import type { FileInventory, InventoryFile } from './types.ts'
@@ -3251,7 +3288,7 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
     }),
   )
 
-  files.sort((a, b) => a.path.localeCompare(b.path))
+  files.sort((a, b) => compareStrings(a.path, b.path))
   return { root: options.rootDir, files, languages, workspaces: workspaces.nodes }
 }
 ```
@@ -4375,7 +4412,13 @@ function toRepoRelative(filename: string, rootDir: string): string {
 ```ts
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { hashJson, type EngineConfigHandle, type EngineRuleSelection, type RunContext } from '@misaon/slop-gate-core'
+import {
+  compareStrings,
+  hashJson,
+  type EngineConfigHandle,
+  type EngineRuleSelection,
+  type RunContext,
+} from '@misaon/slop-gate-core'
 
 const LEVEL_TO_OXLINT: Readonly<Record<string, string>> = {
   error: 'error',
@@ -4391,7 +4434,7 @@ export async function materializeOxlintConfig(
   const rules = Object.fromEntries(
     [...selection]
       .filter(([, level]) => level !== 'off')
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => compareStrings(a, b))
       .map(([ruleId, level]) => [ruleId, LEVEL_TO_OXLINT[level] ?? 'warn']),
   )
 
@@ -4862,6 +4905,7 @@ import type { RuleLevel } from '../config/types.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import type { Engine, EngineRuleSelection } from '../engine/types.ts'
+import { compareStrings } from '../ordering.ts'
 import type { ElectionResult } from '../registry/elect.ts'
 import type { EngineId, RuleEntry } from '../registry/types.ts'
 
@@ -4890,7 +4934,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
 
   const assignments: EngineAssignment[] = []
 
-  for (const engine of [...input.engines].sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const engine of [...input.engines].sort((a, b) => compareStrings(a.id, b.id))) {
     const ruleIds = input.election.selection.get(engine.id)
     if (ruleIds === undefined || ruleIds.size === 0) continue
 
@@ -5159,6 +5203,7 @@ import { buildInventory, type FileSource } from '../discovery/inventory.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import { normalizeDiagnostics } from '../engine/normalize.ts'
 import type { Engine, RawDiagnostic } from '../engine/types.ts'
+import { compareStrings } from '../ordering.ts'
 import { buildPlan } from '../planner/plan.ts'
 import { electOwners } from '../registry/elect.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
@@ -5337,7 +5382,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   await statIndex.persist()
 
   collected.sort(
-    (a, b) => a.file.localeCompare(b.file) || a.range.start - b.range.start || a.concept.localeCompare(b.concept),
+    (a, b) =>
+      compareStrings(a.file, b.file) || a.range.start - b.range.start || compareStrings(a.concept, b.concept),
   )
 
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 }
