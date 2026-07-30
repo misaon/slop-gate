@@ -22,10 +22,13 @@ test('handles a finding on the first line', () => {
   expect(frame).not.toContain('0 |')
 })
 
-test('underlines the full span on a single line', () => {
+test('puts the caret under the character at the start column', () => {
   const frame = renderCodeFrame(source, { startLine: 1, startColumn: 7, endLine: 1, endColumn: 8 })
-  const underline = frame.split('\n').find((line) => line.includes('^'))
-  expect(underline?.indexOf('^')).toBe(frame.split('\n')[0]!.indexOf('a'))
+  const [codeLine, underline] = frame.split('\n')
+
+  // `const` begins at the code line's column 1, so column 7 is six characters further right. Both
+  // rows carry the same gutter, so the indices are directly comparable.
+  expect(underline!.indexOf('^')).toBe(codeLine!.indexOf('const') + 6)
 })
 
 test('underlines only to end of line for a multi-line span', () => {

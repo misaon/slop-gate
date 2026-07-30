@@ -49,6 +49,12 @@ importers:
         specifier: ^1.75.0
         version: 1.76.0
 
+  packages/reporters:
+    dependencies:
+      '@misaon/slop-gate-core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@babel/generator@7.29.7':

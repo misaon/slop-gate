@@ -9,6 +9,14 @@ const SEVERITY_STYLE: Readonly<Record<Severity, Parameters<typeof styleText>[0]>
   info: 'blue',
 }
 
+const SEVERITY_LABEL: Readonly<Record<Severity, string>> = {
+  error: 'error',
+  warn: 'warning',
+  info: 'note',
+}
+
+const plural = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? '' : 's'}`
+
 export function createPrettyReporter(context: ReporterContext): Reporter {
   const paint = (style: Parameters<typeof styleText>[0], text: string): string =>
     context.color ? styleText(style, text) : text
@@ -44,7 +52,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
 
     const parts = (['error', 'warn', 'info'] as const)
       .filter((severity) => result.counts[severity] > 0)
-      .map((severity) => paint(SEVERITY_STYLE[severity], `${result.counts[severity]} ${severity}${result.counts[severity] === 1 ? '' : 's'}`))
+      .map((severity) => paint(SEVERITY_STYLE[severity], plural(result.counts[severity], SEVERITY_LABEL[severity])))
 
     context.write('\n')
     context.write(
@@ -55,20 +63,26 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     context.write(
       paint(
         'dim',
-        `${result.stats.filesScanned} files, ${result.stats.filesFromCache} cached, ${result.stats.durationMs}ms`,
+        `${plural(result.stats.filesScanned, 'file')}, ${result.stats.filesFromCache} cached, ${result.stats.durationMs}ms`,
       ),
     )
     context.write('\n')
 
     if (result.ruleset.suppressed > 0) {
-      const count = result.ruleset.suppressed
       context.write(
-        paint('dim', `${count} rule overlap${count === 1 ? '' : 's'} resolved — run \`sgate rules conflicts\` for detail.\n`),
+        paint(
+          'dim',
+          `${plural(result.ruleset.suppressed, 'rule overlap')} resolved — run \`sgate rules conflicts\` for detail.\n`,
+        ),
       )
     }
     if (result.ruleset.uncovered.length > 0) {
+      const count = result.ruleset.uncovered.length
       context.write(
-        paint('yellow', `${result.ruleset.uncovered.length} enabled concepts have no capable engine in this repo.\n`),
+        paint(
+          'yellow',
+          `${plural(count, 'enabled concept')} ${count === 1 ? 'has' : 'have'} no capable engine in this repo.\n`,
+        ),
       )
     }
   }

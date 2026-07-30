@@ -76,6 +76,16 @@ test('summarises counts, cache use and duration', () => {
   expect(output).toContain('42')
 })
 
+test('pluralises the words a developer reads on every run', () => {
+  const singular = capture([{ type: 'done', result: result({ stats: { filesScanned: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 } }) }])
+  expect(singular).toContain('1 file,')
+  expect(singular).not.toContain('1 files')
+
+  const plural = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 2, info: 0 } }) }])
+  expect(plural).toContain('2 warnings')
+  expect(plural).not.toContain('2 warns')
+})
+
 test('says so plainly when nothing was found', () => {
   const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
   expect(output).toMatch(/no issues/i)
