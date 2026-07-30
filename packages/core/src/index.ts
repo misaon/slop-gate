@@ -119,3 +119,6 @@ export type {
   RunContext,
 } from './engine/types.ts'
 export { normalizeDiagnostics, type NormalizeInput } from './engine/normalize.ts'
+
+export { buildPlan, type EngineAssignment, type PlanInput } from './planner/plan.ts'
+export { runCheck, streamCheck, type CheckEvent, type CheckOptions, type CheckResult } from './run/check.ts'
