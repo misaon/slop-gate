@@ -989,6 +989,16 @@ export type LanguageId = (typeof LANGUAGES)[number]
 export const SCRIPT_LANGUAGES: readonly LanguageId[] = ['ts', 'tsx', 'js', 'jsx']
 ```
 
+And `packages/core/src/paths.ts`. Three modules need this one-liner (`language.ts`, `workspaces.ts`,
+`sources.ts`); three private copies would violate the no-duplicated-logic constraint.
+
+```ts
+/** Public data structures carry POSIX separators regardless of the host platform. */
+export function toPosix(value: string): string {
+  return value.replaceAll('\\', '/')
+}
+```
+
 Also create `packages/core/src/ordering.ts`. Several outputs in this project are hashed or compared
 byte-for-byte across machines, CI runners and three runtimes — the elected ruleset (M1's lockfile),
 the engine ruleset hash that forms part of a cache key, the file inventory order, and the diagnostic
@@ -3261,9 +3271,10 @@ Expected: FAIL, cannot resolve `./inventory.ts`.
 
 ```ts
 import { execFile } from 'node:child_process'
-import { readdir, stat } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { toPosix } from '../paths.ts'
 
 const run = promisify(execFile)
 
@@ -3273,8 +3284,6 @@ export type FileSource = {
 }
 
 const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
-
-const toPosix = (value: string): string => value.replaceAll('\\', '/')
 
 export function createGitFileSource(): FileSource {
   return {
@@ -3315,11 +3324,20 @@ export function createWalkFileSource(): FileSource {
   }
 }
 
+/**
+ * Asks git whether this directory is inside a work tree, rather than looking for a literal `.git`.
+ * A `.git` probe only ever finds the repository root, so running from `packages/app/` would fall
+ * back to the walker — which has no gitignore support at all — precisely in the monorepo case the
+ * git source exists to serve. Git resolves both its implicit pathspec and its relative output
+ * against `cwd`, so the subtree scoping is correct without extra flags.
+ */
 export async function selectFileSource(rootDir: string): Promise<FileSource> {
   try {
-    await stat(join(rootDir, '.git'))
-    await run('git', ['--version'])
-    return createGitFileSource()
+    const { stdout } = await run('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: rootDir,
+      encoding: 'utf8',
+    })
+    return stdout.trim() === 'true' ? createGitFileSource() : createWalkFileSource()
   } catch {
     return createWalkFileSource()
   }
@@ -3367,7 +3385,13 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
       if (isIgnored(path)) return
       signal.throwIfAborted()
 
-      const stats = await stat(join(options.rootDir, path)).catch(() => null)
+      // A file vanishing mid-run is a benign race. A permission error is not: swallowing it would
+      // quietly shrink the inventory, and every later stage would report a clean result for files
+      // it never saw.
+      const stats = await stat(join(options.rootDir, path)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null
+        throw error
+      })
       if (stats === null || !stats.isFile()) return
 
       const language = detectLanguage(path)
