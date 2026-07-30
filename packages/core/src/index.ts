@@ -46,3 +46,19 @@ export {
   type SuppressionRecord,
 } from './registry/elect.ts'
 export { filterOwned, isOwned, type OwnershipCandidate } from './registry/ownership.ts'
+
+export {
+  isRuleLevel,
+  splitRuleSetting,
+  type EngineOptions,
+  type EngineRuleKey,
+  type OverrideBlock,
+  type PresetName,
+  type RuleKey,
+  type RuleLevel,
+  type RuleMap,
+  type RuleSetting,
+  type SlopGateConfig,
+} from './config/types.ts'
+export { defineConfig } from './config/define.ts'
+export { PRESETS } from './config/presets.ts'
