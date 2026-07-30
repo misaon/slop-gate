@@ -4949,7 +4949,12 @@ registry classify data."
 - `buildPlan` performs no IO, so the whole routing decision is unit-testable without a filesystem or a real engine.
 - When one engine rule owns several concepts with different levels, the engine is configured at the **strongest** level and normalization re-derives the per-concept severity (Task 11). Configuring at the weakest level would silently lose findings for the stricter concept.
 - Config-level findings — overlapping rules and dead overrides — are emitted as ordinary diagnostics against the config file, which is how §5.4's "runs as part of check" becomes real rather than aspirational.
-- M0 runs engines concurrently and batches sequentially within an engine. oxlint parallelises internally, so a worker pool would add complexity for no gain here; the real scheduler arrives in M2.
+- **M0 runs engines sequentially**, one after another, and batches sequentially within each engine.
+  That is not an oversight: M0 ships exactly one engine, so engine-level concurrency would be
+  unobservable and untestable, and oxlint already parallelises internally across the files in a
+  batch. The real scheduler — worker pool, streaming across engines, cgroup-aware concurrency —
+  arrives in M2 with the second engine, where it can be measured. Do not add ad-hoc concurrency here
+  without a test that can detect it.
 
 - [ ] **Step 1: Write the failing planner tests**
 
@@ -5058,8 +5063,10 @@ test('gives an engine only files in languages it supports', () => {
 })
 
 test('omits an engine that supports no file in the inventory', () => {
+  // The rule IS elected (its language is present), so this exercises the file-filter skip rather
+  // than the earlier no-elected-rules branch: only the engine's capabilities exclude every file.
   const plan = planWith({
-    entries: [entry({ engine: 'oxlint', engineRuleId: 'r', concepts: ['correctness.no-debugger'], languages: ['css'] })],
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'r', concepts: ['correctness.no-debugger'], languages: ['ts'] })],
     engines: [fakeEngine('oxlint', ['css'])],
     files: [file('a.ts', 'ts')],
     rules: { 'correctness.no-debugger': 'error' },
