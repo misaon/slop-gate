@@ -110,3 +110,23 @@ test('selects the git source inside a repository and the walker outside one', as
   await run('git', ['init', '-q'], { cwd: dir })
   expect((await selectFileSource(dir)).id).toBe('git')
 })
+
+test('selects the git source from a subdirectory of a repository', async () => {
+  await run('git', ['init', '-q'], { cwd: dir })
+  await write('packages/app/src/a.ts')
+
+  expect((await selectFileSource(join(dir, 'packages/app'))).id).toBe('git')
+})
+
+test('the git source respects .gitignore when run from a subdirectory', async () => {
+  await run('git', ['init', '-q'], { cwd: dir })
+  await write('.gitignore', 'packages/app/build/\n')
+  await write('packages/app/src/a.ts')
+  await write('packages/app/build/out.ts')
+
+  const inventory = await buildInventory({ rootDir: join(dir, 'packages/app') })
+  const paths = inventory.files.map((f) => f.path)
+
+  expect(paths).toContain('src/a.ts')
+  expect(paths).not.toContain('build/out.ts')
+})

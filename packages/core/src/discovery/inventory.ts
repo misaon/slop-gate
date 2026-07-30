@@ -34,7 +34,13 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
       if (isIgnored(path)) return
       signal.throwIfAborted()
 
-      const stats = await stat(join(options.rootDir, path)).catch(() => null)
+      // A file vanishing mid-run is a benign race. A permission error is not: swallowing it would
+      // quietly shrink the inventory, and every later stage would report a clean result for files
+      // it never saw.
+      const stats = await stat(join(options.rootDir, path)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null
+        throw error
+      })
       if (stats === null || !stats.isFile()) return
 
       const language = detectLanguage(path)

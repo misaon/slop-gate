@@ -1,4 +1,5 @@
 import type { LanguageId } from '../languages.ts'
+import { toPosix } from '../paths.ts'
 
 const BY_EXTENSION: Readonly<Record<string, LanguageId>> = {
   ts: 'ts',
@@ -38,7 +39,7 @@ const JSONC_PATTERN = /^(?:tsconfig|jsconfig)\..+\.json$/
 const WORKFLOW_PATTERN = /^\.github\/workflows\/[^/]+\.ya?ml$/
 
 export function detectLanguage(relativePath: string): LanguageId {
-  const normalized = relativePath.replaceAll('\\', '/')
+  const normalized = toPosix(relativePath)
   const basename = normalized.slice(normalized.lastIndexOf('/') + 1)
   const lower = basename.toLowerCase()
 

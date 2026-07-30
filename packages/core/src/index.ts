@@ -93,3 +93,5 @@ export {
   type BuildInventoryOptions,
   type FileSource,
 } from './discovery/inventory.ts'
+
+export { toPosix } from './paths.ts'

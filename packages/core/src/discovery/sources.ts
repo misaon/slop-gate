@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process'
-import { readdir, stat } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { toPosix } from '../paths.ts'
 
 const run = promisify(execFile)
 
@@ -11,8 +12,6 @@ export type FileSource = {
 }
 
 const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
-
-const toPosix = (value: string): string => value.replaceAll('\\', '/')
 
 export function createGitFileSource(): FileSource {
   return {
@@ -53,11 +52,20 @@ export function createWalkFileSource(): FileSource {
   }
 }
 
+/**
+ * Asks git whether this directory is inside a work tree, rather than looking for a literal `.git`.
+ * A `.git` probe only ever finds the repository root, so running from `packages/app/` would fall
+ * back to the walker — which has no gitignore support at all — precisely in the monorepo case the
+ * git source exists to serve. Git resolves both its implicit pathspec and its relative output
+ * against `cwd`, so the subtree scoping is correct without extra flags.
+ */
 export async function selectFileSource(rootDir: string): Promise<FileSource> {
   try {
-    await stat(join(rootDir, '.git'))
-    await run('git', ['--version'])
-    return createGitFileSource()
+    const { stdout } = await run('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: rootDir,
+      encoding: 'utf8',
+    })
+    return stdout.trim() === 'true' ? createGitFileSource() : createWalkFileSource()
   } catch {
     return createWalkFileSource()
   }

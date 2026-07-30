@@ -3,6 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import picomatch from 'picomatch'
 import { parse as parseYaml } from 'yaml'
 import { ConfigError } from '../errors.ts'
+import { toPosix } from '../paths.ts'
 
 export type WorkspaceNode = {
   readonly name: string
@@ -14,8 +15,6 @@ export type WorkspaceGraph = {
   readonly nodes: readonly WorkspaceNode[]
   attribute(relativePath: string): WorkspaceNode
 }
-
-const toPosix = (value: string): string => value.replaceAll('\\', '/')
 
 const readJson = async (path: string): Promise<Record<string, unknown> | null> => {
   try {
