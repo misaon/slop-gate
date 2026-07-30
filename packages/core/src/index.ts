@@ -62,3 +62,6 @@ export {
 } from './config/types.ts'
 export { defineConfig } from './config/define.ts'
 export { PRESETS } from './config/presets.ts'
+
+export { ConfigError, EngineError } from './errors.ts'
+export { findConfigFile, loadConfig } from './config/load.ts'
