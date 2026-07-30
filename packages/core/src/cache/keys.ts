@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { compareStrings } from '../ordering.ts'
 
 export const RESULT_SCHEMA_VERSION = 1
 
@@ -12,7 +13,7 @@ export function stableStringify(value: unknown): string {
 
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .sort(([a], [b]) => compareStrings(a, b))
     .map(([key, v]) => `${JSON.stringify(key)}:${stableStringify(v)}`)
 
   return `{${entries.join(',')}}`
@@ -23,7 +24,7 @@ export function hashJson(value: unknown): string {
 }
 
 export function hashRuleSelection(ruleIds: Iterable<string>): string {
-  return hashContent([...ruleIds].sort().join('\0'))
+  return hashJson([...ruleIds].sort(compareStrings))
 }
 
 export type ResultKeyInput = {
@@ -35,14 +36,5 @@ export type ResultKeyInput = {
 }
 
 export function deriveResultKey(input: ResultKeyInput): string {
-  return hashContent(
-    [
-      String(RESULT_SCHEMA_VERSION),
-      input.engineId,
-      input.engineVersion,
-      input.engineRulesetHash,
-      input.fileHash,
-      input.configHash,
-    ].join('\0'),
-  )
+  return hashJson({ schema: RESULT_SCHEMA_VERSION, ...input })
 }

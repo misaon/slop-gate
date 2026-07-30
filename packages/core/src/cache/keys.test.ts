@@ -49,3 +49,10 @@ test('the same inputs produce the same key', () => {
 test('keys are filesystem-safe hex', () => {
   expect(deriveResultKey(base)).toMatch(/^[0-9a-f]{64}$/)
 })
+
+test('cannot be collided by shifting content across a component boundary', () => {
+  const a = { ...base, engineId: 'a', engineVersion: 'b\0c' }
+  const b = { ...base, engineId: 'a\0b', engineVersion: 'c' }
+
+  expect(deriveResultKey(a)).not.toBe(deriveResultKey(b))
+})

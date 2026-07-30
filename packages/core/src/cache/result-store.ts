@@ -2,14 +2,15 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Diagnostic } from '../diagnostics/types.ts'
 import { writeFileAtomic } from './atomic-write.ts'
-import { RESULT_SCHEMA_VERSION } from './keys.ts'
+import { RESULT_SCHEMA_VERSION, type ResultKeyInput } from './keys.ts'
 
 export type ResultStore = {
   get(key: string): Promise<Diagnostic[] | null>
-  set(key: string, diagnostics: readonly Diagnostic[]): Promise<void>
+  set(key: string, diagnostics: readonly Diagnostic[], components: ResultKeyInput): Promise<void>
 }
 
-type StoredResult = { schema: number; diagnostics: Diagnostic[] }
+/** `key` records what produced this entry, so a surprising cache hit can be explained. */
+type StoredResult = { schema: number; key: ResultKeyInput; diagnostics: Diagnostic[] }
 
 export function openResultStore(cacheDir: string): ResultStore {
   const pathFor = (key: string): string => join(cacheDir, 'results', key.slice(0, 2), `${key}.json`)
@@ -25,8 +26,12 @@ export function openResultStore(cacheDir: string): ResultStore {
       }
     },
 
-    async set(key, diagnostics) {
-      const payload: StoredResult = { schema: RESULT_SCHEMA_VERSION, diagnostics: [...diagnostics] }
+    async set(key, diagnostics, components) {
+      const payload: StoredResult = {
+        schema: RESULT_SCHEMA_VERSION,
+        key: components,
+        diagnostics: [...diagnostics],
+      }
       await writeFileAtomic(pathFor(key), JSON.stringify(payload))
     },
   }
