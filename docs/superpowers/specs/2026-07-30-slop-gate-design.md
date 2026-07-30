@@ -742,7 +742,7 @@ a signal that it holds more than one responsibility. The tool's own source has t
 
 | Milestone | Content | Definition of done |
 |---|---|---|
-| **M0 Foundation** | Repo, tooling, CI. Core types, config loader, discovery, inventory, cache skeleton, `pretty` reporter, worker pool. `check` with oxlint only. Minimal `init` that writes a default config. | `sgate check` finds real issues in a real repo, end to end |
+| **M0 Foundation** | Repo, tooling, CI. Core types, config loader, discovery, inventory, cache skeleton, `pretty` reporter. `check` with oxlint only, engines run sequentially. Minimal `init` that writes a default config. | `sgate check` finds real issues in a real repo, end to end |
 | **M1 Governance** | Concept taxonomy, registry generation, arbitration, provenance, all `rules` subcommands, lockfile, dead-override and unused-suppression detection, generated config types | `sgate rules why` and `sgate rules conflicts` produce correct answers on a repo with deliberately conflicting rules |
 | **M2 Engine breadth** | oxfmt, tsc, knip, biome-css, schema, actionlint, zizmor, eslint escape hatch. Scheduler maturity, streaming, project-granularity caching | All target file types covered: TS, JS, YAML, CSS/SCSS, HTML, Vue, React, Tailwind, Dockerfile, docker-compose, GitHub Actions |
 | **M3 Fix and safety** | Edit arbiter, three fix tiers, oscillation detection, formatter-last, dry-run diffs, baseline | Property tests pass; a deliberately oscillating rule pair is reported, not hung on |
