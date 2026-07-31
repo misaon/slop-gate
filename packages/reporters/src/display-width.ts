@@ -77,6 +77,28 @@ function clusterWidth(cluster: string): number {
   return isWideCodePoint(codePoint) ? 2 : 1
 }
 
+/**
+ * True if `text` contains any grapheme cluster whose East_Asian_Width is Wide or Fullwidth, or
+ * that is emoji with default emoji presentation (see `isWideCodePoint`) — the set of characters
+ * this module measures at two columns. ANSI colour escapes are stripped first, matching
+ * `displayWidth`.
+ *
+ * This exists for one purpose: a framed line (see `pretty.ts`'s `frameRow`) must never contain one
+ * of these. `displayWidth`'s count of such a character is standards-correct, but plenty of real
+ * terminals render it one column narrower than the standard says — measured against the real CLI,
+ * not assumed — which shifts a framed line's closing border left of every other line's. That
+ * mismatch cannot be fixed by measuring better; the only durable fix is to keep these characters
+ * out of framed lines entirely, and this function is what lets a test enforce that as an invariant
+ * instead of re-litigating it the next time someone adds a glyph to the footer.
+ */
+export function hasWideOrFullwidthCharacter(text: string): boolean {
+  const visible = text.replace(ANSI_ESCAPE_PATTERN, '')
+  for (const { segment } of graphemeSegmenter.segment(visible)) {
+    if (clusterWidth(segment) === 2) return true
+  }
+  return false
+}
+
 export function displayWidth(text: string): number {
   const visible = text.replace(ANSI_ESCAPE_PATTERN, '')
   let width = 0

@@ -207,8 +207,11 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     if (total === 0) {
       lines.push(`  ${paint('green', checkMark)}  No issues found`)
     } else {
+      // Text only, no severity glyph: this line sits inside the footer's frame (`frameRow` below),
+      // and unlike the open body's per-finding glyph (`writeFinding`), a one-column miscount here
+      // would shift the frame's closing border. See `SEVERITY_GLYPH` and `hasWideOrFullwidthCharacter`.
       const parts = SEVERITY_ORDER.filter((severity) => result.counts[severity] > 0).map((severity) =>
-        paint(SEVERITY_STYLE[severity], `${glyph[severity]} ${plural(result.counts[severity], SEVERITY_NOUN[severity])}`),
+        paint(SEVERITY_STYLE[severity], plural(result.counts[severity], SEVERITY_NOUN[severity])),
       )
       lines.push(`  ${parts.join('    ')}`)
     }

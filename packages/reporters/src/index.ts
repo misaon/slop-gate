@@ -40,5 +40,12 @@ export function createReporter(name: ReporterName, context: ReporterContext): Re
 export { renderCodeFrame } from './code-frame.ts'
 export { JSON_REPORT_VERSION } from './json.ts'
 export { SEVERITY_GLYPH, createPrettyReporter } from './pretty.ts'
-export { displayWidth, padEndDisplay, padStartDisplay, truncateEnd, truncateStart } from './display-width.ts'
+export {
+  displayWidth,
+  hasWideOrFullwidthCharacter,
+  padEndDisplay,
+  padStartDisplay,
+  truncateEnd,
+  truncateStart,
+} from './display-width.ts'
 export { wrapText } from './wrap-text.ts'

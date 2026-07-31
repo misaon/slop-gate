@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { CheckEvent, CheckResult, Diagnostic } from '@misaon/slop-gate-core'
-import { displayWidth } from './display-width.ts'
+import { displayWidth, hasWideOrFullwidthCharacter } from './display-width.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
 
@@ -273,10 +273,13 @@ test('truncates a long file path from the left, keeping the filename', () => {
   expect(output).not.toContain(longPath)
 })
 
-test('frame borders stay aligned to the same display width when content contains emoji', () => {
-  // The header and footer both put emoji (the logo mark / severity glyphs) inside a bordered box.
+test('frame borders stay aligned to the same display width across a full run', () => {
   // Every content line between the top and bottom border must resolve to exactly the same display
-  // width, or the right-hand border characters would not line up in a real terminal.
+  // width, or the right-hand border characters would not line up. This only proves `frameRow`'s own
+  // padding is self-consistent by `displayWidth`'s accounting — it cannot catch a real terminal
+  // rendering a glyph narrower than the standard says, which is exactly why framed lines carry no
+  // wide/fullwidth glyphs at all any more (see "never puts a wide or fullwidth character in a framed
+  // line", below) rather than relying on measuring them correctly.
   const output = capture([
     { type: 'diagnostic', diagnostic: diagnostic({ severity: 'error' }) },
     { type: 'diagnostic', diagnostic: diagnostic({ severity: 'warn', fingerprint: 'w', concept: 'dead-code.unused-variable' }) },
@@ -299,6 +302,43 @@ test('frame top and bottom borders match the content rows in display width', () 
   const lines = output.split('\n').filter((line) => /^ {2}[│╭╰]/.test(line))
   const widths = new Set(lines.map((line) => displayWidth(line)))
   expect(widths.size).toBe(1)
+})
+
+test('never puts a wide or fullwidth character in a framed line', () => {
+  // The invariant, not the workaround: `displayWidth`'s count of an emoji is standards-correct, but
+  // real terminals disagree with the standard often enough that a framed line can never safely
+  // contain one — see `hasWideOrFullwidthCharacter`'s doc comment. Stating this as an invariant, and
+  // checking every framed line of the busiest footer this reporter draws (all three severities, the
+  // "Most frequent" block, a suppressed overlap and an uncovered concept together), is what stops a
+  // future glyph added to the footer from quietly reintroducing the bug fix 2 closed.
+  const busy = manyDiagnostics([
+    { concept: 'dead-code.unused-variable', count: 7 },
+    { concept: 'slop.as-any-cast', count: 2 },
+    { concept: 'correctness.no-debugger', count: 1 },
+  ])
+  const outputs = [
+    // Clean run: header plus the "No issues found" footer.
+    capture([{ type: 'done', result: result({ diagnostics: [], counts: { error: 0, warn: 0, info: 0 } }) }]),
+    // Every severity, "Most frequent", a suppressed overlap and an uncovered concept at once.
+    capture([
+      {
+        type: 'done',
+        result: result({
+          diagnostics: busy,
+          counts: { error: 5, warn: 3, info: 2 },
+          ruleset: { enabledConcepts: 5, suppressed: 3, uncovered: ['style.no-var'], unknownKeys: [] },
+        }),
+      },
+    ]),
+  ]
+
+  for (const output of outputs) {
+    const framedLines = output.split('\n').filter((line) => /^ {2}[│╭╰]/.test(line))
+    expect(framedLines.length).toBeGreaterThan(0)
+    for (const line of framedLines) {
+      expect(hasWideOrFullwidthCharacter(line), line).toBe(false)
+    }
+  }
 })
 
 test('falls back to ASCII frame characters and severity markers when unicode is disabled', () => {
