@@ -1,21 +1,30 @@
 import { cp, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { runCheck } from '@misaon/slop-gate-core'
+import { loadConfig, runCheck, toPosix } from '@misaon/slop-gate-core'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/basic')
 let dir: string
 
-const check = (useCache: boolean) =>
-  runCheck({
+const check = async (useCache: boolean) => {
+  // Mirrors what `sgate check` itself does (packages/cli/src/commands/check.ts): `loadConfig`
+  // resolves the fixture's own `slop-gate.config.ts` to an absolute path, which the caller must
+  // relativize before it reaches `streamCheck` — `configFile` lands verbatim in every `config.*`
+  // diagnostic's `file` field, and paths are repo-relative POSIX in every public data structure.
+  // Without this, the fixture's config is never actually loaded from disk, so no `config.*`
+  // diagnostic is ever produced here and this class of bug (an absolute `configFile`) is invisible.
+  const loaded = await loadConfig(dir)
+  return runCheck({
     rootDir: dir,
-    config: { extends: ['recommended'] },
+    config: loaded?.config ?? { extends: ['recommended'] },
+    ...(loaded === null || loaded === undefined ? {} : { configFile: toPosix(relative(dir, loaded.file)) }),
     engines: [createOxlintEngine()],
     useCache,
   })
+}
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'sgate-e2e-'))
@@ -36,7 +45,15 @@ test('finds the seeded problems in the dirty file and nothing in the clean one',
 }, 60_000)
 
 test('reports every diagnostic with a canonical rule id, a concept and a position', async () => {
-  for (const diagnostic of (await check(false)).diagnostics) {
+  const diagnostics = (await check(false)).diagnostics
+
+  // The registry's own oxlint/eslint tier overlap on `dead-code.unused-variable` fires
+  // unconditionally (§5.3) — `recommended` enables `config.rule-overlap`, so this run must produce
+  // one. Without this assertion, the relative-path check below would pass vacuously the moment
+  // `configFile` stopped being wired up, exactly the gap that let the absolute-path bug through.
+  expect(diagnostics.some((d) => d.concept.startsWith('config.'))).toBe(true)
+
+  for (const diagnostic of diagnostics) {
     expect(diagnostic.ruleId).toMatch(/^[a-z-]+\/\S+$/)
     expect(diagnostic.concept).toMatch(/^[a-z-]+\.[a-z-]+$/)
     expect(diagnostic.position.startLine).toBeGreaterThan(0)
@@ -63,6 +80,25 @@ test('the warm run is faster than the cold run', async () => {
 test('never reports two diagnostics with the same concept at the same position', async () => {
   const seen = new Set<string>()
   for (const diagnostic of (await check(false)).diagnostics) {
+    const key = `${diagnostic.file}:${diagnostic.range.start}:${diagnostic.concept}`
+    expect(seen.has(key), `duplicate report for ${key}`).toBe(false)
+    seen.add(key)
+  }
+}, 60_000)
+
+test('a warm run still reports each of two byte-identical files, not a cross-file duplicate', async () => {
+  // fixtures/basic/src/twin-a.ts and twin-b.ts are byte-identical. The result cache key is
+  // per-content, not per-path (packages/core/src/cache/keys.ts): without the file path folded in,
+  // both files collide on one cache entry on a warm run, so this is the property that class of bug
+  // breaks — unlike the cache-off test above, which never touches the cache at all.
+  await check(true)
+  const warm = await check(true)
+
+  const twins = warm.diagnostics.filter((d) => d.file === 'src/twin-a.ts' || d.file === 'src/twin-b.ts')
+  expect(twins.map((d) => d.file).sort()).toEqual(['src/twin-a.ts', 'src/twin-b.ts'])
+
+  const seen = new Set<string>()
+  for (const diagnostic of warm.diagnostics) {
     const key = `${diagnostic.file}:${diagnostic.range.start}:${diagnostic.concept}`
     expect(seen.has(key), `duplicate report for ${key}`).toBe(false)
     seen.add(key)
