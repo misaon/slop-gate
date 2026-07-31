@@ -66,6 +66,17 @@ test('overwrites an existing config when forced', async () => {
   expect(await readFile(join(dir, 'slop-gate.config.ts'), 'utf8')).not.toContain('// mine')
 })
 
+test('does not advertise commands that do not exist', async () => {
+  // `sgate fix` and `sgate rules why <concept>` are not registered subcommands (packages/cli/src/
+  // main.ts lists only `check` and `init`) — an agent following this file's own advice would run
+  // one and get `Unknown command`, exit code 2.
+  await runInit({ rootDir: dir })
+  const content = await readFile(join(dir, 'AGENTS.md'), 'utf8')
+
+  expect(content).not.toContain('sgate fix')
+  expect(content).not.toContain('rules why')
+})
+
 test('merges into an existing AGENTS.md without losing content', async () => {
   await writeFile(join(dir, 'AGENTS.md'), '# Project\n\nExisting guidance.\n')
   await runInit({ rootDir: dir })
