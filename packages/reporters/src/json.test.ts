@@ -6,7 +6,7 @@ const result: CheckResult = {
   diagnostics: [],
   counts: { error: 0, warn: 0, info: 0 },
   engineFailures: [],
-  stats: { filesScanned: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 },
+  stats: { filesScanned: 1, filesAnalysed: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 },
   ruleset: { enabledConcepts: 2, suppressed: 0, uncovered: [], unknownKeys: [] },
 }
 

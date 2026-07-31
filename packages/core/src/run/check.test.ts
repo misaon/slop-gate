@@ -86,6 +86,19 @@ test('returns a normalized diagnostic for an engine finding', async () => {
   expect(result.counts).toEqual({ error: 1, warn: 0, info: 0 })
 })
 
+test('counts filesAnalysed as the files an engine plan actually covers, not everything scanned', async () => {
+  // `stubEngine`'s declared languages are `['ts']`, so of the three files a real inventory walk
+  // finds here (the root package.json, src/a.ts, and this new src/data.json), only src/a.ts is
+  // ever a candidate for analysis or caching — the two `.json` files are real, scanned files that
+  // no engine claims, which is exactly the gap `filesAnalysed` exists to stop `filesScanned` from
+  // hiding.
+  await writeFile(join(dir, 'src/data.json'), '{}\n')
+  const result = await runCheck({ ...baseOptions(), engines: [stubEngine({})] })
+
+  expect(result.stats.filesScanned).toBe(3)
+  expect(result.stats.filesAnalysed).toBe(1)
+})
+
 test('reports zero findings on a clean repository', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
   const result = await runCheck({ ...baseOptions(), engines: [stubEngine({})] })

@@ -216,9 +216,21 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
       lines.push(`  ${parts.join('    ')}`)
     }
 
-    lines.push(
-      `  ${paint('dim', `${plural(result.stats.filesScanned, 'file')}${statsSeparator}${result.stats.filesFromCache} cached${statsSeparator}${result.stats.durationMs} ms`)}`,
-    )
+    // Three honest numbers, not two: `filesScanned` includes every file the walker found, most of
+    // which no engine covers at all (a .json, a .md, a lockfile) and so were never candidates for
+    // caching in the first place. Reporting only "scanned" and "cached" reads as if the gap between
+    // them were files the cache failed on. `filesAnalysed` — files actually assigned to an engine —
+    // names that gap honestly. When every analysed file came from the cache (including the
+    // vacuous case of zero analysed files), folding the two into one clause says so without
+    // repeating the same number twice.
+    const { filesScanned, filesAnalysed, filesFromCache, durationMs } = result.stats
+    const analysedPart =
+      filesAnalysed === 0
+        ? `${filesAnalysed} analysed`
+        : filesAnalysed === filesFromCache
+          ? `${filesAnalysed} analysed (all cached)`
+          : `${filesAnalysed} analysed${statsSeparator}${filesFromCache} cached`
+    lines.push(`  ${paint('dim', `${filesScanned} scanned${statsSeparator}${analysedPart}${statsSeparator}${durationMs} ms`)}`)
 
     // A footer this size is only worth it once there is enough noise to triage: three lines of
     // "most frequent" concepts help on a two-hundred-finding run and are just clutter on three.

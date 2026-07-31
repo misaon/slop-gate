@@ -26,7 +26,7 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   diagnostics: [],
   counts: { error: 1, warn: 0, info: 0 },
   engineFailures: [],
-  stats: { filesScanned: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
+  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
   ruleset: { enabledConcepts: 5, suppressed: 1, uncovered: [], unknownKeys: [] },
   ...over,
 })
@@ -109,19 +109,60 @@ test('prints a new header when the file changes', () => {
   expect(output).toContain('src/b.ts')
 })
 
-test('summarises counts, cache use and duration', () => {
+test('summarises counts, scanned/analysed/cached files and duration', () => {
   const output = capture([{ type: 'done', result: result() }])
 
   expect(output).toContain('1 error')
-  expect(output).toContain('3 files')
+  expect(output).toContain('3 scanned')
+  expect(output).toContain('3 analysed')
   expect(output).toContain('2 cached')
   expect(output).toContain('42')
 })
 
-test('pluralises the words a developer reads on every run', () => {
-  const singular = capture([{ type: 'done', result: result({ stats: { filesScanned: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 } }) }])
-  expect(singular).toContain('1 file')
-  expect(singular).not.toContain('1 files')
+test('folds analysed and cached into one clause once every analysed file came from the cache', () => {
+  // A fully-warm run: every file the plan assigned to an engine was served from the cache. Saying
+  // "127 analysed · 127 cached" reads like a coincidence rather than the whole story — "(all
+  // cached)" says the same thing without repeating the number.
+  const output = capture([
+    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 127, enginesRun: 1, durationMs: 83 } }) },
+  ])
+
+  expect(output).toContain('179 scanned')
+  expect(output).toContain('127 analysed (all cached)')
+  expect(output).not.toContain('127 cached')
+})
+
+test('does not claim anything was cached when nothing was analysed', () => {
+  // No engine covers any of the scanned files (e.g. a repo of only .json/.md/lockfiles) — 0
+  // analysed necessarily means 0 cached too, but saying so is redundant, not just crisp: "0
+  // analysed" alone does not imply a cache failure the way "0 analysed · 0 cached" reads.
+  const output = capture([
+    { type: 'done', result: result({ stats: { filesScanned: 5, filesAnalysed: 0, filesFromCache: 0, enginesRun: 0, durationMs: 3 } }) },
+  ])
+
+  expect(output).toContain('5 scanned')
+  expect(output).toContain('0 analysed')
+  expect(output).not.toContain('cached')
+})
+
+test('shows the analysed/cached split when they differ', () => {
+  const output = capture([
+    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 90, enginesRun: 1, durationMs: 83 } }) },
+  ])
+
+  expect(output).toContain('179 scanned')
+  expect(output).toContain('127 analysed')
+  expect(output).toContain('90 cached')
+  expect(output).not.toContain('analysed (all cached)')
+})
+
+test('pluralises the severity nouns a developer reads on every run', () => {
+  // The scanned/analysed/cached line no longer carries a noun to pluralise at all — fix 4 dropped
+  // "file(s)" from it entirely (see pretty.ts's `writeSummary`), so this test now covers what's
+  // left with a noun: the severity counts, which still say "error" vs "errors".
+  const singular = capture([{ type: 'done', result: result({ counts: { error: 1, warn: 0, info: 0 } }) }])
+  expect(singular).toContain('1 error')
+  expect(singular).not.toContain('1 errors')
 
   const plural = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 2, info: 0 } }) }])
   expect(plural).toContain('2 warnings')

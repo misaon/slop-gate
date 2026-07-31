@@ -33,7 +33,14 @@ export type CheckResult = {
   diagnostics: Diagnostic[]
   counts: Record<Severity, number>
   engineFailures: Array<{ engine: string; message: string }>
-  stats: { filesScanned: number; filesFromCache: number; enginesRun: number; durationMs: number }
+  stats: {
+    filesScanned: number
+    /** Files assigned to at least one engine by the plan — the denominator `filesFromCache` is a count of. */
+    filesAnalysed: number
+    filesFromCache: number
+    enginesRun: number
+    durationMs: number
+  }
   ruleset: {
     enabledConcepts: number
     suppressed: number
@@ -119,6 +126,13 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   }
 
   const plan = buildPlan({ engines: options.engines, inventory, election, resolver })
+  // The plan already knows exactly which files each engine was assigned (buildPlan filters by the
+  // engine's supported languages); the union of those assignments — not a second pass re-filtering
+  // languages here — is the honest count of "files something actually looked at". A file with no
+  // engine assignment (a `.json`, a `.md`, a lockfile — nothing in the registry claims those
+  // languages) was never a caching candidate in the first place, which is the distinction `stats`
+  // needs to stop reading a merely-uncovered file as a cache miss.
+  const filesAnalysed = new Set(plan.flatMap((assignment) => assignment.files.map((file) => file.path))).size
 
   // Wrapped so a consumer that stops iterating early (breaking out of a `for await`) still
   // triggers this `finally` via the generator's implicit `return()` — otherwise every hash
@@ -250,6 +264,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       engineFailures,
       stats: {
         filesScanned: inventory.files.length,
+        filesAnalysed,
         filesFromCache,
         enginesRun,
         durationMs: Math.round(performance.now() - startedAt),
