@@ -6484,25 +6484,64 @@ function supportsColor(): boolean {
 `packages/cli/src/main.ts`:
 
 ```ts
-import { defineCommand, runMain } from 'citty'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { defineCommand, runCommand, showUsage, type CommandDef } from 'citty'
 import { EXIT_CODES } from './exit-codes.ts'
 
+const packageDir = dirname(fileURLToPath(import.meta.url))
+const { version } = JSON.parse(readFileSync(join(packageDir, '../package.json'), 'utf8')) as { version: string }
+
+const subCommands = {
+  check: () => import('./commands/check.ts').then((module) => module.check),
+  // `init` is registered in Task 15, which creates ./commands/init.ts. Listing it here first
+  // would fail typecheck and build against a module that does not exist yet.
+}
+
 const main = defineCommand({
-  meta: {
-    name: 'sgate',
-    description: 'slop-gate — one quality gate over many analysis engines',
-  },
-  subCommands: {
-    check: () => import('./commands/check.ts').then((module) => module.check),
-    // `init` is registered in Task 15, which creates ./commands/init.ts. Listing it here first
-    // would fail typecheck and build against a module that does not exist yet.
-  },
+  meta: { name: 'sgate', version, description: 'slop-gate — one quality gate over many analysis engines' },
+  subCommands,
 })
 
-await runMain(main).catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-  process.exitCode = EXIT_CODES.config
-})
+const rawArgs = process.argv.slice(2)
+
+/**
+ * citty's `runMain` provides `--help`/`--version`, but on every usage error — unknown subcommand,
+ * missing argument, no command at all — it calls `process.exit()` directly rather than throwing.
+ * That bypasses `process.exitCode`, the one thing this layer owns, and reports exit 1 ("findings")
+ * for a run that never checked anything: a typo would tell an agent its code has problems.
+ * `runCommand` throws instead (`E_UNKNOWN_COMMAND`, `E_NO_COMMAND`), so the catch maps them to
+ * `EXIT_CODES.config`. Its cost is that it has no `--help`/`--version` handling of its own —
+ * calling it with `['check', '--help']` starts running `check` for real — so that part is
+ * replicated here with citty's exported `showUsage`.
+ */
+if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+  const target = await resolveHelpTarget(rawArgs)
+  await showUsage(target.cmd, target.parent)
+} else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
+  console.log(version)
+} else {
+  try {
+    await runCommand(main, { rawArgs })
+  } catch (error: unknown) {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+    process.exitCode = EXIT_CODES.config
+  }
+}
+
+/**
+ * A deliberately simple one-level lookup matching this CLI's shape: a flat list of subcommands, no
+ * aliases, no nesting. citty's own `resolveSubCommand` handles both and is not exported; revisit
+ * if a later command grows either.
+ */
+async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: CommandDef; parent?: CommandDef }> {
+  const name = args.find((arg) => !arg.startsWith('-'))
+  const loader =
+    name === undefined ? undefined : (subCommands as unknown as Record<string, (() => Promise<CommandDef>) | undefined>)[name]
+  if (loader === undefined) return { cmd: main }
+  return { cmd: await loader(), parent: main }
+}
 ```
 
 Subcommands are lazily imported so `sgate --help` never loads the engine layer.
