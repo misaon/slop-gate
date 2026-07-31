@@ -6516,18 +6516,24 @@ const rawArgs = process.argv.slice(2)
  * calling it with `['check', '--help']` starts running `check` for real — so that part is
  * replicated here with citty's exported `showUsage`.
  */
-if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  const target = await resolveHelpTarget(rawArgs)
-  await showUsage(target.cmd, target.parent)
-} else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
-  console.log(version)
-} else {
-  try {
+// One catch around the whole dispatch, not just the `runCommand` branch: `resolveHelpTarget`
+// dynamically imports a subcommand, which transitively loads the engine layer, so a broken oxlint
+// install makes `sgate check --help` reject. Left unhandled that exits 1 — "the check found
+// problems" — for a run that never checked anything, which is the exact confusion this layer exists
+// to prevent. A plain `includes` scan for the help flags is enough here: no subcommand takes
+// positional arguments, so `--help` cannot arrive as another flag's value.
+try {
+  if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+    const target = await resolveHelpTarget(rawArgs)
+    await showUsage(target.cmd, target.parent)
+  } else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
+    console.log(version)
+  } else {
     await runCommand(main, { rawArgs })
-  } catch (error: unknown) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-    process.exitCode = EXIT_CODES.config
   }
+} catch (error: unknown) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+  process.exitCode = EXIT_CODES.config
 }
 
 /**
