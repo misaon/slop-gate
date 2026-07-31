@@ -86,6 +86,22 @@ test('a config diagnostic reports the config file as repo-relative, not the abso
   }
 })
 
+test('a config diagnostic names no file when no config file exists', async () => {
+  // Bug reproduction (docs/superpowers/specs/2026-07-31-m0-followups.md, "Found by first
+  // real-world use"): with no config file anywhere in `dir`, `check.run` falls back to
+  // `DEFAULT_CONFIG = { extends: ['recommended'] }`, which — like the test above notes —
+  // unconditionally triggers `config.rule-overlap`. Before the fix, that diagnostic was attributed
+  // to the literal default `slop-gate.config.ts`, a path that does not exist anywhere in `dir`.
+  const output = await runCheckCapturingStdout()
+  const report = JSON.parse(output) as { diagnostics: Array<{ concept: string; file: string | null }> }
+  const configDiagnostics = report.diagnostics.filter((d) => d.concept.startsWith('config.'))
+
+  expect(configDiagnostics.length).toBeGreaterThan(0)
+  for (const diagnostic of configDiagnostics) {
+    expect(diagnostic.file).toBeNull()
+  }
+})
+
 test('removes its SIGINT/SIGTERM listeners after each run so repeated calls do not leak them', async () => {
   const before = { sigint: process.listenerCount('SIGINT'), sigterm: process.listenerCount('SIGTERM') }
   await runCheck()

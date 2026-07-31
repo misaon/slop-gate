@@ -23,7 +23,13 @@ export type Diagnostic = {
   engine: string
   severity: Severity
   message: string
-  file: string
+  /**
+   * Repo-relative POSIX path, or `null` for an orchestrator-level diagnostic with no file to point
+   * at — e.g. `config.rule-overlap` when no config file was found. `null` is deliberate rather than
+   * a placeholder path: naming a file that does not exist on disk is the specific bug this type
+   * exists to make impossible. Reporters must treat it as "no location", not as an error.
+   */
+  file: string | null
   range: ByteRange
   position: Position
   related?: RelatedLocation[]

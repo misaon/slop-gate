@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { buildInventory, createGitFileSource, createWalkFileSource, selectFileSource } from './inventory.ts'
+import { buildInventory, createGitFileSource, createWalkFileSource, selectFileSource, type FileSource } from './inventory.ts'
 
 const run = promisify(execFile)
 let dir: string
@@ -200,6 +200,43 @@ test('selects the git source from a subdirectory of a repository', async () => {
   await write('packages/app/src/a.ts')
 
   expect((await selectFileSource(join(dir, 'packages/app'))).id).toBe('git')
+})
+
+test('the git source excludes .slop-gate/cache even though it is untracked and not gitignored', async () => {
+  // Bug reproduction (docs/superpowers/specs/2026-07-31-m0-followups.md, "Found by first
+  // real-world use"): before `sgate init` has ever run, nothing gitignores `.slop-gate/`, so
+  // `git ls-files -co --exclude-standard` lists its cache contents as untracked-but-not-ignored,
+  // exactly like any other new file. Left unfixed, `check` inventories its own cache and the
+  // scanned-file count grows on every run.
+  await run('git', ['init', '-q'], { cwd: dir })
+  await run('git', ['config', 'user.email', 't@t.test'], { cwd: dir })
+  await run('git', ['config', 'user.name', 'Test'], { cwd: dir })
+  await write('src/a.ts')
+  await run('git', ['add', '.'], { cwd: dir })
+  await run('git', ['commit', '-qm', 'init'], { cwd: dir })
+  await write('.slop-gate/cache/results/oxlint/ab/deadbeef.json', '{}')
+  await write('.slop-gate/cache/stat-index.json', '{}')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createGitFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+
+  expect(paths).toContain('src/a.ts')
+  expect(paths.some((p) => p === '.slop-gate' || p.startsWith('.slop-gate/'))).toBe(false)
+})
+
+test('buildInventory excludes .slop-gate regardless of which FileSource produced the path list', async () => {
+  // Pins the fix location, not just the symptom: the exclusion lives in `buildInventory`, where
+  // every source converges, specifically so a future third `FileSource` cannot reintroduce this
+  // bug by omitting its own `.slop-gate` handling the way the git source did.
+  await write('src/a.ts')
+  await write('.slop-gate/cache/results/oxlint/ab/deadbeef.json', '{}')
+  const sourceThatIgnoresNothing: FileSource = {
+    id: 'walk',
+    list: async () => ['src/a.ts', '.slop-gate/cache/results/oxlint/ab/deadbeef.json'],
+  }
+
+  const inventory = await buildInventory({ rootDir: dir, source: sourceThatIgnoresNothing })
+  expect(inventory.files.map((f) => f.path)).toEqual(['src/a.ts'])
 })
 
 test('the git source respects .gitignore when run from a subdirectory', async () => {

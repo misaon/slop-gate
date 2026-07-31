@@ -26,7 +26,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
   const writeDiagnostic = (diagnostic: Diagnostic): void => {
     if (diagnostic.file !== currentFile) {
       currentFile = diagnostic.file
-      context.write(`\n${paint(['underline', 'bold'], diagnostic.file)}\n`)
+      context.write(`\n${paint(['underline', 'bold'], diagnostic.file ?? '(configuration)')}\n`)
     }
 
     const location = `${diagnostic.position.startLine}:${diagnostic.position.startColumn}`

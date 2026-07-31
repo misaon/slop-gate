@@ -61,6 +61,10 @@ export const check = defineCommand({
       write: (chunk) => process.stdout.write(chunk),
       color: supportsColor(),
       readSource: (file) => {
+        // `file` is `null` for an orchestrator-level diagnostic with nothing to attribute (see
+        // `Diagnostic.file`). Guarded explicitly rather than left to `join(rootDir, null)` throwing
+        // and being swallowed by the `catch` below — that would work by accident, not by contract.
+        if (file === null) return null
         try {
           return readFileSync(join(rootDir, file), 'utf8')
         } catch {

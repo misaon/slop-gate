@@ -170,6 +170,40 @@ test('emits a diagnostic for a dead override', async () => {
   expect(dead[0]?.message).toContain('oxlint/no-such-rule')
 })
 
+test('a config diagnostic is attributed to no file when no config file was given', async () => {
+  // Bug reproduction (docs/superpowers/specs/2026-07-31-m0-followups.md, "Found by first
+  // real-world use"): `baseOptions()` never sets `configFile`, matching a real run where
+  // `loadConfig` found nothing. The diagnostic must not name the literal default
+  // `slop-gate.config.ts` — that path does not exist in this fixture's `dir` — so `file` has to be
+  // `null`, not a guessed filename.
+  const result = await runCheck({
+    ...baseOptions(),
+    config: {
+      rules: { 'correctness.no-debugger': 'error', 'oxlint/no-such-rule': 'error', 'config.dead-override': 'warn' },
+    } as never,
+    engines: [stubEngine({})],
+  })
+
+  const dead = result.diagnostics.filter((d) => d.concept === 'config.dead-override')
+  expect(dead).toHaveLength(1)
+  expect(dead[0]?.file).toBeNull()
+})
+
+test('a config diagnostic is attributed to the real config file when one was given', async () => {
+  const result = await runCheck({
+    ...baseOptions(),
+    config: {
+      rules: { 'correctness.no-debugger': 'error', 'oxlint/no-such-rule': 'error', 'config.dead-override': 'warn' },
+    } as never,
+    configFile: 'slop-gate.config.ts',
+    engines: [stubEngine({})],
+  })
+
+  const dead = result.diagnostics.filter((d) => d.concept === 'config.dead-override')
+  expect(dead).toHaveLength(1)
+  expect(dead[0]?.file).toBe('slop-gate.config.ts')
+})
+
 test('emits a diagnostic naming both rules when two rules overlap', async () => {
   const withOverlap: RuleEntry[] = [
     ...ENTRIES,
@@ -186,6 +220,7 @@ test('emits a diagnostic naming both rules when two rules overlap', async () => 
   expect(overlap).toHaveLength(1)
   expect(overlap[0]?.message).toContain('oxlint/no-debugger')
   expect(overlap[0]?.message).toContain('eslint/no-debugger')
+  expect(overlap[0]?.file).toBeNull()
 })
 
 test('sorts diagnostics by file then offset', async () => {

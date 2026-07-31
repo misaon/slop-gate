@@ -11,7 +11,18 @@ export type FileSource = {
   list(rootDir: string, signal: AbortSignal): Promise<string[]>
 }
 
-const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
+/**
+ * Directory and file names no source should ever surface, regardless of git or ignore-file state.
+ * The walker below uses this to prune whole subtrees during traversal (an optimisation — skipping
+ * `node_modules` unread is the difference between a fast walk and a slow one). `buildInventory`
+ * (`./inventory.ts`) additionally re-applies this same set to every path each source returns,
+ * because the git source has no equivalent traversal step to hook: `git ls-files` lists
+ * `.slop-gate/cache/**` as untracked, non-ignored content in any repository that has not run
+ * `sgate init` (which is the only thing that writes `.slop-gate/.gitignore`). Enforcing the set once
+ * more where the sources converge means a future third `FileSource` gets this exclusion for free
+ * instead of having to remember to reimplement it.
+ */
+export const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
 
 export function createGitFileSource(): FileSource {
   return {

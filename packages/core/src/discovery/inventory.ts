@@ -4,7 +4,7 @@ import picomatch from 'picomatch'
 import type { LanguageId } from '../languages.ts'
 import { compareStrings } from '../ordering.ts'
 import { detectLanguage } from './language.ts'
-import { createGitFileSource, createWalkFileSource, selectFileSource, type FileSource } from './sources.ts'
+import { ALWAYS_SKIPPED, createGitFileSource, createWalkFileSource, selectFileSource, type FileSource } from './sources.ts'
 import type { FileInventory, InventoryFile } from './types.ts'
 import { buildWorkspaceGraph } from './workspaces.ts'
 
@@ -30,6 +30,18 @@ export type BuildInventoryOptions = {
  * Write `vendor/**` to exclude a directory. Blank lines and `#` comments are skipped; an absent
  * file means no patterns.
  */
+/**
+ * True when some segment of `path` (including the leaf) is one of `ALWAYS_SKIPPED` — mirroring the
+ * walker's own per-entry check in `./sources.ts`. Applied here rather than trusted to each
+ * `FileSource` because the git source has no directory-traversal step to prune: `git ls-files -co
+ * --exclude-standard` happily lists `.slop-gate/cache/**` as untracked, non-ignored content until
+ * `sgate init` has written `.slop-gate/.gitignore`, and `check` must produce a correct inventory
+ * without depending on `init` having run first.
+ */
+function isAlwaysSkipped(path: string): boolean {
+  return path.split('/').some((segment) => ALWAYS_SKIPPED.has(segment))
+}
+
 async function readSlopIgnore(rootDir: string): Promise<string[]> {
   const source = await readFile(join(rootDir, '.slopignore'), 'utf8').catch(() => null)
   if (source === null) return []
@@ -54,7 +66,7 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
 
   await Promise.all(
     paths.map(async (path) => {
-      if (isIgnored(path)) return
+      if (isAlwaysSkipped(path) || isIgnored(path)) return
       signal.throwIfAborted()
 
       // A file vanishing mid-run is a benign race. A permission error is not: swallowing it would

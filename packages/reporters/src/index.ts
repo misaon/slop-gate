@@ -5,8 +5,12 @@ import { createPrettyReporter } from './pretty.ts'
 export type ReporterContext = {
   write(chunk: string): void
   color: boolean
-  /** Returns the file's content for code frames, or null when it cannot be read. */
-  readSource(file: string): string | null
+  /**
+   * Returns the file's content for code frames, or null when it cannot be read. `file` is `null`
+   * for an orchestrator-level diagnostic with no file to point at (see `Diagnostic.file`) —
+   * implementations must return `null` for that case rather than attempt to resolve a path.
+   */
+  readSource(file: string | null): string | null
 }
 
 export type Reporter = { onEvent(event: CheckEvent): void }

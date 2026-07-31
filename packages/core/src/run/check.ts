@@ -62,9 +62,15 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   const entries = options.entries ?? RULE_ENTRIES
   const cacheDir = options.cacheDir ?? join(options.rootDir, '.slop-gate', 'cache')
   const useCache = options.useCache ?? true
-  const configFile = options.configFile ?? 'slop-gate.config.ts'
+  // Deliberately not defaulted to a literal filename: when no config file was found, `configFile`
+  // stays `undefined` all the way through to `configDiagnostics`, which attributes those
+  // diagnostics to `file: null` rather than a path the user does not have on disk.
+  const configFile = options.configFile
 
-  const resolver = createRuleSetResolver({ config: options.config, configFile })
+  const resolver = createRuleSetResolver({
+    config: options.config,
+    ...(configFile === undefined ? {} : { configFile }),
+  })
   const inventory = await buildInventory({
     rootDir: options.rootDir,
     ...(options.config.ignore === undefined ? {} : { ignore: options.config.ignore }),
@@ -219,7 +225,13 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   }
 
   collected.sort(
-    (a, b) => compareStrings(a.file, b.file) || a.range.start - b.range.start || compareStrings(a.concept, b.concept),
+    // A `null` file (an orchestrator-level diagnostic with nothing to attribute) sorts before any
+    // real path — `''` is less than every non-empty string — surfacing configuration-level notices
+    // ahead of per-file findings rather than placing them arbitrarily among the files by chance.
+    (a, b) =>
+      compareStrings(a.file ?? '', b.file ?? '') ||
+      a.range.start - b.range.start ||
+      compareStrings(a.concept, b.concept),
   )
 
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 }
@@ -252,7 +264,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
 type ConfigDiagnosticInput = {
   resolver: ReturnType<typeof createRuleSetResolver>
   election: ReturnType<typeof electOwners>
-  configFile: string
+  /** The repo-relative config file path, or `undefined` when none was found. */
+  configFile: string | undefined
 }
 
 function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
@@ -265,7 +278,7 @@ function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
       engine: 'slop-gate',
       severity: LEVEL_TO_SEVERITY[level],
       message,
-      file: input.configFile,
+      file: input.configFile ?? null,
       range: { start: 0, end: 0 },
       position: { startLine: 1, startColumn: 1, endLine: 1, endColumn: 1 },
       docsUrl: `https://slop-gate.dev/concepts/${concept}`,
