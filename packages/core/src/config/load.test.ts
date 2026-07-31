@@ -39,6 +39,24 @@ test('loads a plain JavaScript config', async () => {
   expect((await loadConfig(dir))?.config.ignore).toEqual(['dist/**'])
 })
 
+test('loads a .mts config', async () => {
+  // `runInit` (packages/cli/src/commands/init.ts) writes `.mts` for a project whose package.json
+  // lacks `"type": "module"`, specifically so Node never has to guess `.ts`'s module system and
+  // print MODULE_TYPELESS_PACKAGE_JSON. That only closes the bug if `findConfigFile` actually
+  // discovers `.mts` — this is the end-to-end proof, not just a listed basename.
+  await writeFile(
+    join(dir, 'slop-gate.config.mts'),
+    `type Level = 'warn' | 'error'
+     const level: Level = 'error'
+     export default { extends: ['recommended'], rules: { 'style.no-var': level } }
+    `,
+  )
+
+  const loaded = await loadConfig(dir)
+  expect(loaded?.config.extends).toEqual(['recommended'])
+  expect(loaded?.config.rules?.['style.no-var']).toBe('error')
+})
+
 test('finds a config in a parent directory', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default {}`)
   const nested = join(dir, 'packages', 'app')
@@ -87,5 +105,18 @@ test('explains path aliases when an import cannot be resolved', async () => {
 test('prefers .ts over .js when both exist', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { ignore: ['from-ts'] }`)
   await writeFile(join(dir, 'slop-gate.config.js'), `export default { ignore: ['from-js'] }`)
+  expect((await loadConfig(dir))?.config.ignore).toEqual(['from-ts'])
+})
+
+test('prefers .ts over .mts when both exist', async () => {
+  // Deliberately unchanged by fix 3 (packages/cli/src/commands/init.ts): `runInit` only ever
+  // writes one of the two (its own existence check looks for both before choosing), so in the
+  // normal lifecycle of a project the two never coexist. The one case where they legitimately can
+  // — `sgate init --force` regenerates the extension for the project's *current* module type
+  // while a stale file from before a "type": "module" migration is still sitting on disk — is
+  // exactly the case where the fresher, actively-chosen file should win, and it is also the one a
+  // human is more likely to be editing by hand. `.ts` first serves both.
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { ignore: ['from-ts'] }`)
+  await writeFile(join(dir, 'slop-gate.config.mts'), `export default { ignore: ['from-mts'] }`)
   expect((await loadConfig(dir))?.config.ignore).toEqual(['from-ts'])
 })

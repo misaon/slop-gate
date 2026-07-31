@@ -30,6 +30,27 @@ const readIfPresent = async (path: string): Promise<string | null> =>
     () => null,
   )
 
+/**
+ * `slop-gate.config.ts` is ESM. Without `"type": "module"` in the target's `package.json`, Node
+ * tries to load it as CommonJS first, fails, and prints a four-line `MODULE_TYPELESS_PACKAGE_JSON`
+ * warning to stderr on every run (`loadConfig` dynamically imports the file). `.mts` is unambiguous
+ * — Node never guesses at its module system — so it never reparses and never warns, regardless of
+ * the target's `package.json`. A malformed or unreadable `package.json` is treated the same as an
+ * absent `type` field: `.mts` is always safe, where guessing `.ts` is only safe half the time.
+ */
+async function targetsEsm(rootDir: string): Promise<boolean> {
+  const raw = await readIfPresent(join(rootDir, 'package.json'))
+  if (raw === null) return false
+  try {
+    return (JSON.parse(raw) as { type?: unknown }).type === 'module'
+  } catch {
+    return false
+  }
+}
+
+/** Both extensions `runInit` has ever written, newest-preferred first — see `targetsEsm`. */
+const CONFIG_BASENAMES = ['slop-gate.config.ts', 'slop-gate.config.mts'] as const
+
 export async function runInit(options: {
   rootDir: string
   force?: boolean
@@ -37,12 +58,24 @@ export async function runInit(options: {
   const created: string[] = []
   const skipped: string[] = []
 
-  const configPath = join(options.rootDir, 'slop-gate.config.ts')
-  if ((await readIfPresent(configPath)) !== null && options.force !== true) {
-    skipped.push('slop-gate.config.ts')
+  const preferredConfigName = (await targetsEsm(options.rootDir)) ? 'slop-gate.config.ts' : 'slop-gate.config.mts'
+  let existingConfigName: string | null = null
+  for (const basename of CONFIG_BASENAMES) {
+    if ((await readIfPresent(join(options.rootDir, basename))) !== null) {
+      existingConfigName = basename
+      break
+    }
+  }
+
+  if (existingConfigName !== null && options.force !== true) {
+    skipped.push(existingConfigName)
   } else {
-    await writeFile(configPath, CONFIG_TEMPLATE, 'utf8')
-    created.push('slop-gate.config.ts')
+    // Force overwrites whichever config already exists, in place — it does not change a working
+    // config's extension to match the project's current module type. Only a first-time write (no
+    // existing config, forced or not) picks the extension fresh, from `targetsEsm`.
+    const targetName = existingConfigName ?? preferredConfigName
+    await writeFile(join(options.rootDir, targetName), CONFIG_TEMPLATE, 'utf8')
+    created.push(targetName)
   }
 
   await mkdir(join(options.rootDir, '.slop-gate'), { recursive: true })
