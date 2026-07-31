@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import { createWalkFileSource } from '../discovery/inventory.ts'
 import type { Engine, RawDiagnostic } from '../engine/types.ts'
-import type { RuleEntry } from '../registry/types.ts'
+import type { Capability, EngineId, RuleEntry } from '../registry/types.ts'
 import { runCheck, streamCheck } from './check.ts'
 
 let dir: string
@@ -27,13 +27,15 @@ const ENTRIES: RuleEntry[] = [
 ]
 
 const stubEngine = (options: {
+  id?: EngineId
+  provides?: Capability[]
   findings?: RawDiagnostic[]
   fail?: string
   onRun?: () => void
 }): Engine =>
   ({
-    id: 'oxlint',
-    capabilities: { languages: ['ts'], granularity: 'file', provides: [], fixes: false },
+    id: options.id ?? 'oxlint',
+    capabilities: { languages: ['ts'], granularity: 'file', provides: options.provides ?? [], fixes: false },
     version: async () => '1.75.0',
     materializeConfig: async () => ({ path: 'stub', rulesetHash: 'stubhash', dispose: async () => {} }),
     run: (batch) =>
@@ -217,12 +219,16 @@ test('an override can enable a concept the base config never mentions, scoped to
   await mkdir(join(dir, 'legacy'), { recursive: true })
   await writeFile(join(dir, 'legacy/a.ts'), 'export function f() {\n  debugger\n}\n')
 
-  const result = await runCheck({
+  const options = {
     ...baseOptions(),
     config: {
       rules: {},
       overrides: [{ files: ['legacy/**'], rules: { 'correctness.no-debugger': 'error' } }],
     } as never,
+  }
+
+  const result = await runCheck({
+    ...options,
     engines: [stubEngine({ findings: [debuggerFinding('legacy/a.ts'), debuggerFinding('src/a.ts')] })],
   })
 
@@ -230,4 +236,76 @@ test('an override can enable a concept the base config never mentions, scoped to
   expect(files).toContain('legacy/a.ts')
   expect(files).not.toContain('src/a.ts')
   expect(result.ruleset.enabledConcepts).toBeGreaterThan(0)
+
+  // `legacy/a.ts` and `src/a.ts` are byte-identical, and this override makes their *severities*
+  // diverge. A cache key that omits the file path (packages/core/src/cache/keys.ts) would make both
+  // files collide on one cache entry: whichever file's result is written last silently overwrites
+  // the other's on disk, so a second, cache-warm run must still resolve each file independently
+  // rather than replaying a stale cross-file collision.
+  const second = await runCheck({
+    ...options,
+    engines: [stubEngine({ findings: [debuggerFinding('legacy/a.ts'), debuggerFinding('src/a.ts')] })],
+  })
+  const secondFiles = second.diagnostics.map((d) => d.file)
+  expect(secondFiles).toContain('legacy/a.ts')
+  expect(secondFiles).not.toContain('src/a.ts')
+})
+
+test('an engine that provides a capability lets a capability-requiring rule be elected over one that needs nothing', async () => {
+  const entries: RuleEntry[] = [
+    {
+      engine: 'tsgolint',
+      engineRuleId: 'typed-rule',
+      concepts: ['slop.as-any-cast'],
+      tier: 1,
+      priority: 100,
+      severityDefault: 'warn',
+      fixKind: 'none',
+      fixTouches: [],
+      requires: ['types'],
+      languages: ['ts'],
+      docsUrl: 'https://example.test/typed-rule',
+      since: '0.1.0',
+    },
+    {
+      engine: 'astgrep',
+      engineRuleId: 'untyped-rule',
+      concepts: ['slop.as-any-cast'],
+      tier: 2,
+      priority: 100,
+      severityDefault: 'warn',
+      fixKind: 'none',
+      fixTouches: [],
+      requires: [],
+      languages: ['ts'],
+      docsUrl: 'https://example.test/untyped-rule',
+      since: '0.1.0',
+    },
+  ]
+  const finding = (engineRuleId: string): RawDiagnostic => ({
+    engineRuleId,
+    message: 'x',
+    severity: 'warning',
+    file: 'src/a.ts',
+    range: { start: 0, end: 1 },
+  })
+
+  const result = await runCheck({
+    ...baseOptions(),
+    config: { rules: { 'slop.as-any-cast': 'warn' } } as never,
+    entries,
+    engines: [
+      stubEngine({ id: 'tsgolint', provides: ['types'], findings: [finding('typed-rule')] }),
+      stubEngine({ id: 'astgrep', findings: [finding('untyped-rule')] }),
+    ],
+  })
+
+  // `tsgolint`'s entry is tier 1 (lower, so it wins) but `requires: ['types']`. If the engine's own
+  // declared capability never reaches election — `capabilities: new Set()` hard-coded regardless of
+  // what any registered engine provides — that requirement can never be satisfied, `astgrep`'s
+  // tier-2, no-requirements entry wins by default, and a rule that should have been elected never
+  // is. Only one of the two engines' findings should survive ownership filtering.
+  expect(result.diagnostics).toHaveLength(1)
+  expect(result.diagnostics[0]?.ruleId).toBe('tsgolint/typed-rule')
+  expect(result.ruleset.uncovered).toEqual([])
 })

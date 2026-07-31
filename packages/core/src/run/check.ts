@@ -75,7 +75,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   const election = electOwners({
     entries,
     enabledConcepts: resolver.anyEnabledConcepts,
-    capabilities: new Set(),
+    capabilities: new Set(options.engines.flatMap((engine) => engine.capabilities.provides)),
     languages: inventory.languages,
     pinnedOwners: resolver.base.pinnedOwners,
   })
@@ -135,6 +135,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               engineId: engine.id,
               engineVersion: version,
               engineRulesetHash: handle.rulesetHash,
+              filePath: file.path,
               fileHash: await statIndex.hashOf(options.rootDir, file),
               configHash,
             }
