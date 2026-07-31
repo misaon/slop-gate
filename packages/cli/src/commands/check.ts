@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { defineCommand } from 'citty'
-import { ConfigError, loadConfig, streamCheck, type CheckResult, type SlopGateConfig } from '@misaon/slop-gate-core'
+import {
+  ConfigError,
+  loadConfig,
+  streamCheck,
+  toPosix,
+  type CheckResult,
+  type SlopGateConfig,
+} from '@misaon/slop-gate-core'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { REPORTER_NAMES, createReporter, type ReporterName } from '@misaon/slop-gate-reporters'
 import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
@@ -67,7 +74,13 @@ export const check = defineCommand({
       for await (const event of streamCheck({
         rootDir,
         config: loaded?.config ?? DEFAULT_CONFIG,
-        ...(loaded === null || loaded === undefined ? {} : { configFile: loaded.file }),
+        // `loadConfig` resolves an absolute path (it walks up from `rootDir` to find the file).
+        // `configFile` lands verbatim in every `config.*` diagnostic's `file` field, and paths are
+        // repo-relative POSIX in every public data structure and output format — the CLI is the
+        // boundary that owes `streamCheck` that contract, not `streamCheck` itself.
+        ...(loaded === null || loaded === undefined
+          ? {}
+          : { configFile: toPosix(relative(rootDir, loaded.file)) }),
         engines: [createOxlintEngine()],
         useCache: args.cache,
         signal: controller.signal,

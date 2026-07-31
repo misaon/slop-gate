@@ -37,6 +37,24 @@ async function runCheck(): Promise<void> {
   }
 }
 
+async function runCheckCapturingStdout(): Promise<string> {
+  let output = ''
+  const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    output += chunk
+    return true
+  })
+  try {
+    await check.run!({
+      args: { format: 'json', cwd: dir, cache: false, _: [] },
+      rawArgs: [],
+      cmd: check,
+    } as never)
+  } finally {
+    stdout.mockRestore()
+  }
+  return output
+}
+
 test('does not stay on a stale exit code left over from a previous call', async () => {
   // Nothing about *this* run is a config error: there is no config file in `dir`, so
   // `loadConfig` resolves cleanly. A caller that invokes `check.run` more than once in the same
@@ -46,6 +64,26 @@ test('does not stay on a stale exit code left over from a previous call', async 
   process.exitCode = EXIT_CODES.config
   await runCheck()
   expect(process.exitCode).toBe(EXIT_CODES.clean)
+})
+
+test('a config diagnostic reports the config file as repo-relative, not the absolute path loadConfig resolved', async () => {
+  // `loadConfig` (and the `findConfigFile` it wraps) always resolves an absolute path — it walks
+  // up from `cwd` until it finds one. Writing a real config file on disk here, unlike the other
+  // tests in this file, is exactly what makes `loadConfig` take that path instead of returning
+  // `null`. `extends: ['recommended']` plus any `.ts` file also unconditionally triggers
+  // `config.rule-overlap` (the registry's oxlint/eslint tier overlap on `dead-code.unused-variable`
+  // fires regardless of which engines are actually registered), so this fixture needs no more setup
+  // than a config file to reproduce the failure the reviewer measured against the real repo.
+  await writeFile(join(dir, 'slop-gate.config.ts'), "export default { extends: ['recommended'] }\n")
+
+  const output = await runCheckCapturingStdout()
+  const report = JSON.parse(output) as { diagnostics: Array<{ concept: string; file: string }> }
+  const configDiagnostics = report.diagnostics.filter((d) => d.concept.startsWith('config.'))
+
+  expect(configDiagnostics.length).toBeGreaterThan(0)
+  for (const diagnostic of configDiagnostics) {
+    expect(diagnostic.file).not.toMatch(/^\/|^[a-zA-Z]:[\\/]/)
+  }
 })
 
 test('removes its SIGINT/SIGTERM listeners after each run so repeated calls do not leak them', async () => {
