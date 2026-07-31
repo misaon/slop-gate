@@ -106,6 +106,43 @@ test('.slopignore patterns combine with config ignore rather than replacing it',
   expect(paths).toContain('src/a.ts')
 })
 
+test('.slopignore lines are glob patterns, not gitignore syntax', async () => {
+  // Pins the documented (packages/core/src/discovery/inventory.ts) contract: `.slopignore` is
+  // matched by picomatch, so the gitignore idioms a user would naturally reach for from muscle
+  // memory — a bare directory name, a trailing slash, a leading slash — match nothing here. Only
+  // an explicit `dir/**` glob excludes a directory's contents.
+  await write('vendor/a.ts')
+  await write('vendor/nested/b.ts')
+  await write('keep.md')
+  await write('.slopignore', ['vendor', 'vendor/', '/vendor'].join('\n') + '\n')
+
+  const gitignoreStyle = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const gitignoreStylePaths = gitignoreStyle.files.map((f) => f.path)
+  expect(gitignoreStylePaths).toContain('vendor/a.ts')
+  expect(gitignoreStylePaths).toContain('vendor/nested/b.ts')
+  expect(gitignoreStylePaths).toContain('keep.md')
+
+  await write('.slopignore', 'vendor/**\n')
+  const globStyle = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const globStylePaths = globStyle.files.map((f) => f.path)
+  expect(globStylePaths).not.toContain('vendor/a.ts')
+  expect(globStylePaths).not.toContain('vendor/nested/b.ts')
+  expect(globStylePaths).toContain('keep.md')
+})
+
+test('an unrooted .slopignore glob matches by depth, unlike a gitignore pattern', async () => {
+  // gitignore treats a slash-free pattern as matching at any depth (`*.ts` behaves like
+  // `**/*.ts`). picomatch does not: `*.ts` only matches a `.ts` file with no directory prefix.
+  await write('root.ts')
+  await write('src/nested.ts')
+  await write('.slopignore', '*.ts\n')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('root.ts')
+  expect(paths).toContain('src/nested.ts')
+})
+
 test('an absent .slopignore changes nothing', async () => {
   await write('src/a.ts')
   await write('generated/b.ts')

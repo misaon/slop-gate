@@ -20,8 +20,15 @@ export type BuildInventoryOptions = {
 /**
  * Spec section 7 pairs `.slopignore` with config `ignore`. It exists so a repository can exclude
  * paths from analysis without touching its config file or its `.gitignore` — test fixtures holding
- * deliberately broken code being the motivating case. gitignore-style lines; blanks and `#`
- * comments skipped; an absent file means no patterns.
+ * deliberately broken code being the motivating case.
+ *
+ * Lines are glob patterns matched by `picomatch`, not gitignore syntax, even though the two look
+ * similar: `vendor`, `vendor/` and `/vendor` all match nothing (a bare picomatch pattern requires an
+ * exact full-path match, and neither trailing nor leading slashes anchor or mark a directory the
+ * way they do in a `.gitignore`), and `*.ts` only matches `.ts` files at the root, not `src/a.ts`
+ * (gitignore treats a slash-free pattern as matching at any depth; picomatch does not).
+ * Write `vendor/**` to exclude a directory. Blank lines and `#` comments are skipped; an absent
+ * file means no patterns.
  */
 async function readSlopIgnore(rootDir: string): Promise<string[]> {
   const source = await readFile(join(rootDir, '.slopignore'), 'utf8').catch(() => null)

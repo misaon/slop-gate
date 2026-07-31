@@ -351,7 +351,8 @@ One filesystem pass per run, shared by every engine.
   This yields exactly the tracked plus non-ignored untracked files, correctly and fast, without
   reimplementing ignore semantics.
 - Otherwise: an internal parallel walker with ignore-file parsing.
-- `.slopignore` and config `ignore` are applied on top.
+- `.slopignore` and config `ignore` are applied on top. `.slopignore` lines are glob patterns
+  (matched by `picomatch`), not gitignore syntax — write `vendor/**`, not `vendor/`.
 - **Language detection**: extension map, then special filenames (`Dockerfile`, `docker-compose.yml`,
   `.github/workflows/*.yml`), then shebang sniffing for extensionless files.
 - **Workspace attribution**: the workspace graph is built from `pnpm-workspace.yaml`,
