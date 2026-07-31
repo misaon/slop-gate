@@ -3403,7 +3403,7 @@ export async function selectFileSource(rootDir: string): Promise<FileSource> {
 `packages/core/src/discovery/inventory.ts`:
 
 ```ts
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import picomatch from 'picomatch'
 import type { LanguageId } from '../languages.ts'
@@ -3422,6 +3422,21 @@ export type BuildInventoryOptions = {
   signal?: AbortSignal
 }
 
+/**
+ * Spec section 7 pairs `.slopignore` with config `ignore`. It exists so a repository can exclude
+ * paths from analysis without touching its config file or its `.gitignore` — test fixtures holding
+ * deliberately broken code being the motivating case. gitignore-style lines; blanks and `#`
+ * comments skipped; an absent file means no patterns.
+ */
+async function readSlopIgnore(rootDir: string): Promise<string[]> {
+  const source = await readFile(join(rootDir, '.slopignore'), 'utf8').catch(() => null)
+  if (source === null) return []
+  return source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'))
+}
+
 export async function buildInventory(options: BuildInventoryOptions): Promise<FileInventory> {
   const signal = options.signal ?? new AbortController().signal
   const source = options.source ?? (await selectFileSource(options.rootDir))
@@ -3430,7 +3445,8 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
     buildWorkspaceGraph(options.rootDir),
   ])
 
-  const isIgnored = options.ignore?.length ? picomatch(options.ignore as string[], { dot: true }) : () => false
+  const patterns = [...(await readSlopIgnore(options.rootDir)), ...(options.ignore ?? [])]
+  const isIgnored = patterns.length > 0 ? picomatch(patterns, { dot: true }) : () => false
   const languages = new Set<LanguageId>()
   const files: InventoryFile[] = []
 
