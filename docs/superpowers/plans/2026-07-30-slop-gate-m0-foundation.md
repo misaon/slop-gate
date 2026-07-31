@@ -6278,7 +6278,7 @@ reporter emits one versioned document, which is the integration contract."
   "license": "MIT",
   "engines": { "node": ">=24" },
   "bin": { "sgate": "./bin/sgate.js", "slop-gate": "./bin/sgate.js" },
-  "exports": { ".": { "types": "./dist/main.d.ts", "import": "./dist/main.js" } },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist", "bin"],
   "scripts": { "build": "tsdown", "typecheck": "tsc --noEmit -p tsconfig.json" },
   "dependencies": {
@@ -6297,7 +6297,33 @@ reporter emits one versioned document, which is the integration contract."
 import '../dist/main.js'
 ```
 
-`tsconfig.json` and `tsdown.config.ts` mirror `packages/core`'s, with `entry: ['src/main.ts']`. Then:
+`tsconfig.json` mirrors `packages/core`'s. `tsdown.config.ts` builds **two** entries,
+`entry: ['src/main.ts', 'src/index.ts']`:
+
+- `main.ts` is the executable the bin shim loads. It runs on import, so it must never be what
+  `import ... from '@misaon/slop-gate'` resolves to — that would execute the CLI as a side effect of
+  loading a config file.
+- `index.ts` is the library surface, and it is what the package `exports`. A generated
+  `slop-gate.config.ts` imports `defineConfig` from here, which is the whole point of that helper:
+  it gives the config file autocompletion over concept ids and turns a typo into a type error.
+
+```ts
+// packages/cli/src/index.ts
+export { defineConfig } from '@misaon/slop-gate-core'
+export type {
+  ConceptId,
+  EngineId,
+  OverrideBlock,
+  PresetName,
+  RuleKey,
+  RuleLevel,
+  RuleMap,
+  RuleSetting,
+  SlopGateConfig,
+} from '@misaon/slop-gate-core'
+```
+
+Then:
 
 ```bash
 pnpm install
