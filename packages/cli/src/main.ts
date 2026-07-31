@@ -1,11 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { defineCommand, runCommand, showUsage, type CommandDef } from 'citty'
+import { defineCommand, renderUsage, runCommand, type CommandDef } from 'citty'
+import { displayWidth, padEndDisplay } from '@misaon/slop-gate-reporters'
 import { EXIT_CODES } from './exit-codes.ts'
+import { readCliVersion } from './version.ts'
 
-const packageDir = dirname(fileURLToPath(import.meta.url))
-const { version } = JSON.parse(readFileSync(join(packageDir, '../package.json'), 'utf8')) as { version: string }
+const version = readCliVersion()
 
 const subCommands = {
   check: () => import('./commands/check.ts').then((module) => module.check),
@@ -33,7 +31,7 @@ const rawArgs = process.argv.slice(2)
  * below can map them to `EXIT_CODES.config` correctly. The cost: `runCommand` has no
  * `--help`/`--version` handling of its own — verified directly: calling it with
  * `['check', '--help']` does not show usage, it starts running `check` for real — so this file
- * replicates just that part below, using citty's own exported `showUsage`.
+ * replicates just that part below, using citty's own exported `renderUsage`.
  *
  * One `try` around the whole dispatch, not just the `runCommand` branch: `resolveHelpTarget`
  * dynamically imports a subcommand, which transitively loads the engine layer, so a broken
@@ -45,7 +43,11 @@ const rawArgs = process.argv.slice(2)
 try {
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
     const target = await resolveHelpTarget(rawArgs)
-    await showUsage(target.cmd, target.parent)
+    // `renderUsage` (also citty's own, what `showUsage` calls internally) returns the usage body as
+    // a plain string rather than printing it — cheap to prepend the same framed header `check`'s
+    // output uses, without reimplementing citty's own argument/subcommand rendering.
+    printHeader()
+    console.log(`${await renderUsage(target.cmd, target.parent)}\n`)
   } else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
     console.log(version)
   } else {
@@ -67,4 +69,35 @@ async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: Comman
     name === undefined ? undefined : (subCommands as unknown as Record<string, (() => Promise<CommandDef>) | undefined>)[name]
   if (loader === undefined) return { cmd: main }
   return { cmd: await loader(), parent: main }
+}
+
+/**
+ * The same framed header `sgate check` prints, ahead of citty's own usage body. Deliberately not
+ * the full `pretty` reporter: this only needs the three-line box, not per-file grouping or code
+ * frames, so it draws it directly rather than constructing a whole `ReporterContext`.
+ *
+ * Not colour-matched to citty's own usage text: citty's `renderUsage` decides colour internally
+ * (checking `NO_COLOR`/`TERM=dumb`/`CI`/`TEST`, but not `FORCE_COLOR` or TTY status — a narrower
+ * rule than `check`'s own `supportsColor`), and reimplementing citty's colour decision here just to
+ * match it belongs to "reimplementing usage rendering," which this is deliberately avoiding. In the
+ * rare case those two rules disagree (e.g. `FORCE_COLOR` set while piped), the header and the usage
+ * body below it may differ in colour even though both render correctly on their own.
+ */
+function printHeader(): void {
+  const unicode = process.env['TERM'] !== 'dumb'
+  const box = unicode
+    ? { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│' }
+    : { tl: '+', tr: '+', bl: '+', br: '+', h: '-', v: '|' }
+  const logoMark = unicode ? '◆' : '*'
+
+  const width = Math.max(60, Math.min(process.stdout.columns ?? 80, 100))
+  const inner = width - 2
+  const left = `  ${logoMark}  slop-gate`
+  const right = `v${version} `
+  const gap = Math.max(1, inner - displayWidth(left) - displayWidth(right))
+  const content = padEndDisplay(left + ' '.repeat(gap) + right, inner)
+
+  console.log(`\n  ${box.tl}${box.h.repeat(inner)}${box.tr}`)
+  console.log(`  ${box.v}${content}${box.v}`)
+  console.log(`  ${box.bl}${box.h.repeat(inner)}${box.br}`)
 }

@@ -12,6 +12,7 @@ import {
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { REPORTER_NAMES, createReporter, type ReporterName } from '@misaon/slop-gate-reporters'
 import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
+import { readCliVersion } from '../version.ts'
 
 const DEFAULT_CONFIG: SlopGateConfig = { extends: ['recommended'] }
 
@@ -60,6 +61,9 @@ export const check = defineCommand({
     const reporter = createReporter(args.format as ReporterName, {
       write: (chunk) => process.stdout.write(chunk),
       color: supportsColor(),
+      unicode: supportsUnicode(),
+      width: process.stdout.columns ?? 80,
+      version: readCliVersion(),
       readSource: (file) => {
         // `file` is `null` for an orchestrator-level diagnostic with nothing to attribute (see
         // `Diagnostic.file`). Guarded explicitly rather than left to `join(rootDir, null)` throwing
@@ -110,4 +114,12 @@ function supportsColor(): boolean {
   if (process.env['NO_COLOR'] !== undefined && process.env['NO_COLOR'] !== '') return false
   if (process.env['FORCE_COLOR'] !== undefined && process.env['FORCE_COLOR'] !== '') return true
   return process.stdout.isTTY === true
+}
+
+// Independent of `supportsColor`: `TERM=dumb` selects the ASCII fallback (box characters and
+// severity markers) regardless of whether colour is on, and colour can be off (`NO_COLOR`, a pipe
+// with no `FORCE_COLOR`) without implying ASCII — a piped-to-file run should still get the real
+// frame characters, just without escape codes.
+function supportsUnicode(): boolean {
+  return process.env['TERM'] !== 'dumb'
 }

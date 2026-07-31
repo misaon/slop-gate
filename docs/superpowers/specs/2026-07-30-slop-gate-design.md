@@ -513,9 +513,12 @@ touched; a summary of files changed and rules applied is always printed.
 
 All reporters consume the same diagnostic stream.
 
-- **`pretty`** (default, human): grouped by file, code frames, OSC 8 hyperlinks to rule docs, summary
-  table, top-offending files, optional `--timing` breakdown per engine and rule. Honours `NO_COLOR`,
-  `FORCE_COLOR`, TTY detection and narrow terminals; degrades to plain text when not a TTY.
+- **`pretty`** (default, human): framed header and footer, an open (unframed) body grouped by file
+  with code frames, OSC 8 hyperlinks to rule docs, top-offending files, optional `--timing` breakdown
+  per engine and rule. Honours `NO_COLOR`, `FORCE_COLOR` and TTY detection for colour, and `TERM=dumb`
+  separately for an ASCII-only frame and severity-marker fallback — colour and Unicode degrade
+  independently, so a non-TTY pipe (colour off) still gets the real frame and emoji glyphs, and only
+  `TERM=dumb` (not "not a TTY") drops to ASCII.
 - **`agent`**: the differentiator. Deterministic ordering, token budget via `--max-tokens`, minimum
   sufficient context per finding (concept, why it matters, exact location, offending snippet, and the
   suggested change as a unified diff when one exists), **grouped by fix strategy** so an agent can

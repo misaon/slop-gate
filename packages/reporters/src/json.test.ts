@@ -12,7 +12,14 @@ const result: CheckResult = {
 
 test('emits a single versioned json document on done', () => {
   let output = ''
-  const reporter = createReporter('json', { write: (chunk) => (output += chunk), color: false, readSource: () => null })
+  const reporter = createReporter('json', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: () => null,
+  })
   reporter.onEvent({ type: 'done', result })
 
   const parsed = JSON.parse(output) as { version: number; counts: unknown; diagnostics: unknown[] }
@@ -23,7 +30,14 @@ test('emits a single versioned json document on done', () => {
 
 test('writes nothing before done so the document stays valid json', () => {
   let output = ''
-  const reporter = createReporter('json', { write: (chunk) => (output += chunk), color: false, readSource: () => null })
+  const reporter = createReporter('json', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: () => null,
+  })
   reporter.onEvent({ type: 'engine-failed', engine: 'oxlint', message: 'x' })
 
   expect(output).toBe('')

@@ -19,9 +19,13 @@ const srcDir = dirname(fileURLToPath(import.meta.url))
 // observe the real OS-level exit code, which is exactly what is under test.
 const mainPath = join(srcDir, 'main.ts')
 
-async function spawnScript(scriptPath: string, args: readonly string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+async function spawnScript(
+  scriptPath: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ code: number; stdout: string; stderr: string }> {
   try {
-    const { stdout, stderr } = await run(process.execPath, [scriptPath, ...args], { encoding: 'utf8' })
+    const { stdout, stderr } = await run(process.execPath, [scriptPath, ...args], { encoding: 'utf8', env })
     return { code: 0, stdout, stderr }
   } catch (error) {
     const failure = error as { code?: number; stdout?: string; stderr?: string }
@@ -62,6 +66,31 @@ test('check --help shows the check-specific usage instead of starting a real che
   expect(code).toBe(EXIT_CODES.clean)
   expect(stdout).toContain('--format')
   expect(stdout).toContain('--cache')
+})
+
+test('--help prints the same framed header as `check`, ahead of citty\'s own usage body', async () => {
+  const { code, stdout } = await spawnMain(['--help'])
+  expect(code).toBe(EXIT_CODES.clean)
+  expect(stdout).toContain('╭')
+  expect(stdout).toContain('slop-gate')
+  expect(stdout).toContain('USAGE') // citty's own usage body still renders, unmodified, below it
+})
+
+test('check --help gets the framed header too, not just top-level --help', async () => {
+  const { code, stdout } = await spawnMain(['check', '--help'])
+  expect(code).toBe(EXIT_CODES.clean)
+  expect(stdout).toContain('╭')
+  expect(stdout).toContain('slop-gate')
+})
+
+test('--help falls back to an ASCII header under TERM=dumb', async () => {
+  const unicodeRun = await spawnMain(['--help'])
+  expect(unicodeRun.stdout).toContain('╭') // sanity: the un-forced run gets the Unicode header
+
+  const dumbRun = await spawnScript(mainPath, ['--help'], { ...process.env, TERM: 'dumb' })
+  expect(dumbRun.code).toBe(EXIT_CODES.clean)
+  expect(dumbRun.stdout).not.toContain('╭')
+  expect(dumbRun.stdout).toContain('+')
 })
 
 test('--version prints the package version', async () => {
