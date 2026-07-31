@@ -666,6 +666,43 @@ export const RULE_ENTRIES = [
     docsUrl: `${OXLINT_DOCS}/eslint/preserve-caught-error.html`,
     since: '0.1.0',
   },
+  // Five-fixes follow-up session: real-world use on a NestJS project (95 TS files under `src`) found
+  // two oxlint rules beyond the 39-rule batch above that fire on real code. `no-shadow` is added
+  // below, `category: "suspicious"` confirmed via `oxlint --rules --format json` (not "correctness" —
+  // this registry already carries `suspicious`-sourced entries, see the batch above, so that's not a
+  // reason to leave it out).
+  {
+    engine: 'oxlint',
+    engineRuleId: 'no-shadow',
+    concepts: ['correctness.shadows-outer-binding'],
+    tier: 0,
+    priority: 80,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
+    docsUrl: `${OXLINT_DOCS}/eslint/no-shadow.html`,
+    since: '0.1.0',
+  },
+  // `typescript/no-extraneous-class` ("Unexpected empty class") is deliberately NOT an entry here —
+  // this is not an oversight, so do not add it back without re-reading this note. Measured against
+  // the same real NestJS project, enabled alongside `no-shadow` above: 12 total findings, 11 of them
+  // `typescript/no-extraneous-class` and every single one a false positive — an empty
+  // `@Module({...}) export class XModule {}`, one per `*.module.ts` file. NestJS (and Angular, and
+  // any other decorator-driven DI framework) *requires* that class to be empty; the decorator, not
+  // the class body, carries the behaviour. In isolation the rule is 11/11 (100%) false positives on
+  // this codebase; "~92%" is its share of the combined 12-finding sample once the one genuine
+  // `no-shadow` bug is counted alongside it — both figures are measured, not estimated, and are
+  // quoted together here because they answer slightly different questions.
+  //
+  // The general lesson, for whoever next expands this registry: a rule's value depends on the
+  // framework present in the repository, and this registry has no notion of framework awareness —
+  // it cannot know a codebase uses decorator-driven DI and adjust. A curated, hand-picked registry
+  // (like this one) can route around a case like this one rule at a time; a *generated* registry
+  // (M1's stated direction — see the comment atop the batch above) cannot, unless framework detection
+  // becomes one of its inputs. Recorded in full in
+  // docs/superpowers/specs/2026-07-31-m0-followups.md.
   {
     engine: 'eslint',
     engineRuleId: '@typescript-eslint/no-unused-vars',

@@ -214,6 +214,36 @@ test('fires each of a representative sample of the M0 registry expansion against
   await handle.dispose()
 })
 
+test('reports a binding that shadows an outer-scope declaration', async () => {
+  // `no-shadow` (five-fixes follow-up, docs/superpowers/specs/2026-07-31-m0-followups.md): the one
+  // addition beyond the M0 batch above. Real-world use on a NestJS project found exactly one genuine
+  // finding from it (`'condition' is already declared in the upper scope`, srvc-bat's
+  // setting.entity.ts), so it earns its own real-binary check rather than riding along in the
+  // representative sample, which predates this rule.
+  await writeFile(
+    join(dir, 'src/a.ts'),
+    [
+      'export function shadowsOuterScope(condition: boolean) {',
+      '  if (condition) {',
+      '    const condition = true',
+      '    return condition',
+      '  }',
+      '  return condition',
+      '}',
+      '',
+    ].join('\n'),
+  )
+  const engine = createOxlintEngine()
+  const handle = await engine.materializeConfig(new Map([['no-shadow', 'warn']]), context)
+
+  const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
+
+  expect(found).toHaveLength(1)
+  expect(found[0]?.engineRuleId).toBe('no-shadow')
+  expect(found[0]?.file).toBe('src/a.ts')
+  await handle.dispose()
+})
+
 test('raises an EngineError when the binary is missing', async () => {
   const engine = createOxlintEngine({ binaryPath: join(dir, 'does-not-exist') })
   const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)

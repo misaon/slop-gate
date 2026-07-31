@@ -319,6 +319,19 @@ export const CONCEPTS = [
       'A `catch` block throws a new error without linking the original one (for example via ' +
       '`{ cause }`), discarding the information needed to debug what actually failed.',
   },
+  // Added after the M0 batch above, in the five-fixes follow-up session: real-world use on a
+  // NestJS project surfaced this as a genuine finding (see registry/entries.ts and
+  // docs/superpowers/specs/2026-07-31-m0-followups.md). Named for what oxlint's `no-shadow`
+  // detects, engine-independently, rather than for the rule's own id.
+  {
+    id: 'correctness.shadows-outer-binding',
+    group: 'correctness',
+    title: 'Shadows an outer-scope binding',
+    description:
+      'A declaration reuses the name of a variable, parameter, function or class already bound in ' +
+      'an enclosing scope, hiding the outer binding for the rest of the inner scope and inviting ' +
+      'the wrong one to be read from or written to.',
+  },
   {
     id: 'dead-code.unused-import',
     group: 'dead-code',

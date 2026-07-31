@@ -47,6 +47,9 @@ const recommended: RuleMap = {
   'correctness.unmodified-loop-condition': 'warn',
   'correctness.native-prototype-extended': 'warn',
   'correctness.discarded-caught-error': 'warn',
+  // Five-fixes follow-up: a bug risk, not a certain bug (shadowing is sometimes intentional), so
+  // `warn` rather than `error` — the same treatment as the four suspicious-sourced entries above.
+  'correctness.shadows-outer-binding': 'warn',
   'dead-code.unused-import': 'warn',
   'dead-code.unused-variable': 'warn',
   'config.rule-overlap': 'info',
