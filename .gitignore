@@ -5,3 +5,4 @@ dist/
 .turbo/
 *.tsbuildinfo
 .superpowers/
+*.generated.ts
