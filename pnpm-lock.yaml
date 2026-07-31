@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@misaon/slop-gate':
+        specifier: workspace:*
+        version: link:packages/cli
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3

@@ -13,6 +13,7 @@
     "check": "pnpm typecheck && pnpm test"
   },
   "devDependencies": {
+    "@misaon/slop-gate": "workspace:*",
     "@types/node": "^24.0.0",
     "tsdown": "^0.15.0",
     "turbo": "^2.5.0",

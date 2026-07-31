@@ -69,6 +69,53 @@ test('applies ignore patterns', async () => {
   expect(inventory.files.map((f) => f.path)).toContain('src/a.ts')
 })
 
+test('a .slopignore file excludes matching paths', async () => {
+  await write('src/a.ts')
+  await write('generated/b.ts')
+  await write('.slopignore', 'generated/**\n')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  expect(inventory.files.map((f) => f.path)).not.toContain('generated/b.ts')
+  expect(inventory.files.map((f) => f.path)).toContain('src/a.ts')
+})
+
+test('.slopignore skips blank lines and # comments', async () => {
+  await write('src/a.ts')
+  await write('generated/b.ts')
+  await write('.slopignore', '\n# generated output, not source\ngenerated/**\n\n')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  expect(inventory.files.map((f) => f.path)).not.toContain('generated/b.ts')
+  expect(inventory.files.map((f) => f.path)).toContain('src/a.ts')
+})
+
+test('.slopignore patterns combine with config ignore rather than replacing it', async () => {
+  await write('src/a.ts')
+  await write('generated/b.ts')
+  await write('vendor/c.ts')
+  await write('.slopignore', 'generated/**\n')
+
+  const inventory = await buildInventory({
+    rootDir: dir,
+    source: createWalkFileSource(),
+    ignore: ['vendor/**'],
+  })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('generated/b.ts')
+  expect(paths).not.toContain('vendor/c.ts')
+  expect(paths).toContain('src/a.ts')
+})
+
+test('an absent .slopignore changes nothing', async () => {
+  await write('src/a.ts')
+  await write('generated/b.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).toContain('src/a.ts')
+  expect(paths).toContain('generated/b.ts')
+})
+
 test('the walker skips node_modules and .git without being told to', async () => {
   await write('node_modules/dep/index.js')
   await write('src/a.ts')
