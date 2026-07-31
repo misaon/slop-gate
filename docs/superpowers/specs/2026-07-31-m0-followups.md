@@ -51,6 +51,24 @@ Spec §8.1 assigns the cache filter to the planner; M0 does not implement that.
 
 ---
 
+## Found by first real-world use
+
+Linking M0 into a real NestJS project (120 TS files, existing ESLint, clean tree) surfaced two
+things no fixture caught.
+
+- **`sgate check` inventories its own cache.** The walker skips `.slop-gate` via `ALWAYS_SKIPPED`,
+  but the **git** source does not: `git ls-files -co --exclude-standard` lists untracked
+  non-ignored files, and in a repository that has not run `sgate init`, `.slop-gate/cache/**` is
+  exactly that. Measured: 178 files on the first run, **305 on the second**, with 127 of them cache
+  entries. It compounds every run. `sgate init` masks it by writing `.slop-gate/.gitignore`
+  containing `*`, but `check` must not depend on `init` having been run. Fix: skip `.slop-gate`
+  in the git source too, or filter it in `buildInventory` where both sources converge.
+- **A config diagnostic is reported against a file that does not exist.** With no config present,
+  `streamCheck` falls back to the literal default `configFile: 'slop-gate.config.ts'`, so the
+  `config.rule-overlap` note is attributed to a path the user does not have. The pretty reporter
+  then silently omits its code frame. Either attribute orchestrator diagnostics to no file, or say
+  `<default config>` — but do not name a file that is not there.
+
 ## Should fix soon
 
 - **No per-engine timeout.** `execFile` sets `maxBuffer` but not `timeout`, so a hung engine hangs
