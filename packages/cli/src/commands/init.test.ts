@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
@@ -15,6 +15,24 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
+// A real `npm install -D @misaon/slop-gate` is what makes the generated config's
+// `import { defineConfig } from '@misaon/slop-gate'` resolve — nobody runs `sgate init` without
+// having installed the package that provides `sgate` in the first place. This stands in for that
+// install without depending on packages/cli's own dist (this repo's `pnpm test` does not build
+// first; see index.test.ts for the same reasoning). It deliberately mirrors only the *contract*
+// packages/cli/src/index.ts and package.json establish — a module type and a `defineConfig`
+// identity function — not the real package's build output, since index.test.ts already proves
+// that contract holds for the real thing.
+const installStubPackage = async (): Promise<void> => {
+  const target = join(dir, 'node_modules', '@misaon', 'slop-gate')
+  await mkdir(target, { recursive: true })
+  await writeFile(
+    join(target, 'package.json'),
+    JSON.stringify({ name: '@misaon/slop-gate', type: 'module', exports: { '.': './index.js' } }),
+  )
+  await writeFile(join(target, 'index.js'), 'export const defineConfig = (config) => config\n')
+}
+
 test('writes a config, a gitignore entry and an AGENTS.md section', async () => {
   const result = await runInit({ rootDir: dir })
 
@@ -26,6 +44,7 @@ test('writes a config, a gitignore entry and an AGENTS.md section', async () => 
 })
 
 test('the generated config is loadable and yields the recommended preset', async () => {
+  await installStubPackage()
   await runInit({ rootDir: dir })
   const { loadConfig } = await import('@misaon/slop-gate-core')
 

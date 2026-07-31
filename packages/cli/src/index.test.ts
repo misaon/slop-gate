@@ -1,15 +1,19 @@
+import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
 
-// This resolves '@misaon/slop-gate' by its published name (Node's self-reference resolution: a
-// package's own exports map applies to imports of its own name from within its own tree), not by
-// a relative path — that is the whole point. It is the regression test for the defect this task
-// found: the package's "exports" field used to point at dist/main.js, the side-effecting CLI
-// script, which has no exports of its own to give and would run the CLI as a side effect of this
-// very import. Requires packages/cli's own dist to exist (`pnpm build`); unlike main.test.ts and
-// check.test.ts in this same package, this cannot spawn or import source directly, because the
-// property under test — that the *published* entry point is safe to import — is a property of the
-// built package.json "exports" wiring, not of the source tree.
-test('importing the package resolves the library entry, not the CLI script', async () => {
+// Split into two tests, deliberately, so neither needs packages/cli's own dist to exist: this
+// repo's `pnpm test` does not build first (turbo.json has no `test` task, and nothing depends on
+// `@misaon/slop-gate` to trigger its own build as a side effect of anyone else's typecheck).
+//
+// This one proves the library entry's own behaviour, from source: importing it exposes
+// `defineConfig` and does not write to stdout. The other proves the package.json wiring that
+// routes a real `import('@misaon/slop-gate')` to this file rather than to `main.ts` — the
+// side-effecting CLI script that used to sit behind "exports" and would have run the CLI as a side
+// effect of loading a config file. Together they cover the same ground a single dist-dependent
+// test would, without the build dependency.
+test('the library entry exposes defineConfig and has no side effects', async () => {
   const writes: unknown[] = []
   const originalWrite = process.stdout.write.bind(process.stdout)
   process.stdout.write = ((chunk: unknown) => {
@@ -17,13 +21,23 @@ test('importing the package resolves the library entry, not the CLI script', asy
     return true
   }) as typeof process.stdout.write
 
-  let loaded: typeof import('@misaon/slop-gate')
+  let loaded: typeof import('./index.ts')
   try {
-    loaded = await import('@misaon/slop-gate')
+    loaded = await import('./index.ts')
   } finally {
     process.stdout.write = originalWrite
   }
 
   expect(typeof loaded.defineConfig).toBe('function')
   expect(writes).toEqual([])
+})
+
+test('the package "exports" field points at the library entry, not the CLI script', async () => {
+  const packageDir = dirname(fileURLToPath(import.meta.url))
+  const pkg = JSON.parse(await readFile(join(packageDir, '..', 'package.json'), 'utf8')) as {
+    exports: { '.': { import: string; types: string } }
+  }
+
+  expect(pkg.exports['.'].import).toBe('./dist/index.js')
+  expect(pkg.exports['.'].types).toBe('./dist/index.d.ts')
 })
