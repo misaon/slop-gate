@@ -9,8 +9,7 @@ const { version } = JSON.parse(readFileSync(join(packageDir, '../package.json'),
 
 const subCommands = {
   check: () => import('./commands/check.ts').then((module) => module.check),
-  // `init` is registered in Task 15, which creates ./commands/init.ts. Listing it here first
-  // would fail typecheck and build against a module that does not exist yet.
+  init: () => import('./commands/init.ts').then((module) => module.init),
 }
 
 const main = defineCommand({
