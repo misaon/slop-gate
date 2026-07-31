@@ -5,6 +5,7 @@ const base = {
   engineId: 'oxlint',
   engineVersion: '1.75.0',
   engineRulesetHash: 'abc',
+  filePath: 'src/a.ts',
   fileHash: 'def',
   configHash: 'ghi',
 }
@@ -36,10 +37,20 @@ test.each([
   ['engineId', { engineId: 'oxfmt' }],
   ['engineVersion', { engineVersion: '1.76.0' }],
   ['engineRulesetHash', { engineRulesetHash: 'changed' }],
+  ['filePath', { filePath: 'legacy/a.ts' }],
   ['fileHash', { fileHash: 'changed' }],
   ['configHash', { configHash: 'changed' }],
 ])('a different %s produces a different key', (_label, patch) => {
   expect(deriveResultKey({ ...base, ...patch })).not.toBe(deriveResultKey(base))
+})
+
+// Regression for the M0 review finding: two byte-identical files at different paths must never
+// share a cache entry, even though every other component (engine, version, ruleset, config, and
+// therefore the file *content* hash) is identical between them.
+test('two different paths with identical content produce different keys', () => {
+  expect(deriveResultKey({ ...base, filePath: 'legacy/a.ts' })).not.toBe(
+    deriveResultKey({ ...base, filePath: 'src/a.ts' }),
+  )
 })
 
 test('the same inputs produce the same key', () => {

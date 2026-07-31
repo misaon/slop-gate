@@ -31,10 +31,17 @@ export type ResultKeyInput = {
   engineId: string
   engineVersion: string
   engineRulesetHash: string
+  /** Repo-relative, POSIX. Without it, two byte-identical files share one cache entry even though
+   *  the cached `Diagnostic[]` bakes in a path-dependent `file`, `fingerprint` and (via per-file
+   *  override resolution) `severity` — whichever file is processed last silently overwrites the
+   *  other's cached result. */
+  filePath: string
   fileHash: string
   configHash: string
 }
 
 export function deriveResultKey(input: ResultKeyInput): string {
-  return hashJson({ schema: RESULT_SCHEMA_VERSION, ...input })
+  // `input` is nested, not spread, so a future `ResultKeyInput` field named `schema` cannot
+  // silently shadow `RESULT_SCHEMA_VERSION`.
+  return hashJson({ schema: RESULT_SCHEMA_VERSION, input })
 }

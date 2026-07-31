@@ -25,6 +25,7 @@ const components: ResultKeyInput = {
   engineId: 'oxlint',
   engineVersion: '1.75.0',
   engineRulesetHash: 'abc',
+  filePath: 'src/a.ts',
   fileHash: 'def',
   configHash: 'ghi',
 }
