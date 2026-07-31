@@ -35,19 +35,26 @@ const rawArgs = process.argv.slice(2)
  * `--help`/`--version` handling of its own — verified directly: calling it with
  * `['check', '--help']` does not show usage, it starts running `check` for real — so this file
  * replicates just that part below, using citty's own exported `showUsage`.
+ *
+ * One `try` around the whole dispatch, not just the `runCommand` branch: `resolveHelpTarget`
+ * dynamically imports a subcommand, which transitively loads the engine layer, so a broken
+ * oxlint install makes `sgate check --help` reject. Left unhandled that exits 1 — "the check
+ * found problems" — for a run that never checked anything, which is the exact confusion this
+ * layer exists to prevent. A plain `includes` scan for the help flags is enough here: no
+ * subcommand takes positional arguments, so `--help` cannot arrive as another flag's value.
  */
-if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-  const target = await resolveHelpTarget(rawArgs)
-  await showUsage(target.cmd, target.parent)
-} else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
-  console.log(version)
-} else {
-  try {
+try {
+  if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+    const target = await resolveHelpTarget(rawArgs)
+    await showUsage(target.cmd, target.parent)
+  } else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
+    console.log(version)
+  } else {
     await runCommand(main, { rawArgs })
-  } catch (error: unknown) {
-    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-    process.exitCode = EXIT_CODES.config
   }
+} catch (error: unknown) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+  process.exitCode = EXIT_CODES.config
 }
 
 /**
