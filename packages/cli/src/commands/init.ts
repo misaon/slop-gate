@@ -4,13 +4,7 @@ import { defineCommand } from 'citty'
 import { buildWorkspaceGraph } from '@misaon/slop-gate-core'
 import { upsertAgentsSection } from '../agents-md.ts'
 
-// defineConfig is the identity function at runtime (it exists only so editors can infer the
-// config shape), so it is inlined rather than imported from '@misaon/slop-gate'. This file must
-// load before that package is ever added as a project dependency — importing it by name here
-// would fail resolution on a fresh project, and would even fail once installed: the CLI package's
-// own entry point has no exports of its own to provide, since it is a side-effecting script, not
-// a library. Swap in the real export from '@misaon/slop-gate' once you depend on it directly.
-const CONFIG_TEMPLATE = `const defineConfig = (config) => config
+const CONFIG_TEMPLATE = `import { defineConfig } from '@misaon/slop-gate'
 
 export default defineConfig({
   extends: ['recommended'],
