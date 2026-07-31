@@ -1,6 +1,7 @@
 import { styleText } from 'node:util'
 import type { CheckEvent, CheckResult, Diagnostic, Position, Severity } from '@misaon/slop-gate-core'
 import { displayWidth, padEndDisplay, padStartDisplay, truncateEnd, truncateStart } from './display-width.ts'
+import { wrapText } from './wrap-text.ts'
 import type { Reporter, ReporterContext } from './index.ts'
 
 /**
@@ -84,6 +85,13 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
   const locationFieldWidth = 8
   const detailIndent = locationColumn + locationFieldWidth
 
+  // Available width for a diagnostic's message text: the same frame width the header and footer
+  // draw to, minus the hanging indent the message column sits at. `Math.max(1, ...)` only matters
+  // at pathological terminal widths (the 60-column clamp floor keeps this comfortably positive in
+  // practice) — `wrapText` itself is safe on any width, but a 0 or negative budget here would still
+  // be a nonsensical wrap target to hand it.
+  const messageWidth = Math.max(1, width - detailIndent)
+
   const frameRow = (content: string): string => `  ${box.v}${padEndDisplay(truncateEnd(content, inner), inner)}${box.v}`
   const frameTop = (): string => `  ${box.tl}${box.h.repeat(inner)}${box.tr}`
   const frameBottom = (): string => `  ${box.bl}${box.h.repeat(inner)}${box.br}`
@@ -139,8 +147,14 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     const glyphText = paint(SEVERITY_STYLE[diagnostic.severity], glyph[diagnostic.severity])
     const locationField = padEndDisplay(location, locationFieldWidth)
     const detail = ' '.repeat(detailIndent)
+    // Wrapped on the plain, uncoloured message text (`diagnostic.message` never carries colour of
+    // its own) and only then assembled into lines — `wrapText` measures with `displayWidth`, so
+    // this would still be correct even if the message did contain ANSI, but painting afterward
+    // rather than before is what keeps that guarantee intact.
+    const [firstLine, ...continuationLines] = wrapText(diagnostic.message, messageWidth)
     writeUnit([
-      `    ${glyphText}  ${locationField}${diagnostic.message}`,
+      `    ${glyphText}  ${locationField}${firstLine}`,
+      ...continuationLines.map((line) => `${detail}${line}`),
       `${detail}${paint('dim', diagnostic.concept)}`,
       ...(diagnostic.help === undefined ? [] : [`${detail}${paint('dim', `help: ${diagnostic.help}`)}`]),
     ])

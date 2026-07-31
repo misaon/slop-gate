@@ -332,6 +332,71 @@ test('ASCII fallback does not imply colour is off, and vice versa', () => {
   expect(unicodeNoColor).toContain('✓')
 })
 
+test('wraps a long message with continuation lines aligned to the message column', () => {
+  const longMessage =
+    'alpha bravo charlie delta echo foxtrot golf hotel india juliett kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu'
+  const output = capture([
+    { type: 'diagnostic', diagnostic: diagnostic({ message: longMessage }) },
+    { type: 'done', result: result() },
+  ])
+  const lines = output.split('\n')
+
+  const firstLine = lines.find((line) => line.includes('2:3'))
+  const conceptLine = lines.find((line) => line.includes('correctness.no-debugger'))
+  expect(firstLine).toBeDefined()
+  expect(conceptLine).toBeDefined()
+
+  // The concept line already sits at "the message column" (see `detailIndent` in pretty.ts); every
+  // wrapped continuation line of the message above it must land at that same indent, not under the
+  // severity glyph.
+  const indent = conceptLine!.slice(0, conceptLine!.length - conceptLine!.trimStart().length)
+  expect(indent.length).toBeGreaterThan(0)
+
+  const continuationLines = lines.slice(lines.indexOf(firstLine!) + 1, lines.indexOf(conceptLine!))
+  expect(continuationLines.length).toBeGreaterThan(1) // long enough to wrap onto more than one continuation line
+
+  for (const line of continuationLines) {
+    expect(line.startsWith(indent)).toBe(true)
+    expect(line.startsWith(`${indent} `)).toBe(false) // exactly the message column, not one column further in
+  }
+
+  // Wrapping must not drop, duplicate, or reorder words.
+  const firstFragment = firstLine!.slice(firstLine!.indexOf('2:3') + '2:3'.length).trim()
+  const rejoined = [firstFragment, ...continuationLines.map((line) => line.trim())].join(' ')
+  expect(rejoined).toBe(longMessage)
+
+  // No produced line may run past the frame's available width.
+  for (const line of [firstLine!, ...continuationLines]) expect(displayWidth(line)).toBeLessThanOrEqual(80)
+})
+
+test('a message shorter than the available width is not wrapped or altered', () => {
+  const output = capture([
+    { type: 'diagnostic', diagnostic: diagnostic({ message: 'short message' }) },
+    { type: 'done', result: result() },
+  ])
+  expect(output).toContain('short message')
+})
+
+test('an unbreakable token in a message (e.g. a long path) is not broken across lines', () => {
+  // Reproduces the real defect this fix targets: `config.rule-overlap`'s actual message is one
+  // long, mostly-unbroken run of concept and rule identifiers with no short words to wrap on.
+  const longToken = 'oxlint/no-unused-vars-and-eslint/@typescript-eslint/no-unused-vars-both-detect-dead-code.unused-variable'
+  const output = capture([
+    {
+      type: 'diagnostic',
+      diagnostic: diagnostic({ file: null, concept: 'config.rule-overlap', message: `see ${longToken} for detail` }),
+    },
+    { type: 'done', result: result() },
+  ])
+
+  expect(output).toContain(longToken)
+  const tokenLine = output.split('\n').find((line) => line.includes(longToken))
+  expect(tokenLine).toBeDefined()
+  // The token line is allowed to run past the frame width (an unbroken identifier beats a chopped
+  // one), but the token substring itself must appear whole, contiguous, and un-split.
+  expect(tokenLine).toContain(longToken)
+})
+
 test('clamps frame width between 60 and 100 regardless of the reported terminal width', () => {
   // The border line's own display width is `context.width` clamped to [60, 100], plus the
   // constant two-column page margin that sits outside the box on every printed line.
