@@ -69,6 +69,38 @@ things no fixture caught.
   then silently omits its code frame. Either attribute orchestrator diagnostics to no file, or say
   `<default config>` — but do not name a file that is not there.
 
+## Deliberately excluded rules
+
+Some rules pass every static invariant in `entries.test.ts` and are still wrong to ship, because
+their value depends on what is actually in the repository they run against — something this registry
+has no way to know yet. Recorded here so nobody re-adds one of these thinking it was an oversight.
+
+- **`typescript/no-extraneous-class`** ("Unexpected empty class"), considered alongside `no-shadow`
+  in the same five-fixes follow-up session. Measured against a real NestJS project (95 TS files under
+  `src`), with both rules enabled together: 12 total findings, 11 of them this rule, and **every one
+  of the 11 a false positive** — an empty `@Module({...}) export class XModule {}`, one per
+  `*.module.ts` file. NestJS (and Angular, and any other decorator-driven dependency-injection
+  framework) *requires* that class body to be empty; the decorator carries the actual behaviour, the
+  class is just a hook to hang it on. In isolation the rule is 11/11 (100%) false positives on this
+  codebase. The "~92%" figure floated at the start of this investigation is a different, also-correct
+  number: it is this rule's share of the *combined* 12-finding sample once the one genuine `no-shadow`
+  bug is counted alongside it (11/12 ≈ 91.7%, rounds to 92%). Both are measured directly against
+  oxlint 1.76.0, not estimated — they just answer different questions ("how often is this rule wrong
+  on its own?" vs. "how much of what these two candidate rules surfaced together was noise?"), so it
+  is worth being precise about which one a future reader is citing. See the comment above the
+  `no-shadow` entry in `packages/core/src/registry/entries.ts` for the same note in context.
+
+**The general lesson, which will recur as the registry grows past this one rule:** a rule's value
+depends on the framework present in the repository, and the registry
+(`packages/core/src/registry/entries.ts`) has no notion of framework awareness — no way to know a
+codebase uses decorator-driven DI (NestJS, Angular, ...) and route around the class of false positive
+that produces for an otherwise-reasonable rule. Today, with a hand-curated registry, a human catches
+this one measurement at a time, exactly as happened here. Once the registry is generated rather than
+curated (M1's stated direction — see the comment atop the M0 batch in `entries.ts`), that manual
+judgment call disappears with it unless framework detection becomes one of the generator's own inputs.
+**A later milestone needs to decide how a generated registry gets back what a curated one currently
+gets for free from a human reading the code.**
+
 ## Should fix soon
 
 - **No per-engine timeout.** `execFile` sets `maxBuffer` but not `timeout`, so a hung engine hangs
