@@ -83,6 +83,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(options.engines.flatMap((engine) => engine.capabilities.provides)),
     languages: inventory.languages,
+    // A registry entry can exist for an engine this run never instantiated — the shipped registry
+    // deliberately carries one (see entries.test.ts) so a real overlap is provable in isolation.
+    // Without this, arbitration would suppress that entry on every run and report a rule-overlap
+    // diagnostic about a suppression that never happened, because no such engine ever competed.
+    participatingEngines: new Set(options.engines.map((engine) => engine.id)),
     pinnedOwners: resolver.base.pinnedOwners,
   })
 

@@ -48,6 +48,7 @@ const planWith = (args: {
     enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(),
     languages: new Set(args.files.map((f) => f.language)),
+    participatingEngines: new Set(args.engines.map((e) => e.id)),
   })
   return buildPlan({
     engines: args.engines,

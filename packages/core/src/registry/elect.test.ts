@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { electOwners } from './elect.ts'
-import type { RuleEntry } from './types.ts'
+import { ENGINE_PREFERENCE, type EngineId, type RuleEntry } from './types.ts'
 
 const entry = (over: Partial<RuleEntry> & Pick<RuleEntry, 'engine' | 'engineRuleId' | 'concepts'>): RuleEntry => ({
   tier: 0,
@@ -17,6 +17,10 @@ const entry = (over: Partial<RuleEntry> & Pick<RuleEntry, 'engine' | 'engineRule
 
 const ALL_LANGUAGES = new Set(['ts' as const])
 const NO_CAPABILITIES = new Set<never>()
+// Every engine known to the registry: the tests below exercise tier/pin/tiebreak/capability/
+// language filtering in isolation, so they should not also be exercising engine-participation
+// filtering (covered separately below) — passing the full set is the "no filter" baseline.
+const ALL_ENGINES: ReadonlySet<EngineId> = new Set(ENGINE_PREFERENCE)
 
 test('elects the single candidate and selects it for its engine', () => {
   const result = electOwners({
@@ -24,6 +28,7 @@ test('elects the single candidate and selects it for its engine', () => {
     enabledConcepts: new Set(['correctness.no-debugger']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.get('correctness.no-debugger')).toEqual({ engine: 'oxlint', engineRuleId: 'no-debugger' })
@@ -41,6 +46,7 @@ test('prefers the lower tier and records why the loser was suppressed', () => {
     enabledConcepts: new Set(['dead-code.unused-variable']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('oxlint')
@@ -64,6 +70,7 @@ test('breaks a tier tie by engine preference', () => {
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.get('style.no-var')?.engine).toBe('oxlint')
@@ -79,6 +86,7 @@ test('breaks a same-engine tie by rule id so elections are total', () => {
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.get('style.no-var')?.engineRuleId).toBe('alpha')
@@ -96,12 +104,14 @@ test('is order-independent: shuffling the entries changes nothing', () => {
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
   const reversed = electOwners({
     entries: [...entries].reverse(),
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(reversed.owners).toEqual(forward.owners)
@@ -123,6 +133,7 @@ test('excludes candidates whose required capabilities are unavailable', () => {
     enabledConcepts: new Set(['slop.as-any-cast']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.get('slop.as-any-cast')?.engine).toBe('astgrep')
@@ -144,9 +155,46 @@ test('admits a capability-requiring candidate once the capability is present', (
     enabledConcepts: new Set(['slop.as-any-cast']),
     capabilities: new Set(['types'] as const),
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.get('slop.as-any-cast')?.engine).toBe('tsgolint')
+})
+
+test('excludes a candidate whose engine did not participate in this run', () => {
+  // Reproduces the M0 follow-up this closes: the registry can carry a `RuleEntry` for an engine
+  // the caller never instantiated (the shipped registry's `eslint` entry exists purely so
+  // `entries.test.ts` can prove a real overlap exists — see "the shipped registry contains a real
+  // overlap"). A `RuleEntry` existing is not the same as its engine actually running, and arbitration
+  // must not elect — or suppress in favour of — a rule whose engine will never be invoked.
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['dead-code.unused-variable'] }),
+      entry({ engine: 'eslint', engineRuleId: 'slow', concepts: ['dead-code.unused-variable'], tier: 2 }),
+    ],
+    enabledConcepts: new Set(['dead-code.unused-variable']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: new Set(['oxlint']),
+  })
+
+  expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('oxlint')
+  // Not just "oxlint wins" — the eslint entry must never appear as a suppressed loser either,
+  // or a run with only oxlint would still report a suppression that never happened.
+  expect(result.suppressed).toEqual([])
+})
+
+test('reports a concept as uncovered when its only candidate belongs to a non-participating engine', () => {
+  const result = electOwners({
+    entries: [entry({ engine: 'eslint', engineRuleId: 'only', concepts: ['style.no-var'], tier: 2 })],
+    enabledConcepts: new Set(['style.no-var']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: new Set(['oxlint']),
+  })
+
+  expect(result.owners.size).toBe(0)
+  expect(result.uncovered).toEqual(['style.no-var'])
 })
 
 test('excludes candidates whose languages are absent from the repository', () => {
@@ -155,6 +203,7 @@ test('excludes candidates whose languages are absent from the repository', () =>
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: new Set(['ts' as const]),
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.size).toBe(0)
@@ -171,6 +220,7 @@ test('honours a pinned owner even when a faster candidate exists', () => {
     pinnedOwners: { 'dead-code.unused-variable': 'knip' },
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('knip')
@@ -192,6 +242,7 @@ test('never reports a concept slop-gate services itself as uncovered', () => {
     enabledConcepts: new Set(['config.rule-overlap', 'config.dead-override', 'config.unused-suppression']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.uncovered).toEqual([])
@@ -204,6 +255,7 @@ test('reports a concept as uncovered when the pinned engine offers no rule', () 
     pinnedOwners: { 'style.no-var': 'eslint' },
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.uncovered).toEqual(['style.no-var'])
@@ -223,6 +275,7 @@ test('skips deprecated entries', () => {
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.uncovered).toEqual(['style.no-var'])
@@ -239,6 +292,7 @@ test('enables a rule once even when it wins several concepts', () => {
     enabledConcepts: new Set(['dead-code.unused-variable', 'dead-code.unused-import']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.selection.get('oxlint')).toEqual(new Set(['no-unused-vars']))
@@ -251,6 +305,7 @@ test('ignores concepts that are not enabled', () => {
     enabledConcepts: new Set(),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.owners.size).toBe(0)
@@ -272,6 +327,7 @@ test('suppression order is independent of entry order in the pinned path', () =>
       pinnedOwners: { 'style.no-var': 'knip' },
       capabilities: NO_CAPABILITIES,
       languages: ALL_LANGUAGES,
+      participatingEngines: ALL_ENGINES,
     }).suppressed.map((s) => `${s.suppressed.engine}/${s.suppressed.engineRuleId}`)
 
   expect(suppressedFor([...entries].reverse())).toEqual(suppressedFor(entries))
@@ -288,6 +344,7 @@ test('labels a pinned suppression only when the pin is what rejected the rule', 
     pinnedOwners: { 'style.no-var': 'knip' },
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
   const reasonByRule = new Map(result.suppressed.map((s) => [s.suppressed.engineRuleId, s.reason]))
 
@@ -306,6 +363,7 @@ test('a pin that agrees with arbitration still reports the real reason', () => {
     pinnedOwners: { 'style.no-var': 'oxlint' },
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.suppressed[0]?.reason).toBe('lower-tier')
@@ -318,6 +376,7 @@ test('never records the winner as its own loser', () => {
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   expect(result.suppressed).toEqual([])
@@ -332,6 +391,7 @@ test('orders rule ids by code unit rather than locale collation', () => {
     enabledConcepts: new Set(['style.no-var']),
     capabilities: NO_CAPABILITIES,
     languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
   })
 
   // 'Z' (U+005A) precedes 'a' (U+0061) by code unit; locale collation would invert this.

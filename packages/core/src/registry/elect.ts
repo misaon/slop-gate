@@ -17,6 +17,15 @@ export type ElectionInput = {
   enabledConcepts: ReadonlySet<string>
   capabilities: ReadonlySet<Capability>
   languages: ReadonlySet<LanguageId>
+  /**
+   * Engine ids actually instantiated for this run (e.g. `options.engines.map(e => e.id)` in
+   * `check.ts`). Required, not optional, so a future caller cannot forget it the way this field's
+   * absence let arbitration forget it before: an entry whose engine never runs must not contest a
+   * concept or appear in a suppression record, or arbitration reports a suppression that never
+   * happened (see the M0 follow-up this closes — the registry's synthetic `eslint` entry made
+   * every real run report an oxlint/eslint overlap even though no eslint engine ever ran).
+   */
+  participatingEngines: ReadonlySet<EngineId>
   pinnedOwners?: Readonly<Record<string, EngineId>>
   enginePreference?: readonly EngineId[]
 }
@@ -41,6 +50,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
 
   const isApplicable = (entry: RuleEntry): boolean =>
     entry.deprecated === undefined &&
+    input.participatingEngines.has(entry.engine) &&
     entry.requires.every((capability) => input.capabilities.has(capability)) &&
     entry.languages.some((language) => input.languages.has(language))
 

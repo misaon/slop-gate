@@ -213,7 +213,11 @@ test('emits a diagnostic naming both rules when two rules overlap', async () => 
     ...baseOptions(),
     config: { rules: { 'correctness.no-debugger': 'error', 'config.rule-overlap': 'info' } } as never,
     entries: withOverlap,
-    engines: [stubEngine({})],
+    // Both engines must actually participate, or arbitration now drops the `eslint` entry before
+    // it can even compete — this run is the one deliberately proving a real overlap resolves
+    // correctly when both sides of it are actually present, not a run reproducing the M0 defect
+    // where an entry for an absent engine still generated a suppression.
+    engines: [stubEngine({}), stubEngine({ id: 'eslint' })],
   })
 
   const overlap = result.diagnostics.filter((d) => d.concept === 'config.rule-overlap')

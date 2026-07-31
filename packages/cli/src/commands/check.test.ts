@@ -70,11 +70,15 @@ test('a config diagnostic reports the config file as repo-relative, not the abso
   // `loadConfig` (and the `findConfigFile` it wraps) always resolves an absolute path — it walks
   // up from `cwd` until it finds one. Writing a real config file on disk here, unlike the other
   // tests in this file, is exactly what makes `loadConfig` take that path instead of returning
-  // `null`. `extends: ['recommended']` plus any `.ts` file also unconditionally triggers
-  // `config.rule-overlap` (the registry's oxlint/eslint tier overlap on `dead-code.unused-variable`
-  // fires regardless of which engines are actually registered), so this fixture needs no more setup
-  // than a config file to reproduce the failure the reviewer measured against the real repo.
-  await writeFile(join(dir, 'slop-gate.config.ts'), "export default { extends: ['recommended'] }\n")
+  // `null`. The bad rule key deterministically triggers `config.dead-override` regardless of which
+  // engines are registered — `extends: ['recommended']` alone used to be enough (the registry's
+  // oxlint/eslint tier overlap on `dead-code.unused-variable` fired unconditionally), but fix 1
+  // made arbitration drop a registry entry whose engine never participates in the run, so a plain
+  // `recommended` config with only oxlint registered no longer produces any `config.*` diagnostic.
+  await writeFile(
+    join(dir, 'slop-gate.config.ts'),
+    "export default { extends: ['recommended'], rules: { 'oxlint/no-such-rule': 'error' } }\n",
+  )
 
   const output = await runCheckCapturingStdout()
   const report = JSON.parse(output) as { diagnostics: Array<{ concept: string; file: string }> }
@@ -86,20 +90,22 @@ test('a config diagnostic reports the config file as repo-relative, not the abso
   }
 })
 
-test('a config diagnostic names no file when no config file exists', async () => {
-  // Bug reproduction (docs/superpowers/specs/2026-07-31-m0-followups.md, "Found by first
-  // real-world use"): with no config file anywhere in `dir`, `check.run` falls back to
-  // `DEFAULT_CONFIG = { extends: ['recommended'] }`, which — like the test above notes —
-  // unconditionally triggers `config.rule-overlap`. Before the fix, that diagnostic was attributed
-  // to the literal default `slop-gate.config.ts`, a path that does not exist anywhere in `dir`.
+test('produces no config diagnostics when no config file exists and only oxlint is registered', async () => {
+  // Supersedes the old "names no file when no config file exists" regression test. Before fix 1,
+  // `DEFAULT_CONFIG = { extends: ['recommended'] }` unconditionally triggered `config.rule-overlap`
+  // (the registry's oxlint/eslint tier overlap fired regardless of which engines actually ran), and
+  // that diagnostic used to be wrongly attributed to the literal default `slop-gate.config.ts` — a
+  // path that does not exist anywhere in `dir` (docs/superpowers/specs/2026-07-31-m0-followups.md,
+  // "Found by first real-world use"). Fix 1 removes the trigger itself: with no config file and no
+  // overrides, arbitration only ever considers oxlint (the one engine `check.ts` registers), so
+  // there is no overlap to suppress and nothing left to attribute to a `file: null` diagnostic at
+  // all. The null-file attribution contract itself is still covered directly against `streamCheck`
+  // by `packages/core/src/run/check.test.ts` ("a config diagnostic is attributed to no file..."),
+  // using a bad rule key rather than the now-removed unconditional overlap.
   const output = await runCheckCapturingStdout()
-  const report = JSON.parse(output) as { diagnostics: Array<{ concept: string; file: string | null }> }
-  const configDiagnostics = report.diagnostics.filter((d) => d.concept.startsWith('config.'))
+  const report = JSON.parse(output) as { diagnostics: Array<{ concept: string }> }
 
-  expect(configDiagnostics.length).toBeGreaterThan(0)
-  for (const diagnostic of configDiagnostics) {
-    expect(diagnostic.file).toBeNull()
-  }
+  expect(report.diagnostics.some((d) => d.concept.startsWith('config.'))).toBe(false)
 })
 
 test('removes its SIGINT/SIGTERM listeners after each run so repeated calls do not leak them', async () => {

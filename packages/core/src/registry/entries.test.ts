@@ -81,11 +81,16 @@ test('every classify pattern is a valid regular expression', () => {
 })
 
 test('the shipped registry contains a real overlap and resolves it to oxlint', () => {
+  // This tests the registry's *contents* — that a genuine tier overlap exists between two shipped
+  // entries — not a real run's engine set, so both engines that own an entry in `RULE_ENTRIES` are
+  // named as participating here even though a real `sgate check` only ever instantiates oxlint
+  // (packages/cli/src/commands/check.ts). See elect.test.ts for the run-time filter itself.
   const result = electOwners({
     entries: RULE_ENTRIES,
     enabledConcepts: new Set(['dead-code.unused-variable']),
     capabilities: new Set(),
     languages: new Set(['ts']),
+    participatingEngines: new Set(['oxlint', 'eslint']),
   })
 
   expect(result.suppressed).toHaveLength(1)
