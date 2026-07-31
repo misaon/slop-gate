@@ -349,10 +349,29 @@ One filesystem pass per run, shared by every engine.
 
 - In a git repository with `git` available: `git ls-files -co --exclude-standard -z --deduplicate`.
   This yields exactly the tracked plus non-ignored untracked files, correctly and fast, without
-  reimplementing ignore semantics.
-- Otherwise: an internal parallel walker with ignore-file parsing.
-- `.slopignore` and config `ignore` are applied on top. `.slopignore` lines are glob patterns
-  (matched by `picomatch`), not gitignore syntax — write `vendor/**`, not `vendor/`.
+  reimplementing ignore semantics. Verified to honour nested `.gitignore` at every level,
+  `.git/info/exclude` and the global `core.excludesFile`.
+- Otherwise (no git, or `git` unavailable): an internal parallel walker that collects every
+  `.gitignore` it passes as it descends and applies each with real gitignore semantics — negation,
+  nesting, and a directory pattern excluding everything beneath it — via the `ignore` package (the
+  same engine eslint uses for `.eslintignore`). A deeper `.gitignore` is tested after its ancestors,
+  so it can override them, matching git's own precedence; once a directory itself is excluded,
+  nothing beneath it is visited, including a deeper negation, matching the documented gitignore(5)
+  limitation ("It is not possible to re-include a file if a parent directory of that file is
+  excluded"). This walker does not read `.git/info/exclude` or `core.excludesFile` — outside a git
+  repository neither exists to read.
+- `.slopignore` and config `ignore` are applied on top of whichever source ran, as one combined
+  rule set — a path either excludes is excluded, and a `!negation` in either can re-include a path
+  the other matched, the same way two blocks appended to one `.gitignore` combine. Both are real
+  gitignore patterns via the `ignore` package, not bare globs: a bare directory name, a trailing
+  slash and a leading slash all anchor and mark directories exactly as they would in a `.gitignore`,
+  and an unrooted pattern like `*.ts` matches at every depth. This is one syntax across both
+  surfaces rather than "globs in config, gitignore in `.slopignore`".
+  `.dockerignore`, `.npmignore` and `.eslintignore` are deliberately never read: each answers a
+  different question than "what should be analysed" (`.dockerignore` routinely excludes `test/`
+  and `docs/`, which users want linted) and reading one would silently narrow what gets analysed
+  with no signal — the same class of failure as the cache-inventoried bug (M0 follow-ups). Do not
+  add this thinking it was an oversight.
 - **Language detection**: extension map, then special filenames (`Dockerfile`, `docker-compose.yml`,
   `.github/workflows/*.yml`), then shebang sniffing for extensionless files.
 - **Workspace attribution**: the workspace graph is built from `pnpm-workspace.yaml`,

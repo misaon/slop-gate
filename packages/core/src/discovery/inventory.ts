@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import picomatch from 'picomatch'
+import ignore from 'ignore'
 import type { LanguageId } from '../languages.ts'
 import { compareStrings } from '../ordering.ts'
 import { detectLanguage } from './language.ts'
@@ -22,13 +22,11 @@ export type BuildInventoryOptions = {
  * paths from analysis without touching its config file or its `.gitignore` — test fixtures holding
  * deliberately broken code being the motivating case.
  *
- * Lines are glob patterns matched by `picomatch`, not gitignore syntax, even though the two look
- * similar: `vendor`, `vendor/` and `/vendor` all match nothing (a bare picomatch pattern requires an
- * exact full-path match, and neither trailing nor leading slashes anchor or mark a directory the
- * way they do in a `.gitignore`), and `*.ts` only matches `.ts` files at the root, not `src/a.ts`
- * (gitignore treats a slash-free pattern as matching at any depth; picomatch does not).
- * Write `vendor/**` to exclude a directory. Blank lines and `#` comments are skipped; an absent
- * file means no patterns.
+ * Lines are real gitignore patterns, parsed by the `ignore` package (the same engine eslint uses
+ * for `.eslintignore`) rather than matched as bare globs: a bare directory name, a trailing slash,
+ * and a leading slash all anchor and mark directories exactly as they do in a `.gitignore`, an
+ * unrooted pattern like `*.ts` matches at every depth, and `!pattern` negates an earlier match.
+ * Blank lines and `#` comments are skipped; an absent file means no patterns.
  */
 /**
  * True when some segment of `path` (including the leaf) is one of `ALWAYS_SKIPPED` — mirroring the
@@ -44,23 +42,29 @@ function isAlwaysSkipped(path: string): boolean {
 
 async function readSlopIgnore(rootDir: string): Promise<string[]> {
   const source = await readFile(join(rootDir, '.slopignore'), 'utf8').catch(() => null)
-  if (source === null) return []
-  return source
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line !== '' && !line.startsWith('#'))
+  // Blank-line and `#`-comment filtering is left to the `ignore` package below, which already
+  // implements the gitignore spec's rules for both (including a `\#`-escaped literal hash and
+  // trailing-whitespace trimming) — reimplementing a subset by hand here would risk drifting from
+  // it on exactly the edge cases that make hand-rolled ignore parsing worth avoiding.
+  return source === null ? [] : source.split('\n')
 }
 
 export async function buildInventory(options: BuildInventoryOptions): Promise<FileInventory> {
   const signal = options.signal ?? new AbortController().signal
   const source = options.source ?? (await selectFileSource(options.rootDir))
-  const [paths, workspaces] = await Promise.all([
+  const [paths, workspaces, slopIgnorePatterns] = await Promise.all([
     source.list(options.rootDir, signal),
     buildWorkspaceGraph(options.rootDir),
+    readSlopIgnore(options.rootDir),
   ])
 
-  const patterns = [...(await readSlopIgnore(options.rootDir)), ...(options.ignore ?? [])]
-  const isIgnored = patterns.length > 0 ? picomatch(patterns, { dot: true }) : () => false
+  // `.slopignore` and config `ignore` are one combined rule set, not two independently-applied
+  // ones: a path either source excludes is excluded, and a `!negation` in either can re-include a
+  // path the other matched — the same way two blocks appended to one `.gitignore` combine. Neither
+  // surface shadows the other.
+  const patterns = [...slopIgnorePatterns, ...(options.ignore ?? [])]
+  const matcher = patterns.length > 0 ? ignore().add(patterns) : null
+  const isIgnored = (path: string): boolean => matcher !== null && matcher.ignores(path)
   const languages = new Set<LanguageId>()
   const files: InventoryFile[] = []
 

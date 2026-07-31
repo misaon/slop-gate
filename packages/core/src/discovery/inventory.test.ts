@@ -106,22 +106,26 @@ test('.slopignore patterns combine with config ignore rather than replacing it',
   expect(paths).toContain('src/a.ts')
 })
 
-test('.slopignore lines are glob patterns, not gitignore syntax', async () => {
-  // Pins the documented (packages/core/src/discovery/inventory.ts) contract: `.slopignore` is
-  // matched by picomatch, so the gitignore idioms a user would naturally reach for from muscle
-  // memory — a bare directory name, a trailing slash, a leading slash — match nothing here. Only
-  // an explicit `dir/**` glob excludes a directory's contents.
+test('.slopignore lines are real gitignore patterns, not bare globs', async () => {
+  // Pins the fix for the documented defect (docs/superpowers/specs/2026-07-31-m0-followups.md,
+  // "Should fix soon"): `.slopignore` is now parsed by the `ignore` package, so the gitignore
+  // idioms a user naturally reaches for from muscle memory — a bare directory name, a trailing
+  // slash, a leading slash — all exclude the directory's contents, exactly as they would in a
+  // `.gitignore`. Before the fix, only an explicit `dir/**` glob worked; all three spellings
+  // below matched nothing.
   await write('vendor/a.ts')
   await write('vendor/nested/b.ts')
   await write('keep.md')
   await write('.slopignore', ['vendor', 'vendor/', '/vendor'].join('\n') + '\n')
 
-  const gitignoreStyle = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
-  const gitignoreStylePaths = gitignoreStyle.files.map((f) => f.path)
-  expect(gitignoreStylePaths).toContain('vendor/a.ts')
-  expect(gitignoreStylePaths).toContain('vendor/nested/b.ts')
-  expect(gitignoreStylePaths).toContain('keep.md')
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('vendor/a.ts')
+  expect(paths).not.toContain('vendor/nested/b.ts')
+  expect(paths).toContain('keep.md')
 
+  // The explicit glob form the old picomatch-based implementation required still works too —
+  // gitignore's `dir/**` means exactly what it did before.
   await write('.slopignore', 'vendor/**\n')
   const globStyle = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
   const globStylePaths = globStyle.files.map((f) => f.path)
@@ -130,9 +134,9 @@ test('.slopignore lines are glob patterns, not gitignore syntax', async () => {
   expect(globStylePaths).toContain('keep.md')
 })
 
-test('an unrooted .slopignore glob matches by depth, unlike a gitignore pattern', async () => {
+test('an unrooted .slopignore glob matches at every depth, like a gitignore pattern', async () => {
   // gitignore treats a slash-free pattern as matching at any depth (`*.ts` behaves like
-  // `**/*.ts`). picomatch does not: `*.ts` only matches a `.ts` file with no directory prefix.
+  // `**/*.ts`). Before the fix, picomatch did not: `*.ts` matched only a root `.ts` file.
   await write('root.ts')
   await write('src/nested.ts')
   await write('.slopignore', '*.ts\n')
@@ -140,7 +144,30 @@ test('an unrooted .slopignore glob matches by depth, unlike a gitignore pattern'
   const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
   const paths = inventory.files.map((f) => f.path)
   expect(paths).not.toContain('root.ts')
-  expect(paths).toContain('src/nested.ts')
+  expect(paths).not.toContain('src/nested.ts')
+})
+
+test('.slopignore negation re-includes a path an earlier pattern excluded', async () => {
+  await write('src/a.ts')
+  await write('src/keep.ts')
+  await write('.slopignore', ['src/*.ts', '!src/keep.ts'].join('\n') + '\n')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('src/a.ts')
+  expect(paths).toContain('src/keep.ts')
+})
+
+test('a config ignore pattern without a trailing ** still excludes a directory nested deep beneath it', async () => {
+  // The same fix as `.slopignore`, applied to config `ignore`: gitignore semantics mean a bare
+  // directory name excludes everything below it, not just files matched by an explicit glob.
+  await write('vendor/deep/nested/file.ts')
+  await write('src/a.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource(), ignore: ['vendor'] })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('vendor/deep/nested/file.ts')
+  expect(paths).toContain('src/a.ts')
 })
 
 test('an absent .slopignore changes nothing', async () => {
@@ -159,6 +186,75 @@ test('the walker skips node_modules and .git without being told to', async () =>
 
   const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
   expect(inventory.files.some((f) => f.path.startsWith('node_modules/'))).toBe(false)
+})
+
+test('the walker applies a root .gitignore even outside a git repository', async () => {
+  // The gap this closes (Part 2 of the M0 follow-ups): tarballs, vendored copies and some CI
+  // checkouts have no `.git` directory, so `selectFileSource` falls back to this walker — which
+  // used to read no ignore file at all, only the five-entry `ALWAYS_SKIPPED` list.
+  await write('.gitignore', 'dist/\n')
+  await write('dist/out.js')
+  await write('src/a.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('dist/out.js')
+  expect(paths).toContain('src/a.ts')
+})
+
+test('the walker applies a nested .gitignore scoped to its own directory, not the whole tree', async () => {
+  await write('packages/app/.gitignore', 'build/\n')
+  await write('packages/app/build/out.js')
+  await write('packages/app/src/a.ts')
+  // A directory named `build` outside `packages/app` must survive: the nested .gitignore's
+  // unqualified `build/` is scoped to `packages/app` and below, exactly as git scopes it.
+  await write('other/build/keep.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('packages/app/build/out.js')
+  expect(paths).toContain('packages/app/src/a.ts')
+  expect(paths).toContain('other/build/keep.ts')
+})
+
+test('the walker lets a nested .gitignore negate a pattern an ancestor .gitignore excluded', async () => {
+  // Mirrors real git precedence (verified against real `git check-ignore -v` on this exact
+  // layout): the closer .gitignore wins. The root pattern excludes every `.log` file; the nested
+  // one re-includes one specific file under `packages/app`. Because the match is on individual
+  // files, not a whole directory, there is no ignored ancestor directory blocking the descent —
+  // see the next test for the case where there is.
+  await write('.gitignore', '*.log\n')
+  await write('root.log')
+  await write('packages/app/.gitignore', '!important.log\n')
+  await write('packages/app/debug.log')
+  await write('packages/app/important.log')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('root.log')
+  expect(paths).not.toContain('packages/app/debug.log')
+  expect(paths).toContain('packages/app/important.log')
+})
+
+test('the walker cannot resurrect a file whose parent directory is itself excluded', async () => {
+  // The well-known gitignore gotcha, documented in gitignore(5): "It is not possible to
+  // re-include a file if a parent directory of that file is excluded" — verified against real
+  // `git check-ignore -v` on this exact layout, which reports `packages/app/generated/keep.ts` as
+  // ignored by the *root* `generated/` rule, not re-included by the nested negation. `generated/`
+  // has no slash before the trailing one, so it is unrooted and excludes a directory named
+  // `generated` at any depth, including under `packages/app` — and once a directory itself is
+  // excluded, nothing beneath it is ever visited to check for a deeper override.
+  await write('.gitignore', 'generated/\n')
+  await write('generated/a.ts')
+  await write('packages/app/.gitignore', '!generated/keep.ts\n')
+  await write('packages/app/generated/a.ts')
+  await write('packages/app/generated/keep.ts')
+
+  const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
+  const paths = inventory.files.map((f) => f.path)
+  expect(paths).not.toContain('generated/a.ts')
+  expect(paths).not.toContain('packages/app/generated/a.ts')
+  expect(paths).not.toContain('packages/app/generated/keep.ts')
 })
 
 test('always emits repo-relative POSIX paths', async () => {

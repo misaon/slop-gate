@@ -89,10 +89,6 @@ things no fixture caught.
   to stderr, so `--format json` piping is unaffected — but it is the first thing a new user sees.
   Both honest fixes (emit `.mts`, or have `init` set `"type": "module"` in someone else's
   `package.json`) belong to a task that owns config authoring. Schedule before any public release.
-- **`.slopignore` accepts globs, not gitignore patterns.** `vendor`, `vendor/`, `/vendor` and `*.ts`
-  exclude nothing; only `vendor/**` works. M0 corrected the docstring and spec §7 to state the actual
-  behaviour and pinned it with tests. Implementing real gitignore semantics — negation, directory
-  versus file disambiguation — is a spec-worthy problem, not a final-wave call.
 
 ## Test gaps worth closing
 

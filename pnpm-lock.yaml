@@ -44,6 +44,9 @@ importers:
 
   packages/core:
     dependencies:
+      ignore:
+        specifier: ^7.0.6
+        version: 7.0.6
       oxc-transform:
         specifier: ^0.142.0
         version: 0.142.0
@@ -952,6 +955,10 @@ packages:
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
 
+  ignore@7.0.6:
+    resolution: {integrity: sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw==}
+    engines: {node: '>= 4'}
+
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
@@ -1820,6 +1827,8 @@ snapshots:
       resolve-pkg-maps: 1.0.0
 
   hookable@5.5.3: {}
+
+  ignore@7.0.6: {}
 
   jiti@2.7.0: {}
 

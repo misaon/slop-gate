@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "ignore": "^7.0.6",
     "oxc-transform": "^0.142.0",
     "picomatch": "^4.0.5",
     "yaml": "^2.9.0"
