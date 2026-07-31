@@ -84,11 +84,16 @@ things no fixture caught.
 - **`git ls-files --deduplicate` needs git ≥ 2.31** (2021) with no fallback. `selectFileSource`
   catches only `rev-parse` failure, so if `ls-files` rejects the flag the whole run dies with a raw
   git error. Ubuntu 20.04 ships git 2.25.
-- **`MODULE_TYPELESS_PACKAGE_JSON`.** Running in a project without `"type": "module"` prints four
-  lines of Node warning on every run, because `loadConfig` dynamically imports a `.ts` file. It goes
-  to stderr, so `--format json` piping is unaffected — but it is the first thing a new user sees.
-  Both honest fixes (emit `.mts`, or have `init` set `"type": "module"` in someone else's
-  `package.json`) belong to a task that owns config authoring. Schedule before any public release.
+- **Downstream package tests exercise each dependency's built `dist/`, not its live source.**
+  `packages/cli`'s tests import `@misaon/slop-gate-core`, `-reporters` and `-engine-oxlint` by
+  package name, which resolve through each package's `exports` field to `dist/index.js` — there is
+  no vitest alias back to `src`. Editing `packages/core/src` and running `pnpm test` from the repo
+  root can show every CLI-level test passing while it silently still exercises the previous build.
+  `pnpm build` has to run first for a dependency change to reach a dependent package's tests;
+  `pnpm typecheck` happens to rebuild everything as a side effect of turbo's own dependency graph,
+  but plain `pnpm test` does not. Found the hard way during the five-fixes session (see the report):
+  three CLI-level tests kept passing against a stale build for several edits before a rebuild
+  surfaced that they actually needed updating.
 
 ## Test gaps worth closing
 
@@ -100,7 +105,18 @@ things no fixture caught.
   `oxc-transform` fallback). Proven correct by hand with a TS `enum` config; no regression guard.
 - **No test for the `engine-failed` stream event**, only the aggregated `engineFailures`.
 - **CI never runs `sgate check` on this repository**, so a regression in the shipped registry or
-  presets would not be caught. Cheap dogfooding now that the answer is a clean zero.
+  presets would not be caught. Cheap dogfooding now that the answer is a clean zero — re-confirmed
+  by hand after the M0 registry expansion (39 new rules, 47 total): still zero.
+- **A rule appearing in `oxlint --rules --format json` is not proof it detects anything.** Curating
+  the M0 registry expansion, `no-implied-eval` reported `number_of_rules: 1` and zero diagnostics
+  against every canonical trigger (`setTimeout`/`setInterval`/`Function`/`execScript` with a string
+  literal) — verified directly against oxlint 1.76.0, independent of slop-gate. It was dropped
+  rather than shipped. `packages/engine-oxlint/src/index.test.ts` now exercises 6 of the 39 new
+  rules against the real binary, which is exactly the check that would have caught this
+  automatically, but the other 33 are unverified beyond the registry's own static invariants.
+  Whatever generates the registry in M1 needs a functional check per rule — a fixture with a known
+  violation, not just a `--rules` listing — or it will silently ship dead rules the same way this
+  one almost did.
 
 ## Decide rather than defer again
 
@@ -120,12 +136,20 @@ things no fixture caught.
 - **oxlint's `--rules` output spells two scopes with underscores** (`jsx_a11y`, `react_perf`) while
   the diagnostic `code` field hyphenates them. A future registry entry for those scopes must use the
   hyphenated form, which is what the parser accepts.
+- **`config.unused-suppression` is in the catalogue and every preset but has no producer.**
+  `check.ts`'s `configDiagnostics` only ever emits `config.dead-override` and `config.rule-overlap`
+  — nothing implements "a suppression comment matches no diagnostic", the behaviour the concept's
+  own description promises. Same shape as `SlopGateConfig.workspaces`/`engines` above: it
+  type-checks, a user can even set its severity, and it does nothing. Noticed while auditing every
+  `config.*` diagnostic's trigger condition for the arbitration fix (see the five-fixes report);
+  not touched here.
 
 ## Accepted as is
 
-The registry's own oxlint/eslint tier overlap emits a `config.rule-overlap` info diagnostic about
-slop-gate's internals on every run. That diagnostic is an M0 acceptance requirement — it proves
-arbitration is visible — so it stays. `uncovered` no longer reports slop-gate's synthetic concepts.
+`uncovered` does not report slop-gate's own synthetic concepts (`config.rule-overlap`,
+`config.dead-override`, `config.unused-suppression`) — a concept the orchestrator services itself
+will never have a matching `RuleEntry`, and counting that against the repository's engine coverage
+would warn about the tool's own diagnostics on every run.
 
 `positionAt` yields U+FFFD for an offset inside a multi-byte character; oxlint's offsets are always on
 character boundaries, verified. `findConfigFile` walks past the repository boundary, matching
