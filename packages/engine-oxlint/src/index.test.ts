@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import type { InventoryFile, RawDiagnostic } from '@misaon/slop-gate-core'
+import type { InventoryFile, RawDiagnostic, RuleLevel } from '@misaon/slop-gate-core'
 import { createOxlintEngine } from './index.ts'
 
 let dir: string
@@ -150,6 +150,67 @@ test('surfaces a genuine parse error instead of silently dropping the file', asy
   expect(found[0]?.engineRuleId).toBe('parse-error')
   expect(found[0]?.severity).toBe('error')
   expect(found[0]?.file).toBe('src/broken.ts')
+  await handle.dispose()
+})
+
+test('fires each of a representative sample of the M0 registry expansion against the real binary', async () => {
+  // Fix 5 (docs/superpowers/specs/2026-07-31-m0-followups.md) curated 39 new registry entries from
+  // oxlint's `correctness` and `suspicious` categories. One candidate that looked right from
+  // `oxlint --rules --format json` alone — `no-implied-eval` — turned out to never actually fire
+  // against the real binary (verified by hand for setTimeout/setInterval/Function/execScript, all
+  // reported nothing) and was dropped rather than shipped. This test is what makes that class of
+  // gap a regression test instead of a one-off manual check: every id here must still report
+  // against the real oxlint binary, not just appear in `--rules --format json`.
+  await writeFile(
+    join(dir, 'src/a.ts'),
+    [
+      'export function selfAssign(x: number) {',
+      '  x = x',
+      '  return x',
+      '}',
+      '',
+      'export function badEval(code: string) {',
+      '  return eval(code)',
+      '}',
+      '',
+      'export function nanCheck(a: number) {',
+      "  return a === NaN",
+      '}',
+      '',
+      'export function unreachable() {',
+      '  return 1',
+      "  console.log('never runs')",
+      '}',
+      '',
+      'export function extendsNative() {',
+      '  // @ts-expect-error demo only',
+      '  Array.prototype.customThing = function () { return 1 }',
+      '}',
+      '',
+      'export function discardsCause() {',
+      '  try {',
+      '    JSON.parse("not json")',
+      '  } catch (e) {',
+      "    throw new Error('parsing failed')",
+      '  }',
+      '}',
+      '',
+    ].join('\n'),
+  )
+  const engine = createOxlintEngine()
+  const selection = new Map<string, RuleLevel>([
+    ['no-self-assign', 'error'],
+    ['no-eval', 'error'],
+    ['use-isnan', 'error'],
+    ['no-unreachable', 'error'],
+    ['no-extend-native', 'warn'],
+    ['preserve-caught-error', 'warn'],
+  ])
+  const handle = await engine.materializeConfig(selection, context)
+
+  const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
+
+  expect(new Set(found.map((d) => d.engineRuleId))).toEqual(new Set(selection.keys()))
   await handle.dispose()
 })
 
