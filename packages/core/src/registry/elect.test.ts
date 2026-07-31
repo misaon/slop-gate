@@ -182,6 +182,21 @@ test('honours a pinned owner even when a faster candidate exists', () => {
   })
 })
 
+test('never reports a concept slop-gate services itself as uncovered', () => {
+  // `config.rule-overlap`, `config.dead-override` and `config.unused-suppression` are emitted by
+  // the orchestrator (packages/core/src/run/check.ts), not by any engine rule — no `RuleEntry` will
+  // ever claim them, so without this exclusion every user sees "N enabled concepts have no capable
+  // engine" about the tool's own diagnostics on every single run.
+  const result = electOwners({
+    entries: [],
+    enabledConcepts: new Set(['config.rule-overlap', 'config.dead-override', 'config.unused-suppression']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+  })
+
+  expect(result.uncovered).toEqual([])
+})
+
 test('reports a concept as uncovered when the pinned engine offers no rule', () => {
   const result = electOwners({
     entries: [entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] })],

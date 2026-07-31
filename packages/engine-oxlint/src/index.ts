@@ -15,7 +15,7 @@ import {
 import { materializeOxlintConfig } from './config.ts'
 import { parseOxlintOutput } from './parse.ts'
 
-export { parseOxlintOutput, toEngineRuleId } from './parse.ts'
+export { PARSE_ERROR_RULE_ID, parseOxlintOutput, toEngineRuleId } from './parse.ts'
 
 const run = promisify(execFile)
 

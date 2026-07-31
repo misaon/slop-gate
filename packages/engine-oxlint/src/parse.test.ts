@@ -75,6 +75,36 @@ test('skips a diagnostic with no labels rather than inventing a range', () => {
   expect(parseOxlintOutput(unlabelled, '/repo')).toEqual([])
 })
 
+test('attributes a code-less error diagnostic to the parse-error rule id instead of dropping it', () => {
+  // Shape captured from the real binary against a genuinely broken file (no `code` key at all —
+  // not an empty string, not null): `oxlint --format json` on `const x: = 5`.
+  const parseFailure = JSON.stringify({
+    diagnostics: [
+      {
+        message: 'Unexpected token',
+        severity: 'error',
+        causes: [],
+        filename: 'broken.ts',
+        labels: [{ span: { offset: 33, length: 1, line: 2, column: 12 } }],
+        related: [],
+      },
+    ],
+  })
+  const [result] = parseOxlintOutput(parseFailure, '/repo')
+
+  expect(result?.engineRuleId).toBe('parse-error')
+  expect(result?.severity).toBe('error')
+  expect(result?.file).toBe('broken.ts')
+  expect(result?.range).toEqual({ start: 33, end: 34 })
+})
+
+test('still drops a code-less diagnostic that is not error severity, rather than guessing at it', () => {
+  const codeless = JSON.stringify({
+    diagnostics: [{ message: 'x', severity: 'warning', filename: 'a.ts', labels: [{ span: { offset: 0, length: 1 } }] }],
+  })
+  expect(parseOxlintOutput(codeless, '/repo')).toEqual([])
+})
+
 test('returns nothing for empty output', () => {
   expect(parseOxlintOutput('', '/repo')).toEqual([])
   expect(parseOxlintOutput('{"diagnostics":[]}', '/repo')).toEqual([])

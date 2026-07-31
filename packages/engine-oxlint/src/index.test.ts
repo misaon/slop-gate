@@ -66,6 +66,25 @@ test('materialises a config containing only the selected rules', async () => {
   await handle.dispose()
 })
 
+test('never writes the synthetic parse-error rule id into the materialised config', async () => {
+  // `correctness.parse-error` elects `oxlint/parse-error` (packages/core/src/registry/entries.ts),
+  // and a real selection includes whatever the registry elected — so a config-materialisation bug
+  // that stops filtering it out would only show up once that concept is actually enabled, exactly
+  // the failure this pins: oxlint's config parser hard-rejects an unknown rule id outright.
+  const handle = await createOxlintEngine().materializeConfig(
+    new Map([
+      ['no-debugger', 'error'],
+      ['parse-error', 'error'],
+    ]),
+    context,
+  )
+  const written = JSON.parse(await readFile(handle.path, 'utf8')) as { rules: Record<string, string> }
+
+  expect(written.rules).toEqual({ 'no-debugger': 'error' })
+  expect(handle.ruleCount).toBe(1)
+  await handle.dispose()
+})
+
 test('produces the same ruleset hash regardless of selection order', async () => {
   const engine = createOxlintEngine()
   const a = await engine.materializeConfig(new Map([['no-debugger', 'error'], ['no-var', 'warn']]), context)
@@ -115,6 +134,22 @@ test('yields nothing for an empty batch without spawning a process', async () =>
   const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
 
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(1000)))).toEqual([])
+  await handle.dispose()
+})
+
+test('surfaces a genuine parse error instead of silently dropping the file', async () => {
+  // A real syntax error, run through the real binary (not a synthetic fixture): oxlint's own
+  // parse-failure diagnostics have no `code` field, unlike every rule-based finding.
+  await writeFile(join(dir, 'src/broken.ts'), 'export function f() {\n  const x: = 5\n  return x\n}\n')
+  const engine = createOxlintEngine()
+  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+
+  const found = await collect(engine.run({ files: [file('src/broken.ts')] }, handle, context, AbortSignal.timeout(30_000)))
+
+  expect(found).toHaveLength(1)
+  expect(found[0]?.engineRuleId).toBe('parse-error')
+  expect(found[0]?.severity).toBe('error')
+  expect(found[0]?.file).toBe('src/broken.ts')
   await handle.dispose()
 })
 

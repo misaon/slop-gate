@@ -23,6 +23,12 @@ export type ConceptDefinition = {
   readonly title: string
   readonly description: string
   readonly deprecated?: { readonly since: string; readonly replacedBy?: string }
+  /**
+   * True for a concept the orchestrator emits itself (packages/core/src/run/check.ts) rather than
+   * any engine rule — e.g. `config.rule-overlap`. No `RuleEntry` will ever claim one of these, so
+   * election must not count that against the repository's coverage.
+   */
+  readonly servicedBySlopGate?: boolean
 }
 
 export const CONCEPTS = [
@@ -43,6 +49,15 @@ export const CONCEPTS = [
     group: 'correctness',
     title: 'Constant condition',
     description: 'A condition that cannot vary makes one branch unreachable.',
+  },
+  {
+    id: 'correctness.parse-error',
+    group: 'correctness',
+    title: 'Parse error',
+    description:
+      'The file has a syntax error and could not be parsed, so no engine could analyse it at all. ' +
+      'Unlike every other concept, this has no owning rule: any engine capable of parsing the ' +
+      "language may report it, attributed via a synthetic per-engine rule id (oxlint's is `parse-error`).",
   },
   {
     id: 'dead-code.unused-import',
@@ -75,18 +90,21 @@ export const CONCEPTS = [
     group: 'config',
     title: 'Unused suppression',
     description: 'A suppression comment that matches no diagnostic, left behind after a fix.',
+    servicedBySlopGate: true,
   },
   {
     id: 'config.rule-overlap',
     group: 'config',
     title: 'Overlapping rules',
     description: 'Two enabled rules detect the same concept; one was suppressed by arbitration.',
+    servicedBySlopGate: true,
   },
   {
     id: 'config.dead-override',
     group: 'config',
     title: 'Dead override',
     description: 'An override targeting a rule or concept that no enabled engine covers.',
+    servicedBySlopGate: true,
   },
 ] as const satisfies readonly ConceptDefinition[]
 
@@ -103,3 +121,14 @@ export function conceptById(id: ConceptId): ConceptDefinition {
   if (!found) throw new Error(`unknown concept: ${id}`)
   return found
 }
+
+// `CONCEPTS` is deliberately `as const satisfies readonly ConceptDefinition[]` so each concept
+// keeps its narrow literal type (see `RULE_ENTRIES` for the same pattern). A concept that omits
+// `servicedBySlopGate` doesn't structurally have that key at all, so reading it needs the widened
+// `ConceptDefinition` view rather than `CONCEPTS` directly.
+const WIDENED_CONCEPTS: readonly ConceptDefinition[] = CONCEPTS
+
+/** Concepts the orchestrator services itself — see `ConceptDefinition.servicedBySlopGate`. */
+export const SLOP_GATE_SERVICED_CONCEPTS: ReadonlySet<string> = new Set(
+  WIDENED_CONCEPTS.filter((c) => c.servicedBySlopGate).map((c) => c.id),
+)

@@ -5,6 +5,25 @@ const OXLINT_DOCS = 'https://oxc.rs/docs/guide/usage/linter/rules'
 export const RULE_ENTRIES = [
   {
     engine: 'oxlint',
+    // Synthetic: not a real `--rules`-listed oxlint rule, but the id oxlint's own adapter assigns
+    // a parse failure (see packages/engine-oxlint/src/parse.ts) so it can flow through the same
+    // ownership/severity/caching pipeline as every other finding. It must never reach oxlint's own
+    // `--config` (parsing isn't a rule that can be toggled, and oxlint's config parser hard-rejects
+    // an unrecognised rule id) — `materializeOxlintConfig` filters it out before writing rules.
+    engineRuleId: 'parse-error',
+    concepts: ['correctness.parse-error'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'error',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
+    docsUrl: 'https://oxc.rs/docs/guide/usage/linter.html',
+    since: '0.1.0',
+  },
+  {
+    engine: 'oxlint',
     engineRuleId: 'no-debugger',
     concepts: ['correctness.no-debugger'],
     tier: 0,

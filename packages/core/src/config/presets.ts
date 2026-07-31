@@ -1,6 +1,7 @@
 import type { PresetName, RuleMap } from './types.ts'
 
 const recommended: RuleMap = {
+  'correctness.parse-error': 'error',
   'correctness.no-debugger': 'error',
   'correctness.no-duplicate-object-key': 'error',
   'correctness.no-constant-condition': 'error',

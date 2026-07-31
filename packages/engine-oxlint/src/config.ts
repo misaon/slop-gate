@@ -7,6 +7,7 @@ import {
   type EngineRuleSelection,
   type RunContext,
 } from '@misaon/slop-gate-core'
+import { PARSE_ERROR_RULE_ID } from './parse.ts'
 
 const LEVEL_TO_OXLINT: Readonly<Record<string, string>> = {
   error: 'error',
@@ -38,7 +39,11 @@ export async function materializeOxlintConfig(
 ): Promise<EngineConfigHandle> {
   const rules = Object.fromEntries(
     [...selection]
-      .filter(([, level]) => level !== 'off')
+      // `parse-error` is attribution for oxlint's own always-on parsing behaviour, not a rule
+      // oxlint's config format knows how to enable — writing it into `rules` makes oxlint reject
+      // the whole config with "Rule 'parse-error' not found in plugin 'eslint'" (confirmed against
+      // the real binary), failing every run that elects `correctness.parse-error`.
+      .filter(([ruleId, level]) => level !== 'off' && ruleId !== PARSE_ERROR_RULE_ID)
       .sort(([a], [b]) => compareStrings(a, b))
       .map(([ruleId, level]) => [ruleId, LEVEL_TO_OXLINT[level] ?? 'warn']),
   )

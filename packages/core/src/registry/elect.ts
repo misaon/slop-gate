@@ -1,3 +1,4 @@
+import { SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
 import type { LanguageId } from '../languages.ts'
 import { compareStrings } from '../ordering.ts'
 import { ENGINE_PREFERENCE, ruleRefKey, type Capability, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
@@ -56,7 +57,10 @@ export function electOwners(input: ElectionInput): ElectionResult {
     const eligible = pinned === undefined ? ranked : ranked.filter((e) => e.engine === pinned)
 
     if (eligible.length === 0) {
-      uncovered.push(concept)
+      // A concept slop-gate emits itself (e.g. `config.rule-overlap`) will never have a `RuleEntry`
+      // — counting it against the repository's engine coverage would warn about the tool's own
+      // diagnostics on every single run.
+      if (!SLOP_GATE_SERVICED_CONCEPTS.has(concept)) uncovered.push(concept)
       continue
     }
 
