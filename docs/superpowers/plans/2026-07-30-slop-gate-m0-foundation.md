@@ -6399,7 +6399,10 @@ export const check = defineCommand({
   args: {
     format: { type: 'string', default: 'pretty', description: `Output format (${REPORTER_NAMES.join(', ')})` },
     'max-warnings': { type: 'string', description: 'Fail when warnings exceed this count' },
-    'no-cache': { type: 'boolean', default: false, description: 'Ignore cached results' },
+    // Named `cache`, not `no-cache`: citty treats any `--no-X` token as a negation of `X`, so an
+    // arg literally named `no-cache` can never be set from the command line — `--no-cache` would
+    // silently do nothing. `--no-cache` still works, as the negation of this.
+    cache: { type: 'boolean', default: true, description: 'Use cached results (--no-cache to skip)' },
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
@@ -6411,15 +6414,19 @@ export const check = defineCommand({
       return
     }
 
+    // A local flag, not `process.exitCode`, as the sentinel: a stale exit code left by an earlier
+    // call in the same process would otherwise silently abort a perfectly good run.
+    let configFailed = false
     const loaded = await loadConfig(rootDir).catch((error: unknown) => {
       if (error instanceof ConfigError) {
         process.stderr.write(`${error.message}\n`)
         process.exitCode = EXIT_CODES.config
+        configFailed = true
         return undefined
       }
       throw error
     })
-    if (process.exitCode === EXIT_CODES.config) return
+    if (configFailed) return
 
     const controller = new AbortController()
     const onInterrupt = (): void => controller.abort()
@@ -6445,7 +6452,7 @@ export const check = defineCommand({
         config: loaded?.config ?? DEFAULT_CONFIG,
         ...(loaded === null || loaded === undefined ? {} : { configFile: loaded.file }),
         engines: [createOxlintEngine()],
-        useCache: !args['no-cache'],
+        useCache: args.cache,
         signal: controller.signal,
       })) {
         reporter.onEvent(event)
@@ -6505,9 +6512,13 @@ Subcommands are lazily imported so `sgate --help` never loads the engine layer.
 ```bash
 pnpm build
 node packages/cli/bin/sgate.js --help
-node packages/cli/bin/sgate.js check --format json | head -40
+node packages/cli/bin/sgate.js check --format json > /tmp/sgate-check.json
 echo "exit=$?"
+head -40 /tmp/sgate-check.json
 ```
+
+Capture to a file rather than piping into `head`: in a pipeline `$?` is the exit code of the *last*
+command, so `| head` would report `head`'s status and mask whatever `sgate` actually returned.
 
 Expected: `--help` lists `check` (Task 15 adds `init`). `check` produces a JSON document with `version: 1`. Exit code is 0 or 1 — never 2 or 3. A `2` means config loading broke; a `3` means the oxlint adapter cannot run and Task 11 needs revisiting.
 
