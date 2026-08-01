@@ -3,18 +3,18 @@ import { join } from 'node:path'
 import { deriveResultKey, hashJson, type ResultKeyInput } from '../cache/keys.ts'
 import { openResultStore } from '../cache/result-store.ts'
 import { openStatIndex } from '../cache/stat-index.ts'
-import { createRuleSetResolver } from '../config/resolve.ts'
+import type { RuleSetResolver } from '../config/resolve.ts'
 import type { SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Severity } from '../diagnostics/types.ts'
-import { buildInventory, type FileSource } from '../discovery/inventory.ts'
+import type { FileSource } from '../discovery/inventory.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import { LEVEL_TO_SEVERITY, normalizeDiagnostics } from '../engine/normalize.ts'
 import type { Engine, RawDiagnostic } from '../engine/types.ts'
 import { compareStrings } from '../ordering.ts'
 import { buildPlan } from '../planner/plan.ts'
-import { electOwners } from '../registry/elect.ts'
-import { RULE_ENTRIES } from '../registry/entries.ts'
+import type { ElectionResult } from '../registry/elect.ts'
 import { ruleRefKey, type RuleEntry } from '../registry/types.ts'
+import { resolveRun } from './resolve-run.ts'
 
 export type CheckOptions = {
   rootDir: string
@@ -76,7 +76,6 @@ export async function runCheck(options: CheckOptions): Promise<CheckResult> {
 export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEvent> {
   const startedAt = performance.now()
   const signal = options.signal ?? new AbortController().signal
-  const entries = options.entries ?? RULE_ENTRIES
   const cacheDir = options.cacheDir ?? join(options.rootDir, '.slop-gate', 'cache')
   const useCache = options.useCache ?? true
   // Deliberately not defaulted to a literal filename: when no config file was found, `configFile`
@@ -84,28 +83,18 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // diagnostics to `file: null` rather than a path the user does not have on disk.
   const configFile = options.configFile
 
-  const resolver = createRuleSetResolver({
+  // Config resolution, rule-registry arbitration and discovery (spec §4.1 stages 1-3) — no engine
+  // invoked yet. Shared verbatim with `sgate rules`'s governance commands via `resolveRun`; see
+  // that module's own doc comment for why this is the extraction boundary rather than the full
+  // prepare/plan/schedule split M2 needs.
+  const { resolver, election, inventory, entries } = await resolveRun({
+    rootDir: options.rootDir,
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),
-  })
-  const inventory = await buildInventory({
-    rootDir: options.rootDir,
-    ...(options.config.ignore === undefined ? {} : { ignore: options.config.ignore }),
-    ...(options.fileSource === undefined ? {} : { source: options.fileSource }),
+    engines: options.engines,
+    ...(options.entries === undefined ? {} : { entries: options.entries }),
+    ...(options.fileSource === undefined ? {} : { fileSource: options.fileSource }),
     signal,
-  })
-
-  const election = electOwners({
-    entries,
-    enabledConcepts: resolver.anyEnabledConcepts,
-    capabilities: new Set(options.engines.flatMap((engine) => engine.capabilities.provides)),
-    languages: inventory.languages,
-    // A registry entry can exist for an engine this run never instantiated — the shipped registry
-    // deliberately carries one (see entries.test.ts) so a real overlap is provable in isolation.
-    // Without this, arbitration would suppress that entry on every run and report a rule-overlap
-    // diagnostic about a suppression that never happened, because no such engine ever competed.
-    participatingEngines: new Set(options.engines.map((engine) => engine.id)),
-    pinnedOwners: resolver.base.pinnedOwners,
   })
 
   // Hashes the full entries, not just their ids: normalization bakes `concepts`, `classify`,
@@ -301,8 +290,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
 }
 
 type ConfigDiagnosticInput = {
-  resolver: ReturnType<typeof createRuleSetResolver>
-  election: ReturnType<typeof electOwners>
+  resolver: RuleSetResolver
+  election: ElectionResult
   /** The repo-relative config file path, or `undefined` when none was found. */
   configFile: string | undefined
 }

@@ -125,5 +125,6 @@ export { applySuppressions, type ApplySuppressionsResult } from './suppressions/
 
 export { buildPlan, type EngineAssignment, type PlanInput } from './planner/plan.ts'
 export { runCheck, streamCheck, type CheckEvent, type CheckOptions, type CheckResult } from './run/check.ts'
+export { resolveRun, type ResolveRunOptions, type ResolvedRun } from './run/resolve-run.ts'
 
 export { LEVEL_STRENGTH } from './config/types.ts'
