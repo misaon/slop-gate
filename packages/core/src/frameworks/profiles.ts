@@ -73,6 +73,41 @@ const nestjs = defineProfile<void>({
 })
 
 /**
+ * The same construct as `nestjs` above, in a different framework: `@NgModule({...}) export class
+ * AppModule {}` is an empty class body the framework *requires*, with the decorator carrying the
+ * behaviour — so `no-extraneous-class` is wrong here for the identical mechanical reason it was
+ * wrong on 11 of 11 NestJS modules.
+ *
+ * **Its warrant is narrower than the other profiles', and deliberately so** (spec §23.5). Every other
+ * profile here rests on a false-positive count measured against a real repository. This one rests on
+ * mechanism identity with a framework that was measured: no Angular codebase was checked. That is a
+ * weaker claim, and it is only acceptable because of the asymmetry — shipping it wrongly costs one
+ * rule's coverage on Angular repositories, restorable in a single config line, while omitting it
+ * leaves a rule in `recommended` (the *default*) that there is concrete mechanical reason to expect
+ * fires 100% falsely on every Angular repository with an NgModule in it.
+ *
+ * One honest caveat, which does not change the answer: Angular has been standalone-first since v15,
+ * so a modern application may have no `@NgModule` at all, and there the profile is a no-op. A no-op
+ * costs nothing; a false positive in the default preset does not.
+ */
+const angular = defineProfile<void>({
+  id: 'angular',
+  summary: 'Angular — decorator-driven dependency injection',
+  async detect(context) {
+    const evidence = findDependency(context, ['@angular/core'])
+    return evidence === null ? null : { evidence: [evidence], parameters: undefined }
+  },
+  consequences: () => [
+    {
+      kind: 'disable-concept',
+      concept: 'suspicious.no-extraneous-class' as ConceptId,
+      reason:
+        'Angular requires an empty class body for `@NgModule`: the decorator carries the behaviour, exactly as in NestJS.',
+    },
+  ],
+})
+
+/**
  * Kept separate from `nestjs` because it is a separate fact: a NestJS project on Fastify has the
  * first and not this one, and merging them would suppress an `express` finding on a repository that
  * genuinely does not depend on `express`. Measured (spec §13.2): knip reported `express` unlisted
@@ -270,6 +305,7 @@ function normaliseDirectory(value: string): string {
 
 /** Evaluated in this order, but the order is inert: merging is a sorted set union (spec §23.3). */
 export const FRAMEWORK_PROFILES: readonly AnyFrameworkProfile[] = [
+  angular,
   mikroOrm,
   nestjs,
   nestjsExpress,

@@ -1102,11 +1102,12 @@ one migrations glob must therefore not produce a config that silently un-registe
 entry point. The profile says "add this pattern"; `materializeKnipConfig` is what knows it must write
 the defaults alongside it.
 
-The five profiles, and what each is for:
+The six profiles, and what each is for:
 
 | Profile | Detected by | Parameter | Consequence |
 |---|---|---|---|
 | `nestjs` | `@nestjs/core` (`dependency`) | — | disable `suspicious.no-extraneous-class` |
+| `angular` | `@angular/core` (`dependency`) | — | disable `suspicious.no-extraneous-class` (see §23.5 on its narrower warrant) |
 | `nestjs-express` | `@nestjs/platform-express` (`dependency`) | — | knip `ignoreDependencies += express` |
 | `mikro-orm` | `@mikro-orm/core` (`dependency`) | migrations directory, via `literal` on the ORM config then `path` on the inventory | knip `entry += <dir>/*.ts` in the owning workspace |
 | `vitepress` | `vitepress` (`dependency`) + a `.vitepress/` directory (`path`) | the site root that directory sits in | knip `workspaces[ws].vitepress.entry += <root>/.vitepress/config.*` |
@@ -1115,6 +1116,12 @@ The five profiles, and what each is for:
 `nestjs` and `nestjs-express` are two profiles rather than one because they are two facts. A NestJS
 project on Fastify has the first and not the second, and merging them would make the `express`
 suppression fire on a repository that never depends on `express` at all.
+
+`nestjs` and `angular` are two profiles that reach the *same* conclusion, which is the one concept two
+profiles genuinely contest — and the contest is a non-event, because both want it off. The rule layer
+carries `off` twice, each profile keeps its own reason for `sgate rules why`, and the outcome does not
+depend on which ran first. This is §23.3's union property on a real case rather than a hypothetical
+one, and it is why that section is short.
 
 `test-framework` is the one profile whose parameter is a *set*, and the only one whose rule reads
 oddly enough to state in full: **disable the shared concepts of every scope that is not the unique
@@ -1216,6 +1223,23 @@ ruleset drift, and `--frozen-rules` must fail on it.
   detects on a declared dependency or a config file that exists. A framework whose presence cannot be
   established that way does not get a profile — because a false positive here *removes* coverage
   silently, which is the failure mode hardest to notice and hardest to attribute.
+- **Profiles whose *effect* is unmeasured**, with one explicitly narrower warrant that is worth
+  stating precisely, because the distinction is easy to collapse and the rule is easy to hollow out.
+
+  The bar is a measured false-positive count against a real repository. Five of the six profiles
+  clear it. `angular` does not: no Angular codebase was checked. It ships on **mechanism identity
+  with an already-measured framework** — `@NgModule({...}) export class AppModule {}` is not similar
+  to the NestJS case that was measured 11/11 false, it is the same construct, empty for the same
+  reason, and `no-extraneous-class` is wrong about it for the same reason. What transfers is the
+  mechanical claim; what does not transfer is a fresh count, and the profile's own comment says so.
+
+  That warrant is available only when the construct is *demonstrably the same one*, and it is not a
+  general licence to reason from resemblance. The asymmetry is what makes it acceptable here, and it
+  is the same asymmetry behind "a profile may only subtract": shipping `angular` wrongly costs one
+  rule's coverage on Angular repositories, restorable in a single config line, while omitting it
+  leaves a rule in `recommended` — the *default* — that there is concrete mechanical reason to expect
+  fires 100% falsely on every Angular repository that contains an NgModule. A profile that cannot
+  point to either a measurement or an identity this specific does not ship.
 - **Executing any repository code**, including a framework's own config file. See §23.1.
 - **Per-file profiles.** Adjustments are workspace-scoped where the engine supports it, and that is as
   fine-grained as this gets. §6.2's `overrides` already scope rules by path, declared by a human who

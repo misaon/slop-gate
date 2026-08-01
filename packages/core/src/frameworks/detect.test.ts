@@ -71,6 +71,48 @@ test('finds a dependency declared only in a nested workspace manifest', async ()
   expect(applied(detection, 'nestjs')?.evidence[0]).toMatchObject({ file: 'apps/api/package.json', workspace: 'apps/api' })
 })
 
+// --- angular ----------------------------------------------------------------------------------
+
+test('detects Angular from @angular/core and disables the same empty-class concept', async () => {
+  const detection = await detect({ 'package.json': manifest({ '@angular/core': '^19.0.0' }) })
+  const angular = applied(detection, 'angular')
+
+  expect(angular?.evidence).toEqual([
+    { kind: 'manifest-dependency', file: 'package.json', workspace: '', name: '@angular/core', field: 'dependencies' },
+  ])
+  expect(angular?.adjustments).toEqual([
+    expect.objectContaining({ kind: 'disable-concept', concept: 'suspicious.no-extraneous-class' }),
+  ])
+})
+
+test('does not detect Angular in a repository that never declares it', async () => {
+  const detection = await detect({ 'package.json': manifest({ '@nestjs/core': '^11.0.0' }) })
+  expect(applied(detection, 'angular')).toBeUndefined()
+})
+
+/**
+ * The union property from spec §23.3, exercised on the one concept two profiles genuinely contest.
+ * Both want it off, so there is nothing to arbitrate: the rule layer carries it once, each profile
+ * keeps its own reason for `rules why`, and the result is the same whichever order they ran in.
+ */
+test('two profiles disabling the same concept is idempotent, not a conflict', async () => {
+  const detection = await detect({
+    'package.json': manifest({ '@angular/core': '^19.0.0', '@nestjs/core': '^11.0.0' }),
+  })
+
+  const layers = frameworkRuleLayers(detection).filter((layer) =>
+    Object.keys(layer.rules).includes('suspicious.no-extraneous-class'),
+  )
+  expect(layers.map((layer) => layer.source)).toEqual(['angular', 'nestjs'])
+  for (const layer of layers) expect(layer.rules).toEqual({ 'suspicious.no-extraneous-class': 'off' })
+
+  const reasons = detection.applied
+    .flatMap((application) => application.adjustments)
+    .filter((adjustment) => adjustment.kind === 'disable-concept' && adjustment.concept === 'suspicious.no-extraneous-class')
+    .map((adjustment) => adjustment.reason)
+  expect(new Set(reasons).size).toBe(2)
+})
+
 // --- nestjs-express ---------------------------------------------------------------------------
 
 test('NestJS on Express ignores the transitively-provided express dependency', async () => {
