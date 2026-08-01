@@ -1,5 +1,6 @@
 import picomatch from 'picomatch'
 import { isConceptId } from '../concepts/catalogue.ts'
+import type { FrameworkRuleLayer } from '../frameworks/adjustments.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { ruleRefKey, type EngineId } from '../registry/types.ts'
 import { PRESETS } from './presets.ts'
@@ -13,7 +14,7 @@ import {
   type SlopGateConfig,
 } from './types.ts'
 
-export type ProvenanceLayer = 'preset' | 'root-config' | 'workspace-config' | 'override'
+export type ProvenanceLayer = 'preset' | 'framework' | 'root-config' | 'workspace-config' | 'override'
 
 export type ProvenanceStep = {
   layer: ProvenanceLayer
@@ -39,6 +40,13 @@ export type ResolveInput = {
   config: SlopGateConfig
   configFile?: string
   workspaceConfig?: { file: string; config: SlopGateConfig }
+  /**
+   * Spec §23.2, layer 3 of §6.2's cascade: above the presets, because correcting a preset that is
+   * wrong for *this* repository is the point, and below the user's own `rules`, because a human who
+   * writes `'suspicious.no-extraneous-class': 'error'` in a NestJS repository means it. Every layer
+   * here may only set `off` — the framework layer subtracts, `extends` is what adds.
+   */
+  frameworks?: readonly FrameworkRuleLayer[]
 }
 
 export type RuleSetResolver = {
@@ -72,6 +80,9 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
 
   for (const preset of input.config.extends ?? []) {
     baseLayers.push({ layer: 'preset', source: preset, rules: PRESETS[preset] })
+  }
+  for (const framework of input.frameworks ?? []) {
+    baseLayers.push({ layer: 'framework', source: framework.source, rules: framework.rules })
   }
   if (input.config.rules) {
     baseLayers.push({ layer: 'root-config', source: rootSource, rules: input.config.rules })
