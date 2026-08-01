@@ -4,6 +4,9 @@ import type { SlopGateConfig } from '../config/types.ts'
 import { buildInventory, type FileSource } from '../discovery/inventory.ts'
 import type { FileInventory } from '../discovery/types.ts'
 import type { Engine } from '../engine/types.ts'
+import { frameworkRuleLayers } from '../frameworks/adjustments.ts'
+import { detectFrameworks } from '../frameworks/detect.ts'
+import type { FrameworkDetection } from '../frameworks/types.ts'
 import { electOwners, type ElectionResult } from '../registry/elect.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import type { RuleEntry } from '../registry/types.ts'
@@ -24,6 +27,8 @@ export type ResolveRunOptions = {
   engines: readonly Engine[]
   entries?: readonly RuleEntry[]
   fileSource?: FileSource
+  /** Overridable so a test can pin an exact detected set without staging a repository for it. */
+  frameworks?: FrameworkDetection
   signal?: AbortSignal
 }
 
@@ -34,6 +39,9 @@ export type ResolvedRun = {
   /** The registry entries arbitration actually ran against — `options.entries ?? RULE_ENTRIES`,
    *  resolved once here so every caller reads the same default instead of each re-deriving it. */
   entries: readonly RuleEntry[]
+  /** Spec §23. Consumed twice: by the resolver above (already applied), and by each engine adapter
+   *  via `RunContext.adjustments`. `sgate rules why` reads the evidence straight off it. */
+  frameworks: FrameworkDetection
 }
 
 /**
@@ -61,15 +69,21 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
   const entries = options.entries ?? RULE_ENTRIES
   const configFile = options.configFile
 
-  const resolver = createRuleSetResolver({
-    config: options.config,
-    ...(configFile === undefined ? {} : { configFile }),
-  })
   const inventory = await buildInventory({
     rootDir: options.rootDir,
     ...(options.config.ignore === undefined ? {} : { ignore: options.config.ignore }),
     ...(options.fileSource === undefined ? {} : { source: options.fileSource }),
     signal,
+  })
+
+  // Ordered, not incidental (spec §23.1): detection reads the inventory, and the resolver reads
+  // detection. That is also why discovery cannot be skipped for the governance commands — see the
+  // note below on language applicability, which now has a second reason behind it.
+  const frameworks = options.frameworks ?? (await detectFrameworks({ inventory }))
+  const resolver = createRuleSetResolver({
+    config: options.config,
+    ...(configFile === undefined ? {} : { configFile }),
+    frameworks: frameworkRuleLayers(frameworks),
   })
 
   const election = electOwners({
@@ -84,5 +98,5 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
     pinnedOwners: resolver.base.pinnedOwners,
   })
 
-  return { resolver, election, inventory, entries }
+  return { resolver, election, inventory, entries, frameworks }
 }

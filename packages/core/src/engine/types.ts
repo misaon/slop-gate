@@ -1,5 +1,6 @@
 import type { ByteRange } from '../diagnostics/types.ts'
 import type { InventoryFile } from '../discovery/types.ts'
+import type { EngineAdjustments } from '../frameworks/types.ts'
 import type { LanguageId } from '../languages.ts'
 import type { RuleLevel } from '../config/types.ts'
 import type { Capability, EngineId } from '../registry/types.ts'
@@ -31,6 +32,13 @@ export type RunContext = {
   readonly rootDir: string
   /** Where ephemeral engine configs are written. Cleaned up by the caller. */
   readonly tmpDir: string
+  /**
+   * Framework-derived settings for **this engine only**, already merged and sorted (spec §23.2).
+   * Optional so an adapter test can construct a context without one; absent and empty mean the same
+   * thing. `key` is this engine's own vocabulary — core does not interpret it, the adapter does,
+   * including how the union maps onto whatever merge semantics the engine's config format has.
+   */
+  readonly adjustments?: EngineAdjustments
 }
 
 export type EngineConfigHandle = {

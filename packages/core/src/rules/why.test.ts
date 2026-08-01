@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { createRuleSetResolver } from '../config/resolve.ts'
 import type { SlopGateConfig } from '../config/types.ts'
+import { EMPTY_DETECTION } from '../frameworks/detect.ts'
 import { electOwners } from '../registry/elect.ts'
 import type { EngineId, RuleEntry } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
@@ -33,7 +34,13 @@ const resolved = (
     participatingEngines: new Set(options.participatingEngines ?? ['oxlint']),
     pinnedOwners: resolver.base.pinnedOwners,
   })
-  return { resolver, election, entries, inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] } }
+  return {
+    resolver,
+    election,
+    entries,
+    inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] },
+    frameworks: EMPTY_DETECTION,
+  }
 }
 
 test('reports an unknown concept id as such, without throwing', () => {
