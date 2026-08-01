@@ -20,7 +20,12 @@ test('every preset level is valid', () => {
 
 test('no preset enables a concept no shipped rule can detect', () => {
   const detectable = new Set(RULE_ENTRIES.flatMap((entry) => entry.concepts as readonly string[]))
-  const configOnly = new Set(['config.rule-overlap', 'config.dead-override', 'config.unused-suppression'])
+  const configOnly = new Set([
+    'config.rule-overlap',
+    'config.dead-override',
+    'config.unused-suppression',
+    'config.suppression-missing-reason',
+  ])
   const orphaned = allKeys.filter((key) => !detectable.has(key) && !configOnly.has(key))
   expect(orphaned).toEqual([])
 })

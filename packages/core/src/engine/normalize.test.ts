@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest'
+import { createLineIndex } from '../diagnostics/position.ts'
 import type { RuleEntry, RuleRef } from '../registry/types.ts'
 import { normalizeDiagnostics } from './normalize.ts'
 import type { RawDiagnostic } from './types.ts'
@@ -156,4 +157,186 @@ test('gives the same finding in two files distinct fingerprints', () => {
 test('maps raw severities that have no resolved level', () => {
   const [advice] = run([raw({ engineRuleId: 'no-unused-vars', message: 'x', severity: 'advice' })])
   expect(advice?.severity).toBe('warn')
+})
+
+// --- Inline suppressions (design spec §6.3) ------------------------------------------------------
+// These deliberately bypass the shared `run()` helper above: it always serves the module-level
+// `source` constant regardless of the file argument (`sourceOf: () => source`), which is fine for
+// every test above (none of them care what the source text says) but wrong here, where the
+// suppression comment's exact text is the point of the test. Each test below declares its own local
+// `fileSource` instead — a distinct name, not `source` again, specifically so it does not shadow the
+// module-level constant (oxlint's own `no-shadow` rightly flags that, see correctness.shadows-outer-binding).
+
+test('marks a matching finding as suppressed instead of dropping it', () => {
+  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- test reason\ndebugger\n'
+  // `lastIndexOf`, not `indexOf`: the directive's own text contains "debugger" as a substring of
+  // "no-debugger", which `indexOf` would find first — the real statement is the *last* occurrence.
+  const debuggerOffset = fileSource.lastIndexOf('debugger')
+
+  const [only] = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', range: { start: debuggerOffset, end: debuggerOffset + 8 } })],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: () => undefined,
+  })
+
+  expect(only?.concept).toBe('correctness.no-debugger')
+  expect(only?.suppressed).toEqual({ by: 'inline', reason: 'test reason' })
+})
+
+test('disable-line suppresses a finding on the same line as the comment', () => {
+  const fileSource = 'debugger // sgate-disable-line correctness.no-debugger -- test reason\n'
+
+  const [only] = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', range: { start: 0, end: 8 } })],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: () => undefined,
+  })
+
+  expect(only?.suppressed).toEqual({ by: 'inline', reason: 'test reason' })
+})
+
+test('disable-file suppresses a matching finding anywhere in the file', () => {
+  const fileSource = '// sgate-disable-file correctness.no-debugger -- test reason\n\n\n\ndebugger\n'
+  const debuggerOffset = fileSource.lastIndexOf('debugger')
+  // The real statement is genuinely on a later line, not just the last string occurrence — this is
+  // the property that distinguishes `disable-file` (line-agnostic) from the `disable-next-line`
+  // test above, so pin it down rather than asserting suppression alone, which `appliesToLine: null`
+  // would satisfy even if this offset pointed at the wrong line by accident.
+  expect(createLineIndex(fileSource).positionAt(debuggerOffset).line).toBe(5)
+
+  const [only] = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', range: { start: debuggerOffset, end: debuggerOffset + 8 } })],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: () => undefined,
+  })
+
+  expect(only?.suppressed?.by).toBe('inline')
+})
+
+test('a directive naming a different concept does not suppress this finding', () => {
+  const fileSource = "// sgate-disable-next-line dead-code.unused-variable -- reason\ndebugger\n"
+  const debuggerOffset = fileSource.lastIndexOf('debugger')
+
+  const [only] = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', range: { start: debuggerOffset, end: debuggerOffset + 8 } })],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: () => undefined,
+  })
+
+  expect(only?.suppressed).toBeUndefined()
+})
+
+test('emits config.unused-suppression when a directive matches nothing', () => {
+  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- reason\nconst ok = 1\n'
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    suppressionScanFiles: ['src/a.ts'],
+  })
+
+  expect(result).toHaveLength(1)
+  expect(result[0]).toMatchObject({
+    concept: 'config.unused-suppression',
+    engine: 'slop-gate',
+    ruleId: 'slop-gate/config.unused-suppression',
+    severity: 'warn',
+    file: 'src/a.ts',
+  })
+  expect(result[0]?.position.startLine).toBe(1)
+})
+
+test('does not emit config.unused-suppression when its own level is off', () => {
+  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- reason\nconst ok = 1\n'
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: () => undefined,
+    suppressionScanFiles: ['src/a.ts'],
+  })
+
+  expect(result).toEqual([])
+})
+
+test('a directive in a file with zero raws is invisible without suppressionScanFiles', () => {
+  // Pins the contract `run/check.ts` relies on: a file an engine reports nothing for never
+  // otherwise appears to this function at all, so a stale suppression comment in it would
+  // silently go undetected unless the caller explicitly names the file here.
+  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- reason\nconst ok = 1\n'
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: () => 'warn' as never,
+  })
+
+  expect(result).toEqual([])
+})
+
+test('emits config.suppression-missing-reason for a directive with no reason, without un-suppressing it', () => {
+  const fileSource = '// sgate-disable-next-line correctness.no-debugger\ndebugger\n'
+  const debuggerOffset = fileSource.lastIndexOf('debugger')
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', range: { start: debuggerOffset, end: debuggerOffset + 8 } })],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => {
+      if (concept === 'correctness.no-debugger') return 'error'
+      if (concept === 'config.suppression-missing-reason') return 'warn'
+      return undefined
+    },
+  })
+
+  const debuggerDiagnostic = result.find((d) => d.concept === 'correctness.no-debugger')
+  const missingReason = result.find((d) => d.concept === 'config.suppression-missing-reason')
+
+  expect(debuggerDiagnostic?.suppressed).toEqual({ by: 'inline' })
+  expect(missingReason).toMatchObject({ engine: 'slop-gate', severity: 'warn' })
+})
+
+test('a multi-target directive is not unused when only one of its targets matches', () => {
+  const fileSource = '// sgate-disable-next-line correctness.no-debugger, dead-code.unused-variable -- reason\ndebugger\n'
+  const debuggerOffset = fileSource.lastIndexOf('debugger')
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', range: { start: debuggerOffset, end: debuggerOffset + 8 } })],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+  })
+
+  expect(result.some((d) => d.concept === 'config.unused-suppression')).toBe(false)
+})
+
+test('a file with no directives at all is unaffected', () => {
+  const result = run([raw({ engineRuleId: 'no-debugger', message: 'debugger' })])
+  expect(result[0]?.suppressed).toBeUndefined()
 })

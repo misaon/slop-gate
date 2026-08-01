@@ -325,11 +325,48 @@ Every application is recorded as a provenance step.
 
 ```ts
 // sgate-disable-next-line slop.as-any-cast -- upstream types are wrong, see #482
+const x = y as any                          // sgate-disable-line -- reason
+// sgate-disable-file correctness.no-debugger -- intentional in this fixture
 ```
 
-A reason is **required**. Suppressions that match nothing are reported as
-`config.unused-suppression`. This prevents the disable-comment graveyard that every large codebase
-accumulates.
+Three directives, implemented in `packages/core/src/suppressions/parse.ts`:
+
+- **`sgate-disable-next-line`** silences a finding on the line *after* the comment.
+- **`sgate-disable-line`** silences a finding on the *same* line as the comment (a trailing comment
+  next to the offending code).
+- **`sgate-disable-file`** silences a matching finding anywhere in the file.
+
+Block `disable`/`enable` pairs are deliberately out of scope: they are more machinery, and the form
+most often opened and never closed.
+
+**Targets** are zero or more concept ids or engine rule ids (the same `RuleKey` shape `config.rules`
+accepts — an engine rule id is the escape hatch), space- or comma-separated, up to a literal `--`.
+Naming no target silences every concept at that location. A target is not validated against the
+concept catalogue or registry: a typo'd target simply never matches anything, which is reported as
+`config.unused-suppression` below — that diagnostic *is* the validation.
+
+**A reason is required** — the text after `--`. Suppressions that match nothing are reported as
+`config.unused-suppression`; a directive present with no reason (or an empty one) is reported as
+`config.suppression-missing-reason` **but still applies** — hiding a finding a user explicitly
+silenced, as punishment for comment formatting, is worse than the formatting problem. Both prevent
+the disable-comment graveyard that every large codebase accumulates: one for a suppression nobody
+removed after the code was fixed, the other for one nobody explained in the first place.
+
+**Matching is a whole-line token scan, not a per-language comment parse.** M0 only analyses script
+files, but `#`-commented languages (shell, Docker, YAML) arrive in M2, and a token scan costs nothing
+now and keeps working then without per-language grammar. The known cost: a string literal containing
+the token verbatim reads as a real directive too. Accepted, not fixed — the same class of tool
+(ESLint, oxlint itself) makes the same trade.
+
+**A suppressed finding is marked, not dropped.** `Diagnostic.suppressed` (§10) is set on it and it is
+kept in the array `normalizeDiagnostics` returns — and so in the per-file cache entry — rather than
+removed; `run/check.ts` is the layer that hides a suppressed diagnostic from the default result and
+severity counts, which is the seam a future `--show-suppressed` flag would change instead of
+restructuring anything upstream of it. Unused-suppression detection is computed in the same place,
+for the same reason: it needs to know what the file's diagnostics actually were, which is only known
+once normalization has run, and a cache-hit file skips normalization entirely — so both the
+suppressed marker and the unused-suppression diagnostic have to live in the cached array itself, or a
+warm run silently loses them.
 
 ### 6.4 Loading
 

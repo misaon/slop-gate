@@ -9,6 +9,9 @@ import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/basic')
 let dir: string
 
+const suppressedFileConcepts = (result: { diagnostics: readonly { file: string | null; concept: string }[] }): string[] =>
+  result.diagnostics.filter((d) => d.file === 'src/suppressed.ts').map((d) => d.concept)
+
 const check = async (useCache: boolean) => {
   // Mirrors what `sgate check` itself does (packages/cli/src/commands/check.ts): `loadConfig`
   // resolves the fixture's own `slop-gate.config.ts` to an absolute path, which the caller must
@@ -107,4 +110,29 @@ test('a warm run still reports each of two byte-identical files, not a cross-fil
 
 test('reports no engine failures', async () => {
   expect((await check(false)).engineFailures).toEqual([])
+}, 60_000)
+
+test('an inline suppression hides a real oxlint finding, and an unused one is reported', async () => {
+  // Exercises the full pipeline the unit tests in packages/core stub out: a real oxlint byte
+  // offset, a real line index, a real cached per-file result — not a hand-built `RawDiagnostic`.
+  // fixtures/basic/src/suppressed.ts seeds two directives: one that matches its debugger statement
+  // (must disappear from the result) and one that matches nothing (must surface as
+  // config.unused-suppression, which `recommended` enables by default — see config/presets.ts).
+  const result = await check(false)
+  const concepts = suppressedFileConcepts(result)
+
+  expect(concepts).not.toContain('correctness.no-debugger')
+  expect(concepts).toContain('config.unused-suppression')
+
+  // dirty.ts's own, unsuppressed debugger is untouched by the fixture file above.
+  expect(result.diagnostics.some((d) => d.file === 'src/dirty.ts' && d.concept === 'correctness.no-debugger')).toBe(true)
+}, 60_000)
+
+test('the suppressed finding and the unused-suppression diagnostic both survive a warm cache hit', async () => {
+  const cold = await check(true)
+  const warm = await check(true)
+
+  expect(suppressedFileConcepts(warm)).toEqual(suppressedFileConcepts(cold))
+  expect(suppressedFileConcepts(warm)).toContain('config.unused-suppression')
+  expect(warm.stats.filesFromCache).toBeGreaterThan(0)
 }, 60_000)
