@@ -1,3 +1,5 @@
+import { GENERATED_CONCEPTS } from './concepts.generated.ts'
+
 export const CONCEPT_GROUPS = [
   'correctness',
   'types',
@@ -13,6 +15,20 @@ export const CONCEPT_GROUPS = [
   'config',
   'deps',
   'slop',
+  // The four groups below are not curated concept vocabulary — they are oxlint's own remaining
+  // rule categories (correctness, style and perf above already coincide with oxlint's names; these
+  // four have no better engine-independent home yet). The registry generator's mechanical default
+  // (packages/core/scripts/generate-registry.ts) is `concept = <oxlint category>.<kebab value>`,
+  // and a concept's `group` must equal its id's first segment (concepts/validate.ts), so every
+  // category oxlint can report has to be a valid group here or generation fails outright the first
+  // time it meets a rule in one of these categories. Deliberately *not* collapsed onto an existing
+  // group (e.g. `suspicious` into `correctness`): that would be a real taxonomy decision, and the
+  // override table (registry/overrides.ts) is where those get made one rule at a time, not baked
+  // into the mechanical fallback for rules nobody has looked at yet.
+  'pedantic',
+  'restriction',
+  'suspicious',
+  'nursery',
 ] as const
 
 export type ConceptGroup = (typeof CONCEPT_GROUPS)[number]
@@ -31,7 +47,19 @@ export type ConceptDefinition = {
   readonly servicedBySlopGate?: boolean
 }
 
-export const CONCEPTS = [
+// Hand-authored concept vocabulary: M0's original catalogue plus every deliberate rename the
+// registry generator's override table (registry/overrides.ts) redirects a mechanical concept onto.
+// `CONCEPTS` below merges this with `GENERATED_CONCEPTS` — the concepts the generator invents for
+// everything the override table did *not* redirect — so this array is deliberately incomplete on
+// its own; see the comment on the merged `CONCEPTS` export just below the closing bracket.
+//
+// Exported (not module-private) specifically so `scripts/generate-registry.ts` can import *this*
+// array, not the merged `CONCEPTS`, when it decides which concepts are genuinely new. Reading the
+// merged export there would be circular: after the first run, `GENERATED_CONCEPTS` (produced by
+// that run) is already part of `CONCEPTS`, so every concept the generator ever produced would look
+// "already known" on every subsequent run and `concepts.generated.ts` would regenerate empty —
+// exactly the bug this comment is here so nobody reintroduces.
+export const HAND_WRITTEN_CONCEPTS = [
   {
     id: 'correctness.no-debugger',
     group: 'correctness',
@@ -394,6 +422,16 @@ export const CONCEPTS = [
     servicedBySlopGate: true,
   },
 ] as const satisfies readonly ConceptDefinition[]
+
+/**
+ * The full concept vocabulary: `HAND_WRITTEN_CONCEPTS` above plus `GENERATED_CONCEPTS`
+ * (concepts/concepts.generated.ts) — every mechanically-named concept the registry generator
+ * invented for a rule the override table did not redirect onto one of the hand-written ids above.
+ * Both halves are `as const satisfies readonly ConceptDefinition[]` before this spread, which is
+ * what keeps `ConceptId` below a closed union of every concept's literal id rather than widening to
+ * plain `string` the moment a generated id joins the array.
+ */
+export const CONCEPTS = [...HAND_WRITTEN_CONCEPTS, ...GENERATED_CONCEPTS] as const satisfies readonly ConceptDefinition[]
 
 export type ConceptId = (typeof CONCEPTS)[number]['id']
 
