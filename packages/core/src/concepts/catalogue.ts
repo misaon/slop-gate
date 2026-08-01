@@ -609,6 +609,18 @@ export const HAND_WRITTEN_CONCEPTS = [
     description: 'An override targeting a rule or concept that no enabled engine covers.',
     servicedBySlopGate: true,
   },
+  {
+    id: 'config.fix-oscillation',
+    group: 'config',
+    title: 'Fixes fighting each other',
+    description:
+      'Two or more rules rewrite the same code back and forth, so `sgate fix` returned a file to a ' +
+      'state it had already been in. Fixing that file stops there and the rules involved are named, ' +
+      'because the alternative — iterating until the pass limit — leaves the file in whichever of the ' +
+      'two states the loop happened to stop on. Reported only by `sgate fix`; `sgate check` applies ' +
+      'nothing and so can never observe it.',
+    servicedBySlopGate: true,
+  },
 ] as const satisfies readonly ConceptDefinition[]
 
 /**

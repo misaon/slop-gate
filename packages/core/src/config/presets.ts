@@ -24,6 +24,10 @@ const recommended: RuleMap = {
   'config.dead-override': 'warn',
   'config.unused-suppression': 'warn',
   'config.suppression-missing-reason': 'warn',
+  // `error`, unlike its three neighbours: the others describe config rot a user can leave for later,
+  // this one means `sgate fix` gave up on a file mid-run and the rules named are still fighting. It
+  // is only ever emitted by `sgate fix`, so it costs a `sgate check` nothing.
+  'config.fix-oscillation': 'error',
 }
 
 const strict: RuleMap = {

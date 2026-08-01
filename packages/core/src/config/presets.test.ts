@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { isConceptId } from '../concepts/catalogue.ts'
+import { SLOP_GATE_SERVICED_CONCEPTS, isConceptId } from '../concepts/catalogue.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { PRESETS } from './presets.ts'
 import { isRuleLevel, splitRuleSetting, type RuleKey, type RuleSetting } from './types.ts'
@@ -20,13 +20,10 @@ test('every preset level is valid', () => {
 
 test('no preset enables a concept no shipped rule can detect', () => {
   const detectable = new Set(RULE_ENTRIES.flatMap((entry) => entry.concepts as readonly string[]))
-  const configOnly = new Set([
-    'config.rule-overlap',
-    'config.dead-override',
-    'config.unused-suppression',
-    'config.suppression-missing-reason',
-  ])
-  const orphaned = allKeys.filter((key) => !detectable.has(key) && !configOnly.has(key))
+  // `SLOP_GATE_SERVICED_CONCEPTS`, not a list repeated here: a concept the orchestrator services
+  // itself has no `RuleEntry` by construction (`ConceptDefinition.servicedBySlopGate`), and a
+  // hand-maintained copy of that set turns adding one into an unrelated test failure.
+  const orphaned = allKeys.filter((key) => !detectable.has(key) && !SLOP_GATE_SERVICED_CONCEPTS.has(key))
   expect(orphaned).toEqual([])
 })
 
