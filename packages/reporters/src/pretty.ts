@@ -1,5 +1,5 @@
 import type { CheckEvent, CheckResult, Diagnostic, Position, Severity } from '@misaon/slop-gate-core'
-import { displayWidth, padEndDisplay, padStartDisplay, truncateEnd, truncateStart } from './display-width.ts'
+import { displayWidth, padEndDisplay, padStartDisplay, truncateStart } from './display-width.ts'
 import { createFrameKit, plural } from './frame.ts'
 import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_NOUN, SEVERITY_ORDER, SEVERITY_STYLE } from './severity.ts'
 import { wrapText } from './wrap-text.ts'
