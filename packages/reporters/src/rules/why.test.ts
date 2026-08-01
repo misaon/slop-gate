@@ -12,6 +12,7 @@ const explanation = (over: Partial<ConceptWhy> = {}): ConceptWhy => ({
   pinnedOwner: undefined,
   candidates: [],
   ownership: [],
+  displaced: [],
   suppressed: [],
   ineligible: [],
   uncovered: false,
@@ -265,4 +266,36 @@ test('says which detected profile stood down, and why, rather than staying silen
   expect(output).toContain('Frameworks detected but not applied')
   expect(output).toContain('mikro-orm')
   expect(output).toContain('not a plain string literal')
+})
+
+test('an absent better owner is one extra line inside the owners block', () => {
+  // The readability bar this has to clear: the split-ownership block is two lines and legible at a
+  // glance. Saying "and actionlint would own it if installed" must cost one more line, not a
+  // paragraph — if it needs three, the model is too complicated, not the output too small.
+  const output = capture(
+    explanation({
+      concept: 'correctness.parse-error',
+      ownership: [
+        { owner: { engine: 'oxlint', engineRuleId: 'parse-error' }, languages: ['ts'] },
+        { owner: { engine: 'schema', engineRuleId: 'parse-error' }, languages: ['github-workflow'] },
+      ],
+      displaced: [
+        {
+          concept: 'correctness.parse-error',
+          languages: ['github-workflow'],
+          wouldOwn: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+          insteadOwnedBy: { engine: 'schema', engineRuleId: 'parse-error' },
+        },
+      ],
+    }),
+  )
+
+  const block = output
+    .split('\n')
+    .filter((line) => /Owners:|\/parse-error|syntax-check/.test(line) && !line.includes('Produces findings'))
+  expect(block.some((line) => line.includes('actionlint/syntax-check would own github-workflow — not installed'))).toBe(
+    true,
+  )
+  // One header, two owners, one displaced note. Four lines for the whole ownership story.
+  expect(block).toHaveLength(4)
 })
