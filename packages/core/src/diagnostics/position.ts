@@ -7,6 +7,17 @@ export type LineIndex = {
   positionAt(byteOffset: number): { line: number; column: number }
   lineRangeOf(range: ByteRange): ByteRange
   sliceBytes(range: ByteRange): string
+  /**
+   * The byte range of one whole 1-based source line, trailing newline excluded — the same
+   * convention `lineRangeOf` uses, just keyed by line number instead of an existing byte range. For
+   * a diagnostic synthesised from a source *line* rather than an engine's byte offsets (inline
+   * suppression directives are found by scanning line by line; see `suppressions/parse.ts`), this is
+   * the inverse of `positionAt`: it turns a line number back into the range `positionAt` would map
+   * back to that line. Clamped to the last real line rather than throwing, matching `positionAt`'s
+   * own out-of-range handling — a `disable-next-line` on a file's final line names a line number one
+   * past the end, and that must produce a usable (if slightly imprecise) range, not an exception.
+   */
+  rangeOfLine(line: number): ByteRange
 }
 
 export function createLineIndex(source: string): LineIndex {
@@ -47,6 +58,13 @@ export function createLineIndex(source: string): LineIndex {
       const start = Math.max(0, Math.min(range.start, bytes.length))
       const end = Math.max(start, Math.min(range.end, bytes.length))
       return decoder.decode(bytes.subarray(start, end))
+    },
+
+    rangeOfLine(line) {
+      const index = Math.max(0, Math.min(line - 1, lineStarts.length - 1))
+      const start = lineStarts[index]!
+      const nextLineStart = lineStarts[index + 1]
+      return { start, end: nextLineStart === undefined ? bytes.length : nextLineStart - 1 }
     },
   }
 }

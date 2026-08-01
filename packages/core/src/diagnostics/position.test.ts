@@ -56,3 +56,38 @@ test('expands a range to whole lines when the last line has no trailing newline'
   const index = createLineIndex('aaa\nbbb')
   expect(index.lineRangeOf({ start: 5, end: 6 })).toEqual({ start: 4, end: 7 })
 })
+
+test('rangeOfLine returns the byte range of a 1-based line, newline excluded', () => {
+  const index = createLineIndex('aaa\nbbb\nccc\n')
+  expect(index.rangeOfLine(1)).toEqual({ start: 0, end: 3 })
+  expect(index.rangeOfLine(2)).toEqual({ start: 4, end: 7 })
+  expect(index.rangeOfLine(3)).toEqual({ start: 8, end: 11 })
+})
+
+test('rangeOfLine matches lineRangeOf for an offset on the same line', () => {
+  const index = createLineIndex('aaa\nbbb\nccc\n')
+  expect(index.rangeOfLine(2)).toEqual(index.lineRangeOf({ start: 5, end: 6 }))
+})
+
+test('rangeOfLine on the final line with no trailing newline', () => {
+  const index = createLineIndex('aaa\nbbb')
+  expect(index.rangeOfLine(2)).toEqual({ start: 4, end: 7 })
+})
+
+test('rangeOfLine clamps a line number past the end of the source to the last line', () => {
+  // No trailing newline, deliberately: `'aaa\nbbb\n'` would make line 3 the empty line *after* the
+  // trailing newline, which is a real (if phantom) last line, not the clamp target this test means
+  // to isolate — see the next test for that case instead.
+  const index = createLineIndex('aaa\nbbb')
+  expect(index.rangeOfLine(99)).toEqual(index.rangeOfLine(2))
+})
+
+test('rangeOfLine clamps a line number past the end to the phantom empty line after a trailing newline', () => {
+  const index = createLineIndex('aaa\nbbb\n')
+  expect(index.rangeOfLine(99)).toEqual({ start: 8, end: 8 })
+})
+
+test('rangeOfLine clamps a line number below 1 to the first line', () => {
+  const index = createLineIndex('aaa\nbbb\n')
+  expect(index.rangeOfLine(0)).toEqual(index.rangeOfLine(1))
+})
