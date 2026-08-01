@@ -656,11 +656,12 @@ All reporters consume the same diagnostic stream.
   separately for an ASCII-only frame and severity-marker fallback — colour and Unicode degrade
   independently, so a non-TTY pipe (colour off) still gets the real frame and emoji glyphs, and only
   `TERM=dumb` (not "not a TTY") drops to ASCII.
-- **`agent`**: the differentiator. Deterministic ordering, token budget via `--max-tokens`, minimum
-  sufficient context per finding (concept, why it matters, exact location, offending snippet, and the
-  suggested change as a unified diff when one exists), **grouped by fix strategy** so an agent can
+- **`agent`**: the differentiator. Plain text, deterministic ordering, token budget via
+  `--max-tokens`, minimum sufficient context per finding, **grouped by fix strategy** so an agent can
   batch related work, and an explicit split between "`sgate fix` handles this, do not touch it" and
-  "this needs your judgement". Ends with a `nextActions` block.
+  "this needs your judgement". Ends with a `nextActions` block. Implemented in
+  `packages/reporters/src/agent.ts`; see §12.3 for what shipped and the one clause of the sentence
+  above that does not survive contact with a real run.
 - **`json`**: versioned, stable schema. The contract for third-party integrations.
 - **`sarif`**: GitHub code scanning ingests this, yielding PR annotations for free.
 - **`github`**: workflow commands for inline annotations without SARIF upload.
@@ -683,6 +684,82 @@ No network egress. Local-only by default.
 a large codebase without fixing everything first — only new findings fail the build.
 `sgate baseline create | update | show`. Because fingerprints exclude line numbers (§10.1), a
 reformat does not invalidate the baseline.
+
+### 12.3 The agent reporter
+
+`sgate check --format agent`, in `packages/reporters/src/agent.ts`. Rendered once on the `done`
+event, like `json` — not streamed — because grouping, ordering and the budget all need the whole
+result before the first byte is written.
+
+**Layout.** A header (version, severity counts, files scanned and analysed); any incompleteness
+notice; a `coverage` block; then two sections, `## automated` and `## judgement`, each subdivided by
+concept; then `nextActions`. Text rather than JSON: the format's job is to be read by a model, unified
+diffs paste out of it into `git apply`, and `json` already exists as the machine-parsing contract.
+The closing block is headed literally `nextActions`, matching this section's own wording.
+
+**The split is computed, not guessed.** A finding is automated when the run's registry entry for its
+`ruleId` declares a `fixKind` other than `'none'` — the same lookup `sgate fix` gates on (§11.1), read
+from `RULE_ENTRIES` by default and overridable for a run that passed `CheckOptions.entries`. The tier
+is named on the group and the section header prints the flag needed to reach it, because a finding
+only `--unsafe` reaches is useless to an agent that runs plain `sgate fix`. A rule with **no** registry
+entry at all — every `slop-gate/config.*` concept the orchestrator emits itself — is judgement, not
+unknown: those are the largest groups on a real run and dropping them would be the exact failure this
+format exists to prevent.
+
+**Grouping is by concept within each section**, ordered by severity, then finding count descending,
+then concept id. Reason, remedy, rule id and docs link are stated once per group; a `message` or
+`help` shared by every finding in a group is hoisted to it. On this repository that turns 41
+`config.unused-suppression` findings into one four-line header plus 41 location-and-snippet lines.
+
+**`why:` is printed only for a curated concept.** The registry generator names 801 concepts after the
+oxlint rules it found and writes their descriptions mechanically — "Generated from oxlint's
+`unicorn/no-useless-spread` rule (category: correctness). No Useless Spread." Presenting that as a
+reason would be worse than printing nothing, so `GENERATED_CONCEPT_IDS` (`concepts/catalogue.ts`)
+distinguishes the two and the header states how many groups have no rationale rather than leaving the
+absence to be read as a bug. Four of the six concepts a real run of this repository produces are in
+that state.
+
+**The unified diff is the clause of §12 that does not survive contact with the diagnostic stream.**
+`sgate check` never asks an engine for fix data — for oxlint that means re-running the binary once per
+rule per file (§11.1), which a plain check has no business doing — and no shipped ast-grep rule
+declares a `fix:`. So on this repository, today, **no finding in a check run carries an edit and no
+diff is ever printed.** The renderer is real (`applyEdits` + `unifiedDiff`, `sgate fix`'s own, so a
+diff shown here is the one that would be written) and is covered by tests, but it is dead on real
+input. Rather than leave that to be inferred, the automated section says so on every run that has no
+edits attached and points at `sgate fix --dry-run`.
+
+#### Token budget
+
+`--max-tokens <n>` bounds the whole report. **There is no tokenizer here**: one token is estimated as
+three UTF-8 bytes, which over-counts prose (nearer four) and roughly matches dense CJK (one token per
+three-byte character), so the estimate errs toward under-filling. Bytes rather than `String.length`
+because counting characters would under-count CJK threefold — the one direction this must never err
+in. The report states the ratio and calls it an approximation.
+
+Truncation is never silent, which is the property everything else is arranged around:
+
+- **A group header is never dropped.** Every concept appears with its *true* finding count even when
+  every one of its findings was omitted, so the report is always a complete inventory of what the run
+  found and only the per-finding detail is elided.
+- **`coverage` states shown, omitted and the budget on every run**, including runs where nothing was
+  dropped — "no omission notice" is never something the reader has to infer from silence — and lists
+  the omitted count per concept.
+- **The admission rule is printed in the report.** Findings are admitted one per group in rotation —
+  the first of every group, then the second — so a small budget keeps a worked example of every
+  concept rather than spending itself on the largest one. A finding too large for the space left is
+  skipped and the next considered.
+- **Space is reserved by a sizing render** with no finding admitted, every optional block present and
+  every count at its widest, so it is an upper bound on the fixed sections and the finished document
+  cannot overrun. The complete report is tried first, because a report with nothing omitted carries
+  none of the bookkeeping a truncated one needs and can be *smaller* than the reservation.
+- **When the fixed sections alone exceed the budget they are printed anyway**, with a line saying so.
+  A report that fits its budget by hiding what it dropped is worse than one that overruns. The
+  practical floor is roughly 600 tokens for a two-concept run and 1,600 for this repository's six.
+
+**Nothing time- or cache-dependent is printed.** `durationMs`, `filesFromCache` and `enginesRun` are
+omitted deliberately: the format's value as an agent input rests on the same repository state
+producing the same bytes, and `packages/cli/src/e2e.test.ts` proves it end to end by comparing a cold
+run's report with a warm one's.
 
 ---
 

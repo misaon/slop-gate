@@ -16,7 +16,11 @@ const AGENTS_BODY = `## Code quality gate
 This repository uses [slop-gate](https://github.com/misaon/slop-gate).
 
 - \`sgate check\` — analyse the repository. Run it before you finish a task.
-- \`sgate check --format agent\` — the same findings in a form optimised for you.
+- \`sgate check --format agent\` — the same findings in a form optimised for you: grouped by fix
+  strategy, split into what \`sgate fix\` rewrites and what needs your judgement. Add
+  \`--max-tokens <n>\` to bound it; it always states what the bound dropped.
+- \`sgate fix\` — apply the fixes slop-gate trusts. \`--dry-run\` prints the diff instead.
+  Do not hand-edit a finding the agent report lists under \`automated\`; run this instead.
 
 Rules are configured by *concept* (for example \`dead-code.unused-import\`) in
 \`slop-gate.config.ts\`, not by engine-specific rule names. Do not add engine config files such as

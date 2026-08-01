@@ -112,16 +112,18 @@ test('overwrites an existing config when forced, in place, without changing its 
 })
 
 test('does not advertise commands that do not exist', async () => {
-  // `sgate fix` is not a registered subcommand (packages/cli/src/main.ts lists `check`, `init` and
-  // `rules` — `rules why <concept>` itself is registered now, but this assertion is about what
-  // `init` writes into AGENTS.md, not about what main.ts exposes, so it is kept regardless) — an
-  // agent following this file's own advice would run `sgate fix` and get `Unknown command`, exit
-  // code 2.
+  // An agent follows this file literally, so a command named here that main.ts does not register
+  // means `Unknown command` and exit code 2. Written as "every `sgate <word>` mentioned is one of
+  // the registered subcommands" rather than as a blocklist of specific spellings: the blocklist
+  // version named `sgate fix` and stayed in place after `fix` shipped, so the advice kept omitting
+  // a command that had existed for weeks and the test read as if that were deliberate.
+  const registered = ['check', 'fix', 'init', 'rules']
   await runInit({ rootDir: dir })
   const content = await readFile(join(dir, 'AGENTS.md'), 'utf8')
 
-  expect(content).not.toContain('sgate fix')
-  expect(content).not.toContain('rules why')
+  const mentioned = [...content.matchAll(/\bsgate ([a-z-]+)/g)].map((match) => match[1]!)
+  expect(mentioned.length).toBeGreaterThan(0)
+  for (const command of mentioned) expect(registered, `sgate ${command}`).toContain(command)
 })
 
 test('merges into an existing AGENTS.md without losing content', async () => {

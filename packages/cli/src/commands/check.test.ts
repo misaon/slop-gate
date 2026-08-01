@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { parseArgs } from 'citty'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { EXIT_CODES } from '../exit-codes.ts'
-import { check } from './check.ts'
+import { check, parseMaxTokens } from './check.ts'
 
 let dir: string
 let originalExitCode: typeof process.exitCode
@@ -37,7 +37,7 @@ async function runCheck(): Promise<void> {
   }
 }
 
-async function runCheckCapturingStdout(): Promise<string> {
+async function runCheckCapturingStdout(args: Record<string, unknown> = {}): Promise<string> {
   let output = ''
   const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
     output += chunk
@@ -45,7 +45,7 @@ async function runCheckCapturingStdout(): Promise<string> {
   })
   try {
     await check.run!({
-      args: { format: 'json', cwd: dir, cache: false, _: [] },
+      args: { format: 'json', cwd: dir, cache: false, _: [], ...args },
       rawArgs: [],
       cmd: check,
     } as never)
@@ -114,6 +114,56 @@ test('removes its SIGINT/SIGTERM listeners after each run so repeated calls do n
   await runCheck()
   expect(process.listenerCount('SIGINT')).toBe(before.sigint)
   expect(process.listenerCount('SIGTERM')).toBe(before.sigterm)
+})
+
+test('accepts the agent format and reports its coverage even on a clean repository', async () => {
+  const output = await runCheckCapturingStdout({ format: 'agent' })
+
+  expect(output).toContain('slop-gate agent report v1')
+  expect(output).toContain('coverage: no findings. Nothing was omitted.')
+})
+
+test('--max-tokens reaches the agent reporter and bounds what it prints', async () => {
+  await writeFile(join(dir, 'a.ts'), 'export const a = { ...{ b: 1 } }\nexport const c = { ...{ d: 2 } }\n')
+
+  const unbounded = await runCheckCapturingStdout({ format: 'agent' })
+  const bounded = await runCheckCapturingStdout({ format: 'agent', 'max-tokens': '200' })
+
+  expect(unbounded).toContain('coverage: 2 of 2 findings shown, 0 omitted (no --max-tokens set).')
+  expect(bounded).toContain('(--max-tokens 200)')
+  expect(bounded).toContain('omitted')
+})
+
+test('rejects a --max-tokens that is not a positive integer instead of ignoring it', async () => {
+  // Silently falling back to "no limit" hands an agent a report far larger than the context it
+  // asked to fit; silently coercing to 0 hands it one with no findings in it. Both are worse than
+  // refusing, so the flag is validated before any engine runs.
+  // Accumulated into a local rather than asserted off the spy: `mockRestore` clears the recorded
+  // calls, so a `toHaveBeenCalledWith` after the `finally` reads an empty history and passes or
+  // fails for the wrong reason.
+  let written = ''
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    written += chunk
+    return true
+  })
+  try {
+    await check.run!({
+      args: { format: 'agent', cwd: dir, cache: false, 'max-tokens': 'lots', _: [] },
+      rawArgs: [],
+      cmd: check,
+    } as never)
+  } finally {
+    stderr.mockRestore()
+  }
+
+  expect(process.exitCode).toBe(EXIT_CODES.config)
+  expect(written).toContain('--max-tokens must be a positive integer, got: lots')
+})
+
+test('parseMaxTokens accepts a positive integer and refuses everything else', () => {
+  expect(parseMaxTokens(undefined)).toBeUndefined()
+  expect(parseMaxTokens('4000')).toBe(4000)
+  for (const raw of ['0', '-1', '1.5', 'lots', '', '1e400', 'Infinity']) expect(parseMaxTokens(raw), raw).toBe('invalid')
 })
 
 test('--no-cache reaches the command as cache: false through citty real argv parser', () => {

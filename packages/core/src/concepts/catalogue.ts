@@ -657,3 +657,19 @@ const WIDENED_CONCEPTS: readonly ConceptDefinition[] = CONCEPTS
 export const SLOP_GATE_SERVICED_CONCEPTS: ReadonlySet<string> = new Set(
   WIDENED_CONCEPTS.filter((c) => c.servicedBySlopGate).map((c) => c.id),
 )
+
+/**
+ * Concepts whose `title` and `description` came out of the registry generator rather than a human.
+ *
+ * The distinction matters to any consumer that presents a description as *rationale*. A hand-written
+ * one states the consequence — `correctness.no-debugger`: "A `debugger` statement halts execution
+ * wherever it is reached" — while a generated one restates the rule's own name back at the reader:
+ * "Generated from oxlint's `unicorn/no-useless-spread` rule (category: correctness). No Useless
+ * Spread." `concepts.generated.ts` says as much in its own header, and nothing had a way to act on
+ * it. Labelling the second kind "why this matters" would be worse than saying nothing, so the
+ * `agent` reporter reads this set and omits the line instead (spec §12).
+ *
+ * Derived from `GENERATED_CONCEPTS` rather than a flag on each entry: the flag would be 801 extra
+ * lines in a generated file to encode what the file's identity already says.
+ */
+export const GENERATED_CONCEPT_IDS: ReadonlySet<string> = new Set(GENERATED_CONCEPTS.map((c) => c.id))

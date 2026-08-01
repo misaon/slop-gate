@@ -16,6 +16,7 @@ export { fingerprint, type FingerprintInput } from './diagnostics/fingerprint.ts
 export {
   CONCEPTS,
   CONCEPT_GROUPS,
+  GENERATED_CONCEPT_IDS,
   conceptById,
   isConceptId,
   type ConceptDefinition,
