@@ -314,10 +314,11 @@ Lowest to highest precedence:
 
 1. Registry defaults
 2. slop-gate presets, in `extends` order
-3. Root config `rules`
-4. Per-workspace config
-5. Path-scoped `overrides`, in declaration order
-6. Inline source directives
+3. Framework profiles (§23) — may only turn a concept **off**
+4. Root config `rules`
+5. Per-workspace config
+6. Path-scoped `overrides`, in declaration order
+7. Inline source directives
 
 Every application is recorded as a provenance step.
 
@@ -704,7 +705,8 @@ fix what knip cannot *know*. Measured against a fixture reproducing that reposit
   `tech-docs/docs/.vitepress/`. The two config files stay unused-file findings, and `vitepress` itself
   now additionally reports as an unused devDependency **and** an unlisted binary. Naive synthesis went
   from 18 findings to 20 on that fixture: two more, both wrong. Pointing the plugin at the right
-  subdirectory is framework awareness, which the registry does not have (see the M0 follow-ups).
+  subdirectory is framework awareness — §23, which this and the two findings below are three of the
+  five motivating measurements for.
 - **ORM migrations, runtime-loaded config and convention directories remain unused files.** They are
   loaded, never imported; no import graph can see them.
 - **A dependency re-exported by a framework meta-package reads as unlisted.** `express` through
@@ -967,7 +969,236 @@ M2–M6 each get their own plan once the substrate exists and has been measured.
 
 ---
 
-## 23. References
+## 23. Framework awareness
+
+A repository's framework changes what is *true* about its code, and until now nothing in the pipeline
+could see one. Five independent measurements — three recorded in §13.2, every one of them in the M0
+follow-ups — share exactly that cause:
+
+| Measured finding | What the tool would need to know |
+|---|---|
+| `typescript/no-extraneous-class` — 11/11 false positives on a NestJS project, one per `*.module.ts` | decorator-driven DI *requires* an empty class body |
+| knip reports ORM migrations as unused files | the ORM discovers them at runtime from a path in its own config |
+| knip reports `docs/.vitepress/config.mts` unused | knip's VitePress plugin looks for `.vitepress/` at the workspace root; the site is a level down |
+| knip reports `express` unlisted in a NestJS project | `@nestjs/platform-express` re-exports it |
+| oxlint's jest and vitest plugins both fire on every `describe`/`it` | only one of the two frameworks is actually installed |
+
+Two of those are rules being wrong; three are an engine being wrong. **They are one problem with two
+consumers, and they get one mechanism.** Building a framework notion for the registry and a second,
+similar-but-different one for engine config synthesis is how a codebase ends up with two answers to
+"does this repository use NestJS" that disagree in the one case anybody cares about.
+
+### 23.1 Detection
+
+A **framework profile** is a named description of one framework's consequences. Detection answers one
+question per profile: *is this framework present, and with what parameters?*
+
+**Detection never returns a boolean.** A boolean cannot fix any of the rows above: "VitePress is
+present" does not tell knip where to look, and it does not let `sgate rules why` say anything more
+useful than "off, because reasons". Detection returns **evidence**, and every variant names the file
+it came from:
+
+```ts
+type FrameworkEvidence =
+  | { kind: 'manifest-dependency'; file: string; workspace: string; name: string; field: DependencyField }
+  | { kind: 'path-present'; file: string }
+  | { kind: 'config-literal'; file: string; property: string; value: string }
+```
+
+Evidence is produced by **probes**, and a profile declares which it needs. There are three, ordered by
+cost, and a profile that can answer with a cheaper one must:
+
+| Probe | Reads | Cost | Yields |
+|---|---|---|---|
+| `dependency` | the `package.json` files the inventory already listed | one `JSON.parse` per workspace manifest | `manifest-dependency` |
+| `path` | the inventory itself | **zero I/O** — the file list is already in memory | `path-present` |
+| `literal` | one named config file | one bounded read plus one parse | `config-literal` |
+
+**Detection never executes repository code.** §6.4 accepts that loading `slop-gate.config.ts` runs
+repository code, on the grounds that the file is written *for us*, by the user, as configuration.
+`mikro-orm.config.ts` is not that file: it is written to open a database connection, and importing it
+to learn one string would make `sgate check` dial a database. So the `literal` probe reads the source
+and extracts a **string literal at a known property path**; it never imports it. When the value is not
+a literal — a variable, `process.env`, a computed `join()` — the probe yields nothing and the profile
+falls through to its next probe, or, if it has none left, declares itself **inapplicable**.
+
+That failure direction is chosen deliberately and is worth stating on its own: **an unresolvable
+parameter makes a profile not apply, which restores today's behaviour, rather than applying it with a
+guessed value, which would silently move the wrong files.** A profile that cannot establish its
+parameters is not a degraded profile; it is an absent one.
+
+**Determinism.** Same repository state, same detected set — the product's central promise (§1.1), and
+it is a promise about ordering as much as about content. Four points could leak filesystem iteration
+order, and each is pinned:
+
+- manifests are visited in `FileInventory.files` order, which `buildInventory` has already sorted with
+  `compareStrings`;
+- dependency names within a manifest are sorted before they become evidence, never taken in
+  `Object.keys` order;
+- profiles are evaluated in `compareStrings` order of their ids, not in registration order;
+- the merged adjustment set is sorted before it is applied or hashed (§23.3 — and merging is a set
+  union, so the sort is the *only* thing order could have affected).
+
+**Cost.** Detection runs on every invocation, so it is bounded by the workspace count, not the file
+count: N small `JSON.parse`s plus at most one bounded read per parameterised profile. `path` probes
+cost nothing at all — the inventory is the input. No probe walks the filesystem (§7: "Engines never
+walk the filesystem themselves"; neither does this), no probe reads a source file to scan its
+contents, and no probe is allowed to grow into one without a measurement in this section justifying it.
+
+**Where it runs.** In `resolveRun`, between `buildInventory` (which produces its input) and
+`createRuleSetResolver` (the first of its two consumers). That places it inside the one code path
+`sgate check` and every `sgate rules` command already share, so the governance commands explain the
+same detection a real run performs rather than a second opinion about it.
+
+### 23.2 Profiles and their two consumers
+
+A profile is data plus one pure function. `consequences` is a function only because parameters make it
+one — the paths a VitePress profile contributes depend on where the site turned out to be — and it is
+pure over the detection facts: no filesystem, no config, no clock, so it is directly testable.
+
+```ts
+type FrameworkProfile = {
+  readonly id: FrameworkId
+  readonly detect: readonly Probe[]
+  readonly consequences: (detected: DetectedFramework) => readonly FrameworkAdjustment[]
+}
+
+type FrameworkAdjustment =
+  | { kind: 'disable-concept'; concept: ConceptId; reason: string }
+  | { kind: 'engine-setting'; engine: EngineId; key: string; values: readonly string[]; reason: string }
+```
+
+Two adjustment kinds, one per consumer. Both carry a `reason` written for a human, because both end up
+in `sgate rules why` (§23.4).
+
+**Consumer 1 — the ruleset.** `disable-concept` enters the §6.2 cascade as its own layer, above the
+presets and below the user's own `rules`. Above the presets because correcting a preset that is wrong
+for *this* repository is the entire point; below the user because **a human who writes
+`'suspicious.no-extraneous-class': 'error'` in a NestJS repository means it**. The framework layer
+never wins an argument with a person.
+
+**A profile may only subtract.** It can turn a concept off. It cannot turn one on, and it cannot change
+a level. Three reasons, in descending order of importance:
+
+1. **It makes the layer safe by construction.** The worst a wrong profile can do is lose coverage a
+   user can restore in one config line. If profiles could enable rules, a wrong profile would invent
+   findings in someone's CI, triggered by a dependency they added for unrelated reasons.
+2. **It keeps the merge order-free.** Every adjustment is a set contribution in a single direction, so
+   two profiles' outputs merge as a union (§23.3).
+3. **`extends` is already the mechanism for adding.** §6.1's domain packs (`react`, `vue`, `node`) are
+   opted into by name. "Installing a package changed which rules run" belongs nowhere, and least of all
+   in the layer whose job is to make the tool quieter.
+
+**Consumer 2 — engine configuration.** `engine-setting` is delivered to adapters on `RunContext`, which
+gains one field carrying the adjustments for that engine only. `key` is an engine-specific string core
+does not interpret — the same arrangement as `RuleEntry.engineRuleId`, and for the same reason: core
+has no business modelling knip's config schema.
+
+**The adapter owns its engine's merge semantics, not the profile.** knip makes this concrete and it is
+measured, not assumed: in knip 6.31.0 `ConfigurationChief.getConfigForWorkspace` resolves
+`workspaceConfig.entry ? arrayify(workspaceConfig.entry) : baseConfig.entry` — writing `entry` for a
+workspace **replaces** knip's two default patterns rather than adding to them. A profile contributing
+one migrations glob must therefore not produce a config that silently un-registers `src/index.ts` as an
+entry point. The profile says "add this pattern"; `materializeKnipConfig` is what knows it must write
+the defaults alongside it.
+
+The five profiles, and what each is for:
+
+| Profile | Detected by | Parameter | Consequence |
+|---|---|---|---|
+| `nestjs` | `@nestjs/core` (`dependency`) | — | disable `suspicious.no-extraneous-class` |
+| `nestjs-express` | `@nestjs/platform-express` (`dependency`) | — | knip `ignoreDependencies += express` |
+| `mikro-orm` | `@mikro-orm/core` (`dependency`) | migrations directory, via `literal` on the ORM config then `path` on the inventory | knip `entry += <dir>/*.ts` in the owning workspace |
+| `vitepress` | `vitepress` (`dependency`) + a `.vitepress/` directory (`path`) | the site root that directory sits in | knip `workspaces[ws].vitepress.entry += <root>/.vitepress/config.*` |
+| `test-framework` | `jest` and/or `vitest` (`dependency`) | which of the two are present | disable the plugin-scoped concepts of every scope that is not the unique installed one |
+
+`nestjs` and `nestjs-express` are two profiles rather than one because they are two facts. A NestJS
+project on Fastify has the first and not the second, and merging them would make the `express`
+suppression fire on a repository that never depends on `express` at all.
+
+`test-framework` is the one profile whose parameter is a *set*, and the only one whose rule reads
+oddly enough to state in full: **disable every scope that is not the unique installed one; if there is
+not exactly one, disable all of them.** Both frameworks installed, or neither, and dual firing is
+either genuinely unavoidable or the concepts match nothing anyway — both cases degrade to exactly
+today's unconditional exclusion, which is the behaviour the exclusion note in `registry/exclusions.ts`
+asked for ("until framework detection can elect the one that is actually installed"). It is also the
+profile with the largest measured payoff, because those 24 excluded rules are 24 concepts currently
+kept out of `recommended` by hand.
+
+### 23.3 Why there are no conflicts to resolve
+
+The loudest failure mode this whole product exists to prevent is rules that overwrite each other —
+§5.3 answers it for arbitration by making double-reporting *structurally impossible* rather than
+merely unlikely, enforcing ownership twice instead of trusting one check. **This section takes the same
+move one step earlier: rather than resolving framework conflicts, the adjustment vocabulary makes them
+inexpressible.**
+
+Every `FrameworkAdjustment` is a set contribution — a concept removed, or patterns/names added to a
+list. There is no shape that assigns a value to a key. So the merge of every profile's output is a
+sorted set union, which is commutative, associative and idempotent; the result does not depend on
+detection order, profile order, or how many profiles said the same thing.
+
+Union is not merely deterministic here, it is *semantically* safe, and that is a property of the
+vocabulary rather than luck. Every key it can name holds a list of patterns or package names, and a
+pattern that matches nothing costs nothing: two profiles contributing `docs/.vitepress/config.*` and
+`site/.vitepress/config.*` produce a knip config that looks in both places and finds one. Contrast the
+shape deliberately not offered — `{ key: 'entry', value: 'docs' }` — where the second writer wins,
+the winner depends on evaluation order, and explaining the outcome requires a precedence table.
+
+**If a future consequence genuinely needs a scalar, it does not get one here.** That requirement is a
+signal the consequence belongs in a preset or in the engine adapter's own logic. Should a real case
+ever prove otherwise, §5.3 is the pattern to copy — a total order, a single elected owner, and a
+recorded loser with a reason — but it is deliberately not built in advance. A precedence mechanism with
+no conflict to resolve is a precedence mechanism nobody has tested against a real disagreement.
+
+### 23.4 Explainability, the lockfile, and the cache
+
+**`sgate rules why` gains the framework layer.** The provenance step the framework layer emits carries
+`layer: 'framework'` and the profile id as its `source`, so §5.4's existing provenance rendering prints
+it with no special case, and `ConceptWhy` gains the evidence behind it:
+
+```
+  suspicious.no-extraneous-class
+  Unexpected empty class
+
+  Enabled: no — preset `recommended` enabled this at `warn`, but framework `nestjs` turned it off
+      preset            recommended -> warn
+      framework         nestjs -> off
+  Framework: nestjs — detected via `@nestjs/core` in `package.json` (dependencies)
+      NestJS requires an empty class body: the @Module decorator carries the behaviour.
+```
+
+That is the difference evidence buys. "Off because NestJS" is a dead end for a reader who disagrees;
+naming the dependency and the manifest it is declared in tells them exactly what to change, and tells
+them immediately if detection got it wrong.
+
+**The detected set is part of the cache key.** `configHash` currently folds in the config and the
+registry entries. It must fold in the detection result too, and the reason is a real bug rather than
+tidiness: adding `@nestjs/core` to a `package.json` changes the effective ruleset without changing any
+file oxlint was assigned, so a warm run would otherwise keep serving diagnostics from a ruleset that no
+longer applies. The same argument puts the detected set in the lockfile (§5.5): framework drift is
+ruleset drift, and `--frozen-rules` must fail on it.
+
+### 23.5 Deliberately out of scope
+
+- **Heuristic detection.** No "looks like a NestJS project" scoring over file names. Every profile
+  detects on a declared dependency or a config file that exists. A framework whose presence cannot be
+  established that way does not get a profile — because a false positive here *removes* coverage
+  silently, which is the failure mode hardest to notice and hardest to attribute.
+- **Executing any repository code**, including a framework's own config file. See §23.1.
+- **Per-file profiles.** Adjustments are workspace-scoped where the engine supports it, and that is as
+  fine-grained as this gets. §6.2's `overrides` already scope rules by path, declared by a human who
+  knows why.
+- **Framework versions.** No profile branches on NestJS 9 versus 11. No measured case needs it, and
+  the version is already in the evidence for whoever finds one that does.
+- **Adding rules, choosing engines, or writing a user's config for them.** §23.2 covers the first;
+  the other two are `extends` and `engines` respectively, and both are things a user says out loud.
+- **A `sgate frameworks` command.** Detection surfaces through `rules why`, where the question is
+  already being asked. A standalone listing is easy to add later and answers nothing yet.
+
+---
+
+## 24. References
 
 Verified 2026-07-30.
 
