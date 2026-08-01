@@ -1,20 +1,13 @@
 import { readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
 import { defineCommand } from 'citty'
-import {
-  ConfigError,
-  loadConfig,
-  streamCheck,
-  toPosix,
-  type CheckResult,
-  type SlopGateConfig,
-} from '@misaon/slop-gate-core'
-import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
+import { streamCheck, type CheckResult } from '@misaon/slop-gate-core'
 import { REPORTER_NAMES, createReporter, type ReporterName } from '@misaon/slop-gate-reporters'
+import { DEFAULT_CONFIG, loadCliConfig } from '../config.ts'
+import { defaultEngines } from '../engines.ts'
 import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
+import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
-
-const DEFAULT_CONFIG: SlopGateConfig = { extends: ['recommended'] }
 
 export const check = defineCommand({
   meta: { name: 'check', description: 'Analyse the repository and report findings' },
@@ -39,16 +32,8 @@ export const check = defineCommand({
       return
     }
 
-    let configFailed = false
-    const loaded = await loadConfig(rootDir).catch((error: unknown) => {
-      if (error instanceof ConfigError) {
-        process.stderr.write(`${error.message}\n`)
-        configFailed = true
-        return undefined
-      }
-      throw error
-    })
-    if (configFailed) {
+    const loaded = await loadCliConfig(rootDir, DEFAULT_CONFIG)
+    if (loaded.kind === 'error') {
       process.exitCode = EXIT_CODES.config
       return
     }
@@ -81,15 +66,9 @@ export const check = defineCommand({
     try {
       for await (const event of streamCheck({
         rootDir,
-        config: loaded?.config ?? DEFAULT_CONFIG,
-        // `loadConfig` resolves an absolute path (it walks up from `rootDir` to find the file).
-        // `configFile` lands verbatim in every `config.*` diagnostic's `file` field, and paths are
-        // repo-relative POSIX in every public data structure and output format — the CLI is the
-        // boundary that owes `streamCheck` that contract, not `streamCheck` itself.
-        ...(loaded === null || loaded === undefined
-          ? {}
-          : { configFile: toPosix(relative(rootDir, loaded.file)) }),
-        engines: [createOxlintEngine()],
+        config: loaded.config,
+        ...(loaded.kind === 'loaded' ? { configFile: loaded.configFile } : {}),
+        engines: defaultEngines(),
         useCache: args.cache,
         signal: controller.signal,
       })) {
@@ -109,17 +88,3 @@ export const check = defineCommand({
     })
   },
 })
-
-function supportsColor(): boolean {
-  if (process.env['NO_COLOR'] !== undefined && process.env['NO_COLOR'] !== '') return false
-  if (process.env['FORCE_COLOR'] !== undefined && process.env['FORCE_COLOR'] !== '') return true
-  return process.stdout.isTTY === true
-}
-
-// Independent of `supportsColor`: `TERM=dumb` selects the ASCII fallback (box characters and
-// severity markers) regardless of whether colour is on, and colour can be off (`NO_COLOR`, a pipe
-// with no `FORCE_COLOR`) without implying ASCII — a piped-to-file run should still get the real
-// frame characters, just without escape codes.
-function supportsUnicode(): boolean {
-  return process.env['TERM'] !== 'dumb'
-}
