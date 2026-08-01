@@ -330,8 +330,7 @@ test('keeps a worked example for every concept before deepening any one of them'
     const beta = shown.filter((group) => group === 'b').length
 
     expect(Math.abs(alpha - beta), `budget ${budget}`).toBeLessThanOrEqual(1)
-    if (alpha > 0 && beta > 0) sawBoth = true
-    if (alpha > 1) expect(beta, `budget ${budget}`).toBeGreaterThan(0)
+    sawBoth ||= alpha > 0 && beta > 0
   }
   expect(sawBoth).toBe(true)
 })

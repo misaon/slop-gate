@@ -843,6 +843,20 @@ still *forbidding* `sgate fix` weeks after that command shipped. It now extracts
 from the body and checks it against the registered subcommand set. **A test that enumerates what must
 not appear cannot notice what is missing**; state the invariant over the content instead.
 
+### The textual suppression parser reached production source, not just fixtures
+
+The judgement section tells an agent how to record a false positive, which means printing
+`sgate-disable-next-line` verbatim. Written as one string literal, `packages/reporters/src/agent.ts`
+then *contains* a directive as far as `suppressions/parse.ts` is concerned, and every run of this
+repository reports `config.unused-suppression` against the reporter — inside the very output whose
+job is to be trusted. The literal is spliced (`` `sgate-disable${'-next-line'}` ``) with a comment
+saying why.
+
+Until now this cost was confined to test fixtures (see "One thing M0 does not demonstrate"). It has
+now reached a source file whose *purpose* is to name the directive, and any documentation generator,
+help text or error message that does the same will hit it. That raises the price of the parser
+knowing nothing about comments and strings from "noisy fixtures" to "cannot mention its own syntax".
+
 ### The budget floor is group headers, and that is deliberate
 
 "A group header is never dropped" means the fixed cost of the report grows with the number of

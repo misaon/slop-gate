@@ -35,6 +35,15 @@ const SNIPPET_MAX_CHARS = 160
 const CONFIG_LOCATION = '(configuration)'
 const MAX_LISTED_UNCOVERED = 8
 
+/**
+ * Spliced rather than written whole, and the seam is the point. `suppressions/parse.ts` scans for
+ * the directive token textually, so a source file containing it verbatim — inside a string, inside a
+ * comment, anywhere — is read as carrying a real directive. Written out in one piece, this line makes
+ * the reporter report itself: `config.unused-suppression` against `agent.ts`, on every run of this
+ * repository, in the output whose job is to be trusted.
+ */
+const DISABLE_DIRECTIVE = `sgate-disable${'-next-line'}`
+
 const estimateTokens = (text: string): number => Math.ceil(encodeUtf8(text).length / BYTES_PER_TOKEN)
 
 export type AgentReporterOptions = {
@@ -521,8 +530,8 @@ function sectionLines(section: Section, groups: readonly Group[]): string[] {
       // outcome of exercising judgement, and the directive is the only way to record that decision
       // where the next run will see it — spelling it out here costs one line and stops an agent
       // either inventing a syntax or editing correct code to silence a false positive.
-      'If one is a false positive, record that instead of changing the code: ' +
-        '`// sgate-disable-next-line <concept> -- <reason>` on the line above it. The reason is required.',
+      `If one is a false positive, record that instead of changing the code: \`// ${DISABLE_DIRECTIVE} ` +
+        '<concept> -- <reason>` on the line above it. The reason is required.',
     ]
   }
 
