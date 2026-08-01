@@ -396,13 +396,21 @@ Three things worth carrying forward from that session specifically.
 
 ## Accepted as is
 
-**The stat index's racy window is a margin, not a proof.** `RACY_WINDOW_MS` is 2s, chosen to cover
-FAT's timestamp granularity with room to spare, and it closes the failure this was written for: a
+**The stat index's racy window is a margin, not a proof.** `RACY_WINDOW_MS` is 2s. That is not a
+generous round number, it is exactly calibrated, and the distinction matters to anyone tempted to
+lower it: FAT records last-write time to two-second accuracy (NTFS to 100ns, so FAT is the binding
+case), timestamps are truncated to the granule rather than rounded, and therefore a file reporting
+mtime `T` may have been written as late as `T + 2000`. Any read after `T + 2000` cannot miss a write
+that shared that timestamp; a 1s window would leave exactly half the granule exposed. It closes the
+failure this was written for: a
 same-length edit landing in the same timestamp tick as the previous one, which returned the previous
 content's hash and was caught by a Windows CI run rather than by design. What it does not do is make
 the stat fast path sound in general. Windows can defer a last-write-time update well past two seconds
 for a handle held open, and a network filesystem with a skewed clock can report an mtime that never
-falls outside any fixed window. Both are real, both are rare, and the honest description of the fast
+falls outside any fixed window. The Windows case is the sharper of the two and no constant addresses
+it: the documented guarantee is only that a file time is correct once the handle that changed it is
+closed, so a writer holding a handle open defers the update indefinitely rather than by some bounded
+amount. Both are real, both are rare, and the honest description of the fast
 path remains "trusts `(size, mtimeMs)` once the file has been quiet for a moment" — not "detects every
 change". Widening the window trades cache hits for a guarantee it still would not deliver; the actual
 fix, if a report ever justifies one, is a `--no-cache` escape hatch and content hashing on demand
