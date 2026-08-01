@@ -8,7 +8,7 @@ import type { ConceptDefinition } from './catalogue.ts'
  * One entry per mechanically-named concept a generated rule entry invents — i.e. every concept
  * `registry/overrides.ts` did not already redirect onto an existing hand-written concept.
  * `title`/`description` are plain factual passthroughs of the source rule (scope, value,
- * category), not curated prose: nobody has read all 845 of these, and pretending
+ * category), not curated prose: nobody has read all 801 of these, and pretending
  * otherwise would be worse than an honest "this is generated" label.
  *
  * `as const satisfies`, not a plain `readonly ConceptDefinition[]` annotation, deliberately — see
@@ -148,12 +148,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `oxc/const-comparisons` rule (category: correctness). Const Comparisons.',
   },
   {
-    id: 'correctness.constructor-super',
-    group: 'correctness',
-    title: 'constructor-super',
-    description: 'Generated from oxlint\'s `eslint/constructor-super` rule (category: correctness). Constructor Super.',
-  },
-  {
     id: 'correctness.control-has-associated-label',
     group: 'correctness',
     title: 'jsx-a11y/control-has-associated-label',
@@ -178,34 +172,16 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `oxc/erasing-op` rule (category: correctness). Erasing Op.',
   },
   {
-    id: 'correctness.eslint-no-dupe-keys',
-    group: 'correctness',
-    title: 'no-dupe-keys',
-    description: 'Generated from oxlint\'s `eslint/no-dupe-keys` rule (category: correctness). No Dupe Keys.',
-  },
-  {
     id: 'correctness.exhaustive-deps',
     group: 'correctness',
     title: 'react/exhaustive-deps',
     description: 'Generated from oxlint\'s `react/exhaustive-deps` rule (category: correctness). Exhaustive Deps.',
   },
   {
-    id: 'correctness.for-direction',
-    group: 'correctness',
-    title: 'for-direction',
-    description: 'Generated from oxlint\'s `eslint/for-direction` rule (category: correctness). For Direction.',
-  },
-  {
     id: 'correctness.forward-ref-uses-ref',
     group: 'correctness',
     title: 'react/forward-ref-uses-ref',
     description: 'Generated from oxlint\'s `react/forward-ref-uses-ref` rule (category: correctness). Forward Ref Uses Ref.',
-  },
-  {
-    id: 'correctness.getter-return',
-    group: 'correctness',
-    title: 'getter-return',
-    description: 'Generated from oxlint\'s `eslint/getter-return` rule (category: correctness). Getter Return.',
   },
   {
     id: 'correctness.google-font-display',
@@ -442,12 +418,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vue/no-async-in-computed-properties` rule (category: correctness). No Async In Computed Properties.',
   },
   {
-    id: 'correctness.no-async-promise-executor',
-    group: 'correctness',
-    title: 'no-async-promise-executor',
-    description: 'Generated from oxlint\'s `eslint/no-async-promise-executor` rule (category: correctness). No Async Promise Executor.',
-  },
-  {
     id: 'correctness.no-autofocus',
     group: 'correctness',
     title: 'jsx-a11y/no-autofocus',
@@ -490,46 +460,16 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `react/no-children-prop` rule (category: correctness). No Children Prop.',
   },
   {
-    id: 'correctness.no-class-assign',
-    group: 'correctness',
-    title: 'no-class-assign',
-    description: 'Generated from oxlint\'s `eslint/no-class-assign` rule (category: correctness). No Class Assign.',
-  },
-  {
-    id: 'correctness.no-compare-neg-zero',
-    group: 'correctness',
-    title: 'no-compare-neg-zero',
-    description: 'Generated from oxlint\'s `eslint/no-compare-neg-zero` rule (category: correctness). No Compare Neg Zero.',
-  },
-  {
     id: 'correctness.no-computed-properties-in-data',
     group: 'correctness',
     title: 'vue/no-computed-properties-in-data',
     description: 'Generated from oxlint\'s `vue/no-computed-properties-in-data` rule (category: correctness). No Computed Properties In Data.',
   },
   {
-    id: 'correctness.no-cond-assign',
-    group: 'correctness',
-    title: 'no-cond-assign',
-    description: 'Generated from oxlint\'s `eslint/no-cond-assign` rule (category: correctness). No Cond Assign.',
-  },
-  {
     id: 'correctness.no-conditional-tests',
     group: 'correctness',
     title: 'vitest/no-conditional-tests',
     description: 'Generated from oxlint\'s `vitest/no-conditional-tests` rule (category: correctness). No Conditional Tests.',
-  },
-  {
-    id: 'correctness.no-const-assign',
-    group: 'correctness',
-    title: 'no-const-assign',
-    description: 'Generated from oxlint\'s `eslint/no-const-assign` rule (category: correctness). No Const Assign.',
-  },
-  {
-    id: 'correctness.no-constant-binary-expression',
-    group: 'correctness',
-    title: 'no-constant-binary-expression',
-    description: 'Generated from oxlint\'s `eslint/no-constant-binary-expression` rule (category: correctness). No Constant Binary Expression.',
   },
   {
     id: 'correctness.no-control-regex',
@@ -634,24 +574,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `nextjs/no-document-import-in-page` rule (category: correctness). No Document Import In Page.',
   },
   {
-    id: 'correctness.no-dupe-class-members',
-    group: 'correctness',
-    title: 'no-dupe-class-members',
-    description: 'Generated from oxlint\'s `eslint/no-dupe-class-members` rule (category: correctness). No Dupe Class Members.',
-  },
-  {
-    id: 'correctness.no-dupe-else-if',
-    group: 'correctness',
-    title: 'no-dupe-else-if',
-    description: 'Generated from oxlint\'s `eslint/no-dupe-else-if` rule (category: correctness). No Dupe Else If.',
-  },
-  {
-    id: 'correctness.no-duplicate-case',
-    group: 'correctness',
-    title: 'no-duplicate-case',
-    description: 'Generated from oxlint\'s `eslint/no-duplicate-case` rule (category: correctness). No Duplicate Case.',
-  },
-  {
     id: 'correctness.no-duplicate-enum-values',
     group: 'correctness',
     title: 'typescript/no-duplicate-enum-values',
@@ -682,28 +604,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `unicorn/no-empty-file` rule (category: correctness). No Empty File.',
   },
   {
-    id: 'correctness.no-empty-pattern',
-    group: 'correctness',
-    title: 'no-empty-pattern',
-    description: 'Generated from oxlint\'s `eslint/no-empty-pattern` rule (category: correctness). No Empty Pattern.',
-  },
-  {
     id: 'correctness.no-empty-static-block',
     group: 'correctness',
     title: 'no-empty-static-block',
     description: 'Generated from oxlint\'s `eslint/no-empty-static-block` rule (category: correctness). No Empty Static Block.',
-  },
-  {
-    id: 'correctness.no-eval',
-    group: 'correctness',
-    title: 'no-eval',
-    description: 'Generated from oxlint\'s `eslint/no-eval` rule (category: correctness). No Eval.',
-  },
-  {
-    id: 'correctness.no-ex-assign',
-    group: 'correctness',
-    title: 'no-ex-assign',
-    description: 'Generated from oxlint\'s `eslint/no-ex-assign` rule (category: correctness). No Ex Assign.',
   },
   {
     id: 'correctness.no-export',
@@ -754,18 +658,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `typescript/no-for-in-array` rule (category: correctness). No For In Array.',
   },
   {
-    id: 'correctness.no-func-assign',
-    group: 'correctness',
-    title: 'no-func-assign',
-    description: 'Generated from oxlint\'s `eslint/no-func-assign` rule (category: correctness). No Func Assign.',
-  },
-  {
-    id: 'correctness.no-global-assign',
-    group: 'correctness',
-    title: 'no-global-assign',
-    description: 'Generated from oxlint\'s `eslint/no-global-assign` rule (category: correctness). No Global Assign.',
-  },
-  {
     id: 'correctness.no-head-element',
     group: 'correctness',
     title: 'nextjs/no-head-element',
@@ -796,12 +688,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `typescript/no-implied-eval` rule (category: correctness). No Implied Eval.',
   },
   {
-    id: 'correctness.no-import-assign',
-    group: 'correctness',
-    title: 'no-import-assign',
-    description: 'Generated from oxlint\'s `eslint/no-import-assign` rule (category: correctness). No Import Assign.',
-  },
-  {
     id: 'correctness.no-interactive-element-to-noninteractive-role',
     group: 'correctness',
     title: 'jsx-a11y/no-interactive-element-to-noninteractive-role',
@@ -812,12 +698,6 @@ export const GENERATED_CONCEPTS = [
     group: 'correctness',
     title: 'unicorn/no-invalid-fetch-options',
     description: 'Generated from oxlint\'s `unicorn/no-invalid-fetch-options` rule (category: correctness). No Invalid Fetch Options.',
-  },
-  {
-    id: 'correctness.no-invalid-regexp',
-    group: 'correctness',
-    title: 'no-invalid-regexp',
-    description: 'Generated from oxlint\'s `eslint/no-invalid-regexp` rule (category: correctness). No Invalid Regexp.',
   },
   {
     id: 'correctness.no-invalid-remove-event-listener',
@@ -850,12 +730,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vue/no-lifecycle-after-await` rule (category: correctness). No Lifecycle After Await.',
   },
   {
-    id: 'correctness.no-loss-of-precision',
-    group: 'correctness',
-    title: 'no-loss-of-precision',
-    description: 'Generated from oxlint\'s `eslint/no-loss-of-precision` rule (category: correctness). No Loss Of Precision.',
-  },
-  {
     id: 'correctness.no-meaningless-void-operator',
     group: 'correctness',
     title: 'typescript/no-meaningless-void-operator',
@@ -884,12 +758,6 @@ export const GENERATED_CONCEPTS = [
     group: 'correctness',
     title: 'unicorn/no-new-array',
     description: 'Generated from oxlint\'s `unicorn/no-new-array` rule (category: correctness). No New Array.',
-  },
-  {
-    id: 'correctness.no-new-native-nonconstructor',
-    group: 'correctness',
-    title: 'no-new-native-nonconstructor',
-    description: 'Generated from oxlint\'s `eslint/no-new-native-nonconstructor` rule (category: correctness). No New Native Nonconstructor.',
   },
   {
     id: 'correctness.no-new-statics',
@@ -926,12 +794,6 @@ export const GENERATED_CONCEPTS = [
     group: 'correctness',
     title: 'no-nonoctal-decimal-escape',
     description: 'Generated from oxlint\'s `eslint/no-nonoctal-decimal-escape` rule (category: correctness). No Nonoctal Decimal Escape.',
-  },
-  {
-    id: 'correctness.no-obj-calls',
-    group: 'correctness',
-    title: 'no-obj-calls',
-    description: 'Generated from oxlint\'s `eslint/no-obj-calls` rule (category: correctness). No Obj Calls.',
   },
   {
     id: 'correctness.no-page-custom-font',
@@ -982,24 +844,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `nextjs/no-script-component-in-head` rule (category: correctness). No Script Component In Head.',
   },
   {
-    id: 'correctness.no-self-assign',
-    group: 'correctness',
-    title: 'no-self-assign',
-    description: 'Generated from oxlint\'s `eslint/no-self-assign` rule (category: correctness). No Self Assign.',
-  },
-  {
-    id: 'correctness.no-setter-return',
-    group: 'correctness',
-    title: 'no-setter-return',
-    description: 'Generated from oxlint\'s `eslint/no-setter-return` rule (category: correctness). No Setter Return.',
-  },
-  {
-    id: 'correctness.no-shadow-restricted-names',
-    group: 'correctness',
-    title: 'no-shadow-restricted-names',
-    description: 'Generated from oxlint\'s `eslint/no-shadow-restricted-names` rule (category: correctness). No Shadow Restricted Names.',
-  },
-  {
     id: 'correctness.no-shared-component-data',
     group: 'correctness',
     title: 'vue/no-shared-component-data',
@@ -1016,12 +860,6 @@ export const GENERATED_CONCEPTS = [
     group: 'correctness',
     title: 'unicorn/no-single-promise-in-promise-methods',
     description: 'Generated from oxlint\'s `unicorn/no-single-promise-in-promise-methods` rule (category: correctness). No Single Promise In Promise Methods.',
-  },
-  {
-    id: 'correctness.no-sparse-arrays',
-    group: 'correctness',
-    title: 'no-sparse-arrays',
-    description: 'Generated from oxlint\'s `eslint/no-sparse-arrays` rule (category: correctness). No Sparse Arrays.',
   },
   {
     id: 'correctness.no-static-element-interactions',
@@ -1058,12 +896,6 @@ export const GENERATED_CONCEPTS = [
     group: 'correctness',
     title: 'typescript/no-this-alias',
     description: 'Generated from oxlint\'s `typescript/no-this-alias` rule (category: correctness). No This Alias.',
-  },
-  {
-    id: 'correctness.no-this-before-super',
-    group: 'correctness',
-    title: 'no-this-before-super',
-    description: 'Generated from oxlint\'s `eslint/no-this-before-super` rule (category: correctness). No This Before Super.',
   },
   {
     id: 'correctness.no-this-in-before-route-enter',
@@ -1108,12 +940,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `typescript/no-unnecessary-parameter-property-assignment` rule (category: correctness). No Unnecessary Parameter Property Assignment.',
   },
   {
-    id: 'correctness.no-unreachable',
-    group: 'correctness',
-    title: 'no-unreachable',
-    description: 'Generated from oxlint\'s `eslint/no-unreachable` rule (category: correctness). No Unreachable.',
-  },
-  {
     id: 'correctness.no-unsafe',
     group: 'correctness',
     title: 'react/no-unsafe',
@@ -1126,34 +952,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `typescript/no-unsafe-declaration-merging` rule (category: correctness). No Unsafe Declaration Merging.',
   },
   {
-    id: 'correctness.no-unsafe-finally',
-    group: 'correctness',
-    title: 'no-unsafe-finally',
-    description: 'Generated from oxlint\'s `eslint/no-unsafe-finally` rule (category: correctness). No Unsafe Finally.',
-  },
-  {
-    id: 'correctness.no-unsafe-negation',
-    group: 'correctness',
-    title: 'no-unsafe-negation',
-    description: 'Generated from oxlint\'s `eslint/no-unsafe-negation` rule (category: correctness). No Unsafe Negation.',
-  },
-  {
-    id: 'correctness.no-unsafe-optional-chaining',
-    group: 'correctness',
-    title: 'no-unsafe-optional-chaining',
-    description: 'Generated from oxlint\'s `eslint/no-unsafe-optional-chaining` rule (category: correctness). No Unsafe Optional Chaining.',
-  },
-  {
     id: 'correctness.no-unsafe-unary-minus',
     group: 'correctness',
     title: 'typescript/no-unsafe-unary-minus',
     description: 'Generated from oxlint\'s `typescript/no-unsafe-unary-minus` rule (category: correctness). No Unsafe Unary Minus.',
-  },
-  {
-    id: 'correctness.no-unused-expressions',
-    group: 'correctness',
-    title: 'no-unused-expressions',
-    description: 'Generated from oxlint\'s `eslint/no-unused-expressions` rule (category: correctness). No Unused Expressions.',
   },
   {
     id: 'correctness.no-unused-labels',
@@ -1166,12 +968,6 @@ export const GENERATED_CONCEPTS = [
     group: 'correctness',
     title: 'no-unused-private-class-members',
     description: 'Generated from oxlint\'s `eslint/no-unused-private-class-members` rule (category: correctness). No Unused Private Class Members.',
-  },
-  {
-    id: 'correctness.no-unused-vars',
-    group: 'correctness',
-    title: 'no-unused-vars',
-    description: 'Generated from oxlint\'s `eslint/no-unused-vars` rule (category: correctness). No Unused Vars.',
   },
   {
     id: 'correctness.no-unwanted-polyfillio',
@@ -1372,12 +1168,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vue/require-slots-as-functions` rule (category: correctness). Require Slots As Functions.',
   },
   {
-    id: 'correctness.require-yield',
-    group: 'correctness',
-    title: 'require-yield',
-    description: 'Generated from oxlint\'s `eslint/require-yield` rule (category: correctness). Require Yield.',
-  },
-  {
     id: 'correctness.require-yields',
     group: 'correctness',
     title: 'jsdoc/require-yields',
@@ -1444,12 +1234,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `oxc/uninvoked-array-callback` rule (category: correctness). Uninvoked Array Callback.',
   },
   {
-    id: 'correctness.use-isnan',
-    group: 'correctness',
-    title: 'use-isnan',
-    description: 'Generated from oxlint\'s `eslint/use-isnan` rule (category: correctness). Use Isnan.',
-  },
-  {
     id: 'correctness.valid-define-emits',
     group: 'correctness',
     title: 'vue/valid-define-emits',
@@ -1478,12 +1262,6 @@ export const GENERATED_CONCEPTS = [
     group: 'correctness',
     title: 'promise/valid-params',
     description: 'Generated from oxlint\'s `promise/valid-params` rule (category: correctness). Valid Params.',
-  },
-  {
-    id: 'correctness.valid-typeof',
-    group: 'correctness',
-    title: 'valid-typeof',
-    description: 'Generated from oxlint\'s `eslint/valid-typeof` rule (category: correctness). Valid Typeof.',
   },
   {
     id: 'correctness.vitest-expect-expect',
@@ -2746,12 +2524,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/no-eq-null` rule (category: restriction). No Eq Null.',
   },
   {
-    id: 'restriction.no-explicit-any',
-    group: 'restriction',
-    title: 'typescript/no-explicit-any',
-    description: 'Generated from oxlint\'s `typescript/no-explicit-any` rule (category: restriction). No Explicit Any.',
-  },
-  {
     id: 'restriction.no-implicit-globals',
     group: 'restriction',
     title: 'no-implicit-globals',
@@ -2954,12 +2726,6 @@ export const GENERATED_CONCEPTS = [
     group: 'restriction',
     title: 'unicorn/no-useless-error-capture-stack-trace',
     description: 'Generated from oxlint\'s `unicorn/no-useless-error-capture-stack-trace` rule (category: restriction). No Useless Error Capture Stack Trace.',
-  },
-  {
-    id: 'restriction.no-var',
-    group: 'restriction',
-    title: 'no-var',
-    description: 'Generated from oxlint\'s `eslint/no-var` rule (category: restriction). No Var.',
   },
   {
     id: 'restriction.no-var-requires',
@@ -4852,12 +4618,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `import/no-empty-named-blocks` rule (category: suspicious). No Empty Named Blocks.',
   },
   {
-    id: 'suspicious.no-extend-native',
-    group: 'suspicious',
-    title: 'no-extend-native',
-    description: 'Generated from oxlint\'s `eslint/no-extend-native` rule (category: suspicious). No Extend Native.',
-  },
-  {
     id: 'suspicious.no-extra-bind',
     group: 'suspicious',
     title: 'no-extra-bind',
@@ -4930,12 +4690,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `import/no-self-import` rule (category: suspicious). No Self Import.',
   },
   {
-    id: 'suspicious.no-shadow',
-    group: 'suspicious',
-    title: 'no-shadow',
-    description: 'Generated from oxlint\'s `eslint/no-shadow` rule (category: suspicious). No Shadow.',
-  },
-  {
     id: 'suspicious.no-this-in-exported-function',
     group: 'suspicious',
     title: 'oxc/no-this-in-exported-function',
@@ -4952,18 +4706,6 @@ export const GENERATED_CONCEPTS = [
     group: 'suspicious',
     title: 'no-underscore-dangle',
     description: 'Generated from oxlint\'s `eslint/no-underscore-dangle` rule (category: suspicious). No Underscore Dangle.',
-  },
-  {
-    id: 'suspicious.no-unexpected-multiline',
-    group: 'suspicious',
-    title: 'no-unexpected-multiline',
-    description: 'Generated from oxlint\'s `eslint/no-unexpected-multiline` rule (category: suspicious). No Unexpected Multiline.',
-  },
-  {
-    id: 'suspicious.no-unmodified-loop-condition',
-    group: 'suspicious',
-    title: 'no-unmodified-loop-condition',
-    description: 'Generated from oxlint\'s `eslint/no-unmodified-loop-condition` rule (category: suspicious). No Unmodified Loop Condition.',
   },
   {
     id: 'suspicious.no-unnecessary-boolean-literal-compare',
@@ -5048,12 +4790,6 @@ export const GENERATED_CONCEPTS = [
     group: 'suspicious',
     title: 'unicorn/prefer-add-event-listener',
     description: 'Generated from oxlint\'s `unicorn/prefer-add-event-listener` rule (category: suspicious). Prefer Add Event Listener.',
-  },
-  {
-    id: 'suspicious.preserve-caught-error',
-    group: 'suspicious',
-    title: 'preserve-caught-error',
-    description: 'Generated from oxlint\'s `eslint/preserve-caught-error` rule (category: suspicious). Preserve Caught Error.',
   },
   {
     id: 'suspicious.react-in-jsx-scope',
