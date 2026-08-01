@@ -70,6 +70,19 @@ test('filters to concepts a specific engine currently owns', () => {
   expect(rows).toEqual([])
 })
 
+test('marks a language mismatch distinctly from a genuine coverage gap, without marking it uncovered', () => {
+  // Reproduces the real shape found running this against the actual CLI: `recommended` enables
+  // plenty of JSX/Vue-scoped concepts a plain TypeScript repository's file set never exercises.
+  // `owner` is null (no candidate is actually applicable here) but this is not a coverage gap, so
+  // `uncovered` must stay false — the same distinction `elect.ts`'s own tests already prove at the
+  // `ElectionResult` level, checked here at the `RulesListEntry` level a renderer actually reads.
+  const vueOnly = entry({ engine: 'oxlint', engineRuleId: 'vue-rule', concepts: ['style.no-var'], languages: ['vue'] })
+  const rows = buildRulesList(resolved({ rules: { 'style.no-var': 'warn' } }, [vueOnly]))
+
+  expect(rows).toHaveLength(1)
+  expect(rows[0]).toMatchObject({ owner: null, uncovered: false, languageMismatch: true })
+})
+
 test('filters to uncovered concepts only', () => {
   const requiresTypes = entry({ engine: 'oxlint', engineRuleId: 'typed', concepts: ['slop.as-any-cast'], requires: ['types'] })
   const rows = buildRulesList(

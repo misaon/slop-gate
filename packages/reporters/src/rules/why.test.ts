@@ -106,6 +106,10 @@ test('explains a type-aware candidate blocked on a missing capability, citing th
 })
 
 test('explains a language mismatch without implying a genuine coverage gap', () => {
+  // Reproduces a real bug found running this against the actual registry: the owner section used
+  // to print nothing at all for this state (neither the "Owner:" nor the "Uncovered" branch
+  // fired), and the closing verdict claimed "no capable engine owns it" — indistinguishable from a
+  // real gap. Both are fixed to say plainly that this is not a coverage gap.
   const output = capture(
     explanation({
       concept: 'style.no-var',
@@ -115,6 +119,15 @@ test('explains a language mismatch without implying a genuine coverage gap', () 
     }),
   )
   expect(output).toMatch(/no files in a language this rule applies to/)
+  expect(output).toMatch(/not applicable/i)
+  expect(output).not.toMatch(/uncovered/i)
+  expect(output).toMatch(/no matching-language files in this repository/i) // the closing verdict
+
+  // The verdict line must actually fit the frame at the default width, unlike the first version of
+  // this fix (91 characters against a 78-column budget), which truncated mid-sentence.
+  const verdictLine = output.split('\n').find((line) => line.includes('Produces no findings'))
+  expect(verdictLine).toBeDefined()
+  expect(verdictLine).not.toContain('…')
 })
 
 test('reports a concept serviced by slop-gate itself distinctly from an ordinary uncovered concept', () => {

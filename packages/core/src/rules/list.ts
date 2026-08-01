@@ -16,6 +16,17 @@ export type RulesListEntry = {
   owner: RuleRef | null
   servicedBySlopGate: boolean
   uncovered: boolean
+  /**
+   * True when `owner` is null for a reason *other* than a genuine coverage gap: this repository
+   * simply contains no files in a language any candidate applies to (see `ElectionResult.uncovered`'s
+   * own doc comment — the same distinction, read here rather than re-derived: an enabled,
+   * non-serviced concept with no owner is uncovered unless this is set, and never both). Verified
+   * running the real CLI on this repository: 173 of `recommended`'s 271 enabled concepts land here
+   * — mostly JSX/Vue/accessibility rules a TypeScript CLI's own file set never exercises — and
+   * rendering them as a bare "(no elected owner)" reads as a bug, not the expected, harmless gap it
+   * actually is.
+   */
+  languageMismatch: boolean
   /** How many other candidates lost arbitration for this concept — `election.suppressed` entries
    *  naming it, not a boolean, so a listing can distinguish "one overlap" from "four". */
   suppressedCount: number
@@ -52,14 +63,20 @@ export function buildRulesList(resolved: ResolvedRun, options: RulesListOptions 
     if (options.engine !== undefined && owner?.engine !== options.engine) continue
     const uncovered = resolved.election.uncovered.includes(concept)
     if (options.uncoveredOnly === true && !uncovered) continue
+    const servicedBySlopGate = SLOP_GATE_SERVICED_CONCEPTS.has(concept)
 
     entries.push({
       concept,
       group: concept.split('.')[0]!,
       level: resolved.resolver.maxLevelOf(concept) as Exclude<RuleLevel, 'off'>,
       owner,
-      servicedBySlopGate: SLOP_GATE_SERVICED_CONCEPTS.has(concept),
+      servicedBySlopGate,
       uncovered,
+      // Necessarily the case whenever a non-serviced concept has no owner and is not uncovered:
+      // `electOwners` only ever leaves both false when some candidate is fully capable (engine
+      // participates, no missing capability, not deprecated) and fails solely on language — the
+      // exact condition that keeps a concept out of `uncovered` in the first place.
+      languageMismatch: owner === null && !uncovered && !servicedBySlopGate,
       suppressedCount: suppressedCounts.get(concept) ?? 0,
       enablement: resolveEnablement(resolved.resolver, concept),
     })

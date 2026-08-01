@@ -26,11 +26,16 @@ function enablementTag(entry: RulesListEntry): string {
 
 function ownerText(entry: RulesListEntry, paint: FrameKit['paint']): string {
   if (entry.servicedBySlopGate) return 'emitted by slop-gate itself'
-  if (entry.uncovered) return 'uncovered — no capable engine in this repo'
-  // Unreachable given today's `electOwners` contract (see `ElectionResult.ineligible`'s doc
-  // comment: an enabled, non-serviced concept is always either owned or uncovered) — kept so this
-  // function still produces *something* legible if that contract is ever loosened, rather than
-  // rendering `undefined`.
+  if (entry.uncovered) return paint('yellow', 'uncovered — no capable engine in this repo')
+  // The common case in practice, not a rare corner: verified running this against the real CLI,
+  // `recommended`'s 271 enabled concepts include well over a hundred JSX/Vue/framework-scoped ones
+  // this repository's own TypeScript file set never exercises. Rendering that as a bare "no owner"
+  // reads as a bug; it is the documented, harmless distinction `ElectionResult.uncovered` itself
+  // draws (see `RulesListEntry.languageMismatch`).
+  if (entry.languageMismatch) return paint('dim', 'not applicable — no files here in a language this covers')
+  // Unreachable given today's `electOwners` contract (owner null, not uncovered, not serviced and
+  // not a language mismatch cannot occur together) — kept so this function still produces
+  // *something* legible if that contract is ever loosened, rather than rendering `undefined`.
   if (entry.owner === null) return paint('dim', '(no elected owner)')
   return ruleRefKey(entry.owner)
 }
@@ -80,6 +85,7 @@ export function renderRulesListPretty(entries: readonly RulesListEntry[], contex
   }
 
   const uncoveredCount = entries.filter((entry) => entry.uncovered).length
+  const languageMismatchCount = entries.filter((entry) => entry.languageMismatch).length
   const overlapCount = entries.reduce((sum, entry) => sum + entry.suppressedCount, 0)
 
   const footer = [`  ${plural(entries.length, 'enabled concept')}`]
@@ -89,6 +95,11 @@ export function renderRulesListPretty(entries: readonly RulesListEntry[], contex
   if (uncoveredCount > 0) {
     footer.push(
       `  ${paint('yellow', `${plural(uncoveredCount, 'enabled concept')} ${uncoveredCount === 1 ? 'has' : 'have'} no capable engine in this repo.`)}`,
+    )
+  }
+  if (languageMismatchCount > 0) {
+    footer.push(
+      `  ${paint('dim', `${plural(languageMismatchCount, 'enabled concept')} ${languageMismatchCount === 1 ? 'is' : 'are'} not applicable — no matching-language files here.`)}`,
     )
   }
   writeUnit([frameTop(), ...footer.map((line) => frameRow(line)), frameBottom()])

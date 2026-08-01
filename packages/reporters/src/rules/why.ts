@@ -86,6 +86,22 @@ function ineligibilityText(record: IneligibleCandidate): string {
 }
 
 /**
+ * True when `owner` is undefined for a reason *other* than a genuine coverage gap: every
+ * ineligible candidate recorded for this concept failed only on language. Mirrors
+ * `RulesListEntry.languageMismatch` (core), computed here instead of carried as its own field —
+ * `why`, unlike `list`, already has the full `ineligible` array for this one concept, so checking
+ * it directly is reading a recorded fact, not re-deriving one.
+ */
+function isLanguageMismatch(explanation: ConceptWhy): boolean {
+  return (
+    explanation.owner === undefined &&
+    !explanation.uncovered &&
+    !explanation.servicedBySlopGate &&
+    explanation.ineligible.some((record) => record.reason === 'language-mismatch')
+  )
+}
+
+/**
  * The one-line bottom-line `why`'s closing frame always carries — the thing a reader who skipped
  * straight to the bottom still needs: does this concept produce findings right now, and through
  * what. Every other section explains *why* the verdict is what it is; this is the verdict itself.
@@ -94,6 +110,9 @@ function verdict(explanation: ConceptWhy): string {
   if (explanation.servicedBySlopGate) return 'Emitted by slop-gate itself, not by any engine rule.'
   if (!explanation.enablement.enabled) return 'Produces no findings: not enabled by any layer.'
   if (explanation.owner !== undefined) return `Produces findings via \`${ruleRefKey(explanation.owner)}\`.`
+  if (isLanguageMismatch(explanation)) {
+    return 'Produces no findings: no matching-language files in this repository.'
+  }
   return 'Produces no findings: enabled, but no capable engine owns it in this run.'
 }
 
@@ -152,6 +171,8 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
       writeUnit([`  ${glyph}  Owner: ${paint('bold', ruleRefKey(explanation.owner))}${tier === undefined ? '' : ` (tier ${tier})`}`])
     } else if (explanation.uncovered) {
       writeUnit([`  ${paint('yellow', 'Uncovered')} — no capable engine in this run owns this concept.`])
+    } else if (isLanguageMismatch(explanation)) {
+      writeUnit([`  ${paint('dim', 'Not applicable')} — no files here in a language this concept covers. Not a coverage gap.`])
     }
 
     if (explanation.suppressed.length > 0) {
