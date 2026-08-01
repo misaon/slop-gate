@@ -345,6 +345,10 @@ and the segments independently.
   by a test. Same for `SlopGateConfig.workspaces` and `engines`, both of which type-check and do
   nothing — and `engines: { eslint: { enabled: 'auto' } }` appears in the spec's own example config.
   Either an M1 line item or a documented limitation; right now it is neither.
+- **Nothing can document the directive syntax inside a file the tool scans.** An escape marker, a
+  doc-comment heuristic, or accepting it — costed in "Found removing slop-gate's own suppression
+  noise" at the end of this document, deliberately left unpicked there because the cleanup that
+  surfaced it is not the evidence it should be decided on.
 - **oxlint's `--rules` output spells two scopes with underscores** (`jsx_a11y`, `react_perf`) while
   the diagnostic `code` field hyphenates them. A future registry entry for those scopes must use the
   hyphenated form, which is what the parser accepts.
@@ -475,6 +479,16 @@ genuine findings the same self-check surfaced (a shadowed `source` binding acros
 cases in `normalize.test.ts`, and a needlessly-renewed-per-run `isVisible` closure in `check.ts` —
 both instances of concepts already in the registry) were real defects in the new code and were fixed,
 not suppressed.
+
+**Update, self-inflicted-noise session — the "left as is" decision above was reversed.** It held that
+the noise was harmless and that hiding it would hide the evidence that the documented trade-off is
+real. The first half stopped being true once the count reached 45 of 66: warn-level or not, it made
+every measurement taken against this repository mostly a measurement of our own fixtures, and no
+reader could tell a new phantom from a regression. The second half was answered rather than
+overruled — the evidence now lives in a named assertion in `suppressions/parse.test.ts` instead of in
+ambient warnings, which is a stronger proof of the same fact. See "Found removing slop-gate's own
+suppression noise" at the end of this document for the measurement and for the product gap it left
+undecided.
 
 ---
 
@@ -682,6 +696,12 @@ it does not have. Until then the branch's own rule holds: **this change adds zer
 `sgate check` on this repository** (65 before, 65 after), and that was verified against a clean
 checkout rather than assumed.
 
+**Update, self-inflicted-noise session:** the pre-existing phantoms this entry describes are gone —
+all 41, plus 4 `config.suppression-missing-reason` riding on the same lines. The rule this entry set
+("assemble the token from parts, with a comment saying so") is now the whole repository's, not just
+new tests'. The lexer question is still open and is now written up as a decision with its options
+costed; see the last section of this document.
+
 ### A directive naming another engine's concept was reported as unused — fixed, with one case left
 
 The defect and the fix are in §14 and in `judgedBy` (`engine/normalize.ts`). What is left:
@@ -856,6 +876,10 @@ Until now this cost was confined to test fixtures (see "One thing M0 does not de
 now reached a source file whose *purpose* is to name the directive, and any documentation generator,
 help text or error message that does the same will hit it. That raises the price of the parser
 knowing nothing about comments and strings from "noisy fixtures" to "cannot mention its own syntax".
+
+**Update, self-inflicted-noise session:** this framing turned out to be the durable one, and it is
+now carried forward as an open decision with its options costed — see the last section of this
+document. The splice this entry introduced became the repository-wide answer in the meantime.
 
 ### The budget floor is group headers, and that is deliberate
 
@@ -1106,3 +1130,63 @@ The thing not to do is smuggle it in by leaving actionlint's integration on. Tha
 findings without its registry entries, without a concept mapping, without `sgate rules why` being
 able to explain any of them, and without anything noticing when it is absent — which is the whole
 class of problem this milestone's work exists to close.
+
+---
+
+## Found removing slop-gate's own suppression noise
+
+### Measured: two thirds of what the tool said about this repository was about its own fixtures
+
+`sgate check` reported **66 findings, 45 of them self-inflicted** — 41 `config.unused-suppression`
+and 4 `config.suppression-missing-reason`, every one from a file containing directive text as test
+data or as a doc comment showing a reader the syntax. Distribution: `suppressions/parse.test.ts` 21,
+`engine/normalize.test.ts` 9, `run/check.test.ts` 6, and one doc comment each in
+`suppressions/parse.ts` (3 example lines), `run/check.ts` and `engine-knip/src/parse.ts`.
+
+The 37 fixture sites now splice the token — `` `sgate-disable${'-next-line'}` ``, the idiom
+`reporters/src/agent.ts` established — and the 4 doc comments name the `sgate-disable-*` family and
+leave the exact spelling to the spec and `docs/rules/`. **After: 21 findings, zero `config.*`.**
+
+Two things worth keeping from the verification rather than the result:
+
+- The 4 `config.suppression-missing-reason` findings sat on the *same lines* as 4 of the 41, so they
+  went too. Predicting "66 − 41 = 25" would have been wrong by four, and wrong in the direction that
+  looks like success. The number above is the tool's, not arithmetic.
+- The remaining 21 were checked to be the same 21 the baseline had, by `concept|file:line:column`,
+  not by count. A refactor of two dozen fixtures could equally have *silenced* a real finding, and a
+  matching total would not have shown it.
+
+### The gap underneath: nothing can document the directive syntax in a scanned file
+
+Splicing is a workaround at each site, not a fix, and the gap it works around is not only ours. **A
+user documenting slop-gate in a `.ts` file — a linting guide's code sample, a help string, an error
+message, a comment explaining a team convention — hits exactly what we hit.** The answer today is
+"write it in Markdown, or break the token apart with a template literal", and neither is something
+anyone would guess. Every one of our own sites needed a comment explaining the trick; that is the
+tell.
+
+Three options, deliberately not chosen here — this wants deciding on its own evidence, not as a side
+effect of a cleanup:
+
+- **An escape marker.** A spelling that means "the token after this is quoted, not live": a leading
+  backslash (`\sgate-disable-…`), or a file-level opt-out header. Cheap and language-agnostic, which
+  is the whole appeal, and it keeps the parser knowing nothing about comments. Costs: one more thing
+  to document and to spell right, and a marker that can be forgotten fails in the one direction that
+  matters — the file goes on carrying a live directive nobody can see. A file-level header is worse
+  than a per-line escape for exactly that reason: it silently covers directives added later.
+- **A doc-comment heuristic.** Ignore the token inside a fenced code block, or on a line inside a
+  `/** … */`. This costs the design more than it costs code: §6.3's defence of whole-line scanning is
+  that *not* knowing comment syntax is what keeps the parser working unchanged into M2's
+  `#`-commented languages. Partial comment-awareness that handles `/** */` but not a shell heredoc is
+  the worst of both, and it sits on the path deciding what gets hidden from a user, where being
+  subtly wrong is expensive and silent.
+- **Accept it**, as ESLint and oxlint do. Defensible, but the honest accounting is that it was
+  accepted once already (see "One thing M0 does not demonstrate") and the cost then arrived as 45
+  findings, a production source file (`agent.ts`), four ast-grep `note` strings reworded, and this
+  cleanup. Accepting it again means accepting that anyone who writes about the syntax pays a tax they
+  have to be warned about first.
+
+Settled either way: the *evidence* for the trade-off belongs in an assertion, not in ambient noise.
+`suppressions/parse.test.ts` pins "a token inside a string literal is a directive" as a named test.
+Forty-five warnings nobody can tell apart from a regression are a worse proof of the same fact — and
+that they were the proof was the argument for leaving them.

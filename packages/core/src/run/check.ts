@@ -451,7 +451,7 @@ type ProjectAssignmentContext = {
  *   case: it ignores `batch.files` entirely and passes no file arguments to `tsc -p` at all).
  * - **Every assigned file still gets scanned for suppressions**, matching the file-granularity loop's
  *   own "no `fileRaws.length === 0` shortcut" rule (see that loop's comment): a stale
- *   `sgate-disable-next-line` on a file the engine now reports nothing for is exactly the case
+ *   `sgate-disable-*` directive on a file the engine now reports nothing for is exactly the case
  *   `config.unused-suppression` exists to catch, project engines included.
  * - **A raw diagnostic for a file outside `assignment.files` is kept, not dropped** — e.g. a project
  *   engine reporting against its own config file (`tsconfig.json` itself, for a malformed-option

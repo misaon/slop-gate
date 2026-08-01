@@ -1,11 +1,14 @@
 /**
- * Inline suppression directives (design spec §6.3):
+ * Inline suppression directives (design spec §6.3). Three kinds, all in the `sgate-disable-*` family:
+ * `-next-line` silences a finding on the line after the comment, `-line` on the line the comment
+ * itself sits on, `-file` anywhere in the file. Each takes zero or more targets and a `-- reason`.
  *
- * ```ts
- * // sgate-disable-next-line slop.as-any-cast -- upstream types are wrong, see #482
- * const x = y as any                          // sgate-disable-line -- reason
- * // sgate-disable-file correctness.no-debugger -- intentional in this fixture
- * ```
+ * **The worked examples live in the spec (§6.3) and in `docs/rules/*.md`, not here**, and the reason
+ * is this file's own behaviour: the token is matched anywhere in a line, so source that spells a
+ * directive out in full *is* carrying that directive. Three example lines in this header were three
+ * real `config.unused-suppression` findings against this file on every run. Markdown is not scanned;
+ * source is. See the M0 follow-ups entry on documenting the syntax — there is no escape marker yet,
+ * so pointing at the docs is the whole of the answer available today.
  *
  * The token is matched anywhere in a line rather than by parsing each language's own comment
  * syntax — M0 only analyses script files, but `#`-commented languages (shell, Docker, YAML) arrive
