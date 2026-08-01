@@ -24,6 +24,11 @@ type StatEntry = { size: number; mtimeMs: number; hash: string }
  * being actively edited never is, so a just-written file is re-read until it settles. The cost is
  * bounded to files touched within the window — in practice the handful the developer just saved —
  * and it is self-healing: no state has to be invalidated for a file to become cacheable again.
+ *
+ * 2s is the calibrated value, not a round one. FAT is the binding case at two-second write-time
+ * accuracy (NTFS resolves to 100ns), and it truncates to the granule rather than rounding, so a file
+ * reporting mtime `T` may have been written as late as `T + 2000` — past which no write can still
+ * share that timestamp. Halving this would leave half of FAT's granule exposed.
  */
 const RACY_WINDOW_MS = 2_000
 

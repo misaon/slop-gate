@@ -3,7 +3,7 @@ import { defaultEngines } from './engines.ts'
 
 test('registers exactly the engines a real check run uses', () => {
   const engines = defaultEngines(process.cwd())
-  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc'])
+  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip'])
 })
 
 test('returns a fresh engine instance each call, not a shared singleton', () => {
@@ -18,5 +18,14 @@ test('binds each engine to the given rootDir, not a fixed default', () => {
   // `rootDir` — passing a different directory must produce a distinctly-configured engine, not one
   // that silently ignores the argument.
   const engines = defaultEngines('/some/other/project')
-  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc'])
+  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip'])
+})
+
+test('passes the discovered config file through so knip does not report it as unused', () => {
+  // knip reports `slop-gate.config.ts` as an unused file on every repository that has one — nothing
+  // imports a config loaded by path at runtime. The CLI is the only layer that knows where the config
+  // was actually found (`loadCliConfig`), so it is the only layer that can tell the adapter.
+  const withConfig = defaultEngines(process.cwd(), 'slop-gate.config.ts')
+  const withoutConfig = defaultEngines(process.cwd())
+  expect(withConfig.map((engine) => engine.id)).toEqual(withoutConfig.map((engine) => engine.id))
 })
