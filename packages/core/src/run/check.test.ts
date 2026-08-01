@@ -365,6 +365,14 @@ test('an engine that provides a capability lets a capability-requiring rule be e
 
 // --- Inline suppressions (design spec §6.3) -------------------------------------------------------
 
+// Spliced rather than written whole — the same idiom, for the same reason, as
+// `reporters/src/agent.ts`. `parseSuppressions` scans raw text with no notion of comments or string
+// literals, so a fixture that spells the token out verbatim is a real directive as far as
+// `sgate check` on this repository is concerned, reported as `config.unused-suppression` against this
+// file. Only the source text is broken: the value is byte-for-byte the real token, which is the
+// point — these tests write fixture files a real run then has to parse.
+const NEXT_LINE = `sgate-disable${'-next-line'}`
+
 // A function, not a top-level constant: `baseOptions()` reads `dir`, which `beforeEach` only sets
 // once a test is actually running — evaluating this eagerly at module load time would run before
 // any `dir` exists at all.
@@ -376,7 +384,7 @@ const withUnusedSuppressionOn = () => ({
 })
 
 test('a suppressed finding is hidden from the default result and does not count toward severity totals', async () => {
-  const source = '// sgate-disable-next-line correctness.no-debugger -- reason\ndebugger\n'
+  const source = `// ${NEXT_LINE} correctness.no-debugger -- reason\ndebugger\n`
   await writeFile(join(dir, 'src/a.ts'), source)
   const offset = source.lastIndexOf('debugger')
 
@@ -393,7 +401,7 @@ test('an unused-suppression diagnostic is served from the cache, not recomputed,
   // The comment targets a concept this file never actually reports (the file is otherwise clean),
   // so the directive is unused from the very first run — the scenario `fileRaws.length === 0` used
   // to short-circuit past entirely (see the comment in check.ts this test guards).
-  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line correctness.no-debugger -- stale, fixed in #1\nconst clean = 1\n')
+  await writeFile(join(dir, 'src/a.ts'), `// ${NEXT_LINE} correctness.no-debugger -- stale, fixed in #1\nconst clean = 1\n`)
   let runs = 0
   const engine = () => stubEngine({ onRun: () => (runs += 1) })
 
@@ -410,7 +418,7 @@ test('a zero-finding file is still scanned for a stale suppression on a cold run
   // Same fixture as above, but asserted against a single cold run: proves the detection does not
   // depend on having already primed anything via a previous call — the very first `runCheck` must
   // already read this file's source and parse it, even though the engine reports nothing for it.
-  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line correctness.no-debugger -- stale\nconst clean = 1\n')
+  await writeFile(join(dir, 'src/a.ts'), `// ${NEXT_LINE} correctness.no-debugger -- stale\nconst clean = 1\n`)
   const result = await runCheck({ ...withUnusedSuppressionOn(), engines: [stubEngine({})] })
 
   expect(result.diagnostics).toHaveLength(1)
@@ -418,7 +426,7 @@ test('a zero-finding file is still scanned for a stale suppression on a cold run
 })
 
 test('removing the suppression comment invalidates the cache and reveals the finding it was hiding', async () => {
-  const suppressed = '// sgate-disable-next-line correctness.no-debugger -- reason\ndebugger\n'
+  const suppressed = `// ${NEXT_LINE} correctness.no-debugger -- reason\ndebugger\n`
   await writeFile(join(dir, 'src/a.ts'), suppressed)
   const suppressedOffset = suppressed.lastIndexOf('debugger')
   const options = { ...baseOptions(), engines: [stubEngine({ findings: [{ ...debuggerFinding('src/a.ts'), range: { start: suppressedOffset, end: suppressedOffset + 8 } }] })] }
@@ -562,7 +570,7 @@ test('a project engine re-runs after its own ruleset hash changes, even with no 
 })
 
 test('a project engine clean file is still scanned for a stale suppression on a cold run', async () => {
-  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line types.type-error -- stale\nconst clean = 1\n')
+  await writeFile(join(dir, 'src/a.ts'), `// ${NEXT_LINE} types.type-error -- stale\nconst clean = 1\n`)
   const result = await runCheck({
     ...projectOptions(),
     config: { rules: { 'types.type-error': 'error', 'config.unused-suppression': 'warn' } } as never,
@@ -604,7 +612,7 @@ test('toggling config.unused-suppression itself invalidates the cache and change
   // rule's *own* level changes, not just when a rule it detects changes — otherwise a warm run
   // would keep serving a suppression's cached "unused" verdict from before the concept was turned
   // off, or keep hiding it after turning it on, regardless of what the current config says.
-  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line correctness.no-debugger -- stale\nconst clean = 1\n')
+  await writeFile(join(dir, 'src/a.ts'), `// ${NEXT_LINE} correctness.no-debugger -- stale\nconst clean = 1\n`)
 
   const on = await runCheck({ ...withUnusedSuppressionOn(), engines: [stubEngine({})] })
   const off = await runCheck({

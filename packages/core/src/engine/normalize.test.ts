@@ -167,15 +167,25 @@ test('maps raw severities that have no resolved level', () => {
 })
 
 // --- Inline suppressions (design spec §6.3) ------------------------------------------------------
-// These deliberately bypass the shared `run()` helper above: it always serves the module-level
-// `source` constant regardless of the file argument (`sourceOf: () => source`), which is fine for
+// The three directive tokens, spliced rather than written whole — the same idiom, for the same
+// reason, as `reporters/src/agent.ts`. `parseSuppressions` scans raw text with no notion of comments
+// or string literals, so a fixture that spells a token out verbatim is a real directive as far as
+// `sgate check` on this repository is concerned, reported as `config.unused-suppression` against this
+// file. Only the source text is broken: each value below is byte-for-byte the real token, which is
+// the point — these tests must drive normalization with exactly what a user writes.
+const NEXT_LINE = `sgate-disable${'-next-line'}`
+const LINE = `sgate-disable${'-line'}`
+const FILE = `sgate-disable${'-file'}`
+
+// The tests below deliberately bypass the shared `run()` helper above: it always serves the
+// module-level `source` constant regardless of the file argument (`sourceOf: () => source`), fine for
 // every test above (none of them care what the source text says) but wrong here, where the
 // suppression comment's exact text is the point of the test. Each test below declares its own local
 // `fileSource` instead — a distinct name, not `source` again, specifically so it does not shadow the
 // module-level constant (oxlint's own `no-shadow` rightly flags that, see correctness.shadows-outer-binding).
 
 test('marks a matching finding as suppressed instead of dropping it', () => {
-  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- test reason\ndebugger\n'
+  const fileSource = `// ${NEXT_LINE} correctness.no-debugger -- test reason\ndebugger\n`
   // `lastIndexOf`, not `indexOf`: the directive's own text contains "debugger" as a substring of
   // "no-debugger", which `indexOf` would find first — the real statement is the *last* occurrence.
   const debuggerOffset = fileSource.lastIndexOf('debugger')
@@ -194,7 +204,7 @@ test('marks a matching finding as suppressed instead of dropping it', () => {
 })
 
 test('disable-line suppresses a finding on the same line as the comment', () => {
-  const fileSource = 'debugger // sgate-disable-line correctness.no-debugger -- test reason\n'
+  const fileSource = `debugger // ${LINE} correctness.no-debugger -- test reason\n`
 
   const [only] = normalizeDiagnostics({
     engine: 'oxlint',
@@ -209,7 +219,7 @@ test('disable-line suppresses a finding on the same line as the comment', () => 
 })
 
 test('disable-file suppresses a matching finding anywhere in the file', () => {
-  const fileSource = '// sgate-disable-file correctness.no-debugger -- test reason\n\n\n\ndebugger\n'
+  const fileSource = `// ${FILE} correctness.no-debugger -- test reason\n\n\n\ndebugger\n`
   const debuggerOffset = fileSource.lastIndexOf('debugger')
   // The real statement is genuinely on a later line, not just the last string occurrence — this is
   // the property that distinguishes `disable-file` (line-agnostic) from the `disable-next-line`
@@ -230,7 +240,7 @@ test('disable-file suppresses a matching finding anywhere in the file', () => {
 })
 
 test('a directive naming a different concept does not suppress this finding', () => {
-  const fileSource = "// sgate-disable-next-line dead-code.unused-variable -- reason\ndebugger\n"
+  const fileSource = `// ${NEXT_LINE} dead-code.unused-variable -- reason\ndebugger\n`
   const debuggerOffset = fileSource.lastIndexOf('debugger')
 
   const [only] = normalizeDiagnostics({
@@ -246,7 +256,7 @@ test('a directive naming a different concept does not suppress this finding', ()
 })
 
 test('emits config.unused-suppression when a directive matches nothing', () => {
-  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- reason\nconst ok = 1\n'
+  const fileSource = `// ${NEXT_LINE} correctness.no-debugger -- reason\nconst ok = 1\n`
 
   const result = normalizeDiagnostics({
     engine: 'oxlint',
@@ -270,7 +280,7 @@ test('emits config.unused-suppression when a directive matches nothing', () => {
 })
 
 test('does not emit config.unused-suppression when its own level is off', () => {
-  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- reason\nconst ok = 1\n'
+  const fileSource = `// ${NEXT_LINE} correctness.no-debugger -- reason\nconst ok = 1\n`
 
   const result = normalizeDiagnostics({
     engine: 'oxlint',
@@ -289,7 +299,7 @@ test('a directive in a file with zero raws is invisible without suppressionScanF
   // Pins the contract `run/check.ts` relies on: a file an engine reports nothing for never
   // otherwise appears to this function at all, so a stale suppression comment in it would
   // silently go undetected unless the caller explicitly names the file here.
-  const fileSource = '// sgate-disable-next-line correctness.no-debugger -- reason\nconst ok = 1\n'
+  const fileSource = `// ${NEXT_LINE} correctness.no-debugger -- reason\nconst ok = 1\n`
 
   const result = normalizeDiagnostics({
     engine: 'oxlint',
@@ -304,7 +314,7 @@ test('a directive in a file with zero raws is invisible without suppressionScanF
 })
 
 test('emits config.suppression-missing-reason for a directive with no reason, without un-suppressing it', () => {
-  const fileSource = '// sgate-disable-next-line correctness.no-debugger\ndebugger\n'
+  const fileSource = `// ${NEXT_LINE} correctness.no-debugger\ndebugger\n`
   const debuggerOffset = fileSource.lastIndexOf('debugger')
 
   const result = normalizeDiagnostics({
@@ -328,7 +338,7 @@ test('emits config.suppression-missing-reason for a directive with no reason, wi
 })
 
 test('a multi-target directive is not unused when only one of its targets matches', () => {
-  const fileSource = '// sgate-disable-next-line correctness.no-debugger, dead-code.unused-variable -- reason\ndebugger\n'
+  const fileSource = `// ${NEXT_LINE} correctness.no-debugger, dead-code.unused-variable -- reason\ndebugger\n`
   const debuggerOffset = fileSource.lastIndexOf('debugger')
 
   const result = normalizeDiagnostics({
