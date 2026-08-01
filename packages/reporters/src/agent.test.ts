@@ -119,6 +119,21 @@ test('a rule the run arbitrated against decides the tier, not the shipped regist
   expect(narrowed).toContain('## judgement')
 })
 
+test('a concept whose findings do not all carry a declared fix is judgement, not automated', () => {
+  // Arbitration elects one owning rule per concept, so this shape does not arise in a real run — but
+  // the fold has to fail closed if it ever does. An agent told `sgate fix` has a finding covered
+  // leaves it alone, and nothing comes back for it.
+  const output = capture([
+    done([
+      diagnostic({ concept: 'correctness.no-useless-spread', ruleId: 'oxlint/unicorn/no-useless-spread' }),
+      diagnostic({ concept: 'correctness.no-useless-spread', ruleId: 'oxlint/vitest/no-conditional-expect', file: 'src/b.ts' }),
+    ]),
+  ])
+
+  expect(output).not.toContain('## automated')
+  expect(output).toContain('rule: oxlint/unicorn/no-useless-spread, oxlint/vitest/no-conditional-expect')
+})
+
 test('states the reason once per concept instead of once per finding', () => {
   const output = capture([
     done(

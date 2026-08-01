@@ -3,6 +3,7 @@ import {
   compareStrings,
   conceptById,
   encodeUtf8,
+  FIX_TIER_RANK,
   GENERATED_CONCEPT_IDS,
   isConceptId,
   RULE_ENTRIES,
@@ -180,12 +181,9 @@ function buildGroups(result: CheckResult, context: ReporterContext, entries: rea
 
   const groups: Group[] = []
   for (const [concept, diagnostics] of collected) {
-    const entry = byRuleId.get(diagnostics[0]!.ruleId)
-    // A concept with no registry entry is one slop-gate emits itself (`config.unused-suppression`
-    // and friends have no `RuleEntry` at all), and an entry declaring `'none'` is the registry
-    // saying no fix for this rule is trusted. Both mean the same thing to an agent, so both land on
-    // the judgement side rather than being distinguished for the sake of it.
-    const tier = entry === undefined || entry.fixKind === 'none' ? null : entry.fixKind
+    const ruleIds = [...new Set(diagnostics.map((diagnostic) => diagnostic.ruleId))].sort(compareStrings)
+    const rules = ruleIds.map((ruleId) => byRuleId.get(ruleId))
+    const tier = groupTier(rules)
 
     const severities = new Map<Severity, number>()
     for (const diagnostic of diagnostics) severities.set(diagnostic.severity, (severities.get(diagnostic.severity) ?? 0) + 1)
@@ -204,8 +202,8 @@ function buildGroups(result: CheckResult, context: ReporterContext, entries: rea
       concept,
       section: tier === null ? 'judgement' : 'automated',
       tier,
-      fixTouches: entry?.fixTouches ?? [],
-      ruleIds: [...new Set(diagnostics.map((diagnostic) => diagnostic.ruleId))].sort(compareStrings),
+      fixTouches: [...new Set(rules.flatMap((rule) => rule?.fixTouches ?? []))].sort(compareStrings),
+      ruleIds,
       severities,
       primarySeverity: SEVERITY_ORDER.find((severity) => severities.has(severity)) ?? 'info',
       files: new Set(diagnostics.map((diagnostic) => diagnostic.file ?? CONFIG_LOCATION)),
@@ -218,6 +216,28 @@ function buildGroups(result: CheckResult, context: ReporterContext, entries: rea
   }
 
   return groups.sort(compareGroups)
+}
+
+/**
+ * The tier to promise for a concept, or `null` for "this needs judgement".
+ *
+ * A missing entry is not "unknown, skip it": every `slop-gate/config.*` concept the orchestrator
+ * emits itself has no `RuleEntry` at all, and those are among the largest groups on a real run. It
+ * means the same thing to an agent as a declared `'none'` — nothing will rewrite this for you — so
+ * both land on the judgement side.
+ *
+ * Arbitration elects one owning rule per concept, so `rules` has one element in every real run. The
+ * fold is written for more anyway, and it fails *closed*: one unfixable rule makes the whole group
+ * judgement. Over-promising is the expensive direction — an agent told `sgate fix` has a finding
+ * covered will leave it alone, and nothing will ever come back for it.
+ */
+function groupTier(rules: readonly (RuleEntry | undefined)[]): FixKind | null {
+  let highest: FixKind | null = null
+  for (const rule of rules) {
+    if (rule === undefined || rule.fixKind === 'none') return null
+    if (highest === null || FIX_TIER_RANK[rule.fixKind] > FIX_TIER_RANK[highest]) highest = rule.fixKind
+  }
+  return highest
 }
 
 /**
