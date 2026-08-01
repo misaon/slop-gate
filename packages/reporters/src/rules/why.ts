@@ -280,7 +280,15 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     }
   }
 
-  writeUnit([frameTop(), frameRow(`  ${verdict(explanation)}`), frameBottom()])
+  // Wrapped, not truncated. The verdict is the one line a reader who skipped everything else still
+  // gets, and a concept split across engines by language names two rules and their languages in it —
+  // measured at 96 characters for `correctness.parse-error` on this repository, well past any frame.
+  // Cutting the sentence off mid-word would lose exactly the half that the split makes interesting.
+  writeUnit([
+    frameTop(),
+    ...wrapText(verdict(explanation), Math.max(1, inner - 2)).map((line) => frameRow(`  ${line}`)),
+    frameBottom(),
+  ])
 }
 
 export function renderRulesWhyJson(explanation: ConceptWhy, context: RulesReporterContext): void {

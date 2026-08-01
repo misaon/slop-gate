@@ -578,34 +578,12 @@ export const HAND_WRITTEN_CONCEPTS = [
       'JavaScript identifiers cannot contain emoji: they are excluded from `ID_Start`/`ID_Continue`, ' +
       'so the only place one can appear in JS or TS is a string.',
   },
-  // The three concepts below are the `schema` engine's (`packages/engine-schema`) and are the first
-  // in this group that an engine owns rather than the orchestrator — none of them carries
-  // `servicedBySlopGate`. They live under `config` rather than `correctness` because they are about
-  // the health of a configuration document, and because putting them under `correctness` would have
-  // meant claiming concepts oxlint already owns: arbitration elects **one owner per concept for the
-  // whole repository**, so a `schema` rule claiming `correctness.parse-error` or
-  // `correctness.no-duplicate-object-key` would lose to oxlint's tier-0 entry in any repository that
-  // also contains TypeScript, and YAML would silently go unchecked. Verified directly against
-  // `electOwners`. See the M0 follow-ups for the underlying limitation.
-  {
-    id: 'config.malformed-document',
-    group: 'config',
-    title: 'Malformed configuration document',
-    description:
-      'A configuration file could not be parsed, so whatever reads it at deploy or build time will ' +
-      'fail on it too. Covers a syntax error, a tab used as indentation (which YAML forbids outright) ' +
-      'and an alias referring to an anchor that is never defined.',
-  },
-  {
-    id: 'config.duplicate-mapping-key',
-    group: 'config',
-    title: 'Duplicate key in a configuration mapping',
-    description:
-      'A key declared twice in the same mapping. The earlier value is discarded silently — no parser ' +
-      'warns at load time — so the file says one thing and the running system does another. Distinct ' +
-      'from `correctness.no-duplicate-object-key`, which is the same defect in a JavaScript object ' +
-      'literal and is owned by a different engine over a disjoint set of files.',
-  },
+  // The `schema` engine (`packages/engine-schema`) owns `config.compose-schema` below, plus
+  // `correctness.parse-error` and `correctness.no-duplicate-object-key` — the concepts that already
+  // describe its other two rules exactly. It claims those two rather than config-group duplicates
+  // because ownership is `(concept, language)`-keyed: oxlint owns them for JavaScript and TypeScript,
+  // the schema engine owns them for YAML, and no file is both. `correctness.parse-error` has always
+  // said "any engine capable of parsing the language may report it"; that is now true.
   {
     id: 'config.compose-schema',
     group: 'config',

@@ -438,8 +438,8 @@ const SCHEMA_RULE_ENTRIES = [
     // fails to parse, since nothing they run would work if they did. It earns `recommended` on cost
     // and consequence rather than on hit rate — the check is free (the file is already being parsed
     // for the other two rules) and the finding is never a judgement call.
-    engineRuleId: 'malformed-document',
-    concepts: ['config.malformed-document'],
+    engineRuleId: 'parse-error',
+    concepts: ['correctness.parse-error'],
     tier: 2,
     priority: 100,
     severityDefault: 'error',
@@ -457,7 +457,7 @@ const SCHEMA_RULE_ENTRIES = [
     // are redundant re-declarations, which are still defects — the file states an intention twice and
     // a reader cannot tell which one the system honours without knowing YAML's merge order.
     engineRuleId: 'duplicate-mapping-key',
-    concepts: ['config.duplicate-mapping-key'],
+    concepts: ['correctness.no-duplicate-object-key'],
     tier: 2,
     priority: 100,
     severityDefault: 'error',

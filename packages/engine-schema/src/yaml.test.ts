@@ -36,23 +36,23 @@ test('reports each document of a multi-document file on its own', () => {
 })
 
 test('reports tabs used as indentation, which YAML forbids outright', () => {
-  expect(rules('a:\n\tb: 1\n')).toEqual(['malformed-document'])
+  expect(rules('a:\n\tb: 1\n')).toEqual(['parse-error'])
 })
 
 test('reports a document that cannot be parsed at all', () => {
-  expect(rules('a: [1, 2\n')).toEqual(['malformed-document'])
+  expect(rules('a: [1, 2\n')).toEqual(['parse-error'])
 })
 
 test('reports an alias whose anchor is never defined', () => {
   const { findings } = inspectYaml('a: *missing\n')
 
-  expect(findings.map((finding) => finding.rule)).toEqual(['malformed-document'])
+  expect(findings.map((finding) => finding.rule)).toEqual(['parse-error'])
   expect(findings[0]?.message).toContain('missing')
 })
 
 test('reports an alias that refers to an anchor defined later in the document', () => {
   // Legal-looking and wrong: YAML resolves aliases in document order, so this one has no referent.
-  expect(rules('use: *b\nbase: &b 1\n')).toEqual(['malformed-document'])
+  expect(rules('use: *b\nbase: &b 1\n')).toEqual(['parse-error'])
 })
 
 test('accepts anchors, aliases and merge keys that resolve', () => {
@@ -83,15 +83,15 @@ test('exposes no value for a document that resolves to nothing, so nothing is va
 test('still exposes a document that parsed despite a sibling document failing', () => {
   const { documents, findings } = inspectYaml('a: 1\n---\nb: [1, 2\n')
 
-  expect(findings.map((finding) => finding.rule)).toEqual(['malformed-document'])
+  expect(findings.map((finding) => finding.rule)).toEqual(['parse-error'])
   expect(documents[0]?.value).toEqual({ a: 1 })
 })
 
-test('reports at most one malformed-document finding per document', () => {
+test('reports at most one parse-error finding per document', () => {
   // A single mistake commonly produces a cascade of parser errors; a reader needs the first one,
   // not five restatements of it. Measured on a block scalar with an under-indented tab, which the
   // parser reports twice (BAD_INDENT then MISSING_CHAR).
-  expect(rules('a: |\n  line\n\twith tab\n')).toEqual(['malformed-document'])
+  expect(rules('a: |\n  line\n\twith tab\n')).toEqual(['parse-error'])
 })
 
 test('emits no Node process warning, whatever the document contains', () => {
@@ -114,4 +114,14 @@ test('never throws on input that makes the parser itself give up', () => {
   for (const source of ['\u0000\u0001', '*', '&', '- - - - -', '{'.repeat(200)]) {
     expect(() => inspectYaml(source), JSON.stringify(source.slice(0, 12))).not.toThrow()
   }
+})
+
+test('drops the parser\'s trailing colon, which introduced a code frame we do not use', () => {
+  // `yaml` writes `... at line 2, column 1:` and then renders its own excerpt. slop-gate draws the
+  // frame itself from the range, so the excerpt goes — leaving `column 1:.` in the message if the
+  // colon is not trimmed before the sentence is closed.
+  const { findings } = inspectYaml('a:\n\tb: 1\n')
+
+  expect(findings[0]?.message).not.toContain(':.')
+  expect(findings[0]?.message.endsWith('.')).toBe(true)
 })

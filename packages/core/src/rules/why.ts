@@ -1,7 +1,7 @@
 import { isConceptId, SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
 import type { FrameworkEvidence, FrameworkId, InapplicableFramework } from '../frameworks/types.ts'
 import type { ConceptOwnership, IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
-import type { EngineId, RuleEntry, RuleRef } from '../registry/types.ts'
+import type { EngineId, RuleEntry } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
 import { resolveEnablement, type ConceptEnablement } from './enablement.ts'
 

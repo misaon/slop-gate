@@ -198,7 +198,8 @@ type RuleEntry = {
 
 ### 5.3 Arbitration
 
-For each **enabled concept**, exactly one rule is elected owner:
+For each **enabled concept**, and **for each language that concept is contested over**, exactly one
+rule is elected owner:
 
 1. If the config pins an owner (`owners: { 'dead-code.unused-export': 'knip' }`), that wins.
 2. Otherwise candidates are filtered to rules whose `requires` are satisfiable in this repo
@@ -210,7 +211,22 @@ For each **enabled concept**, exactly one rule is elected owner:
    `oxfmt > oxlint > tsgolint > tsc > biome-css > astgrep > schema > actionlint > zizmor > hadolint > knip > eslint`.
    It expresses one principle — prefer the fastest engine that is *capable* of the concept — and it is
    data in the registry, not logic, so adding an engine means adding a row.
-4. Losers are recorded with `suppressedBy` and a reason.
+4. Losers are recorded with `suppressedBy`, a reason, and the languages they lost on.
+
+**Why per language.** The guarantee is that exactly one rule reports a given concept *at a given
+place*, and a place is a file, which has exactly one language. Two engines reporting
+`correctness.parse-error` on the same file is the collision this exists to prevent; two engines
+reporting it on YAML and on TypeScript respectively is not a collision at all, because no file is
+both. Most concepts have a single owner across every language they cover and read exactly as they
+always did; `correctness.parse-error` and `correctness.no-duplicate-object-key` are the ones that do
+not, each owned by oxlint for JavaScript and TypeScript and by the `schema` engine for YAML.
+
+> Ownership was originally keyed on the concept alone, which approximated this and got it wrong in
+> one direction: an engine covering a language no other engine touched still lost the concept
+> repository-wide, and the run emitted a `config.rule-overlap` for an overlap that could not happen —
+> a false positive in the tool's own governance output. Corrected rather than loosened: the rule that
+> exactly one rule may report a concept at a place is unchanged, and is now actually enforced at the
+> scope it was always about.
 
 A rule is **enabled** if it was elected for at least one concept. Because rules cover multiple
 concepts, an enabled rule may still emit findings for a concept owned by someone else — so
@@ -218,7 +234,10 @@ arbitration is enforced twice:
 
 - **at election time**, deciding which rules to configure on which engine, and
 - **at normalization time**, dropping any diagnostic whose `(rule, concept)` pair is not the elected
-  owner for that concept.
+  owner for that concept — consulting the file's language only where a concept has more than one
+  owner, since that is the only case where there is anything to disambiguate. Enforcing language
+  where a rule owns a concept outright would discard legitimate findings: a project engine reports
+  against files it was never handed, `tsc` naming `tsconfig.json` being the standing example.
 
 The second check is what makes double-reporting structurally impossible rather than merely unlikely.
 
@@ -1007,15 +1026,16 @@ Three rules, all `error` and all in `recommended`:
 
 | Rule | Concept | What it catches |
 |---|---|---|
-| `malformed-document` | `config.malformed-document` | Syntax errors, tabs used as indentation, unresolved aliases |
-| `duplicate-mapping-key` | `config.duplicate-mapping-key` | A key declared twice; the earlier value is discarded silently |
+| `parse-error` | `correctness.parse-error` | Syntax errors, tabs used as indentation, unresolved aliases |
+| `duplicate-mapping-key` | `correctness.no-duplicate-object-key` | A key declared twice; the earlier value is discarded silently |
 | `compose-spec` | `config.compose-schema` | A Compose file that does not match the specification |
 
-The concepts are `config.*` rather than the `correctness.*` concepts that name the same defects in
-JavaScript, and that is forced rather than chosen: **arbitration elects one owner per concept for the
-entire repository**, so claiming `correctness.parse-error` would lose to oxlint's tier-0 entry in any
-repository containing TypeScript and leave YAML unchecked. See the follow-ups; the durable fix is to
-key ownership on `(concept, language)`.
+Two of the three claim the `correctness.*` concepts that already describe them exactly, co-owned with
+oxlint per language (§5.3): oxlint owns `correctness.parse-error` for JavaScript and TypeScript, this
+engine owns it for YAML, and no file is both. That is what `correctness.parse-error` has promised
+since M0 — "any engine capable of parsing the language may report it" — and the first time the
+promise has been keepable. Only `config.compose-schema` is this engine's alone, because no other
+concept describes a file failing to match a published specification.
 
 Two implementation notes that are not obvious. `parseAllDocuments` is mandatory — `parseDocument`
 treats a second YAML document as a parse *error*, which would flag every Kubernetes manifest in

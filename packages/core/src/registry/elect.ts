@@ -179,7 +179,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
       .filter((language) => input.languages.has(language))
       .sort(compareStrings)
 
-    const ownedLanguages = new Map<string, { ref: RuleRef; languages: LanguageId[] }>()
+    const ownedLanguages = new Map<string, { entry: RuleEntry; languages: LanguageId[] }>()
     const lostLanguages = new Map<string, { record: Omit<SuppressionRecord, 'languages'>; languages: LanguageId[] }>()
 
     for (const language of contested) {
@@ -189,7 +189,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
       if (winner === undefined) continue
 
       const winnerKey = ruleRefKey(winner)
-      const owned = ownedLanguages.get(winnerKey) ?? { ref: refOf(winner), languages: [] }
+      const owned = ownedLanguages.get(winnerKey) ?? { entry: winner, languages: [] }
       owned.languages.push(language)
       ownedLanguages.set(winnerKey, owned)
 
@@ -221,9 +221,14 @@ export function electOwners(input: ElectionInput): ElectionResult {
     }
 
     if (ownedLanguages.size > 0) {
+      // Sorted by arbitration order, not by whichever language happened to be processed first:
+      // `owners` is read straight into `rules list` and `rules why`, and a reader comparing two
+      // owners of one concept is comparing tiers, so the faster engine belongs first.
       owners.set(
         concept,
-        [...ownedLanguages.values()].map(({ ref, languages }) => ({ owner: ref, languages })),
+        [...ownedLanguages.values()]
+          .sort((a, b) => compare(a.entry, b.entry))
+          .map(({ entry, languages }) => ({ owner: refOf(entry), languages })),
       )
       // Emitted in loser order rather than language order so the sequence does not depend on which
       // language happened to be arbitrated first (see the entry-order-independence test).
