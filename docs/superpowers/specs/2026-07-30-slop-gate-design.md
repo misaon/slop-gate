@@ -1110,20 +1110,51 @@ The five profiles, and what each is for:
 | `nestjs-express` | `@nestjs/platform-express` (`dependency`) | — | knip `ignoreDependencies += express` |
 | `mikro-orm` | `@mikro-orm/core` (`dependency`) | migrations directory, via `literal` on the ORM config then `path` on the inventory | knip `entry += <dir>/*.ts` in the owning workspace |
 | `vitepress` | `vitepress` (`dependency`) + a `.vitepress/` directory (`path`) | the site root that directory sits in | knip `workspaces[ws].vitepress.entry += <root>/.vitepress/config.*` |
-| `test-framework` | `jest` and/or `vitest` (`dependency`) | which of the two are present | disable the plugin-scoped concepts of every scope that is not the unique installed one |
+| `test-framework` | `jest` and/or `vitest` (`dependency`) | which of the two are present | disable the **shared** concepts of every scope that is not the unique installed one |
 
 `nestjs` and `nestjs-express` are two profiles rather than one because they are two facts. A NestJS
 project on Fastify has the first and not the second, and merging them would make the `express`
 suppression fire on a repository that never depends on `express` at all.
 
 `test-framework` is the one profile whose parameter is a *set*, and the only one whose rule reads
-oddly enough to state in full: **disable every scope that is not the unique installed one; if there is
-not exactly one, disable all of them.** Both frameworks installed, or neither, and dual firing is
-either genuinely unavoidable or the concepts match nothing anyway — both cases degrade to exactly
-today's unconditional exclusion, which is the behaviour the exclusion note in `registry/exclusions.ts`
-asked for ("until framework detection can elect the one that is actually installed"). It is also the
-profile with the largest measured payoff, because those 24 excluded rules are 24 concepts currently
-kept out of `recommended` by hand.
+oddly enough to state in full: **disable the shared concepts of every scope that is not the unique
+installed one; if there is not exactly one, disable them for both.** Both frameworks installed, or
+neither, and dual firing is either genuinely unavoidable or the concepts match nothing anyway — both
+cases degrade to exactly the unconditional exclusion this replaces, which is the behaviour
+`registry/exclusions.ts` asked for ("until framework detection can elect the one that is actually
+installed").
+
+**"Shared" is doing real work there, and it was measured rather than reasoned about.** The first
+implementation disabled the *whole* absent scope, which also turned off `correctness.no-export` — from
+`jest/no-export`, a rule the vitest plugin has no counterpart for, that therefore never double-reports,
+and whose advice is just as true under vitest. It bought thirteen concepts and quietly gave one back.
+Pairing on the rule id (`jest/x` is dual-firing iff `vitest/x` exists) keeps all thirteen and is
+independent of how the generator happens to spell a concept: it scope-qualifies a name only when two
+scopes collide, so `correctness.jest-expect-expect` and `correctness.no-export` are both jest concepts
+spelled differently, and matching on the spelling would encode a generator detail in a profile.
+
+**What this actually moved into `recommended`, measured** (`extends: ['recommended']`, concepts that
+elect an owner and therefore run, against the commit before this change):
+
+| Repository | Before | After |
+|---|---|---|
+| slop-gate itself, and any vitest-only repository | 152 | **162** |
+| a jest-only repository | 152 | **163** |
+| both, or neither, installed | 152 | 153 |
+
+And the honest other half: **on this repository those ten concepts produce zero findings.** Running the
+old binary and the new one over byte-identical source gives 53 diagnostics each. They are vitest
+test-hygiene rules — no focused tests, no disabled tests, valid titles — and this codebase does not
+violate them. The mechanism is what makes them shippable at all, since without it they double-report;
+whether they earn their place is a question only a repository that does commit a stray `.only` can
+answer.
+
+Three rules went the other way during the same measurement and are now excluded outright, because
+their problem is not the framework: `vitest/valid-expect` (27/27 false positives — it reports
+"Expect takes at most 1 argument" on `expect(value, message)`, which is vitest's own documented
+signature, so oxlint is applying *jest's* arity rule to vitest), `no-conditional-expect` (8/8, all a
+total `if`/`else` where every branch asserts) and `require-to-throw-message` (4/4). Measuring a
+category *out* is the same mechanism working; it is why the number above is ten rather than thirteen.
 
 ### 23.3 Why there are no conflicts to resolve
 

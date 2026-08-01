@@ -15,48 +15,54 @@ export type RuleExclusion = {
  *
  * Hand-authored, committed, and small by construction — each entry records a real measurement
  * against a real codebase, not a guess from reading the rule's description.
+ *
+ * **What no longer belongs here: an exclusion whose reason is "it depends on the framework".** That
+ * is now a framework profile (spec §23, `packages/core/src/frameworks/profiles.ts`), which can turn a
+ * rule off in the repositories where it is wrong and leave it on everywhere else. Two exclusions were
+ * removed on exactly that basis — `typescript/no-extraneous-class` (now the `nestjs` profile) and the
+ * twenty-four jest/vitest dual-firing rules (now the `test-framework` profile, whose reason text this
+ * file used to carry verbatim as the unblocking condition). What stays here is the other kind: a rule
+ * that is wrong regardless of what the repository is built with.
  */
 
-const JEST_VITEST_DUAL_FIRING_REASON =
-  "Measured on this repository (vitest-only, no jest dependency at all): the jest-scope and " +
-  "vitest-scope versions of this rule both fired on the identical file and line for every single " +
-  "occurrence — oxlint's jest/vitest plugins evidently pattern-match on the generic " +
-  "describe/it/expect call shape rather than checking which package it was imported from, so " +
-  "electing both (which disambiguation makes possible — see the registry-generation report) " +
-  "means every real finding is reported twice under two different concept ids. Excluding only one " +
-  "side would silently drop coverage for whichever framework a project actually uses (the two " +
-  "plugins' rule sets are near-identical, one-for-one), so both are excluded until framework " +
-  "detection can elect the one that is actually installed — the same 'registry has no notion of " +
-  "framework awareness' gap recorded for typescript/no-extraneous-class below, applied to a second, " +
-  "independently measured case rather than assumed to generalise from the first."
-
-/** The 12 concepts oxlint's `jest` and `vitest` plugins both claim, `correctness`/`suspicious`
- *  category, non-type-aware — i.e. the ones this generator's `recommended` policy would otherwise
- *  enable for both scopes at once. See `JEST_VITEST_DUAL_FIRING_REASON`. */
-const JEST_VITEST_SHARED_RULE_VALUES = [
-  'expect-expect',
-  'no-commented-out-tests',
-  'no-conditional-expect',
-  'no-disabled-tests',
-  'no-focused-tests',
-  'no-standalone-expect',
-  'prefer-snapshot-hint',
-  'require-to-throw-message',
-  'valid-describe-callback',
-  'valid-expect',
-  'valid-expect-in-promise',
-  'valid-title',
-] as const
-
-const jestVitestExclusions = Object.fromEntries(
-  JEST_VITEST_SHARED_RULE_VALUES.flatMap((value) => [
-    [`jest/${value}`, { reason: JEST_VITEST_DUAL_FIRING_REASON }],
-    [`vitest/${value}`, { reason: JEST_VITEST_DUAL_FIRING_REASON }],
-  ]),
-) as Record<string, RuleExclusion>
-
 export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
-  ...jestVitestExclusions,
+  'vitest/valid-expect': {
+    reason:
+      "An oxlint bug rather than a judgement call, and the only exclusion here whose root cause is " +
+      "quotable from a type declaration. Measured on this repository the moment framework detection " +
+      "made the vitest scope electable: 27 findings, 27 false positives, every one the identical " +
+      "message \"Expect takes at most 1 argument\" on `expect(value, message)` — which is vitest's own " +
+      "documented two-argument form, declared as `<T>(actual: T, message?: string): Assertion<T>` in " +
+      "`@vitest/expect` 3.2.7's `ExpectStatic`. oxlint's vitest plugin is applying *jest's* arity rule " +
+      "to vitest, so the rule is wrong about the very framework it is named after. Scoped to the " +
+      "vitest side deliberately: `jest/valid-expect` is correct, because jest genuinely has no such " +
+      "overload, and in a vitest repository the `test-framework` profile disables it anyway.",
+  },
+  'jest/no-conditional-expect': {
+    reason:
+      "Measured on this repository: 8 findings, 8 false positives, all the same table-driven shape — " +
+      "`if (entry.fixKind === 'none') expect(a).toEqual([]) else expect(b).toBeGreaterThan(0)` in the " +
+      "registry's invariant tests, where *every* branch asserts. The defect this rule exists for is an " +
+      "assertion that may never run (the `try { } catch { expect() }` shape), and a total if/else over " +
+      "a loop variable structurally cannot be that: there is no path through it that asserts nothing. " +
+      "Excluded for both scopes because the two plugins implement identical semantics here, so the " +
+      "measurement transfers.",
+  },
+  'vitest/no-conditional-expect': {
+    reason: "Same measurement and same reasoning as jest/no-conditional-expect above; identical rule, two plugins.",
+  },
+  'jest/require-to-throw-message': {
+    reason:
+      "Measured on this repository: 4 findings, 4 false positives, across three files, all the same " +
+      "idiom — `await expect(loadConfig(dir)).rejects.toThrow()`, asserting *that* something rejects " +
+      "where the test's own title already says what and why. Demanding a message string there adds a " +
+      "second, weaker copy of the test name inside the assertion. A style preference oxlint files " +
+      "under `correctness`, and the category is not the arbiter of whether a finding belongs in " +
+      "`recommended` — the same argument recorded for no-underscore-dangle below.",
+  },
+  'vitest/require-to-throw-message': {
+    reason: "Same measurement and same reasoning as jest/require-to-throw-message above; identical rule, two plugins.",
+  },
   'import/no-unassigned-import': {
     reason:
       "Measured across both repositories this generator was validated against: 5 findings total " +
@@ -84,17 +90,6 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "Same measurement and same reasoning as unicorn/no-array-sort immediately above (the two rules " +
       "share a rationale in oxlint itself): all 3 occurrences on this repository reverse an array " +
       "just produced by a spread, with nothing else aliasing it.",
-  },
-  'typescript/no-extraneous-class': {
-    reason:
-      "Measured against a real 95-TS-file NestJS project (srvc-bat), enabled alongside no-shadow: " +
-      "11 of 12 total findings, every one of the 11 a false positive — an empty " +
-      "`@Module({...}) export class XModule {}`, one per `*.module.ts` file. NestJS (and any other " +
-      "decorator-driven DI framework) requires that class body to be empty; the decorator, not the " +
-      "class, carries the behaviour. 11/11 (100%) false positives in isolation. Recorded in full in " +
-      "docs/superpowers/specs/2026-07-31-m0-followups.md, \"Deliberately excluded rules\". The " +
-      "general lesson this rule is the example of: a rule's value can depend on the framework " +
-      "present in the repository, which this registry has no way to detect yet.",
   },
   'no-underscore-dangle': {
     reason:

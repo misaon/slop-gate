@@ -118,7 +118,7 @@ export {
   type DetectFrameworksOptions,
 } from './frameworks/detect.ts'
 export { extractStringLiteral } from './frameworks/literal.ts'
-export { FRAMEWORK_PROFILES, conceptsInScope } from './frameworks/profiles.ts'
+export { FRAMEWORK_PROFILES, dualFiringConcepts } from './frameworks/profiles.ts'
 export type {
   AnyFrameworkProfile,
   DependencyField,

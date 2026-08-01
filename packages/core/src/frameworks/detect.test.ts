@@ -3,7 +3,7 @@ import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { engineAdjustmentsFor, frameworkRuleLayers } from './adjustments.ts'
 import { detectFrameworks } from './detect.ts'
-import { conceptsInScope } from './profiles.ts'
+import { dualFiringConcepts } from './profiles.ts'
 import type { FrameworkDetection } from './types.ts'
 
 const inventoryFile = (path: string, workspace = ''): InventoryFile => ({
@@ -204,13 +204,38 @@ const disabledConcepts = (detection: FrameworkDetection): readonly string[] =>
   Object.keys(frameworkRuleLayers(detection).find((layer) => layer.source === 'test-framework')?.rules ?? {})
 
 /**
- * Load-bearing for `conceptsInScope`: the profile disables a whole plugin scope, which is only safe
- * while no concept crosses one. An oxlint release that made `jest/x` and `unicorn/y` share a concept
- * would otherwise turn the unicorn rule off in every vitest repository, silently.
+ * The dual-firing set is exactly the rules both plugins implement, and nothing else. Measured: the
+ * whole-scope version of this profile also disabled `correctness.no-export` (from `jest/no-export`,
+ * which vitest has no counterpart for and which therefore never double-reports) — a silent coverage
+ * loss on every vitest repository. Pinned here so a wider definition cannot creep back in.
+ */
+test('the dual-firing set contains only rules both plugins implement', () => {
+  const values = (scope: string): Set<string> =>
+    new Set(
+      RULE_ENTRIES.filter((entry) => entry.engineRuleId.startsWith(`${scope}/`)).map((entry) =>
+        entry.engineRuleId.slice(scope.length + 1),
+      ),
+    )
+  const jestOnly = [...values('jest')].filter((value) => !values('vitest').has(value))
+  expect(jestOnly.length).toBeGreaterThan(0)
+
+  const disabled = new Set(dualFiringConcepts('jest', 'vitest'))
+  const jestOnlyConcepts = RULE_ENTRIES.filter(
+    (entry) => entry.engineRuleId.startsWith('jest/') && jestOnly.includes(entry.engineRuleId.slice(5)),
+  ).flatMap((entry) => entry.concepts)
+
+  expect(jestOnlyConcepts.filter((concept) => disabled.has(concept))).toEqual([])
+  expect(disabled.has('correctness.no-export' as never)).toBe(false)
+})
+
+/**
+ * Load-bearing: the profile turns concepts off by id, which is only safe while no concept claimed by
+ * a jest- or vitest-scope rule is also claimed by a rule outside that scope. An oxlint release that
+ * made `jest/x` and `unicorn/y` share one would otherwise silently disable the unicorn rule too.
  */
 test('no concept claimed by a jest- or vitest-scope rule is claimed by any rule outside it', () => {
-  for (const scope of ['jest', 'vitest']) {
-    const inScope = new Set(conceptsInScope(scope))
+  for (const [scope, counterpart] of [['jest', 'vitest'], ['vitest', 'jest']]) {
+    const inScope = new Set(dualFiringConcepts(scope!, counterpart!))
     const outsiders = RULE_ENTRIES.filter(
       (entry) => !entry.engineRuleId.startsWith(`${scope}/`) && entry.concepts.some((c) => inScope.has(c)),
     )
@@ -220,19 +245,21 @@ test('no concept claimed by a jest- or vitest-scope rule is claimed by any rule 
 
 test('a vitest-only repository disables the jest scope and keeps the vitest one', async () => {
   const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
-  expect(disabledConcepts(detection)).toEqual(conceptsInScope('jest'))
+  expect(disabledConcepts(detection)).toEqual(dualFiringConcepts('jest', 'vitest'))
 })
 
 test('a jest-only repository disables the vitest scope and keeps the jest one', async () => {
   const detection = await detect({ 'package.json': manifest({ jest: '^30.0.0' }, 'devDependencies') })
-  expect(disabledConcepts(detection)).toEqual(conceptsInScope('vitest'))
+  expect(disabledConcepts(detection)).toEqual(dualFiringConcepts('vitest', 'jest'))
 })
 
 test('both installed disables both scopes — the double report would be genuine', async () => {
   const detection = await detect({
     'package.json': manifest({ jest: '^30.0.0', vitest: '^3.0.0' }, 'devDependencies'),
   })
-  expect(disabledConcepts(detection)).toEqual([...conceptsInScope('jest'), ...conceptsInScope('vitest')].sort())
+  expect(disabledConcepts(detection)).toEqual(
+    [...dualFiringConcepts('jest', 'vitest'), ...dualFiringConcepts('vitest', 'jest')].sort(),
+  )
 })
 
 test('neither installed disables both scopes, degrading to the exclusion this replaces', async () => {
