@@ -1,7 +1,7 @@
 import { isConceptId, SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
 import type { FrameworkEvidence, FrameworkId, InapplicableFramework } from '../frameworks/types.ts'
-import type { IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
-import type { EngineId, RuleEntry, RuleRef } from '../registry/types.ts'
+import type { ConceptOwnership, IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
+import type { EngineId, RuleEntry } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
 import { resolveEnablement, type ConceptEnablement } from './enablement.ts'
 
@@ -19,7 +19,12 @@ export type ConceptWhy = {
   /** Every registry entry that declares this concept, applicable or not — the full candidate set
    *  `owner`/`suppressed`/`ineligible` below are each a partition of. */
   candidates: readonly RuleEntry[]
-  owner: RuleRef | undefined
+  /**
+   * Every rule owning this concept, with the languages each won. Usually one entry; more than one
+   * means different engines own it for different languages, which is not a conflict — no file is
+   * two languages. Empty means no owner, and `uncovered` says whether that is a real gap.
+   */
+  ownership: readonly ConceptOwnership[]
   suppressed: readonly SuppressionRecord[]
   ineligible: readonly IneligibleCandidate[]
   uncovered: boolean
@@ -76,7 +81,7 @@ export function explainConcept(concept: string, resolved: ResolvedRun): ConceptW
     enablement: resolveEnablement(resolver, concept),
     pinnedOwner: resolver.base.pinnedOwners[concept],
     candidates: entries.filter((entry) => entry.concepts.includes(concept as never)),
-    owner: election.owners.get(concept),
+    ownership: election.owners.get(concept) ?? [],
     suppressed: election.suppressed.filter((record) => record.concept === concept),
     ineligible: election.ineligible.filter((record) => record.concept === concept),
     uncovered: election.uncovered.includes(concept),

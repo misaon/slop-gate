@@ -15,7 +15,7 @@ import { SCHEMA_RULE_IDS, createSchemaEngine } from './index.ts'
  * of things that read like a repeated key and are not — a merge key overriding an inherited entry,
  * the same key name in sibling mappings, repeated *values* in a sequence — each of which starts
  * firing the moment somebody replaces the parser's mapping-scoped check with a text scan.
- * `malformed-document.negative.yaml` is a legal multi-document file, which is the exact input that
+ * `parse-error.negative.yaml` is a legal multi-document file, which is the exact input that
  * made `parseDocument` the wrong function to build this on. `compose.negative.yaml` is a full
  * reference stack using every construct the specification permits and a naive validator rejects.
  */
@@ -27,8 +27,8 @@ const CASES: readonly { engineRuleId: string; file: string; polarity: 'positive'
   { engineRuleId: 'compose-spec', file: 'compose.negative.yaml', polarity: 'negative' },
   { engineRuleId: 'duplicate-mapping-key', file: 'duplicate-mapping-key.positive.yaml', polarity: 'positive' },
   { engineRuleId: 'duplicate-mapping-key', file: 'duplicate-mapping-key.negative.yaml', polarity: 'negative' },
-  { engineRuleId: 'malformed-document', file: 'malformed-document.positive.yaml', polarity: 'positive' },
-  { engineRuleId: 'malformed-document', file: 'malformed-document.negative.yaml', polarity: 'negative' },
+  { engineRuleId: 'parse-error', file: 'parse-error.positive.yaml', polarity: 'positive' },
+  { engineRuleId: 'parse-error', file: 'parse-error.negative.yaml', polarity: 'negative' },
 ]
 
 let context: RunContext

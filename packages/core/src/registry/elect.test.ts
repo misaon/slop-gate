@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { electOwners } from './elect.ts'
-import { ENGINE_PREFERENCE, type EngineId, type RuleEntry } from './types.ts'
+import { ENGINE_PREFERENCE, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
 
 const entry = (over: Partial<RuleEntry> & Pick<RuleEntry, 'engine' | 'engineRuleId' | 'concepts'>): RuleEntry => ({
   tier: 0,
@@ -22,6 +22,21 @@ const NO_CAPABILITIES = new Set<never>()
 // filtering (covered separately below) — passing the full set is the "no filter" baseline.
 const ALL_ENGINES: ReadonlySet<EngineId> = new Set(ENGINE_PREFERENCE)
 
+/**
+ * The sole owner of a concept, asserting there is exactly one.
+ *
+ * Ownership is `(concept, language)`-keyed, so the general answer is a list. Every test above this
+ * file's per-language section is a single-language election where that list has one entry, and
+ * asserting the whole `ConceptOwnership[]` in each would bury what each test is actually about.
+ * The embedded `expect` is the point: if a change ever splits ownership in one of these, the test
+ * says so rather than silently reading the first element.
+ */
+const ownerOf = (result: ReturnType<typeof electOwners>, concept: string): RuleRef | undefined => {
+  const ownership = result.owners.get(concept) ?? []
+  expect(ownership.length, `${concept} should have a single owner here`).toBeLessThanOrEqual(1)
+  return ownership[0]?.owner
+}
+
 test('elects the single candidate and selects it for its engine', () => {
   const result = electOwners({
     entries: [entry({ engine: 'oxlint', engineRuleId: 'no-debugger', concepts: ['correctness.no-debugger'] })],
@@ -31,7 +46,7 @@ test('elects the single candidate and selects it for its engine', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('correctness.no-debugger')).toEqual({ engine: 'oxlint', engineRuleId: 'no-debugger' })
+  expect(ownerOf(result, 'correctness.no-debugger')).toEqual({ engine: 'oxlint', engineRuleId: 'no-debugger' })
   expect(result.selection.get('oxlint')).toEqual(new Set(['no-debugger']))
   expect(result.suppressed).toEqual([])
   expect(result.uncovered).toEqual([])
@@ -49,11 +64,12 @@ test('prefers the lower tier and records why the loser was suppressed', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('oxlint')
+  expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('oxlint')
   expect(result.selection.has('eslint')).toBe(false)
   expect(result.suppressed).toEqual([
     {
       concept: 'dead-code.unused-variable',
+      languages: ['ts'],
       suppressed: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
       winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
       reason: 'lower-tier',
@@ -73,7 +89,7 @@ test('breaks a tier tie by engine preference', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('style.no-var')?.engine).toBe('oxlint')
+  expect(ownerOf(result, 'style.no-var')?.engine).toBe('oxlint')
   expect(result.suppressed[0]?.reason).toBe('engine-preference')
 })
 
@@ -89,7 +105,7 @@ test('breaks a same-engine tie by rule id so elections are total', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('style.no-var')?.engineRuleId).toBe('alpha')
+  expect(ownerOf(result, 'style.no-var')?.engineRuleId).toBe('alpha')
   expect(result.suppressed[0]?.reason).toBe('rule-id-tiebreak')
 })
 
@@ -136,7 +152,7 @@ test('excludes candidates whose required capabilities are unavailable', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('slop.as-any-cast')?.engine).toBe('astgrep')
+  expect(ownerOf(result, 'slop.as-any-cast')?.engine).toBe('astgrep')
   expect(result.suppressed).toEqual([])
 })
 
@@ -158,7 +174,7 @@ test('admits a capability-requiring candidate once the capability is present', (
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('slop.as-any-cast')?.engine).toBe('tsgolint')
+  expect(ownerOf(result, 'slop.as-any-cast')?.engine).toBe('tsgolint')
 })
 
 test('excludes a candidate whose engine did not participate in this run', () => {
@@ -178,7 +194,7 @@ test('excludes a candidate whose engine did not participate in this run', () => 
     participatingEngines: new Set(['oxlint']),
   })
 
-  expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('oxlint')
+  expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('oxlint')
   // Not just "oxlint wins" — the eslint entry must never appear as a suppressed loser either,
   // or a run with only oxlint would still report a suppression that never happened.
   expect(result.suppressed).toEqual([])
@@ -262,9 +278,10 @@ test('honours a pinned owner even when a faster candidate exists', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('knip')
+  expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('knip')
   expect(result.suppressed[0]).toEqual({
     concept: 'dead-code.unused-variable',
+    languages: ['ts'],
     suppressed: { engine: 'oxlint', engineRuleId: 'fast' },
     winner: { engine: 'knip', engineRuleId: 'slow' },
     reason: 'pinned-owner',
@@ -387,7 +404,7 @@ test('labels a pinned suppression only when the pin is what rejected the rule', 
   })
   const reasonByRule = new Map(result.suppressed.map((s) => [s.suppressed.engineRuleId, s.reason]))
 
-  expect(result.owners.get('style.no-var')?.engineRuleId).toBe('alpha')
+  expect(ownerOf(result, 'style.no-var')?.engineRuleId).toBe('alpha')
   expect(reasonByRule.get('fast')).toBe('pinned-owner')
   expect(reasonByRule.get('zeta')).toBe('rule-id-tiebreak')
 })
@@ -531,7 +548,7 @@ test('does not record a pinned-elsewhere candidate as ineligible when the pin st
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('knip')
+  expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('knip')
   expect(result.ineligible).toEqual([])
 })
 
@@ -560,5 +577,149 @@ test('orders rule ids by code unit rather than locale collation', () => {
   })
 
   // 'Z' (U+005A) precedes 'a' (U+0061) by code unit; locale collation would invert this.
-  expect(result.owners.get('style.no-var')?.engineRuleId).toBe('Zebra')
+  expect(ownerOf(result, 'style.no-var')?.engineRuleId).toBe('Zebra')
+})
+
+// ---------------------------------------------------------------------------
+// Ownership is keyed by (concept, language), not by concept alone.
+//
+// The property this project sells is that exactly one rule may report a given concept **at a given
+// place**. Keying uniqueness on the repository approximated that and got it wrong in one direction:
+// two engines covering disjoint languages were treated as a collision when they can never meet on a
+// file. These tests pin the corrected invariant.
+// ---------------------------------------------------------------------------
+
+test('two engines covering disjoint languages both own the concept, and neither is suppressed', () => {
+  // The reproduction that motivated the change. Before it, oxlint won `correctness.parse-error`
+  // outright in any repository containing both TypeScript and YAML, the YAML rule was recorded as
+  // `lower-tier` suppressed, and `sgate check` emitted a `config.rule-overlap` for an overlap that
+  // cannot happen — the two rules never see the same file.
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'parse-error', concepts: ['correctness.parse-error'], tier: 0 }),
+      entry({
+        engine: 'schema',
+        engineRuleId: 'parse-error',
+        concepts: ['correctness.parse-error'],
+        tier: 2,
+        languages: ['yaml'],
+      }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['ts', 'yaml']),
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.owners.get('correctness.parse-error')).toEqual([
+    { owner: { engine: 'oxlint', engineRuleId: 'parse-error' }, languages: ['ts'] },
+    { owner: { engine: 'schema', engineRuleId: 'parse-error' }, languages: ['yaml'] },
+  ])
+  expect(result.suppressed).toEqual([])
+  expect(result.selection.get('oxlint')).toEqual(new Set(['parse-error']))
+  expect(result.selection.get('schema')).toEqual(new Set(['parse-error']))
+})
+
+test('a genuine collision on a shared language is still suppressed, and names that language', () => {
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'no-dupe-keys', concepts: ['correctness.no-duplicate-object-key'], tier: 0 }),
+      entry({ engine: 'eslint', engineRuleId: 'no-dupe-keys', concepts: ['correctness.no-duplicate-object-key'], tier: 2 }),
+    ],
+    enabledConcepts: new Set(['correctness.no-duplicate-object-key']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.suppressed).toEqual([
+    {
+      concept: 'correctness.no-duplicate-object-key',
+      languages: ['ts'],
+      suppressed: { engine: 'eslint', engineRuleId: 'no-dupe-keys' },
+      winner: { engine: 'oxlint', engineRuleId: 'no-dupe-keys' },
+      reason: 'lower-tier',
+    },
+  ])
+})
+
+test('suppresses only on the languages the candidates actually share', () => {
+  // The partial-overlap case, which neither keying scheme handles by accident: oxlint owns `ts`
+  // uncontested, both contest `yaml`, and the suppression record names `yaml` alone.
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'wide', concepts: ['correctness.parse-error'], tier: 0, languages: ['ts', 'yaml'] }),
+      entry({ engine: 'schema', engineRuleId: 'narrow', concepts: ['correctness.parse-error'], tier: 2, languages: ['yaml'] }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['ts', 'yaml']),
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.owners.get('correctness.parse-error')).toEqual([
+    { owner: { engine: 'oxlint', engineRuleId: 'wide' }, languages: ['ts', 'yaml'] },
+  ])
+  expect(result.suppressed).toEqual([
+    {
+      concept: 'correctness.parse-error',
+      languages: ['yaml'],
+      suppressed: { engine: 'schema', engineRuleId: 'narrow' },
+      winner: { engine: 'oxlint', engineRuleId: 'wide' },
+      reason: 'lower-tier',
+    },
+  ])
+})
+
+test('records one suppression per losing rule, not one per language it lost on', () => {
+  // Volume matters: a loser beaten across four languages is one fact about one rule, and reporting
+  // it four times would make `rules conflicts` and `config.rule-overlap` noisier the moment this
+  // change landed. The languages ride along on the single record instead.
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'w', concepts: ['dead-code.unused-variable'], tier: 0, languages: ['ts', 'tsx', 'js', 'jsx'] }),
+      entry({ engine: 'eslint', engineRuleId: 'l', concepts: ['dead-code.unused-variable'], tier: 2, languages: ['ts', 'tsx', 'js', 'jsx'] }),
+    ],
+    enabledConcepts: new Set(['dead-code.unused-variable']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['ts', 'tsx', 'js', 'jsx']),
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.suppressed).toHaveLength(1)
+  expect(result.suppressed[0]?.languages).toEqual(['js', 'jsx', 'ts', 'tsx'])
+})
+
+test('ownership lists only the languages the repository actually contains', () => {
+  const result = electOwners({
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'r', concepts: ['style.no-var'], languages: ['ts', 'tsx', 'vue'] })],
+    enabledConcepts: new Set(['style.no-var']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['ts', 'vue']),
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.owners.get('style.no-var')).toEqual([
+    { owner: { engine: 'oxlint', engineRuleId: 'r' }, languages: ['ts', 'vue'] },
+  ])
+})
+
+test('a pin applies per language and leaves the pinned engine owning only what it covers', () => {
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'wide', concepts: ['correctness.parse-error'], tier: 0, languages: ['ts', 'yaml'] }),
+      entry({ engine: 'schema', engineRuleId: 'narrow', concepts: ['correctness.parse-error'], tier: 2, languages: ['yaml'] }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['ts', 'yaml']),
+    participatingEngines: ALL_ENGINES,
+    pinnedOwners: { 'correctness.parse-error': 'schema' },
+  })
+
+  // The pin wins `yaml`, where schema has a rule. `ts` has no schema candidate at all, so the pin
+  // leaves it unowned rather than handing it to an engine that cannot check it.
+  expect(result.owners.get('correctness.parse-error')).toEqual([
+    { owner: { engine: 'schema', engineRuleId: 'narrow' }, languages: ['yaml'] },
+  ])
 })

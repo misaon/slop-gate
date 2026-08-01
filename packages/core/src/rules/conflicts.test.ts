@@ -48,6 +48,7 @@ test('surfaces both a suppressed overlap and a dead override from an already-res
   expect(conflicts.suppressed).toEqual([
     {
       concept: 'dead-code.unused-variable',
+      languages: ['ts'],
       suppressed: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
       winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
       reason: 'lower-tier',

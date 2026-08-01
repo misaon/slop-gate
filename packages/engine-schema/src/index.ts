@@ -23,7 +23,7 @@ export { inspectYaml, type YamlFinding, type YamlInspection, type YamlRuleId } f
  * can be asserted to agree — an engine that can report a rule the registry has never heard of would
  * emit diagnostics `normalizeDiagnostics` cannot attribute to a concept.
  */
-export const SCHEMA_RULE_IDS = ['compose-spec', 'duplicate-mapping-key', 'malformed-document'] as const
+export const SCHEMA_RULE_IDS = ['compose-spec', 'duplicate-mapping-key', 'parse-error'] as const
 
 export type SchemaRuleId = (typeof SCHEMA_RULE_IDS)[number]
 
@@ -111,7 +111,7 @@ async function* inspectFile(
   validate: ReturnType<typeof createSchemaValidator>,
 ): AsyncIterable<RawDiagnostic> {
   const binding = bindSchema(relativePath)
-  const wantsStructure = enabled('duplicate-mapping-key') || enabled('malformed-document')
+  const wantsStructure = enabled('duplicate-mapping-key') || enabled('parse-error')
   const wantsSchema = binding !== undefined && enabled('compose-spec')
   if (!wantsStructure && !wantsSchema) return
 

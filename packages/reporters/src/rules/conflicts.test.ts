@@ -21,6 +21,7 @@ test('lists a suppressed overlap with its winner and reason', () => {
     suppressed: [
       {
         concept: 'dead-code.unused-variable',
+        languages: ['ts'],
         winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
         suppressed: { engine: 'eslint', engineRuleId: '@typescript-eslint/no-unused-vars' },
         reason: 'lower-tier',
@@ -38,8 +39,8 @@ test('lists a suppressed overlap with its winner and reason', () => {
 test('groups multiple suppressions for the same concept under one winner', () => {
   const output = capture({
     suppressed: [
-      { concept: 'style.no-var', winner: { engine: 'oxlint', engineRuleId: 'a' }, suppressed: { engine: 'astgrep', engineRuleId: 'b' }, reason: 'engine-preference' },
-      { concept: 'style.no-var', winner: { engine: 'oxlint', engineRuleId: 'a' }, suppressed: { engine: 'knip', engineRuleId: 'c' }, reason: 'lower-tier' },
+      { concept: 'style.no-var', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'a' }, suppressed: { engine: 'astgrep', engineRuleId: 'b' }, reason: 'engine-preference' },
+      { concept: 'style.no-var', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'a' }, suppressed: { engine: 'knip', engineRuleId: 'c' }, reason: 'lower-tier' },
     ],
     deadOverrides: [],
   })
@@ -57,7 +58,7 @@ test('lists a dead override with the same message text check itself uses', () =>
 
 test('summarises overlap and dead-override counts in the footer', () => {
   const output = capture({
-    suppressed: [{ concept: 'a', winner: { engine: 'oxlint', engineRuleId: 'x' }, suppressed: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
+    suppressed: [{ concept: 'a', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'x' }, suppressed: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
     deadOverrides: ['oxlint/no-such-rule'],
   })
   expect(output).toMatch(/1 rule overlap/)
@@ -66,7 +67,7 @@ test('summarises overlap and dead-override counts in the footer', () => {
 
 test('never puts a wide or fullwidth character in a framed line', () => {
   const busy: RulesConflicts = {
-    suppressed: [{ concept: 'a', winner: { engine: 'oxlint', engineRuleId: 'x' }, suppressed: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
+    suppressed: [{ concept: 'a', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'x' }, suppressed: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
     deadOverrides: ['oxlint/no-such-rule'],
   }
   const outputs = [capture({ suppressed: [], deadOverrides: [] }), capture(busy)]

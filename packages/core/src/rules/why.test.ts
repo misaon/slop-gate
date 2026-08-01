@@ -55,7 +55,7 @@ test('reports a slop-gate-serviced concept as such, with no candidates and no ow
   expect(explanation.isKnownConcept).toBe(true)
   expect(explanation.servicedBySlopGate).toBe(true)
   expect(explanation.candidates).toEqual([])
-  expect(explanation.owner).toBeUndefined()
+  expect(explanation.ownership).toEqual([])
   expect(explanation.uncovered).toBe(false)
 })
 
@@ -65,7 +65,7 @@ test('reports a concept no layer enables, even when a registry entry could serve
 
   expect(explanation.enablement.enabled).toBe(false)
   expect(explanation.candidates).toHaveLength(1)
-  expect(explanation.owner).toBeUndefined()
+  expect(explanation.ownership).toEqual([])
   // Never enabled, so arbitration never ran for it — not owned, not suppressed, not ineligible,
   // not uncovered. The whole story is `enablement.enabled === false`.
   expect(explanation.suppressed).toEqual([])
@@ -85,7 +85,7 @@ test('reports the owner and an ineligible non-participating candidate — the re
     resolved({ rules: { 'dead-code.unused-variable': 'warn' } }, entries, { participatingEngines: ['oxlint'] }),
   )
 
-  expect(explanation.owner).toEqual({ engine: 'oxlint', engineRuleId: 'no-unused-vars' })
+  expect(explanation.ownership.map((o) => o.owner)).toEqual([{ engine: 'oxlint', engineRuleId: 'no-unused-vars' }])
   expect(explanation.suppressed).toEqual([])
   expect(explanation.ineligible).toEqual([
     {
@@ -106,10 +106,11 @@ test('reports a suppressed loser when both engines actually participate', () => 
     resolved({ rules: { 'dead-code.unused-variable': 'warn' } }, entries, { participatingEngines: ['oxlint', 'eslint'] }),
   )
 
-  expect(explanation.owner?.engine).toBe('oxlint')
+  expect(explanation.ownership[0]?.owner.engine).toBe('oxlint')
   expect(explanation.suppressed).toEqual([
     {
       concept: 'dead-code.unused-variable',
+      languages: ['ts'],
       suppressed: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
       winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
       reason: 'lower-tier',
@@ -127,7 +128,7 @@ test('reports uncovered with a missing-capability reason for a type-aware-only c
     resolved({ rules: { 'correctness.no-floating-promises': 'warn' } }, entries, { capabilities: [] }),
   )
 
-  expect(explanation.owner).toBeUndefined()
+  expect(explanation.ownership).toEqual([])
   expect(explanation.uncovered).toBe(true)
   expect(explanation.ineligible).toEqual([
     {
@@ -146,7 +147,7 @@ test('reports a language mismatch without marking the concept uncovered', () => 
     resolved({ rules: { 'style.no-var': 'warn' } }, entries, { languages: ['ts'] }),
   )
 
-  expect(explanation.owner).toBeUndefined()
+  expect(explanation.ownership).toEqual([])
   expect(explanation.uncovered).toBe(false)
   expect(explanation.ineligible).toEqual([
     { concept: 'style.no-var', candidate: { engine: 'oxlint', engineRuleId: 'vue-rule' }, reason: 'language-mismatch' },
@@ -168,5 +169,5 @@ test('reports the pinned owner alongside the election outcome', () => {
   )
 
   expect(explanation.pinnedOwner).toBe('knip')
-  expect(explanation.owner?.engine).toBe('knip')
+  expect(explanation.ownership[0]?.owner.engine).toBe('knip')
 })

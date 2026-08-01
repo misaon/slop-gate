@@ -36,8 +36,14 @@ function ownerText(entry: RulesListEntry, paint: FrameKit['paint']): string {
   // Unreachable given today's `electOwners` contract (owner null, not uncovered, not serviced and
   // not a language mismatch cannot occur together) — kept so this function still produces
   // *something* legible if that contract is ever loosened, rather than rendering `undefined`.
-  if (entry.owner === null) return paint('dim', '(no elected owner)')
-  return ruleRefKey(entry.owner)
+  if (entry.ownership.length === 0) return paint('dim', '(no elected owner)')
+  // A concept split across engines by language shows every owner with the languages it won. One
+  // owner — the overwhelmingly common case — renders exactly as it always did, because naming
+  // languages there answers a question the column never asked.
+  if (entry.ownership.length === 1) return ruleRefKey(entry.ownership[0]!.owner)
+  return entry.ownership
+    .map(({ owner, languages }) => `${ruleRefKey(owner)} (${languages.join(', ')})`)
+    .join(', ')
 }
 
 export function renderRulesListPretty(entries: readonly RulesListEntry[], context: RulesReporterContext): void {

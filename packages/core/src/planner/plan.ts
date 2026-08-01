@@ -20,10 +20,15 @@ export type PlanInput = {
 }
 
 export function buildPlan(input: PlanInput): EngineAssignment[] {
+  // A concept can have several owners now, one per language group, so this is a nested walk rather
+  // than a map iteration. Each owning rule still contributes the concept exactly once — the level a
+  // rule runs at is a property of the concepts it owns, not of how many languages it owns them for.
   const conceptsByRule = new Map<string, string[]>()
-  for (const [concept, owner] of input.election.owners) {
-    const key = `${owner.engine}/${owner.engineRuleId}`
-    conceptsByRule.set(key, [...(conceptsByRule.get(key) ?? []), concept])
+  for (const [concept, ownership] of input.election.owners) {
+    for (const { owner } of ownership) {
+      const key = `${owner.engine}/${owner.engineRuleId}`
+      conceptsByRule.set(key, [...(conceptsByRule.get(key) ?? []), concept])
+    }
   }
 
   const assignments: EngineAssignment[] = []

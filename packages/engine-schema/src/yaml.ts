@@ -1,6 +1,6 @@
 import { LineCounter, isAlias, isCollection, isScalar, parseAllDocuments, visit, type Document } from 'yaml'
 
-export type YamlRuleId = 'malformed-document' | 'duplicate-mapping-key'
+export type YamlRuleId = 'parse-error' | 'duplicate-mapping-key'
 
 export type YamlFinding = {
   readonly rule: YamlRuleId
@@ -37,7 +37,7 @@ export type YamlInspection = {
  * `duplicate-mapping-key`, and every one a genuine defect on inspection — two of them discarding a
  * *different* value (`prometheus`'s own `section_key_dup.bad.yml`, a deliberate invalid fixture, and
  * a Kubernetes secret declaring `type` twice), the rest redundant re-declarations. Zero
- * `malformed-document`. That is 6/6 true positives and 0 false positives, which is what puts both
+ * `parse-error`. That is 6/6 true positives and 0 false positives, which is what puts both
  * rules at `error` and in `recommended`.
  */
 export function inspectYaml(source: string): YamlInspection {
@@ -58,7 +58,7 @@ export function inspectYaml(source: string): YamlInspection {
     // linter that dies on one unusual file takes the whole run with it, and no engine result is
     // worth that. Reported as a finding at the top of the file rather than swallowed.
     return {
-      findings: [{ rule: 'malformed-document', message: messageOf(error), offset: 0, endOffset: 0 }],
+      findings: [{ rule: 'parse-error', message: messageOf(error), offset: 0, endOffset: 0 }],
       documents: [],
       lineCounter,
     }
@@ -68,7 +68,7 @@ export function inspectYaml(source: string): YamlInspection {
     findings.push(...documentFindings(document))
 
     // `toJS` is where an unresolved alias surfaces (it throws a `ReferenceError`); `documentFindings`
-    // has already reported that as `malformed-document` with a real range, so this only has to avoid
+    // has already reported that as `parse-error` with a real range, so this only has to avoid
     // propagating the throw.
     //
     // A duplicate key deliberately does **not** disqualify the document: YAML resolves it (last one
@@ -110,7 +110,7 @@ function documentFindings(document: Document): YamlFinding[] {
     // One per document, deliberately: a single mistake routinely produces a cascade of follow-on
     // parser errors, and restating it five times helps nobody find the one place to edit.
     malformed ??= {
-      rule: 'malformed-document',
+      rule: 'parse-error',
       message: firstLine(error.message),
       offset: error.pos[0],
       endOffset: error.pos[1],
@@ -145,7 +145,7 @@ function unresolvedAlias(document: Document): YamlFinding | undefined {
       if (isAlias(node) && !defined.has(node.source)) {
         const [start, end] = node.range ?? [0, 0]
         found = {
-          rule: 'malformed-document',
+          rule: 'parse-error',
           message: `Unresolved alias \`*${node.source}\`: no anchor \`&${node.source}\` is defined before it.`,
           offset: start,
           endOffset: end,
@@ -173,8 +173,17 @@ function keyAt(document: Document, offset: number): { text: string; end: number 
   return found
 }
 
+/**
+ * The parser's message without its code frame.
+ *
+ * `yaml` formats an error as `<text> at line N, column M:` followed by a blank line and a rendered
+ * excerpt. slop-gate draws its own code frame from the reported range, so the excerpt is dropped —
+ * and with it the trailing colon that introduced it, which otherwise leaves `...column 1:.` in the
+ * output. The position is redundant too, but it is inside the sentence rather than appended to it,
+ * and cutting it out would mean rewriting the parser's prose rather than trimming it.
+ */
 function firstLine(message: string): string {
-  const line = message.split('\n')[0]?.trim() ?? message
+  const line = (message.split('\n')[0]?.trim() ?? message).replace(/:$/, '')
   return line.endsWith('.') ? line : `${line}.`
 }
 

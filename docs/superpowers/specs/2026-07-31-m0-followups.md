@@ -900,28 +900,41 @@ to rewrite, not what it will succeed at.
 
 ## Found building the `schema` engine (spec §13.1, config files)
 
-### Concept election is repository-wide, so two engines cannot share a concept across languages
+### Concept election was repository-wide — fixed, and the fix is worth knowing about
 
-`correctness.parse-error`'s own catalogue entry promises that "any engine capable of parsing the
-language may report it, attributed via a synthetic per-engine rule id". **That promise cannot
-currently be kept by more than one engine at a time.** `electOwners` elects exactly one owner per
-concept for the whole repository; its `languages` input is the set of languages *present in the
-repo*, not the language of the file being checked. Verified directly against the real function: with
-oxlint's tier-0 `parse-error` entry (`ts`, `tsx`, `js`, `jsx`) and a `schema` entry claiming the same
-concept for `yaml`, in a repository containing both, oxlint wins and the YAML entry is recorded as
-`suppressed` with reason `lower-tier`. YAML parse errors would then never be reported, and the run
-would emit a `config.rule-overlap` for an overlap that does not exist — the two rules cover disjoint
-files.
+**Resolved.** Ownership is now keyed on `(concept, language)`; see spec §5.3. Recorded here because
+the failure mode is subtle and the next person to add an engine should recognise it.
 
-The `schema` engine routes around this by owning `config.malformed-document` and
-`config.duplicate-mapping-key` instead of the `correctness.*` concepts that describe the same defects
-in JavaScript. That is a defensible taxonomy on its own terms — these are configuration documents, and
-a future `yamllint` or TOML checker would claim the same concepts — but it was forced, not chosen.
+`correctness.parse-error`'s catalogue entry has promised since M0 that "any engine capable of parsing
+the language may report it". That promise could not be kept: `electOwners` elected one owner per
+concept for the whole repository, and its `languages` input is the set of languages *present in the
+repo*, not the language of the file. With oxlint's tier-0 `parse-error` (`ts`, `tsx`, `js`, `jsx`) and
+a `schema` entry claiming the same concept for `yaml`, in a repository containing both, oxlint won and
+the YAML entry was recorded `suppressed` with reason `lower-tier` — so YAML parse errors were never
+reported, and the run emitted a `config.rule-overlap` for an overlap that cannot happen. A false
+positive in our own governance output.
 
-**This will be hit again immediately.** actionlint reports workflow syntax errors, and any entry it
-gets for them faces the identical wall. The real fix is to make ownership `(concept, language)`-keyed
-rather than concept-keyed, which touches `electOwners`, `ElectionResult.selection`, the suppression
-records and `sgate rules why`. Worth doing before a third engine works around it a third way.
+The schema engine shipped with `config.*` concepts to route around it, and migrated to the shared
+`correctness.*` ones once the mechanism was corrected.
+
+Three things learned doing it:
+
+- **The language must only be consulted where a concept has more than one owner.** Enforcing it
+  everywhere drops legitimate findings: a project engine reports against files it was never handed,
+  and `tsc` naming `tsconfig.json` (language `jsonc`) is in this repository's own test suite. Caught
+  by that test, not by review.
+- **Suppression records carry a language *list*, not a language.** One record per losing rule, as
+  before. Emitting one per language would have quietly multiplied `rules conflicts` and
+  `config.rule-overlap` output by four for the ordinary JS/TS case.
+- **Before and after on this repository, nothing gained an owner**: 167 ownership entries both ways,
+  164 oxlint and 3 schema, 0 suppressions, 0 uncovered, 116 ineligible, selection sizes unchanged. The
+  concept *count* fell 167 → 165, which is exactly the two `config.*` duplicates being retired.
+
+**The first genuine dogfooding result.** Running `sgate check` on this repository caught two defects
+in this very change: a dead `RuleRef` import left behind when `ConceptWhy.owner` became `ownership`,
+and — indirectly, by making the split-ownership case real — a `rules why` verdict that ran to 96
+characters and was being truncated mid-word inside its frame. The gate policing a change to its own
+arbitration is worth more than either fix.
 
 ### Measured: the `schema` engine over 826 real YAML files
 
@@ -940,6 +953,8 @@ prometheus/prometheus — four unrelated repositories, 826 YAML files, plus this
 
 All three rules are `error` and in `recommended` on that basis — the first engine-owned entries in
 `entries.manual.ts` to reach it, and the only ones whose measurement contained no judgement call.
+Two of them get there for free: they claim `correctness.parse-error` and
+`correctness.no-duplicate-object-key`, which `recommended` already carries at `error`.
 
 ### The Compose specification does not constrain `restart`
 

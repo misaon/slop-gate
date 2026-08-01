@@ -41,6 +41,7 @@ export {
 export { RULE_ENTRIES } from './registry/entries.ts'
 export {
   electOwners,
+  type ConceptOwnership,
   type ElectionInput,
   type ElectionResult,
   type IneligibilityReason,
@@ -48,7 +49,7 @@ export {
   type SuppressionReason,
   type SuppressionRecord,
 } from './registry/elect.ts'
-export { filterOwned, isOwned, type OwnershipCandidate } from './registry/ownership.ts'
+export { filterOwned, isOwned, owningEngines, type OwnerMap, type OwnershipCandidate } from './registry/ownership.ts'
 
 export {
   isRuleLevel,

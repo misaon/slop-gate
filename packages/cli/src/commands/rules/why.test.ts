@@ -41,7 +41,7 @@ test('explains the shipped eslint/oxlint overlap: owned by oxlint, eslint inelig
   const output = await runWhyCapturingStdout('dead-code.unused-variable')
   const explanation = JSON.parse(output) as ConceptWhy
 
-  expect(explanation.owner).toEqual({ engine: 'oxlint', engineRuleId: 'no-unused-vars' })
+  expect(explanation.ownership.map((o) => o.owner)).toEqual([{ engine: 'oxlint', engineRuleId: 'no-unused-vars' }])
   expect(explanation.ineligible).toContainEqual({
     concept: 'dead-code.unused-variable',
     candidate: { engine: 'eslint', engineRuleId: '@typescript-eslint/no-unused-vars' },
