@@ -73,11 +73,22 @@ test('reports the same findings from cache on a second run', async () => {
   expect(warm.stats.filesFromCache).toBeGreaterThan(0)
 }, 60_000)
 
-test('the warm run is faster than the cold run', async () => {
+test('the warm run does strictly less work than the cold run', async () => {
+  // Asserted as *work*, not as elapsed time. The wall-clock version of this test compared
+  // `durationMs` between two runs and failed on a shared CI runner at 173ms vs 163ms — a 6% margin
+  // that says nothing about the cache and everything about what else the machine was doing. Cache
+  // hits and engine invocations are counters the run controls, so they hold on a loaded runner and
+  // still fail for the reason this test exists: a cache that stopped being consulted.
   const cold = await check(true)
   const warm = await check(true)
 
-  expect(warm.stats.durationMs).toBeLessThanOrEqual(cold.stats.durationMs)
+  expect(cold.stats.filesFromCache).toBe(0)
+  expect(warm.stats.filesFromCache).toBe(warm.stats.filesAnalysed)
+
+  // Not asserted: that the warm run invokes fewer engines. `enginesRun` is 1 either way, because the
+  // planner is not cache-aware — an engine with every result already cached is still constructed and
+  // asked for its version and config. That gap is recorded in the M0 follow-ups under "Restructure
+  // before M2"; when it closes, this is the assertion to add.
 }, 60_000)
 
 test('never reports two diagnostics with the same concept at the same position', async () => {

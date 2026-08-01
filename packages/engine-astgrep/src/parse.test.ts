@@ -82,3 +82,73 @@ test('raises an EngineError when the payload is json but not an array', () => {
   // from a clean run.
   expect(() => parseAstGrepOutput('{"diagnostics":[]}', '/repo')).toThrow(/not an array/)
 })
+
+// --- Fix data (spec §11 step 1) ----------------------------------------------------------------
+// The payloads below are trimmed verbatim captures from ast-grep 0.45.0 (`scan --rule <rule with a
+// fix:> --json=stream`), not invented shapes.
+
+test('a match carrying a replacement becomes a RawFix', () => {
+  const [diagnostic] = parseAstGrepOutput(
+    JSON.stringify([
+      {
+        ruleId: 'no-loose-eq',
+        message: 'use strict equality',
+        severity: 'warning',
+        file: 'src/a.ts',
+        range: { byteOffset: { start: 16, end: 22 } },
+        replacement: 'q === 1',
+        replacementOffsets: { start: 16, end: 22 },
+      },
+    ]),
+    '/repo',
+  )
+
+  expect(diagnostic?.fix).toEqual({ edits: [{ range: { start: 16, end: 22 }, replacement: 'q === 1' }] })
+})
+
+test('a replacement span narrower than the match is used as given, not widened to the match', () => {
+  const [diagnostic] = parseAstGrepOutput(
+    JSON.stringify([
+      {
+        ruleId: 'r',
+        file: 'src/a.ts',
+        range: { byteOffset: { start: 10, end: 40 } },
+        replacement: '===',
+        replacementOffsets: { start: 20, end: 22 },
+      },
+    ]),
+    '/repo',
+  )
+
+  expect(diagnostic?.range).toEqual({ start: 10, end: 40 })
+  expect(diagnostic?.fix?.edits[0]?.range).toEqual({ start: 20, end: 22 })
+})
+
+test('a match from a rule with no fix has no fix key', () => {
+  const [diagnostic] = parseAstGrepOutput(
+    JSON.stringify([{ ruleId: 'r', file: 'src/a.ts', range: { byteOffset: { start: 0, end: 3 } } }]),
+    '/repo',
+  )
+
+  expect(diagnostic).not.toHaveProperty('fix')
+})
+
+test('a replacement with no offsets is dropped rather than guessed at from the match range', () => {
+  const [diagnostic] = parseAstGrepOutput(
+    JSON.stringify([{ ruleId: 'r', file: 'src/a.ts', range: { byteOffset: { start: 0, end: 3 } }, replacement: 'x' }]),
+    '/repo',
+  )
+
+  expect(diagnostic?.fix).toBeUndefined()
+})
+
+test('an empty replacement is a deletion, not a missing fix', () => {
+  const [diagnostic] = parseAstGrepOutput(
+    JSON.stringify([
+      { ruleId: 'r', file: 'src/a.ts', range: { byteOffset: { start: 0, end: 3 } }, replacement: '', replacementOffsets: { start: 0, end: 3 } },
+    ]),
+    '/repo',
+  )
+
+  expect(diagnostic?.fix?.edits[0]?.replacement).toBe('')
+})

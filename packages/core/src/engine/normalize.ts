@@ -1,7 +1,7 @@
 import type { RuleLevel } from '../config/types.ts'
 import { fingerprint } from '../diagnostics/fingerprint.ts'
 import { createLineIndex, type LineIndex } from '../diagnostics/position.ts'
-import type { Diagnostic, Severity } from '../diagnostics/types.ts'
+import type { Diagnostic, Fix, Severity } from '../diagnostics/types.ts'
 import { isOwned } from '../registry/ownership.ts'
 import { ruleRefKey, type EngineId, type RuleEntry, type RuleRef } from '../registry/types.ts'
 import { applySuppressions } from '../suppressions/apply.ts'
@@ -89,6 +89,7 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
         endColumn: end.column,
       },
       ...(raw.help === undefined ? {} : { help: raw.help }),
+      ...fixOf(entry, raw),
       docsUrl: raw.docsUrl ?? entry.docsUrl,
       fingerprint: fingerprint({ concept, file: raw.file, source, range: raw.range, occurrenceIndex }),
     })
@@ -199,6 +200,30 @@ function judgedBy(directive: SuppressionDirective, engine: EngineId, owners: Rea
     target.includes('/') ? target.slice(0, target.indexOf('/')) : owners.get(target)?.engine,
   )
   return engines.some((owner) => owner === engine) || engines.every((owner) => owner === undefined)
+}
+
+/**
+ * Attaches an engine's fix to a diagnostic, with the registry — not the engine — deciding its tier.
+ *
+ * `RuleEntry.fixKind` is the single declared trust level for a rule's fix (D7), the thing
+ * `sgate rules` shows a user and the thing `sgate fix --safe` gates on. So a rule the registry calls
+ * unfixable has its edits **dropped**, not promoted to some default tier: the alternative is an
+ * adapter being able to apply a rewrite that no reviewable, committed file ever authorised. In
+ * practice this fires when an engine's own fix metadata is ahead of a regenerated registry, and the
+ * fail-safe direction is to offer the fix on the next regeneration rather than before it.
+ *
+ * An empty `edits` array is dropped too — a fix that changes nothing is not a fix, and letting one
+ * through would have the fix loop count a file as changed and re-run every engine over it forever.
+ */
+function fixOf(entry: RuleEntry, raw: RawDiagnostic): { fix: Fix } | Record<string, never> {
+  if (raw.fix === undefined || entry.fixKind === 'none' || raw.fix.edits.length === 0) return {}
+  return {
+    fix: {
+      kind: entry.fixKind,
+      description: raw.fix.description ?? `Apply the ${entry.engineRuleId} fix.`,
+      edits: raw.fix.edits.map((edit) => ({ range: { ...edit.range }, replacement: edit.replacement })),
+    },
+  }
 }
 
 function classify(entry: RuleEntry, message: string): string {

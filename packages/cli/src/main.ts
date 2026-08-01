@@ -7,6 +7,7 @@ const version = readCliVersion()
 
 const subCommands = {
   check: () => import('./commands/check.ts').then((module) => module.check),
+  fix: () => import('./commands/fix.ts').then((module) => module.fix),
   init: () => import('./commands/init.ts').then((module) => module.init),
   rules: () => import('./commands/rules/index.ts').then((module) => module.rules),
 }

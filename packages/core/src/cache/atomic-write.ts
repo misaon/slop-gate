@@ -39,7 +39,18 @@ export type WriteFileAtomicOptions = {
  * is the same trap `resolveScriptBin` documents in the other direction, and on POSIX these codes mean
  * a real failure that five attempts over 160ms resolve into the same error anyway.
  */
-export async function writeFileAtomic(target: string, data: string, options: WriteFileAtomicOptions = {}): Promise<void> {
+export async function writeFileAtomic(
+  target: string,
+  /**
+   * `Uint8Array` as well as `string` because `sgate fix` (spec §11 step 7) writes a source file it
+   * rebuilt by splicing bytes: engine ranges are byte offsets, so the fix pipeline never decodes the
+   * file at all. Round-tripping through a string here to satisfy a narrower signature would reintroduce
+   * exactly the encoding step that pipeline exists to avoid, and would rewrite any byte sequence
+   * `TextDecoder` could not represent.
+   */
+  data: string | Uint8Array,
+  options: WriteFileAtomicOptions = {},
+): Promise<void> {
   const renameFile = options.renameFile ?? rename
   await mkdir(dirname(target), { recursive: true })
   const scratch = `${target}.${randomUUID()}.tmp`

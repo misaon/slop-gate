@@ -442,3 +442,60 @@ test('a missing reason is reported regardless of who owns the target', () => {
 
   expect(result.map((d) => d.concept)).toEqual(['config.suppression-missing-reason'])
 })
+
+// --- Fix data (spec §11 step 1): the engine supplies edits, the registry supplies the tier -------
+
+const fixEdits = [{ range: { start: 0, end: 26 }, replacement: '' }]
+
+test('an engine fix is carried onto the diagnostic with the registry entry as its tier', () => {
+  const [diagnostic] = run([
+    raw({ engineRuleId: 'no-debugger', message: 'debugger', fix: { edits: fixEdits } }),
+  ])
+
+  // `suggested` comes from `noDebugger.fixKind`, not from anything the raw diagnostic said.
+  expect(diagnostic?.fix).toEqual({
+    kind: 'suggested',
+    description: 'Apply the no-debugger fix.',
+    edits: fixEdits,
+  })
+})
+
+test("an engine's own description wins over the generated one", () => {
+  const [diagnostic] = run([
+    raw({ engineRuleId: 'no-debugger', message: 'debugger', fix: { description: 'Remove it.', edits: fixEdits } }),
+  ])
+  expect(diagnostic?.fix?.description).toBe('Remove it.')
+})
+
+test('a fix for a rule the registry calls unfixable is dropped, not retiered', () => {
+  const unfixable: RuleEntry = { ...noDebugger, fixKind: 'none', fixTouches: [] }
+  const [diagnostic] = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', fix: { edits: fixEdits } })],
+    entries: [unusedVars, unfixable],
+    owners,
+    sourceOf: () => source,
+    levelOf: () => 'error',
+  })
+
+  expect(diagnostic).toBeDefined()
+  expect(diagnostic?.fix).toBeUndefined()
+})
+
+test('a fix carrying no edits is dropped', () => {
+  const [diagnostic] = run([raw({ engineRuleId: 'no-debugger', message: 'debugger', fix: { edits: [] } })])
+  expect(diagnostic?.fix).toBeUndefined()
+})
+
+test('a diagnostic with no fix has no fix key at all', () => {
+  const [diagnostic] = run([raw({ engineRuleId: 'no-debugger', message: 'debugger' })])
+  expect(diagnostic).not.toHaveProperty('fix')
+})
+
+test('the carried edits are copies, so a later mutation cannot reach into the cached diagnostic', () => {
+  const edits = [{ range: { start: 0, end: 4 }, replacement: 'x' }]
+  const [diagnostic] = run([raw({ engineRuleId: 'no-debugger', message: 'debugger', fix: { edits } })])
+
+  edits[0]!.range.start = 999
+  expect(diagnostic?.fix?.edits[0]?.range.start).toBe(0)
+})

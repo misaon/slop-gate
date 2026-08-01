@@ -9,6 +9,10 @@ type AstGrepMatch = {
   severity?: string
   file?: string
   range?: { byteOffset?: { start?: number; end?: number } }
+  /** The rewritten text, present only when the rule document declares a `fix:`. */
+  replacement?: string
+  /** The span `replacement` replaces. Not always the match's own range — a `fix` may be scoped narrower. */
+  replacementOffsets?: { start?: number; end?: number }
 }
 
 /**
@@ -67,9 +71,31 @@ export function parseAstGrepOutput(stdout: string, rootDir: string): RawDiagnost
       // `note` is where each rule's documented escape lives (spec §14 requires one per rule), so it
       // travels with the finding rather than only existing on a documentation page.
       ...(match.note === undefined || match.note === null ? {} : { help: match.note }),
+      ...fixOf(match),
     })
   }
   return results
+}
+
+/**
+ * ast-grep's own rewrite for a rule that declares a `fix:` — verified against ast-grep 0.45.0, which
+ * emits `replacement` and `replacementOffsets` on every match of such a rule and neither key at all
+ * otherwise. Both are needed: `replacementOffsets` is a span in its own right and is **not**
+ * guaranteed to equal the match's `range.byteOffset`, so deriving one from the other would silently
+ * mis-place a fix the moment a rule scopes its rewrite to part of what it matched.
+ *
+ * No tier is attached here; `normalizeDiagnostics` stamps it from `RuleEntry.fixKind` (see
+ * `RawFix`). **No rule this package ships declares a `fix:` today** — spec §14 records why for each,
+ * and the short version is that every current `slop.*` finding is a judgement about intent that a
+ * mechanical rewrite cannot make. This function is what a rule that does declare one will need, and
+ * it is covered by tests against real ast-grep output rather than left to be written later against a
+ * format nobody re-checked.
+ */
+function fixOf(match: AstGrepMatch): { fix: { edits: Array<{ range: { start: number; end: number }; replacement: string }> } } | Record<string, never> {
+  const start = match.replacementOffsets?.start
+  const end = match.replacementOffsets?.end
+  if (match.replacement === undefined || start === undefined || end === undefined) return {}
+  return { fix: { edits: [{ range: { start, end }, replacement: match.replacement }] } }
 }
 
 /**

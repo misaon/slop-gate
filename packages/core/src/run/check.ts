@@ -6,6 +6,7 @@ import { openStatIndex, type StatIndex } from '../cache/stat-index.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Severity } from '../diagnostics/types.ts'
+import type { FixTier } from '../fix/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import { LEVEL_TO_SEVERITY, normalizeDiagnostics } from '../engine/normalize.ts'
@@ -27,6 +28,12 @@ export type CheckOptions = {
   cacheDir?: string
   useCache?: boolean
   batchSize?: number
+  /**
+   * Asks every engine for fix data (spec §11 step 1), capped at this tier. Absent on a plain
+   * `sgate check`, which is what keeps an adapter that has to *derive* fixes by re-running itself
+   * (see `@misaon/slop-gate-engine-oxlint`) from doing that work on the common path.
+   */
+  fixTier?: FixTier
   signal?: AbortSignal
 }
 
@@ -108,7 +115,12 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // ruleset that no longer applies. Same silent-stale-warm-run shape as the stat index trusting
   // `(size, mtimeMs)`, one layer up. `frameworks.applied` alone would do, but the whole detection is
   // hashed so a profile moving between applied and inapplicable also invalidates.
-  const configHash = hashJson({ config: options.config, entries, frameworks })
+  // `fixTier` is folded in for the same reason `frameworks` is: with it absent from the key, a
+  // `sgate check` run would populate the cache with fix-free diagnostics and the `sgate fix` that
+  // followed would be served them — a fix pipeline finding nothing to do, on a repository full of
+  // fixable findings, with no way to tell that from a genuinely clean one. `runFix` also disables the
+  // cache outright, so this is the second of two independent guards rather than the only one.
+  const configHash = hashJson({ config: options.config, entries, frameworks, fixTier: options.fixTier })
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
   // Project-granularity engines (spec §8.1: `tsc`, `knip`) cache one whole-program result per
@@ -188,6 +200,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           rootDir: options.rootDir,
           tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
           adjustments: engineAdjustmentsFor(engine.id, frameworks),
+          ...(options.fixTier === undefined ? {} : { fixTier: options.fixTier }),
         }
         const handle = await engine.materializeConfig(assignment.selection, runContext)
         enginesRun += 1
