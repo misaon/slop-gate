@@ -482,14 +482,33 @@ shippable at all (without it they double-report), and whether they earn their pl
 that actually violates one. Do not cite the 152 → 162 figure as a finding-count improvement; it is a
 coverage figure and the finding-count delta was zero.
 
-**Three rules were measured *out* while measuring the rest in, and one of them is an upstream bug.**
-`vitest/valid-expect` produced 27 findings and 27 false positives, all the identical message "Expect
-takes at most 1 argument" on `expect(value, message)` — which is vitest's own documented signature
-(`<T>(actual: T, message?: string): Assertion<T>`, `@vitest/expect` 3.2.7). oxlint's vitest plugin is
-applying jest's arity rule to vitest, so the rule is wrong about the framework it is named after.
-**Worth reporting upstream to oxc**; nobody has, at time of writing. `jest/valid-expect` is *not*
-excluded, because jest genuinely has no such overload. `no-conditional-expect` (8/8) and
-`require-to-throw-message` (4/4) are excluded for both scopes on ordinary accuracy grounds.
+**Three rules were measured *out* while measuring the rest in.** `no-conditional-expect` (8/8 false
+positives) and `require-to-throw-message` (4/4) are excluded for both scopes on ordinary accuracy
+grounds; each records its measurement on its own entry in `registry/exclusions.ts`. The third is not
+an accuracy judgement at all but an upstream defect, written out in full below because it should be
+reported and the evidence should not have to be re-gathered to do it.
+
+### `oxlint`'s `vitest/valid-expect` applies jest's arity rule to vitest — worth filing with oxc
+
+**Not yet reported upstream** (the user's call to make, not this document's). Everything needed to
+file it:
+
+- **Symptom.** oxlint 1.76.0 reports `Expect takes at most 1 argument` on `expect(value, message)`.
+- **Measured.** 27 findings on this repository the moment framework detection made the vitest scope
+  electable, and **27 of 27 are false positives** — every one the identical message on that call
+  shape, across 8 files (`packages/core/src/registry/entries.test.ts`,
+  `entries.generated.test.ts`, `config/presets.test.ts`, `reporters/src/pretty.test.ts` and three
+  more under `reporters/src/rules/`).
+- **Why it is wrong.** The two-argument form is vitest's own documented API: `@vitest/expect` 3.2.7
+  declares `interface ExpectStatic { <T>(actual: T, message?: string): Assertion<T>; ... }`
+  (`dist/index.d.ts:165-166`), where the second argument is the custom assertion message. The rule
+  is applying **jest's** arity limit inside the **vitest** plugin, so it is wrong about the very
+  framework it is named after.
+- **Scope of the fix here.** `vitest/valid-expect` is excluded; `jest/valid-expect` is deliberately
+  **not**, because jest genuinely has no such overload and the rule is correct there. In a vitest
+  repository the `test-framework` profile disables the jest-scope copy anyway, so neither fires.
+- **What to withdraw when upstream fixes it.** The `vitest/valid-expect` entry in
+  `registry/exclusions.ts`, and nothing else. Re-measure before withdrawing it.
 
 **The dual-firing set is "rules both plugins implement", not "the whole scope", and the difference is
 one concept.** The first implementation disabled every concept in the absent scope, which also turned
@@ -498,13 +517,19 @@ therefore never double-reports. Caught only by diffing the elected set before an
 finding-count check would have missed it, because the rule fires zero times here. **Diff the elected
 concept set, not the diagnostic count, when changing anything that touches `recommended`.**
 
-**The obvious cache test has no teeth, and the shape that does is not obvious.** `configHash` must
-fold in the detection result or a warm run serves a ruleset that no longer applies. But a test where
-the framework-disabled concept is the *only* enabled one passes with or without the fix: the engine
-drops out of the plan entirely and the cache is never consulted. Two concepts are needed — one the
-framework leaves alone, so the engine still runs and the file is still a cache candidate. Verified by
-reverting the fold and watching the test fail. The same trap will apply to any future test of "a
-non-analysed file changed the ruleset".
+**A cache test over a single-concept ruleset passes vacuously. This is general, not a detail of this
+change.** If the only enabled concept is the one under test, disabling it empties the engine's
+selection, the engine drops out of `buildPlan` entirely, and `run()` is never called — so the cache is
+never consulted and the assertion holds whether or not the caching is correct. **Any** test of the
+form "something changed, so the warm run must not be reused" needs at least two concepts: one that
+stays enabled, so the engine still runs and the file is still a cache candidate, and one that moves.
+
+That is how `configHash` came to fold in the detection result here (spec §23.4) — a dependency edit
+changes the effective ruleset without touching any file the engine was assigned, so a blind key serves
+the previous answer forever. The first version of the test passed with the fold reverted; the
+two-concept version fails, which is the only reason it is known to work. **Verify a cache test by
+reverting the fix and watching it fail** — for this class of test, a passing test is close to no
+evidence at all.
 
 **A workspace-level knip `entry` replaces knip's defaults rather than extending them**
 (`ConfigurationChief.getConfigForWorkspace`, 6.31.0: `workspaceConfig.entry ? arrayify(...) :
@@ -515,11 +540,16 @@ comparing pattern strings, since only a behavioural test catches knip changing i
 
 ### Left for later, deliberately
 
-- **`suspicious.no-extraneous-class` is in `recommended` again, guarded only by NestJS.** Angular,
-  and any other decorator-driven DI framework, produces the identical empty-class shape and has no
-  profile. The rule will be 100% false positives there exactly as it was on NestJS before this change.
-  An `angular` profile is a five-line addition (`@angular/core`, same single adjustment); it is not
-  here because nothing measured it, and adding an unmeasured profile is the thing §23.5 forbids.
+- **`suspicious.no-extraneous-class` is in `recommended` again, guarded by NestJS and Angular only.**
+  Both profiles ship, but the `angular` one carries a deliberately narrower warrant than every other
+  profile: mechanism identity with the measured NestJS case, not its own false-positive count (spec
+  §23.5 states the distinction and the asymmetry that justifies it). **Nobody has run this against a
+  real Angular repository** — the first person who can should, and should record the count here
+  either way. Two open ends beyond that: Angular has been standalone-first since v15, so a modern app
+  may contain no `@NgModule` and the profile is simply a no-op there; and the wider claim — that *any*
+  decorator-driven DI framework produces this shape — is still untested. Ditto, Lit, and Stencil are
+  the obvious next candidates, and none of them gets a profile until someone points at either a
+  measurement or the same construct.
 - **No profile is scoped to a workspace for the *ruleset* consumer.** `disable-concept` is repository
   wide, so one NestJS package in a monorepo disables the empty-class rule everywhere in it. Engine
   settings already carry a workspace; rules do not, because §6.2's per-workspace layer would be the
