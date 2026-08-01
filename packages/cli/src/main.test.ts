@@ -68,6 +68,47 @@ test('check --help shows the check-specific usage instead of starting a real che
   expect(stdout).toContain('--cache')
 })
 
+test('--help also lists rules, the new command group', async () => {
+  const { code, stdout } = await spawnMain(['--help'])
+  expect(code).toBe(EXIT_CODES.clean)
+  expect(stdout).toContain('rules')
+})
+
+test('rules --help shows the group\'s own subcommands, not check\'s usage', async () => {
+  const { code, stdout } = await spawnMain(['rules', '--help'])
+  expect(code).toBe(EXIT_CODES.clean)
+  expect(stdout).toContain('list')
+  expect(stdout).toContain('why')
+  expect(stdout).toContain('conflicts')
+  expect(stdout).not.toContain('--cache')
+})
+
+test('rules why --help shows why\'s own usage two levels deep, not the rules group\'s', async () => {
+  // Regression test for the exact limitation `resolveHelpTarget`'s own doc comment used to name
+  // ("a flat list of subcommands, no nesting... if a later command grows either, this needs
+  // revisiting"): a one-level lookup would resolve this to the `rules` group itself, showing
+  // list/why/conflicts instead of `why`'s own `CONCEPT` argument and `--format` flag.
+  const { code, stdout } = await spawnMain(['rules', 'why', '--help'])
+  expect(code).toBe(EXIT_CODES.clean)
+  expect(stdout).toContain('CONCEPT')
+  expect(stdout).toContain('--format')
+  expect(stdout).not.toContain('conflicts')
+})
+
+test('rules list --help shows list\'s own filtering flags', async () => {
+  const { code, stdout } = await spawnMain(['rules', 'list', '--help'])
+  expect(code).toBe(EXIT_CODES.clean)
+  expect(stdout).toContain('--only')
+  expect(stdout).toContain('--engine')
+  expect(stdout).toContain('--uncovered')
+})
+
+test('an unknown rules subcommand exits with the config code, matching an unknown top-level command', async () => {
+  const { code, stderr } = await spawnMain(['rules', 'nonexistent'])
+  expect(code).toBe(EXIT_CODES.config)
+  expect(stderr).toContain('Unknown command')
+})
+
 test('--help prints the same framed header as `check`, ahead of citty\'s own usage body', async () => {
   const { code, stdout } = await spawnMain(['--help'])
   expect(code).toBe(EXIT_CODES.clean)

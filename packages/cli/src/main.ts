@@ -8,6 +8,7 @@ const version = readCliVersion()
 const subCommands = {
   check: () => import('./commands/check.ts').then((module) => module.check),
   init: () => import('./commands/init.ts').then((module) => module.init),
+  rules: () => import('./commands/rules/index.ts').then((module) => module.rules),
 }
 
 const main = defineCommand({
@@ -59,16 +60,26 @@ try {
 }
 
 /**
- * A deliberately simple, one-level lookup matching this CLI's actual shape: a flat list of
- * subcommands, no aliases, no nesting. citty's own equivalent (`resolveSubCommand`) handles both
- * and is not exported; if `init` or a later command grows either, this needs revisiting.
+ * Walks as many levels of `subCommands` as `args` names, matching citty's own runtime dispatch
+ * (`runCommand` recurses into a matched subcommand's own `subCommands`, one positional token at a
+ * time — see `command.ts`'s internal `resolveSubCommand`, which does the same walk but is not
+ * exported). No aliases, and no attempt to skip a value-flag's argument the way citty's own
+ * version does (e.g. `sgate rules --engine oxlint why --help` would misread `oxlint` as a
+ * subcommand name) — every command in this CLI takes its flags after the subcommand name, so that
+ * case does not arise in practice; revisit if one ever puts a value flag ahead of a nested
+ * subcommand name.
  */
 async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: CommandDef; parent?: CommandDef }> {
-  const name = args.find((arg) => !arg.startsWith('-'))
-  const loader =
-    name === undefined ? undefined : (subCommands as unknown as Record<string, (() => Promise<CommandDef>) | undefined>)[name]
-  if (loader === undefined) return { cmd: main }
-  return { cmd: await loader(), parent: main }
+  let cmd: CommandDef = main
+  let parent: CommandDef | undefined
+  for (const name of args.filter((arg) => !arg.startsWith('-'))) {
+    const subs = cmd.subCommands as Record<string, (() => Promise<CommandDef>) | undefined> | undefined
+    const loader = subs?.[name]
+    if (loader === undefined) break
+    parent = cmd
+    cmd = await loader()
+  }
+  return parent === undefined ? { cmd: main } : { cmd, parent }
 }
 
 /**
