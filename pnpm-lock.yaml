@@ -35,6 +35,9 @@ importers:
       '@misaon/slop-gate-core':
         specifier: workspace:*
         version: link:../core
+      '@misaon/slop-gate-engine-knip':
+        specifier: workspace:*
+        version: link:../engine-knip
       '@misaon/slop-gate-engine-oxlint':
         specifier: workspace:*
         version: link:../engine-oxlint
