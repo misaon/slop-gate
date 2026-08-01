@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { CONCEPTS, conceptById, isConceptId } from './catalogue.ts'
+import { CONCEPTS, conceptById, GENERATED_CONCEPT_IDS, HAND_WRITTEN_CONCEPTS, isConceptId } from './catalogue.ts'
 import { validateCatalogue } from './validate.ts'
 
 test('the catalogue satisfies its invariants', () => {
@@ -25,6 +25,17 @@ test('recognises a known id and rejects an unknown one', () => {
 
 test('looks a concept up by id', () => {
   expect(conceptById('dead-code.unused-import').group).toBe('dead-code')
+})
+
+test('separates generated descriptions from hand-written ones', () => {
+  // The property consumers actually rely on: a generated description restates the rule's name and a
+  // hand-written one states the consequence, so anything presenting a description as rationale has
+  // to be able to tell them apart. Asserted on both sides — a set that quietly went empty, or one
+  // that swallowed the curated half, would pass a membership check written only one way.
+  expect(GENERATED_CONCEPT_IDS.has('correctness.no-useless-spread')).toBe(true)
+  expect(GENERATED_CONCEPT_IDS.has('correctness.no-debugger')).toBe(false)
+  for (const concept of HAND_WRITTEN_CONCEPTS) expect(GENERATED_CONCEPT_IDS.has(concept.id)).toBe(false)
+  expect(GENERATED_CONCEPT_IDS.size).toBe(CONCEPTS.length - HAND_WRITTEN_CONCEPTS.length)
 })
 
 test('reports duplicate ids', () => {
