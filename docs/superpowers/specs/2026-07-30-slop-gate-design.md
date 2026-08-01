@@ -801,7 +801,7 @@ dependencies.
 | Structural and slop rules | **ast-grep** | bundled | Declarative YAML, cross-language. Implemented — see §13.3 |
 | GitHub Actions correctness | **actionlint** | lazy | Go binary |
 | GitHub Actions security | **zizmor** | lazy | Rust binary |
-| Config files | **JSON Schema** / SchemaStore | bundled | docker-compose, tsconfig, package.json, renovate — cheap, high value. Schemas cached locally |
+| Config files | **JSON Schema** / SchemaStore | bundled | docker-compose implemented — see §13.4. tsconfig, package.json, renovate still open (JSON needs a position-preserving parser) |
 | Dockerfile | **hadolint** | lazy | Plus ast-grep rules |
 | Framework templates, niche plugins | **eslint** (shrinking escape hatch) | peer | Only concepts no faster engine owns |
 
@@ -987,6 +987,41 @@ is the behaviour this pipeline needs: the inventory (§7) is the authority on wh
 second engine-local ignore layer would subtract from it invisibly.
 
 The rules themselves, and what they measured, are §14.
+
+### 13.4 `schema`: configuration files, and the only engine that is not a wrapper
+
+`@misaon/slop-gate-engine-schema` validates YAML configuration files with `ajv` and the `yaml`
+package, against a copy of the Compose specification vendored from `compose-spec/compose-go`
+(Apache-2.0, ~77 kB, licence carried alongside it). It runs **in process**: no binary, no spawn, no
+platform matrix, no network at install time or at run time.
+
+That is a deliberate answer to the distribution problem the rest of this domain has. Every other
+config linter worth having here — actionlint, hadolint, zizmor — is Go, Haskell or Rust, has no
+official npm distribution, and must be fetched and checksum-verified on first use (D3). A validator
+built from a vendored schema has none of those failure modes and, measurably, delivers most of the
+value: over 826 YAML files from four unrelated repositories it produced **six findings and zero false
+positives**. The full measurement, and the traps found in the `yaml` package while building it, are in
+the M0 follow-ups.
+
+Three rules, all `error` and all in `recommended`:
+
+| Rule | Concept | What it catches |
+|---|---|---|
+| `malformed-document` | `config.malformed-document` | Syntax errors, tabs used as indentation, unresolved aliases |
+| `duplicate-mapping-key` | `config.duplicate-mapping-key` | A key declared twice; the earlier value is discarded silently |
+| `compose-spec` | `config.compose-schema` | A Compose file that does not match the specification |
+
+The concepts are `config.*` rather than the `correctness.*` concepts that name the same defects in
+JavaScript, and that is forced rather than chosen: **arbitration elects one owner per concept for the
+entire repository**, so claiming `correctness.parse-error` would lose to oxlint's tier-0 entry in any
+repository containing TypeScript and leave YAML unchecked. See the follow-ups; the durable fix is to
+key ownership on `(concept, language)`.
+
+Two implementation notes that are not obvious. `parseAllDocuments` is mandatory — `parseDocument`
+treats a second YAML document as a parse *error*, which would flag every Kubernetes manifest in
+existence. And ajv's `allErrors` output must be collapsed before reporting: a single bad
+`depends_on.condition` produces three errors across two paths, of which only the deepest, most
+specific one describes what the author actually wrote.
 
 ---
 

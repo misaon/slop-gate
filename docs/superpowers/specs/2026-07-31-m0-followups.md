@@ -897,3 +897,114 @@ to rewrite, not what it will succeed at.
 - **No `--with-fixes` on `sgate check`.** It would make the diff path live by running the derivation
   step `runFix` does, at the cost of re-running oxlint once per rule per file on a command whose whole
   point is to be fast. `sgate fix --dry-run` already answers the question and the report says so.
+
+## Found building the `schema` engine (spec §13.1, config files)
+
+### Concept election is repository-wide, so two engines cannot share a concept across languages
+
+`correctness.parse-error`'s own catalogue entry promises that "any engine capable of parsing the
+language may report it, attributed via a synthetic per-engine rule id". **That promise cannot
+currently be kept by more than one engine at a time.** `electOwners` elects exactly one owner per
+concept for the whole repository; its `languages` input is the set of languages *present in the
+repo*, not the language of the file being checked. Verified directly against the real function: with
+oxlint's tier-0 `parse-error` entry (`ts`, `tsx`, `js`, `jsx`) and a `schema` entry claiming the same
+concept for `yaml`, in a repository containing both, oxlint wins and the YAML entry is recorded as
+`suppressed` with reason `lower-tier`. YAML parse errors would then never be reported, and the run
+would emit a `config.rule-overlap` for an overlap that does not exist — the two rules cover disjoint
+files.
+
+The `schema` engine routes around this by owning `config.malformed-document` and
+`config.duplicate-mapping-key` instead of the `correctness.*` concepts that describe the same defects
+in JavaScript. That is a defensible taxonomy on its own terms — these are configuration documents, and
+a future `yamllint` or TOML checker would claim the same concepts — but it was forced, not chosen.
+
+**This will be hit again immediately.** actionlint reports workflow syntax errors, and any entry it
+gets for them faces the identical wall. The real fix is to make ownership `(concept, language)`-keyed
+rather than concept-keyed, which touches `electOwners`, `ElectionResult.selection`, the suppression
+records and `sgate rules why`. Worth doing before a third engine works around it a third way.
+
+### Measured: the `schema` engine over 826 real YAML files
+
+Corpus: docker/awesome-compose, kubernetes/examples, actions/starter-workflows and
+prometheus/prometheus — four unrelated repositories, 826 YAML files, plus this repository's own.
+
+- **6 findings, all `duplicate-mapping-key`, 0 false positives.** Each was read in context. Two
+  discard a *different* value (prometheus's `config/testdata/section_key_dup.bad.yml`, a deliberately
+  invalid fixture, and a Kubernetes secret declaring `type` twice); four are redundant
+  re-declarations, which are still defects.
+- **0 `malformed-document`.** No false positives and no true positives: published repositories do not
+  contain YAML that fails to parse, because nothing they run would work if they did.
+- **0 `compose-spec` violations.** The binding pattern matched exactly 39 of the 826 files, every one
+  a genuine Compose file, and all 39 validated clean. Against ten deliberately seeded defects, nine
+  are caught and each collapses to one finding on the offending token.
+
+All three rules are `error` and in `recommended` on that basis — the first engine-owned entries in
+`entries.manual.ts` to reach it, and the only ones whose measurement contained no judgement call.
+
+### The Compose specification does not constrain `restart`
+
+The tenth seeded defect, `restart: sometimes`, is **not** caught: the schema types `restart` as a
+bare string with no enum, so an invalid restart policy is not a schema violation. A clean run is
+therefore not evidence that the value was checked. Fixing it means diverging from the upstream schema,
+which is a different commitment from vendoring it — recorded rather than done.
+
+### Three traps in the `yaml` package, all of which fail silently
+
+1. **`parseDocument` reports `MULTIPLE_DOCS` as a parse error.** Multi-document YAML is legal and
+   ubiquitous; building on it would have flagged every Kubernetes manifest in the corpus.
+   `parseAllDocuments` is the only correct entry point.
+2. **The `Value` visitor alias excludes `Alias` nodes.** An unresolved-alias detector written with
+   `visit(doc, { Value })` sees anchors and never sees a single alias — it returns clean on every
+   input. Caught only because a test asserted the positive case; the corpus measurement had already
+   been taken with the broken detector and reported a confident zero. `Node` is the correct alias.
+3. **`toJS()` emits `process.emitWarning`.** Six files of the corpus trigger "Keys with collection
+   values will be stringified" mid-run. `logLevel: 'error'` suppresses it without touching
+   `doc.errors`.
+
+### Deliberately not done
+
+- **No JSON support**, so `tsconfig.json` and `package.json` — both named in §13.1's row for this
+  engine — are not validated. Every finding needs a source range, and those come from the `yaml`
+  package's node ranges; JSON needs a position-preserving parser of its own. Recorded in
+  `SCHEMA_EXCLUSIONS` so the gap is visible rather than looking like the schema passed.
+- **No Kubernetes schema.** Validation is per apiVersion/kind against the cluster's own OpenAPI and
+  the published bundles are hundreds of megabytes. Also in `SCHEMA_EXCLUSIONS`.
+- **No workflow schema**, deliberately, because actionlint should own that domain outright rather than
+  contest it with a weaker opinion. The engine still applies its structural checks to workflows.
+
+## Distribution findings for the CI-file engines (actionlint, hadolint, zizmor)
+
+Established before writing any adapter, from evidence rather than upstream claims. Recorded here
+because the next person to look will otherwise reach for the same packages.
+
+**No official npm distribution exists for any of the three.** None of them mentions npm in its own
+install documentation.
+
+- **`hadolint` on npm (0.4.2) is broken — do not use it.** Two independent faults, both reproduced
+  directly. (1) It builds `hadolint-${process.platform}-${arch}` and only maps `win32`→`windows`, so
+  on macOS it requests `hadolint-darwin-arm64` while upstream publishes `hadolint-macos-arm64` —
+  confirmed 404 against 200. (2) `install.js` writes the downloaded binary with `writeFile` and never
+  chmods it, so on any Unix the file lands `0644` and `spawn` fails `EACCES` — reproduced with the
+  wrapper's exact call sequence. It can therefore only work on Windows, which is the inverse of the
+  usual expectation. It also resolves `latest` at run time, so the binary version is unpinned.
+- **`github-actionlint` (1.7.12) works but is not a dependency worth taking.** It downloads the real
+  binary on *first run* (no `postinstall`), chmods it and caches it, and it tracks upstream versions
+  exactly. But it is a two-version, single-maintainer package that **verifies no checksum** — it
+  downloads over HTTPS, chmods and executes. That does not belong in the execution path of every CI
+  run. Implement D3 directly instead; upstream publishes `actionlint_<version>_checksums.txt`.
+- **zizmor is healthy — the concern that it was abandoned was a repository rename.** It moved from
+  `woodruffw/zizmor` to **`zizmorcore/zizmor`**: v1.28.0 (21 Jul 2026), MIT, ~6k stars, 38 audit
+  rules, Trail of Bits collaborated on its YAML anchor support in May 2026. It has no npm package at
+  all, and — unlike the other two — **publishes neither a checksums file nor build attestations**, so
+  a lazy-download implementation must carry digests we compute and commit ourselves.
+- **Platform gaps in the upstream releases**: hadolint and zizmor ship no Windows arm64 build, and
+  zizmor ships no musl Linux build at all, so Alpine cannot run it. actionlint's Go binaries cover
+  everything including Windows arm64.
+- **Licences**: actionlint MIT, zizmor MIT, **hadolint GPL-3.0** — bundling hadolint binaries into our
+  own platform packages would make slop-gate a GPL-3 redistributor with a corresponding-source
+  obligation. Lazy download avoids that; bundling does not.
+- **The escape hatch, if lazy download ever proves untenable** (the case that would force it is
+  air-gapped CI): publish our own `optionalDependencies` platform packages, the esbuild/ast-grep
+  pattern. Viable — npm installs only the matching platform, roughly 6–9 MB per engine — but it means
+  becoming a redistributor of three upstream projects across ~15 packages with release automation to
+  match, plus the GPL-3 obligation above.
