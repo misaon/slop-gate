@@ -16,6 +16,9 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
   const fileMark = unicode ? '▌' : '>'
   const logoMark = unicode ? '◆' : '*'
   const checkMark = unicode ? '✓' : 'OK'
+  // One column in both modes, like `checkMark`: it sits inside the footer frame, where a
+  // miscounted column shifts the closing border (see the note on the severity counts below).
+  const gapMark = unicode ? '▲' : '!'
   const codeFrameBar = unicode ? '│' : '|'
   const codeFrameUnderline = unicode ? '━' : '^'
   const multiplySign = unicode ? '×' : 'x'
@@ -130,6 +133,18 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
       writeUnit([`  ${paint(['bgRed', 'white'], ' ENGINE FAILED ')} ${failure.engine}: ${failure.message}`])
     }
 
+    // An engine that is absent but would have owned nothing here is filtered out, not softened:
+    // arbitration gave it no concept to lose, so there is no gap to report and a banner claiming one
+    // would be false. See `UnavailableEngine.displaced`.
+    const gaps = result.unavailableEngines.filter((engine) => engine.displaced.length > 0)
+    for (const gap of gaps) {
+      writeUnit([
+        `  ${paint(['bgYellow', 'black'], ' COVERAGE GAP ')} ${gap.engine} is not installed — ${gap.reason}`,
+        `    ${paint('yellow', `${plural(gap.displaced.length, 'concept')} went unchecked or to a lower-ranked rule.`)}` +
+          (gap.install === undefined ? '' : ` ${paint('yellow', `Install it with \`${gap.install}\`.`)}`),
+      ])
+    }
+
     const lines: string[] = []
     // Severity counts, not `result.diagnostics.length`: the two agree in every real run (`check.ts`
     // derives one from the other), but reading counts keeps this independent of whether a caller
@@ -138,7 +153,14 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     const total = result.counts.error + result.counts.warn + result.counts.info
 
     if (total === 0) {
-      lines.push(`  ${paint('green', checkMark)}  No issues found`)
+      // The green tick is the one line a reader takes at a glance, so it is withheld the moment an
+      // engine could not run. "No issues found" on its own would be true of the engines that ran and
+      // false of the repository, and this is the line nobody reads twice.
+      lines.push(
+        gaps.length === 0
+          ? `  ${paint('green', checkMark)}  No issues found`
+          : `  ${paint('yellow', `${gapMark}  No issues found, but ${plural(gaps.length, 'engine')} could not run`)}`,
+      )
     } else {
       // Text only, no severity glyph: this line sits inside the footer's frame (`frameRow` below),
       // and unlike the open body's per-finding glyph (`writeFinding`), a one-column miscount here

@@ -94,6 +94,10 @@ function ineligibilityText(record: IneligibleCandidate): string {
       return 'deprecated'
     case 'engine-not-participating':
       return `no \`${record.candidate.engine}\` engine is registered in this run`
+    // Deliberately different words from the case above. "Not registered" is a property of the build;
+    // "not installed" is a property of this machine, and it is the one the reader can act on.
+    case 'engine-unavailable':
+      return `\`${record.candidate.engine}\` is registered but not installed on this machine`
     case 'missing-capability':
       return record.capability === 'types'
         ? 'requires type information (`types`), which no participating engine provides yet — ' +
@@ -241,8 +245,17 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
         const scope = explanation.ownership.length === 1 ? '' : ` for ${languages.join(', ')}`
         lines.push(`      ${paint('bold', ruleRefKey(owner))}${tier === undefined ? '' : ` (tier ${tier})`}${scope}`)
       }
+      // One extra line per displaced owner, inside the same block. A reader looking at who owns a
+      // concept needs "and a better owner is one install away" in the same glance, not in a separate
+      // section further down — and it has to stay one line, or the model is too complicated.
+      for (const record of explanation.displaced) {
+        lines.push(
+          `      ${paint('dim', `${ruleRefKey(record.wouldOwn)} would own ${record.languages.join(', ')} — not installed`)}`,
+        )
+      }
       // Kept on one line in the common case, so the single-owner rendering is unchanged.
-      writeUnit(explanation.ownership.length === 1 ? [`${lines[0]!.replace(/:$/, ':')} ${lines[1]!.trim()}`] : lines)
+      const single = explanation.ownership.length === 1 && explanation.displaced.length === 0
+      writeUnit(single ? [`${lines[0]!.replace(/:$/, ':')} ${lines[1]!.trim()}`] : lines)
     } else if (explanation.uncovered) {
       writeUnit([`  ${paint('yellow', 'Uncovered')} — no capable engine in this run owns this concept.`])
     } else if (isLanguageMismatch(explanation)) {

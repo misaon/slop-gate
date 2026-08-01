@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { CheckEvent, CheckResult, Diagnostic } from '@misaon/slop-gate-core'
+import type { CheckEvent, CheckResult, Diagnostic, UnavailableEngine } from '@misaon/slop-gate-core'
 import { displayWidth, hasWideOrFullwidthCharacter } from './display-width.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
@@ -26,8 +26,30 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   diagnostics: [],
   counts: { error: 1, warn: 0, info: 0 },
   engineFailures: [],
+  unavailableEngines: [],
   stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
   ruleset: { enabledConcepts: 5, suppressed: 1, uncovered: [], unknownKeys: [] },
+  ...over,
+})
+
+const absent = (over: Partial<UnavailableEngine> = {}): UnavailableEngine => ({
+  engine: 'astgrep',
+  reason: '`ast-grep` was not found on PATH',
+  install: 'brew install ast-grep',
+  displaced: [
+    {
+      concept: 'slop.stub-implementation',
+      languages: ['ts'],
+      wouldOwn: { engine: 'astgrep', engineRuleId: 'stub-implementation' },
+      insteadOwnedBy: undefined,
+    },
+    {
+      concept: 'correctness.no-debugger',
+      languages: ['ts'],
+      wouldOwn: { engine: 'astgrep', engineRuleId: 'no-debugger' },
+      insteadOwnedBy: { engine: 'oxlint', engineRuleId: 'no-debugger' },
+    },
+  ],
   ...over,
 })
 
@@ -182,6 +204,24 @@ test('reports an engine failure prominently', () => {
 
   expect(output).toContain('oxlint')
   expect(output).toContain('binary not found')
+})
+
+test('a clean run with a missing engine does not read as clean', () => {
+  const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 }, unavailableEngines: [absent()] }) }])
+
+  expect(output).toContain('COVERAGE GAP  astgrep is not installed — `ast-grep` was not found on PATH')
+  expect(output).toContain('2 concepts went unchecked or to a lower-ranked rule. Install it with `brew install ast-grep`.')
+  expect(output).toContain('No issues found, but 1 engine could not run')
+  expect(output).not.toMatch(/✓ {2}No issues found\s/)
+})
+
+test('an absent engine that would have owned nothing does not raise a gap', () => {
+  const output = capture([
+    { type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 }, unavailableEngines: [absent({ displaced: [] })] }) },
+  ])
+
+  expect(output).not.toContain('COVERAGE GAP')
+  expect(output).toContain('No issues found')
 })
 
 test('mentions suppressed overlaps in the summary', () => {

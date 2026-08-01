@@ -44,6 +44,13 @@ export type ConceptOwnership = {
 export type IneligibilityReason =
   | 'deprecated'
   | 'engine-not-participating'
+  /**
+   * The engine is registered but its tooling is not installed here (`Engine.availability`).
+   * Deliberately distinct from `engine-not-participating`: "this build does not include actionlint"
+   * and "actionlint is not installed on this machine" are different facts, and a user comparing two
+   * machines that disagree needs to be told which one they are looking at.
+   */
+  | 'engine-unavailable'
   | 'missing-capability'
   | 'language-mismatch'
   /**
@@ -79,6 +86,17 @@ export type ElectionInput = {
    * every real run report an oxlint/eslint overlap even though no eslint engine ever ran).
    */
   participatingEngines: ReadonlySet<EngineId>
+  /**
+   * Registered engines whose tooling is absent (`Engine.availability`). They cannot own a concept:
+   * the next-ranked eligible entry takes it.
+   *
+   * Gating ownership on availability rather than letting an absent engine win and then reporting
+   * nothing is the difference between a gap we *have* and a gap we *elected*. actionlint outranks
+   * the schema engine on workflow parse errors, so without this an uninstalled actionlint would
+   * take workflow syntax checking down with it — while an always-present engine that could have
+   * reported it sat suppressed.
+   */
+  unavailableEngines?: ReadonlySet<EngineId>
   pinnedOwners?: Readonly<Record<string, EngineId>>
   enginePreference?: readonly EngineId[]
 }
@@ -111,6 +129,24 @@ export type ElectionResult = {
    * first place — see `servicedBySlopGate` for that last case.
    */
   ineligible: IneligibleCandidate[]
+  /**
+   * Ownership an absent engine would have taken had it been installed — the data behind the
+   * coverage gap a run reports, and behind `rules why` being able to say "actionlint would own this,
+   * but it is not installed, so the schema engine does".
+   *
+   * Only populated where the absent engine would actually have *won*. An absent engine that would
+   * have lost anyway changes nothing, and naming it would send a reader to install a tool that
+   * would not have helped.
+   */
+  displaced: DisplacedOwner[]
+}
+
+/** One concept an absent engine would have owned. `insteadOwnedBy` is undefined when nothing else can. */
+export type DisplacedOwner = {
+  readonly concept: string
+  readonly languages: readonly LanguageId[]
+  readonly wouldOwn: RuleRef
+  readonly insteadOwnedBy: RuleRef | undefined
 }
 
 const refOf = (entry: RuleEntry): RuleRef => ({ engine: entry.engine, engineRuleId: entry.engineRuleId })
@@ -124,6 +160,8 @@ export function electOwners(input: ElectionInput): ElectionResult {
   const suppressed: SuppressionRecord[] = []
   const uncovered: string[] = []
   const ineligible: IneligibleCandidate[] = []
+  const displaced: DisplacedOwner[] = []
+  const unavailable = input.unavailableEngines ?? new Set<EngineId>()
 
   // Everything `isApplicable` checks except the language intersection — i.e. "would this candidate
   // run at all, in this configuration, regardless of what the repository's files are written in".
@@ -131,6 +169,16 @@ export function electOwners(input: ElectionInput): ElectionResult {
   // (no capable engine, full stop) apart from a language mismatch (a capable engine exists, the
   // repository just doesn't contain that language).
   const isCapable = (entry: RuleEntry): boolean =>
+    entry.deprecated === undefined &&
+    input.participatingEngines.has(entry.engine) &&
+    !unavailable.has(entry.engine) &&
+    entry.requires.every((capability) => input.capabilities.has(capability))
+
+  /**
+   * The same ranking, ignoring availability — what the election *would* have produced with
+   * everything installed. Used only to fill `displaced`, never to elect anything.
+   */
+  const isCapableIfInstalled = (entry: RuleEntry): boolean =>
     entry.deprecated === undefined &&
     input.participatingEngines.has(entry.engine) &&
     entry.requires.every((capability) => input.capabilities.has(capability))
@@ -144,6 +192,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
   const ineligibilityReason = (entry: RuleEntry): { reason: IneligibilityReason; capability?: Capability } => {
     if (entry.deprecated !== undefined) return { reason: 'deprecated' }
     if (!input.participatingEngines.has(entry.engine)) return { reason: 'engine-not-participating' }
+    if (unavailable.has(entry.engine)) return { reason: 'engine-unavailable' }
     const missing = entry.requires.find((capability) => !input.capabilities.has(capability))
     if (missing !== undefined) return { reason: 'missing-capability', capability: missing }
     return { reason: 'language-mismatch' }
@@ -181,6 +230,42 @@ export function electOwners(input: ElectionInput): ElectionResult {
 
     const ownedLanguages = new Map<string, { entry: RuleEntry; languages: LanguageId[] }>()
     const lostLanguages = new Map<string, { record: Omit<SuppressionRecord, 'languages'>; languages: LanguageId[] }>()
+    const displacedLanguages = new Map<string, { entry: RuleEntry; instead: RuleEntry | undefined; languages: LanguageId[] }>()
+
+    // The candidate set as it would be with everything installed, so a language whose *only*
+    // candidate is absent still gets considered — `ranked` has already dropped those, so iterating
+    // `contested` alone would miss exactly the case where absence costs the concept its last owner.
+    const rankedIfInstalled = candidates.filter(
+      (e) => isCapableIfInstalled(e) && e.languages.some((language) => input.languages.has(language)),
+    ).sort(compare)
+    const contestedIfInstalled = [...new Set(rankedIfInstalled.flatMap((e) => e.languages))]
+      .filter((language) => input.languages.has(language))
+      .sort(compareStrings)
+
+    for (const language of contestedIfInstalled) {
+      const hereIfInstalled = rankedIfInstalled.filter((e) => e.languages.includes(language))
+      const wouldWin = (pinned === undefined ? hereIfInstalled : hereIfInstalled.filter((e) => e.engine === pinned))[0]
+      // Only an absent engine that would actually have *won* is worth naming. One that would have
+      // lost anyway changes nothing, and reporting it would send a reader to install a tool that
+      // would not have helped.
+      if (wouldWin === undefined || !unavailable.has(wouldWin.engine)) continue
+
+      const here = ranked.filter((e) => e.languages.includes(language))
+      const instead = (pinned === undefined ? here : here.filter((e) => e.engine === pinned))[0]
+      const key = ruleRefKey(wouldWin)
+      const record = displacedLanguages.get(key) ?? { entry: wouldWin, instead, languages: [] }
+      record.languages.push(language)
+      displacedLanguages.set(key, record)
+    }
+
+    for (const { entry: wouldOwn, instead, languages } of displacedLanguages.values()) {
+      displaced.push({
+        concept,
+        languages,
+        wouldOwn: refOf(wouldOwn),
+        insteadOwnedBy: instead === undefined ? undefined : refOf(instead),
+      })
+    }
 
     for (const language of contested) {
       const here = ranked.filter((e) => e.languages.includes(language))
@@ -264,7 +349,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
     }
   }
 
-  return { owners, selection, suppressed, uncovered, ineligible }
+  return { owners, selection, suppressed, uncovered, ineligible, displaced }
 }
 
 function reasonFor(winner: RuleEntry, loser: RuleEntry, pinOverrode: boolean): SuppressionReason {

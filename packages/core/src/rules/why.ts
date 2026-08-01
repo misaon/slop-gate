@@ -1,6 +1,6 @@
 import { isConceptId, SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
 import type { FrameworkEvidence, FrameworkId, InapplicableFramework } from '../frameworks/types.ts'
-import type { ConceptOwnership, IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
+import type { ConceptOwnership, DisplacedOwner, IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
 import type { EngineId, RuleEntry } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
 import { resolveEnablement, type ConceptEnablement } from './enablement.ts'
@@ -27,6 +27,12 @@ export type ConceptWhy = {
   ownership: readonly ConceptOwnership[]
   suppressed: readonly SuppressionRecord[]
   ineligible: readonly IneligibleCandidate[]
+  /**
+   * Ownership an absent engine would have taken. Rendered as one extra line in the owners block —
+   * the reader needs to know a better owner exists and is one install away, and needs it in the
+   * same glance as the owners themselves.
+   */
+  displaced: readonly DisplacedOwner[]
   uncovered: boolean
   /**
    * Framework profiles that turned *this* concept off, with the evidence behind each (spec §23.4).
@@ -84,6 +90,7 @@ export function explainConcept(concept: string, resolved: ResolvedRun): ConceptW
     ownership: election.owners.get(concept) ?? [],
     suppressed: election.suppressed.filter((record) => record.concept === concept),
     ineligible: election.ineligible.filter((record) => record.concept === concept),
+    displaced: election.displaced.filter((record) => record.concept === concept),
     uncovered: election.uncovered.includes(concept),
   }
 }

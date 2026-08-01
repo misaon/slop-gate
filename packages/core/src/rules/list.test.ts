@@ -36,6 +36,7 @@ const resolved = (config: SlopGateConfig, entries: RuleEntry[], participatingEng
     entries,
     inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] },
     frameworks: EMPTY_DETECTION,
+    unavailableEngines: [],
   }
 }
 

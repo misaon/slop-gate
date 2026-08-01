@@ -32,3 +32,28 @@ test('an engine failure outranks findings', () => {
     resolveExitCode({ counts: { error: 4, warn: 0, info: 0 }, engineFailures: [{ engine: 'oxlint', message: 'x' }] }),
   ).toBe(EXIT_CODES.engine)
 })
+
+test('a registered engine that is not installed is not a failure by default', () => {
+  // The default has to stay usable on a laptop that never installed the optional tool. The run is
+  // still honest about it — every reporter prints the gap — but it does not fail.
+  expect(resolveExitCode({ ...clean, unavailableEngines: [{ engine: 'hadolint' }] })).toBe(EXIT_CODES.clean)
+})
+
+test('--require-engines turns a missing engine into an engine exit code', () => {
+  expect(resolveExitCode({ ...clean, unavailableEngines: [{ engine: 'hadolint' }], requireEngines: true })).toBe(EXIT_CODES.engine)
+})
+
+test('--require-engines with every engine present changes nothing', () => {
+  expect(resolveExitCode({ ...clean, requireEngines: true })).toBe(EXIT_CODES.clean)
+})
+
+test('a missing required engine outranks findings, because the findings are not the whole answer', () => {
+  expect(
+    resolveExitCode({
+      counts: { error: 4, warn: 0, info: 0 },
+      engineFailures: [],
+      unavailableEngines: [{ engine: 'hadolint' }],
+      requireEngines: true,
+    }),
+  ).toBe(EXIT_CODES.engine)
+})

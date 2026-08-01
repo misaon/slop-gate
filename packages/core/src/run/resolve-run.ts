@@ -7,19 +7,20 @@ import type { Engine } from '../engine/types.ts'
 import { frameworkRuleLayers } from '../frameworks/adjustments.ts'
 import { detectFrameworks } from '../frameworks/detect.ts'
 import type { FrameworkDetection } from '../frameworks/types.ts'
-import { electOwners, type ElectionResult } from '../registry/elect.ts'
+import { electOwners, type DisplacedOwner, type ElectionResult } from '../registry/elect.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
-import type { RuleEntry } from '../registry/types.ts'
+import type { EngineId, RuleEntry } from '../registry/types.ts'
 
 export type ResolveRunOptions = {
   rootDir: string
   config: SlopGateConfig
   configFile?: string
   /**
-   * The engines a real run would register. Only `.id` and `.capabilities` are ever read here —
-   * both plain, synchronous properties (see `Engine`) — so passing the real engine list costs
-   * nothing beyond constructing the objects: nothing in this module calls `.version()`,
-   * `.materializeConfig()` or `.run()`. That is what makes it safe for a caller that must never
+   * The engines a real run would register. Only `.id`, `.capabilities` and `.availability()` are
+   * ever read here — the first two plain synchronous properties, the third contractually
+   * filesystem-only (see `Engine.availability`, which says at length why it may not spawn or
+   * download) — so passing the real engine list costs nothing beyond constructing the objects and a
+   * `stat` or two: nothing in this module calls `.version()`, `.materializeConfig()` or `.run()`. That is what makes it safe for a caller that must never
    * start a real engine (`sgate rules why` has no business spawning oxlint) to still get an
    * arbitration result that reflects exactly which engines and capabilities a real `check` would
    * have had, rather than a second, hand-maintained guess at the same thing.
@@ -42,6 +43,28 @@ export type ResolvedRun = {
   /** Spec §23. Consumed twice: by the resolver above (already applied), and by each engine adapter
    *  via `RunContext.adjustments`. `sgate rules why` reads the evidence straight off it. */
   frameworks: FrameworkDetection
+  /**
+   * Registered engines whose tooling is absent, each with the reason and — where the adapter can
+   * supply one — the command that installs it. Empty on a fully-equipped machine.
+   *
+   * This is the coverage gap a run has to state out loud. A skipped engine that produced no findings
+   * is indistinguishable from a clean repository unless the run says which engine was skipped, so
+   * every reporter prints this and `--require-engines` turns it into a failure.
+   */
+  unavailableEngines: readonly UnavailableEngine[]
+}
+
+export type UnavailableEngine = {
+  readonly engine: EngineId
+  readonly reason: string
+  readonly install?: string
+  /**
+   * What the absence actually cost — the concepts this engine would have owned, each naming the
+   * weaker owner that took over or nothing at all (`DisplacedOwner.insteadOwnedBy`). Empty for an
+   * absent engine that would have lost every contest anyway: absent, but nothing was lost, and a
+   * reporter that named it would send the reader to install a tool that would not have helped.
+   */
+  readonly displaced: readonly DisplacedOwner[]
 }
 
 /**
@@ -86,11 +109,27 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
     frameworks: frameworkRuleLayers(frameworks),
   })
 
+  // Probed before the election, because availability decides who *can* own a concept (see
+  // `ElectionInput.unavailableEngines`). `Engine.availability` is contractually filesystem-only, so
+  // this stays safe for `sgate rules why` — which must explain a run without performing any of it.
+  const probes = await Promise.all(
+    options.engines.map(async (engine) => ({
+      engine: engine.id,
+      availability: (await engine.availability?.()) ?? ({ available: true } as const),
+    })),
+  )
+  // `flatMap` rather than `filter`: a predicate does not narrow `EngineAvailability`, and reading
+  // `reason` off the union afterwards would need a cast that could outlive the shape it assumes.
+  const absent = probes.flatMap((probe) =>
+    probe.availability.available ? [] : [{ engine: probe.engine, availability: probe.availability }],
+  )
+
   const election = electOwners({
     entries,
     enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(options.engines.flatMap((engine) => engine.capabilities.provides)),
     languages: inventory.languages,
+    unavailableEngines: new Set(absent.map((probe) => probe.engine)),
     // See `ElectionInput.participatingEngines`'s own doc comment: an entry whose engine this run
     // never instantiated must not contest a concept or appear as a suppression — the same
     // contract `streamCheck` relies on, now shared verbatim rather than re-derived.
@@ -98,5 +137,14 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
     pinnedOwners: resolver.base.pinnedOwners,
   })
 
-  return { resolver, election, inventory, entries, frameworks }
+  // Assembled after the election because `displaced` is an election outcome, not a property of the
+  // probe: whether an absent engine cost the run anything depends on who else was standing.
+  const unavailableEngines = absent.map(({ engine, availability }) => ({
+    engine,
+    reason: availability.reason,
+    ...(availability.install === undefined ? {} : { install: availability.install }),
+    displaced: election.displaced.filter((record) => record.wouldOwn.engine === engine),
+  }))
+
+  return { resolver, election, inventory, entries, frameworks, unavailableEngines }
 }

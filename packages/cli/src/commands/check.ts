@@ -29,6 +29,11 @@ export const check = defineCommand({
     // `no-cache` silently keeps its default forever. Naming the flag `cache` lets citty's own
     // negation convention do what the CLI surface (`--no-cache`) already promises.
     cache: { type: 'boolean', default: true, negativeDescription: 'Ignore cached results' },
+    'require-engines': {
+      type: 'boolean',
+      default: false,
+      description: 'Exit 3 when a registered engine is not installed here',
+    },
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
@@ -100,10 +105,24 @@ export const check = defineCommand({
       process.off('SIGTERM', onInterrupt)
     }
 
+    const unavailableEngines = result?.unavailableEngines ?? []
+    // Written to stderr, not left to the reporter. `pretty` shows an absent engine only when it
+    // actually cost the run coverage, and `--require-engines` fails on absence regardless — without
+    // this, the one case the flag exists for (a CI image missing a tool the repository does not yet
+    // exercise) would exit 3 with nothing on screen naming the tool or the flag.
+    if (args['require-engines'] === true) {
+      for (const engine of unavailableEngines) {
+        const install = engine.install === undefined ? '' : ` Install it with \`${engine.install}\`.`
+        process.stderr.write(`--require-engines: \`${engine.engine}\` is not installed — ${engine.reason}.${install}\n`)
+      }
+    }
+
     const maxWarnings = args['max-warnings'] === undefined ? undefined : Number(args['max-warnings'])
     process.exitCode = resolveExitCode({
       counts: result?.counts ?? { error: 0, warn: 0, info: 0 },
       engineFailures: result?.engineFailures ?? [],
+      unavailableEngines,
+      requireEngines: args['require-engines'] === true,
       ...(maxWarnings === undefined || Number.isNaN(maxWarnings) ? {} : { maxWarnings }),
     })
   },

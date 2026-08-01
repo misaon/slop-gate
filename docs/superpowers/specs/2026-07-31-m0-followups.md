@@ -1023,3 +1023,86 @@ install documentation.
   pattern. Viable — npm installs only the matching platform, roughly 6–9 MB per engine — but it means
   becoming a redistributor of three upstream projects across ~15 packages with release automation to
   match, plus the GPL-3 obligation above.
+
+## Found building optional engines (`Engine.availability`)
+
+### The specialist engine is usually better, and here is the case where it is worse
+
+Availability-gated ownership rests on a claim that is nearly always true: when actionlint is
+installed it should own workflow syntax checking, because a dedicated GitHub Actions linter knows
+more about workflows than a generic YAML/JSON-Schema engine does. Ownership is elected on that
+basis, so the always-available `schema` engine steps aside the moment actionlint is present.
+
+There is at least one input where that trade goes the wrong way. A maintainer weighing whether some
+future optional engine should take ownership from an always-available one needs the counterexample,
+not just the principle — the principle is about the median input and ownership is decided for all of
+them.
+
+**An unresolved YAML alias.** Measured directly, actionlint 1.7.12 (Homebrew, darwin/arm64) against
+this repository's own `schema` engine, same file:
+
+```yaml
+      - name: build
+        run: *missing-anchor
+```
+
+    $ actionlint -format '{{json .}}' ci.yml
+    [{"message":"could not parse as YAML: yaml: unknown anchor 'missing-anchor' referenced",
+      "filepath":"ci.yml","line":0,"column":0,"kind":"syntax-check","end_column":0}]
+
+    schema engine, same file:
+    {"engineRuleId":"parse-error",
+     "message":"Unresolved alias `*missing-anchor`: no anchor `&missing-anchor` is defined before it.",
+     "range":{"start":138,"end":153}}          # exactly the `*missing-anchor` token
+
+`line: 0, column: 0` is not an approximate position, it is the absence of one: the failure happens
+inside actionlint's YAML reader before any node has a location, and go-yaml's message is forwarded
+unchanged. slop-gate normalizes that to the top of the file. The `schema` engine gives the offending
+token's exact byte range and names both the alias and the anchor it wanted.
+
+So on this input, electing actionlint as owner *loses* a precise diagnostic and substitutes an
+imprecise one. The regression is ours, not actionlint's: the tool is behaving reasonably and we
+chose to suppress the better reporter. Three ways out, none taken:
+
+- **Leave it.** One input, and a workflow with a broken alias fails loudly either way.
+- **Do not let actionlint own `parse-error`.** Cheapest, and defensible on the general ground that a
+  *parse* failure is not the specialist's speciality. But it splits one concept between two engines
+  by rule rather than by language, which arbitration does not currently express — ownership is keyed
+  by (concept, language), see `electOwners`.
+- **Let both report and merge on position.** No mechanism exists for this, and building one for a
+  single input would be the wrong trade today.
+
+### `shellcheck` is a candidate engine in its own right, not an actionlint implementation detail
+
+actionlint shells out to two other programs, and neither is opt-in: `-shellcheck` and `-pyflakes`
+default to the bare command names (`actionlint -h`, 1.7.12), so both integrations run unless
+explicitly emptied. When the command is missing, actionlint says nothing — the checks simply do not
+happen. Confirmed on this machine, which has `shellcheck` at `/opt/homebrew/bin/shellcheck` and no
+`pyflakes` at all, and reports the difference nowhere.
+
+That is exactly the failure `Engine.availability` exists to make impossible, arriving through a back
+door. A rule that fires on a laptop and not in CI because of what Homebrew happened to install is
+worse than no rule, and the discrepancy would be attributed to actionlint rather than to the
+shellcheck behind it. **The actionlint adapter will therefore pass `-shellcheck= -pyflakes=`
+explicitly**, so what it reports depends only on actionlint's own version.
+
+That leaves shellcheck's findings on the table, and they are not a rounding error: **149 of 264
+findings, 56%**, measured in the session that established the distribution findings above. Not
+reproduced here — this repository's single workflow is clean with and without the integration, so
+the local sample is zero and the number is that session's, not a second confirmation of it.
+
+Revisit shellcheck as its own engine, with its own registry entries and its own `availability()`,
+decided on its own evidence:
+
+- Another Haskell binary, so it inherits **hadolint's distribution profile** wholesale: no usable
+  npm distribution, platform-specific release binaries, and the same lazy-download-versus-bundle
+  question recorded above.
+- **GPL-3.0**, the same obligation that rules out bundling hadolint's binaries into platform
+  packages of our own.
+- Its domain overlaps nothing we ship: shell inside workflow `run:` blocks, and `.sh` files, which
+  no current engine claims.
+
+The thing not to do is smuggle it in by leaving actionlint's integration on. That takes shellcheck's
+findings without its registry entries, without a concept mapping, without `sgate rules why` being
+able to explain any of them, and without anything noticing when it is absent — which is the whole
+class of problem this milestone's work exists to close.

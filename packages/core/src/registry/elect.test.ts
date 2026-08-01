@@ -723,3 +723,128 @@ test('a pin applies per language and leaves the pinned engine owning only what i
     { owner: { engine: 'schema', engineRuleId: 'narrow' }, languages: ['yaml'] },
   ])
 })
+
+// ---------------------------------------------------------------------------
+// Availability gates ownership.
+//
+// An engine that is not installed cannot own a concept: the next-ranked eligible entry takes it.
+// Without this, an optional engine that wins a concept and is then absent takes the concept down
+// with it — the always-available engine that could have reported it has been arbitrated out, and
+// the finding is lost to a gap we elected rather than one we had.
+// ---------------------------------------------------------------------------
+
+const parseError = (over: Partial<RuleEntry> = {}): RuleEntry =>
+  entry({ engine: 'oxlint', engineRuleId: 'parse-error', concepts: ['correctness.parse-error'], ...over })
+
+test('hands the concept to the next-ranked engine when the winner is not installed', () => {
+  const result = electOwners({
+    entries: [
+      parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', tier: 0, languages: ['github-workflow'] }),
+      parseError({ engine: 'schema', engineRuleId: 'parse-error', tier: 2, languages: ['github-workflow'] }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['github-workflow']),
+    participatingEngines: ALL_ENGINES,
+    unavailableEngines: new Set(['actionlint']),
+  })
+
+  expect(ownerOf(result, 'correctness.parse-error')).toEqual({ engine: 'schema', engineRuleId: 'parse-error' })
+  // Not a suppression: the actionlint rule never contested anything, so calling it a loser would
+  // put a rule overlap in the output for two engines that never met.
+  expect(result.suppressed).toEqual([])
+  expect(result.ineligible).toEqual([
+    {
+      concept: 'correctness.parse-error',
+      candidate: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+      reason: 'engine-unavailable',
+    },
+  ])
+})
+
+test('records what an absent engine would have owned, so the run can say so', () => {
+  const result = electOwners({
+    entries: [
+      parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', tier: 0, languages: ['github-workflow'] }),
+      parseError({ engine: 'schema', engineRuleId: 'parse-error', tier: 2, languages: ['github-workflow'] }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['github-workflow']),
+    participatingEngines: ALL_ENGINES,
+    unavailableEngines: new Set(['actionlint']),
+  })
+
+  expect(result.displaced).toEqual([
+    {
+      concept: 'correctness.parse-error',
+      languages: ['github-workflow'],
+      wouldOwn: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+      insteadOwnedBy: { engine: 'schema', engineRuleId: 'parse-error' },
+    },
+  ])
+})
+
+test('reports no owner at all, and says why, when the only candidate is not installed', () => {
+  const result = electOwners({
+    entries: [parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', languages: ['github-workflow'] })],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['github-workflow']),
+    participatingEngines: ALL_ENGINES,
+    unavailableEngines: new Set(['actionlint']),
+  })
+
+  expect(result.owners.get('correctness.parse-error')).toBeUndefined()
+  expect(result.uncovered).toEqual(['correctness.parse-error'])
+  expect(result.displaced).toEqual([
+    {
+      concept: 'correctness.parse-error',
+      languages: ['github-workflow'],
+      wouldOwn: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+      insteadOwnedBy: undefined,
+    },
+  ])
+})
+
+test('does not displace anything when the absent engine would have lost anyway', () => {
+  // A slower absent engine changes nothing, and saying "actionlint would own this" when it would
+  // not is worse than saying nothing — it sends a reader to install a tool that would not help.
+  const result = electOwners({
+    entries: [
+      parseError({ engine: 'oxlint', engineRuleId: 'parse-error', tier: 0 }),
+      parseError({ engine: 'eslint', engineRuleId: 'parse-error', tier: 2 }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+    unavailableEngines: new Set(['eslint']),
+  })
+
+  expect(ownerOf(result, 'correctness.parse-error')).toEqual({ engine: 'oxlint', engineRuleId: 'parse-error' })
+  expect(result.displaced).toEqual([])
+})
+
+test('tells "not installed" apart from "not registered"', () => {
+  const notRegistered = electOwners({
+    entries: [parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', languages: ['github-workflow'] })],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['github-workflow']),
+    participatingEngines: new Set(['oxlint']),
+  })
+  const notInstalled = electOwners({
+    entries: [parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', languages: ['github-workflow'] })],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['github-workflow']),
+    participatingEngines: ALL_ENGINES,
+    unavailableEngines: new Set(['actionlint']),
+  })
+
+  // Two different facts a user comparing two machines has to be able to tell apart.
+  expect(notRegistered.ineligible[0]?.reason).toBe('engine-not-participating')
+  expect(notInstalled.ineligible[0]?.reason).toBe('engine-unavailable')
+  expect(notRegistered.displaced).toEqual([])
+})

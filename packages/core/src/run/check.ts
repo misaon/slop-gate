@@ -16,7 +16,7 @@ import { compareStrings } from '../ordering.ts'
 import { buildPlan, type EngineAssignment } from '../planner/plan.ts'
 import type { ElectionResult } from '../registry/elect.ts'
 import { ruleRefKey, type RuleEntry } from '../registry/types.ts'
-import { resolveRun } from './resolve-run.ts'
+import { resolveRun, type UnavailableEngine } from './resolve-run.ts'
 
 export type CheckOptions = {
   rootDir: string
@@ -41,6 +41,16 @@ export type CheckResult = {
   diagnostics: Diagnostic[]
   counts: Record<Severity, number>
   engineFailures: Array<{ engine: string; message: string }>
+  /**
+   * Registered engines whose tooling is absent (`Engine.availability`) — a coverage gap, not a
+   * failure: nothing crashed, and the run is exit 0 by default.
+   *
+   * Required rather than optional, because the shape of the mistake this exists to prevent is a
+   * caller forgetting it. Every reporter prints it, because a run that silently skipped an engine
+   * is otherwise indistinguishable from a clean one — and `--require-engines` turns it into exit 3
+   * for a CI job that meant to have the tool installed.
+   */
+  unavailableEngines: readonly UnavailableEngine[]
   stats: {
     filesScanned: number
     /** Files assigned to at least one engine by the plan — the denominator `filesFromCache` is a count of. */
@@ -95,7 +105,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // invoked yet. Shared verbatim with `sgate rules`'s governance commands via `resolveRun`; see
   // that module's own doc comment for why this is the extraction boundary rather than the full
   // prepare/plan/schedule split M2 needs.
-  const { resolver, election, inventory, entries, frameworks } = await resolveRun({
+  const { resolver, election, inventory, entries, frameworks, unavailableEngines } = await resolveRun({
     rootDir: options.rootDir,
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),
@@ -120,7 +130,24 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // followed would be served them — a fix pipeline finding nothing to do, on a repository full of
   // fixable findings, with no way to tell that from a genuinely clean one. `runFix` also disables the
   // cache outright, so this is the second of two independent guards rather than the only one.
-  const configHash = hashJson({ config: options.config, entries, frameworks, fixTier: options.fixTier })
+  // `unavailableEngines` is folded in **defensively, and it is not currently load-bearing** — stated
+  // plainly because the obvious assumption is the opposite. Availability changes ownership, and a
+  // change of ownership already changes each affected engine's `handle.rulesetHash` (derived from its
+  // selection) and, where an engine loses every concept, removes its assignment entirely. Both are
+  // already in the per-file cache key, so the stale-warm-run this looks like it prevents is prevented
+  // twice over without it.
+  //
+  // Verified rather than assumed: the availability test in `check.test.ts` passes with this term
+  // removed. It is kept because the cost is one hash input and the failure it would cover — a future
+  // path where availability changes a verdict without changing any engine's selection — is silent,
+  // but no test guards it and none is claimed to.
+  const configHash = hashJson({
+    config: options.config,
+    entries,
+    frameworks,
+    fixTier: options.fixTier,
+    unavailableEngines,
+  })
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
   // Project-granularity engines (spec §8.1: `tsc`, `knip`) cache one whole-program result per
@@ -370,6 +397,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       diagnostics: collected,
       counts,
       engineFailures,
+      unavailableEngines,
       stats: {
         filesScanned: inventory.files.length,
         filesAnalysed,

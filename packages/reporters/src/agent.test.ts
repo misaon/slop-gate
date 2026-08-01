@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { CheckEvent, CheckResult, Diagnostic } from '@misaon/slop-gate-core'
+import type { CheckEvent, CheckResult, Diagnostic, UnavailableEngine } from '@misaon/slop-gate-core'
 import { AGENT_REPORT_VERSION, createAgentReporter } from './agent.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
@@ -22,8 +22,32 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   diagnostics: [],
   counts: { error: 0, warn: 0, info: 0 },
   engineFailures: [],
+  unavailableEngines: [],
   stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
   ruleset: { enabledConcepts: 5, suppressed: 0, uncovered: [], unknownKeys: [] },
+  ...over,
+})
+
+/** One absent engine that cost the run two concepts: one nothing else covers, one a lower-ranked
+ *  rule picked up. Both halves matter — a hole and a downgrade are different facts. */
+const absentEngine = (over: Partial<UnavailableEngine> = {}): UnavailableEngine => ({
+  engine: 'astgrep',
+  reason: '`ast-grep` was not found on PATH',
+  install: 'brew install ast-grep',
+  displaced: [
+    {
+      concept: 'slop.stub-implementation',
+      languages: ['ts'],
+      wouldOwn: { engine: 'astgrep', engineRuleId: 'stub-implementation' },
+      insteadOwnedBy: undefined,
+    },
+    {
+      concept: 'correctness.no-debugger',
+      languages: ['ts'],
+      wouldOwn: { engine: 'astgrep', engineRuleId: 'no-debugger' },
+      insteadOwnedBy: { engine: 'oxlint', engineRuleId: 'no-debugger' },
+    },
+  ],
   ...over,
 })
 
@@ -248,6 +272,75 @@ test('an engine failure is declared before anything else, because it makes the r
   expect(lines[3]).toContain('do not read a clean section as clean')
 })
 
+test('a run with no findings and a missing engine is never reported as clean', () => {
+  // The failure this whole mechanism exists to prevent: an agent reads a report, sees no findings,
+  // and concludes the files that engine owned are fine. Every place the report could be read as
+  // "clean" has to say otherwise.
+  const output = capture([done([], { unavailableEngines: [absentEngine()] })])
+
+  expect(output).toContain(
+    'INCOMPLETE: engine `astgrep` is registered but not installed here — `ast-grep` was not found on PATH. ' +
+      'Nothing it would have reported appears below; do not read a clean section as clean. ' +
+      'Install it with `brew install ast-grep`.',
+  )
+  expect(output).toContain('  unchecked: slop.stub-implementation — no other engine here covers it.')
+  expect(output).toContain(
+    '  downgraded: correctness.no-debugger — `oxlint/no-debugger` owns it instead, which arbitration ranks below `astgrep/no-debugger`.',
+  )
+  expect(coverageLine(output)).toBe(
+    'coverage: 1 engine could not run (see INCOMPLETE above), so this is not a clean result. ' +
+      'No findings from what did run, and nothing was omitted.',
+  )
+  expect(output).toContain('1. Install `astgrep` (`brew install ast-grep`) and re-run — 2 concept(s) went unchecked or to a lower-ranked rule.')
+  expect(output).not.toContain('Nothing to do.')
+})
+
+test('the gap is stated even when findings were also produced', () => {
+  const output = capture([done([diagnostic()], { unavailableEngines: [absentEngine()] })])
+
+  expect(coverageLine(output)).toBe(
+    'coverage: 1 engine could not run (see INCOMPLETE above), so this is not the whole picture. ' +
+      '1 of 1 findings shown, 0 omitted (no --max-tokens set).',
+  )
+})
+
+test('an absent engine with no install command still declares the gap', () => {
+  const { install, ...withoutInstall } = absentEngine()
+  expect(install).toBeDefined()
+  const output = capture([done([], { unavailableEngines: [withoutInstall] })])
+
+  expect(output).toContain(
+    'INCOMPLETE: engine `astgrep` is registered but not installed here — `ast-grep` was not found on PATH. ' +
+      'Nothing it would have reported appears below; do not read a clean section as clean.\n',
+  )
+  expect(output).not.toContain('Install it with')
+  expect(output).toContain('1. Install `astgrep` and re-run — 2 concept(s) went unchecked or to a lower-ranked rule.')
+})
+
+test('an absent engine that would have owned nothing is a note, not a gap', () => {
+  // Deliberately *not* INCOMPLETE. Nothing was lost: this engine would have lost every contest it
+  // entered, so calling the run incomplete would be crying wolf, and an `INCOMPLETE` that fires when
+  // nothing is missing is how a reader learns to skip the word.
+  const output = capture([done([], { unavailableEngines: [absentEngine({ displaced: [] })] })])
+
+  expect(output).not.toContain('INCOMPLETE')
+  expect(output).toContain(
+    'note: engine `astgrep` is not installed here — `ast-grep` was not found on PATH. It would have owned ' +
+      'nothing in this run, so no coverage was lost.',
+  )
+  expect(coverageLine(output)).toBe('coverage: no findings. Nothing was omitted.')
+  expect(output).toContain('1. Nothing to do.')
+})
+
+test('a budget too small for any finding still cannot drop the gap', () => {
+  const output = capture([done(repeat(40, (index) => ({ file: `src/${index}.ts` })), { unavailableEngines: [absentEngine()] })], {
+    maxTokens: 200,
+  })
+
+  expect(output).toContain('INCOMPLETE: engine `astgrep` is registered but not installed here')
+  expect(coverageLine(output)).toContain('1 engine could not run (see INCOMPLETE above)')
+})
+
 test('names concepts nothing could check and config keys that resolve to nothing', () => {
   const output = capture([
     done([diagnostic()], {
@@ -341,14 +434,20 @@ test('fits every budget it can, and says so plainly for the ones it cannot', () 
   // The whole contract in one sweep, with no floor constant to keep in step with the prose: below
   // the floor the report overruns and declares it; at or above, it fits. A report that overran
   // without declaring it would fail here at whichever budget it happened at.
-  let overran = 0
-  for (let budget = 100; budget <= 4_000; budget += 25) {
-    const output = capture([done(many)], { maxTokens: budget })
-    if (estimate(output) <= budget) continue
-    overran += 1
-    expect(output, `budget ${budget}`).toContain('note: the fixed sections alone estimate above the requested budget.')
+  //
+  // Swept with and without a coverage gap, because the gap block is the newest thing the sizing
+  // render has to bound: it is printed identically in both passes, and an asymmetry there would let
+  // the finished document exceed a budget the reservation said it fitted.
+  for (const unavailableEngines of [[], [absentEngine()]]) {
+    let overran = 0
+    for (let budget = 100; budget <= 4_000; budget += 25) {
+      const output = capture([done(many, { unavailableEngines })], { maxTokens: budget })
+      if (estimate(output) <= budget) continue
+      overran += 1
+      expect(output, `budget ${budget}`).toContain('note: the fixed sections alone estimate above the requested budget.')
+    }
+    expect(overran).toBeGreaterThan(0)
   }
-  expect(overran).toBeGreaterThan(0)
 })
 
 test('counts a multi-byte message in bytes, so non-ASCII text cannot overrun the budget', () => {
