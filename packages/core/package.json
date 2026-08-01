@@ -28,7 +28,6 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/picomatch": "^4.0.3",
-    "oxlint": "^1.75.0"
+    "@types/picomatch": "^4.0.3"
   }
 }

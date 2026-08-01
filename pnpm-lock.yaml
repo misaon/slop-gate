@@ -11,6 +11,9 @@ importers:
       '@misaon/slop-gate':
         specifier: workspace:*
         version: link:packages/cli
+      '@misaon/slop-gate-engine-oxlint':
+        specifier: workspace:*
+        version: link:packages/engine-oxlint
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
@@ -60,9 +63,6 @@ importers:
       '@types/picomatch':
         specifier: ^4.0.3
         version: 4.0.3
-      oxlint:
-        specifier: ^1.75.0
-        version: 1.76.0
 
   packages/engine-oxlint:
     dependencies:

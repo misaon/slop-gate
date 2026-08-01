@@ -31,12 +31,28 @@
  *      slop-gate today provides the `types` capability, so arbitration can never elect one — see
  *      docs/superpowers/specs/2026-07-31-m0-followups.md, "Blocks M2".
  *   5. This output is committed, reviewable, and diffable — not regenerated silently at runtime.
+ *
+ * Resolving the oxlint binary itself (`resolveOxlintBinary`, below) is imported from
+ * `@misaon/slop-gate-engine-oxlint` rather than duplicated here — the adapter owns oxlint-specific
+ * packaging knowledge (see its doc comment for the Windows-specific reasoning). That makes this
+ * package.json's dependency graph read oddly at first: `@misaon/slop-gate-engine-oxlint` is declared
+ * as a devDependency of the *workspace root* (../../package.json), not of `@misaon/slop-gate-core`
+ * itself. That is deliberate, not an oversight — `engine-oxlint` already depends on `core`, so adding
+ * the reverse edge here too (even as a devDependency) creates a cycle Turborepo's `build` task cannot
+ * schedule (`core#build -> engine-oxlint#build -> core#build`; confirmed with `turbo run build` before
+ * settling on this arrangement, real exit code 1, not just the graph's `--dry` warning). Node's own
+ * module resolution still finds `@misaon/slop-gate-engine-oxlint` from here by walking up to the
+ * workspace root's `node_modules` — the same mechanism already relied on for `typescript`/`tsdown`,
+ * which are likewise only declared as root devDependencies, never per-package ones. Consequence: this
+ * script requires `@misaon/slop-gate-engine-oxlint` to have been *built* first (its `package.json`
+ * `exports` resolve to `dist/`, not `src/`) — see `generate:registry` / `generate:registry:check` in
+ * this package's package.json and the CI workflow, which now build before running either.
  */
 import { execFileSync } from 'node:child_process'
-import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { resolveOxlintBinary } from '@misaon/slop-gate-engine-oxlint'
 import type { ConceptDefinition, ConceptGroup, ConceptId } from '../src/concepts/catalogue.ts'
 import { HAND_WRITTEN_CONCEPTS } from '../src/concepts/catalogue.ts'
 import { compareStrings } from '../src/ordering.ts'
@@ -72,13 +88,11 @@ type CatalogueRule = {
   readonly docs_url: string
 }
 
-function resolveOxlintBinary(): string {
-  const require = createRequire(import.meta.url)
-  return join(dirname(require.resolve('oxlint/package.json')), 'bin', 'oxlint')
-}
-
 function readCatalogue(): readonly CatalogueRule[] {
-  const stdout = execFileSync(resolveOxlintBinary(), ['--rules', '--format', 'json'], { encoding: 'utf8' })
+  const invocation = resolveOxlintBinary()
+  const stdout = execFileSync(invocation.command, [...invocation.prefixArgs, '--rules', '--format', 'json'], {
+    encoding: 'utf8',
+  })
   const rules = JSON.parse(stdout) as CatalogueRule[]
   if (!Array.isArray(rules) || rules.length === 0) {
     throw new Error(`expected a non-empty array from 'oxlint --rules --format json', got: ${stdout.slice(0, 200)}`)
