@@ -614,7 +614,9 @@ export const HAND_WRITTEN_CONCEPTS = [
       'A Docker Compose file does not match the published Compose specification: a misspelled key, a ' +
       'value of the wrong shape, or an enum outside its allowed set. A misspelled key is the case ' +
       'worth having — Compose ignores what it does not recognise, so `prots:` is not an error at ' +
-      'deploy time, it is a port that never gets published.',
+      'deploy time, it is a port that never gets published. Note that the specification leaves many ' +
+      'values unconstrained — `restart` is typed as a bare string, so `restart: sometimes` passes — ' +
+      'so a clean result means the file matches the schema, not that every value in it is valid.',
   },
   {
     id: 'config.unused-suppression',
