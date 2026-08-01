@@ -3,11 +3,28 @@
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
-  "engines": { "node": ">=24" },
-  "bin": { "sgate": "./bin/sgate.js", "slop-gate": "./bin/sgate.js" },
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist", "bin"],
-  "scripts": { "build": "tsdown", "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "sgate": "./bin/sgate.js",
+    "slop-gate": "./bin/sgate.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
     "@misaon/slop-gate-engine-oxlint": "workspace:*",

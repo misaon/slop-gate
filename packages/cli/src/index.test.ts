@@ -41,3 +41,22 @@ test('the package "exports" field points at the library entry, not the CLI scrip
   expect(pkg.exports['.'].import).toBe('./dist/index.js')
   expect(pkg.exports['.'].types).toBe('./dist/index.d.ts')
 })
+
+test('every package exposes types to classic node resolution, not only through exports', async () => {
+  // A tsconfig with `"module": "commonjs"` and no explicit `moduleResolution` uses node10
+  // resolution, which ignores the `exports` map entirely and looks for a top-level `types`.
+  // Without this shim a generated `slop-gate.config.ts` raises TS2307 in the user's own
+  // typecheck — measured against a real NestJS project, which is how it was found.
+  const root = join(dirname(fileURLToPath(import.meta.url)), '../../..')
+
+  for (const pkg of ['core', 'engine-oxlint', 'reporters', 'cli']) {
+    const manifest = JSON.parse(await readFile(join(root, 'packages', pkg, 'package.json'), 'utf8')) as {
+      types?: string
+      exports?: { '.'?: { types?: string } }
+    }
+    const viaExports = manifest.exports?.['.']?.types
+
+    expect(viaExports, `${pkg} declares types in exports`).toBeDefined()
+    expect(manifest.types, `${pkg} also declares a top-level types`).toBe(viaExports)
+  }
+})
