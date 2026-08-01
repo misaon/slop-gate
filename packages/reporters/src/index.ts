@@ -39,7 +39,7 @@ export function createReporter(name: ReporterName, context: ReporterContext): Re
 
 export { renderCodeFrame } from './code-frame.ts'
 export { JSON_REPORT_VERSION } from './json.ts'
-export { SEVERITY_GLYPH, createPrettyReporter } from './pretty.ts'
+export { createPrettyReporter } from './pretty.ts'
 export {
   displayWidth,
   hasWideOrFullwidthCharacter,
@@ -49,3 +49,32 @@ export {
   truncateStart,
 } from './display-width.ts'
 export { wrapText } from './wrap-text.ts'
+
+// --- Shared rendering primitives (box frames, severity vocabulary) — used by both the `check`
+// reporter (`pretty.ts`) and the `sgate rules` governance commands' renderers, so there is exactly
+// one implementation of each rather than a second copy growing alongside the new commands.
+export {
+  ASCII_BOX,
+  createFrameKit,
+  MAX_FRAME_WIDTH,
+  MIN_FRAME_WIDTH,
+  plural,
+  UNICODE_BOX,
+  type Box,
+  type FrameContext,
+  type FrameKit,
+} from './frame.ts'
+export {
+  SEVERITY_GLYPH,
+  SEVERITY_GLYPH_ASCII,
+  SEVERITY_NOUN,
+  SEVERITY_ORDER,
+  SEVERITY_STYLE,
+} from './severity.ts'
+
+// --- `sgate rules` governance commands: one pretty + one json renderer per command, each
+// versioned like `JSON_REPORT_VERSION` above.
+export type { RulesReporterContext } from './rules/context.ts'
+export { renderRulesListJson, renderRulesListPretty, RULES_LIST_JSON_VERSION } from './rules/list.ts'
+export { renderRulesWhyJson, renderRulesWhyPretty, RULES_WHY_JSON_VERSION } from './rules/why.ts'
+export { renderRulesConflictsJson, renderRulesConflictsPretty, RULES_CONFLICTS_JSON_VERSION } from './rules/conflicts.ts'

@@ -52,7 +52,7 @@ export async function loadConfig(
 
 async function importModule(file: string): Promise<unknown> {
   try {
-    return await import(pathToFileURL(file).href)
+    return await suppressModuleTypelessPackageJsonWarning(() => import(pathToFileURL(file).href))
   } catch (cause) {
     if (isModuleNotFound(cause)) {
       throw new ConfigError(
@@ -100,6 +100,58 @@ async function importTransformed(file: string, originalCause: unknown): Promise<
     )
   } finally {
     if (scratch !== undefined) await rm(scratch, { force: true })
+  }
+}
+
+const MODULE_TYPELESS_WARNING_CODE = 'MODULE_TYPELESS_PACKAGE_JSON'
+
+/**
+ * Node emits a `[MODULE_TYPELESS_PACKAGE_JSON]` process warning whenever `import()` has to load a
+ * `.ts`/`.js` file it cannot definitively classify as CommonJS or ESM from the containing
+ * `package.json`'s `type` field alone — exactly what happens loading a pre-existing or hand-written
+ * `.ts` config outside a `"type": "module"` project. `runInit` (`packages/cli/src/commands/init.ts`)
+ * writes `.mts` for such projects specifically to dodge this (an `.mts` extension is unambiguous),
+ * but that only helps *new* setups: an existing `.ts` config still prints four lines of Node
+ * internals in the middle of every report. The file is ours, loaded by our own code — the noise is
+ * ours to own, not Node's.
+ *
+ * Suppressing it takes more than adding a `process.on('warning', ...)` listener alongside whatever
+ * is already there: Node's own stderr-printing is itself just another 'warning' listener, and an
+ * *additional* listener never stops the existing ones from also firing (verified empirically —
+ * every existing listener has to be removed for the duration and reinstalled afterwards, which is
+ * also what keeps this suppression scoped to loading this one file rather than the rest of the
+ * process's lifetime).
+ *
+ * "Afterwards" cannot mean "immediately after `fn()`'s promise resolves", either: Node emits this
+ * particular warning a tick or so after `import()` settles — empirically, after the import's own
+ * continuation runs but strictly before the next macrotask, never synchronously with it. A `finally`
+ * that restores the original listeners right after `await fn()` is too early: it lets the warning
+ * slip through onto the just-restored original handler instead of the filter that was supposed to
+ * catch it. Yielding once via `setImmediate` before restoring is what keeps the filter installed
+ * long enough — verified by running this 30 times in a row against a real typeless `.ts` config with
+ * a distinct, differently-coded warning emitted immediately after restore completed: the unrelated
+ * warning printed every time, this one never did (see `.superpowers/rules-commands-report.md`).
+ *
+ * Matches on `warning.code`, never on `warning.message`: the message is Node's prose to reword at
+ * any time; `code` is the stable, documented identifier
+ * (see nodejs.org/api/module.html#module_typeless_package_json).
+ */
+export async function suppressModuleTypelessPackageJsonWarning<T>(fn: () => Promise<T>): Promise<T> {
+  const previousListeners = process.listeners('warning') as Array<(warning: Error) => void>
+  process.removeAllListeners('warning')
+  process.on('warning', (warning: NodeJS.ErrnoException) => {
+    if (warning.code === MODULE_TYPELESS_WARNING_CODE) return
+    for (const listener of previousListeners) listener(warning)
+  })
+
+  try {
+    return await fn()
+  } finally {
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve)
+    })
+    process.removeAllListeners('warning')
+    for (const listener of previousListeners) process.on('warning', listener)
   }
 }
 

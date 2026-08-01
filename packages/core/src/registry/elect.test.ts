@@ -421,6 +421,132 @@ test('never records the winner as its own loser', () => {
   expect(result.suppressed).toEqual([])
 })
 
+// --- `ineligible`: the rejection reasons `isCapable`/`isApplicable` used to discard silently -----
+
+test('records a deprecated candidate as ineligible instead of discarding it silently', () => {
+  const result = electOwners({
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'old', concepts: ['style.no-var'], deprecated: { since: '0.2.0' } })],
+    enabledConcepts: new Set(['style.no-var']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.ineligible).toEqual([
+    { concept: 'style.no-var', candidate: { engine: 'oxlint', engineRuleId: 'old' }, reason: 'deprecated' },
+  ])
+})
+
+test('records a candidate whose engine did not participate as ineligible, distinct from a suppressed loser', () => {
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['dead-code.unused-variable'] }),
+      entry({ engine: 'eslint', engineRuleId: 'slow', concepts: ['dead-code.unused-variable'], tier: 2 }),
+    ],
+    enabledConcepts: new Set(['dead-code.unused-variable']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: new Set(['oxlint']),
+  })
+
+  expect(result.suppressed).toEqual([])
+  expect(result.ineligible).toEqual([
+    {
+      concept: 'dead-code.unused-variable',
+      candidate: { engine: 'eslint', engineRuleId: 'slow' },
+      reason: 'engine-not-participating',
+    },
+  ])
+})
+
+test('records a missing-capability candidate as ineligible, naming the absent capability', () => {
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'tsgolint', engineRuleId: 'typed', concepts: ['slop.as-any-cast'], tier: 1, requires: ['types'] }),
+      entry({ engine: 'astgrep', engineRuleId: 'untyped', concepts: ['slop.as-any-cast'] }),
+    ],
+    enabledConcepts: new Set(['slop.as-any-cast']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.ineligible).toEqual([
+    {
+      concept: 'slop.as-any-cast',
+      candidate: { engine: 'tsgolint', engineRuleId: 'typed' },
+      reason: 'missing-capability',
+      capability: 'types',
+    },
+  ])
+})
+
+test('records a language-mismatch candidate as ineligible, the same case elsewhere proven not to be uncovered', () => {
+  const result = electOwners({
+    entries: [entry({ engine: 'biome-css', engineRuleId: 'css-rule', concepts: ['style.no-var'], languages: ['css'] })],
+    enabledConcepts: new Set(['style.no-var']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['ts' as const]),
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.ineligible).toEqual([
+    { concept: 'style.no-var', candidate: { engine: 'biome-css', engineRuleId: 'css-rule' }, reason: 'language-mismatch' },
+  ])
+})
+
+test('records every otherwise-eligible candidate as ineligible when a pin names an engine with no rule here', () => {
+  // Companion to 'reports a concept as uncovered when the pinned engine offers no rule': that test
+  // only proves the concept goes uncovered. Before this field existed, `oxlint/fast` — fully
+  // capable, fully applicable, exactly the kind of candidate that otherwise wins outright — vanished
+  // with no record whatsoever the moment the pin named an engine with nothing to offer.
+  const result = electOwners({
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] })],
+    enabledConcepts: new Set(['style.no-var']),
+    pinnedOwners: { 'style.no-var': 'eslint' },
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.uncovered).toEqual(['style.no-var'])
+  expect(result.ineligible).toEqual([
+    { concept: 'style.no-var', candidate: { engine: 'oxlint', engineRuleId: 'fast' }, reason: 'pinned-to-other-engine' },
+  ])
+})
+
+test('does not record a pinned-elsewhere candidate as ineligible when the pin still elects a real winner', () => {
+  // The 'pinned-to-other-engine' branch only fires when the pin leaves *no* winner at all. When a
+  // winner is elected, every non-winning `ranked` candidate already gets a `SuppressionRecord`
+  // (reason 'pinned-owner' when the pin is what rejected it) — it must not *also* appear here.
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['dead-code.unused-variable'] }),
+      entry({ engine: 'knip', engineRuleId: 'slow', concepts: ['dead-code.unused-variable'], tier: 2 }),
+    ],
+    enabledConcepts: new Set(['dead-code.unused-variable']),
+    pinnedOwners: { 'dead-code.unused-variable': 'knip' },
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.owners.get('dead-code.unused-variable')?.engine).toBe('knip')
+  expect(result.ineligible).toEqual([])
+})
+
+test('never marks a fully eligible candidate as ineligible', () => {
+  const result = electOwners({
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'no-debugger', concepts: ['correctness.no-debugger'] })],
+    enabledConcepts: new Set(['correctness.no-debugger']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.ineligible).toEqual([])
+})
+
 test('orders rule ids by code unit rather than locale collation', () => {
   const result = electOwners({
     entries: [

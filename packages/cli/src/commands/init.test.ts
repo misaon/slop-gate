@@ -112,9 +112,11 @@ test('overwrites an existing config when forced, in place, without changing its 
 })
 
 test('does not advertise commands that do not exist', async () => {
-  // `sgate fix` and `sgate rules why <concept>` are not registered subcommands (packages/cli/src/
-  // main.ts lists only `check` and `init`) — an agent following this file's own advice would run
-  // one and get `Unknown command`, exit code 2.
+  // `sgate fix` is not a registered subcommand (packages/cli/src/main.ts lists `check`, `init` and
+  // `rules` — `rules why <concept>` itself is registered now, but this assertion is about what
+  // `init` writes into AGENTS.md, not about what main.ts exposes, so it is kept regardless) — an
+  // agent following this file's own advice would run `sgate fix` and get `Unknown command`, exit
+  // code 2.
   await runInit({ rootDir: dir })
   const content = await readFile(join(dir, 'AGENTS.md'), 'utf8')
 

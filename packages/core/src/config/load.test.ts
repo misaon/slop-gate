@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import { ConfigError } from '../errors.ts'
-import { findConfigFile, loadConfig } from './load.ts'
+import { findConfigFile, loadConfig, suppressModuleTypelessPackageJsonWarning } from './load.ts'
 
 let dir: string
 
@@ -106,6 +106,63 @@ test('prefers .ts over .js when both exist', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { ignore: ['from-ts'] }`)
   await writeFile(join(dir, 'slop-gate.config.js'), `export default { ignore: ['from-js'] }`)
   expect((await loadConfig(dir))?.config.ignore).toEqual(['from-ts'])
+})
+
+// `suppressModuleTypelessPackageJsonWarning` unit tests below exercise the wrapper directly via
+// synthetic `process.emitWarning` calls, deliberately not through `loadConfig` importing a real
+// typeless `.ts` fixture: vitest loads test-tree files (including a dynamically imported fixture
+// under a `mkdtemp` temp dir) through its own transform pipeline rather than Node's native
+// CommonJS-or-ESM detection, so the real MODULE_TYPELESS_PACKAGE_JSON warning never actually fires
+// under vitest regardless of this fix — confirmed by running the existing CLI-level fixtures
+// (which already combine a typeless `package.json` with a `.ts` config) under `vitest run` and
+// finding zero occurrences even before this change existed. The real, load-bearing proof that Node
+// itself no longer prints it is the external, plain-`node` scratch-project verification in
+// `.superpowers/rules-commands-report.md`; these two tests instead pin the wrapper's own
+// removal/filter/restore contract, which vitest can observe directly and reliably.
+
+test('suppresses only the MODULE_TYPELESS_PACKAGE_JSON code, letting any other warning code through', async () => {
+  const seen: string[] = []
+  const listener = (warning: NodeJS.ErrnoException): void => {
+    seen.push(warning.code ?? warning.message)
+  }
+  process.on('warning', listener)
+
+  try {
+    await suppressModuleTypelessPackageJsonWarning(async () => {
+      process.emitWarning('typeless config warning', { code: 'MODULE_TYPELESS_PACKAGE_JSON' })
+      process.emitWarning('an unrelated warning', { code: 'SOME_OTHER_CODE' })
+      // `emitWarning`'s own dispatch is not necessarily synchronous with this call — give both a
+      // full tick to actually be delivered while the wrapper's filter is still installed, the same
+      // margin the wrapper itself grants Node's real, deferred module-type warning.
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    })
+  } finally {
+    process.removeListener('warning', listener)
+  }
+
+  expect(seen).toEqual(['SOME_OTHER_CODE'])
+})
+
+test('restores the previous listeners afterwards, so a later unrelated warning still reaches them', async () => {
+  const seenAfter: string[] = []
+  const listener = (warning: NodeJS.ErrnoException): void => {
+    seenAfter.push(warning.code ?? warning.message)
+  }
+  process.on('warning', listener)
+  const countBefore = process.listeners('warning').length
+
+  try {
+    await suppressModuleTypelessPackageJsonWarning(async () => {})
+
+    // Exactly restored — not leaked (extra filter left behind) and not duplicated.
+    expect(process.listeners('warning').length).toBe(countBefore)
+
+    process.emitWarning('after the config load finished', { code: 'AFTER_RESTORE_CODE' })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(seenAfter).toEqual(['AFTER_RESTORE_CODE'])
+  } finally {
+    process.removeListener('warning', listener)
+  }
 })
 
 test('prefers .ts over .mts when both exist', async () => {

@@ -54,6 +54,14 @@ export type RuleSetResolver = {
   anyEnabledConcepts: ReadonlySet<string>
   /** The strongest level any layer assigns to a concept, or `off` if no layer mentions it. */
   maxLevelOf(concept: string): RuleLevel
+  /**
+   * Every override block that mentions `key` (a concept id or engine rule id), regardless of which
+   * files it matches — in declaration order, the same `source` label `forFile`'s provenance already
+   * uses. `forFile` only ever shows overrides relevant to *one* file; this exists for a caller like
+   * `sgate rules why` that has no file in mind and instead needs to explain a concept's overall
+   * enablement, including an override that would disable it for files it does not itself have open.
+   */
+  overridesFor(key: string): ReadonlyArray<{ source: string; setting: RuleSetting }>
 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
@@ -130,6 +138,14 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
     anyEnabledConcepts,
     maxLevelOf(concept) {
       return maxLevels.get(concept) ?? 'off'
+    },
+    overridesFor(key) {
+      const result: Array<{ source: string; setting: RuleSetting }> = []
+      for (const override of overrides) {
+        const setting = override.rules[key as RuleKey]
+        if (setting !== undefined) result.push({ source: override.source, setting })
+      }
+      return result
     },
   }
 }

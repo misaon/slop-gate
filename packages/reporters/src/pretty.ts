@@ -1,57 +1,17 @@
-import { styleText } from 'node:util'
 import type { CheckEvent, CheckResult, Diagnostic, Position, Severity } from '@misaon/slop-gate-core'
-import { displayWidth, padEndDisplay, padStartDisplay, truncateEnd, truncateStart } from './display-width.ts'
+import { displayWidth, padEndDisplay, padStartDisplay, truncateStart } from './display-width.ts'
+import { createFrameKit, plural } from './frame.ts'
+import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_NOUN, SEVERITY_ORDER, SEVERITY_STYLE } from './severity.ts'
 import { wrapText } from './wrap-text.ts'
 import type { Reporter, ReporterContext } from './index.ts'
 
-/**
- * All three are emoji at the same display width (two columns) — the only column-aligned position
- * in this layout. Mixing in a width-one dingbat here would shear every column beneath it. One
- * constant makes swapping the set (or adding a fourth severity) a one-line edit.
- */
-export const SEVERITY_GLYPH: Readonly<Record<Severity, string>> = {
-  error: '🔴',
-  warn: '🟡',
-  info: '🔵',
-}
-
-/** `TERM=dumb` fallback for `SEVERITY_GLYPH` — also one column each, for the same reason. */
-const SEVERITY_GLYPH_ASCII: Readonly<Record<Severity, string>> = {
-  error: 'E',
-  warn: 'W',
-  info: 'I',
-}
-
-const SEVERITY_STYLE: Readonly<Record<Severity, Parameters<typeof styleText>[0]>> = {
-  error: 'red',
-  warn: 'yellow',
-  info: 'blue',
-}
-
-const SEVERITY_NOUN: Readonly<Record<Severity, string>> = {
-  error: 'error',
-  warn: 'warning',
-  info: 'info',
-}
-
-const SEVERITY_ORDER: readonly Severity[] = ['error', 'warn', 'info']
-
-const MIN_FRAME_WIDTH = 60
-const MAX_FRAME_WIDTH = 100
 const CONFIG_HEADING = '(configuration)'
 const MOST_FREQUENT_THRESHOLD = 10
 const MOST_FREQUENT_TOP_N = 3
 
-type Box = { tl: string; tr: string; bl: string; br: string; h: string; v: string }
-
-const UNICODE_BOX: Box = { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│' }
-const ASCII_BOX: Box = { tl: '+', tr: '+', bl: '+', br: '+', h: '-', v: '|' }
-
-const plural = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? '' : 's'}`
-
 export function createPrettyReporter(context: ReporterContext): Reporter {
   const unicode = context.unicode
-  const box = unicode ? UNICODE_BOX : ASCII_BOX
+  const { width, inner, paint, frameTop, frameRow, frameBottom, writeUnit } = createFrameKit(context)
   const glyph = unicode ? SEVERITY_GLYPH : SEVERITY_GLYPH_ASCII
   const fileMark = unicode ? '▌' : '>'
   const logoMark = unicode ? '◆' : '*'
@@ -60,21 +20,6 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
   const codeFrameUnderline = unicode ? '━' : '^'
   const multiplySign = unicode ? '×' : 'x'
   const statsSeparator = unicode ? ' · ' : ' | '
-
-  // `validateStream: false` is deliberate: `styleText` otherwise re-derives colour support from
-  // `process.stdout.isTTY` itself and silently no-ops when it is not a TTY — which would override
-  // `context.color` exactly in the one case that flag exists to handle correctly (`FORCE_COLOR` set
-  // while piped). `context.color` is already the CLI's own complete NO_COLOR/FORCE_COLOR/TTY
-  // decision (see check.ts's `supportsColor`); nothing downstream should re-decide it.
-  const paint = (style: Parameters<typeof styleText>[0], text: string): string =>
-    context.color ? styleText(style, text, { validateStream: false }) : text
-
-  // Frame width is derived from `context.width` (the CLI supplies `process.stdout.columns ?? 80`)
-  // rather than read from `process.stdout` here — that is what makes this reporter testable
-  // without a real TTY. Clamped so a narrow terminal never collapses the frame below something
-  // drawable, and a wide one never stretches it across the whole screen.
-  const width = Math.max(MIN_FRAME_WIDTH, Math.min(context.width, MAX_FRAME_WIDTH))
-  const inner = width - 2
 
   // Column where a diagnostic's `line:col` starts (margin + glyph + gap), and where the concept
   // line and code-frame gutter beneath it align to. Derived from the glyph's actual display width
@@ -91,18 +36,6 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
   // practice) — `wrapText` itself is safe on any width, but a 0 or negative budget here would still
   // be a nonsensical wrap target to hand it.
   const messageWidth = Math.max(1, width - detailIndent)
-
-  const frameRow = (content: string): string => `  ${box.v}${padEndDisplay(truncateEnd(content, inner), inner)}${box.v}`
-  const frameTop = (): string => `  ${box.tl}${box.h.repeat(inner)}${box.tr}`
-  const frameBottom = (): string => `  ${box.bl}${box.h.repeat(inner)}${box.br}`
-
-  /**
-   * Every printed unit (header, a file's group, one finding, one code frame, the footer) is
-   * preceded by exactly one blank line and appends none of its own. That single rule is what
-   * produces the whole rhythm of blank-line-separated blocks — no unit needs to know what came
-   * before or after it, which matters because units are flushed incrementally as the run streams.
-   */
-  const writeUnit = (lines: readonly string[]): void => context.write(`\n${lines.join('\n')}\n`)
 
   // --- Header: printed synchronously, right here, before `streamCheck` has done any work at all —
   // as immediate as this process can make it, rather than waiting for the first diagnostic.
