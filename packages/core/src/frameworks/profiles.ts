@@ -16,19 +16,33 @@ const SCRIPT_GLOB = '{js,mjs,cjs,ts,mts,cts}'
 const MIKRO_ORM_CONFIG = /(^|\/)mikro-orm\.config\.[cm]?[jt]s$/
 
 /**
- * Every concept claimed by a rule in one oxlint plugin scope, deduplicated and sorted.
+ * The concepts of `scope` that **also exist in `counterpart`** — i.e. exactly the rules that fire
+ * twice, because oxlint's jest and vitest plugins both implement them and both match on the generic
+ * `describe`/`it`/`expect` shape.
  *
- * Whole-scope rather than only the twelve dual-firing rules, because the generator names a concept
- * after its scope *only when two scopes collide* — `jest/no-export` claims the unqualified
- * `correctness.no-export`. Disabling the scope is therefore the only way to say "this plugin should
- * not be running here", and it is safe to say: `detect.test.ts` pins that no concept claimed by a
- * jest- or vitest-scope rule is claimed by any rule outside that scope, so the whole scope can be
- * turned off without silently taking an unrelated rule with it.
+ * Narrower than "every concept in the scope", and the difference was measured rather than reasoned
+ * about: disabling the whole jest scope on this repository (vitest-only) turned off
+ * `correctness.no-export`, which comes from `jest/no-export` — a rule the vitest plugin has no
+ * counterpart for, that does not double-report, and whose advice ("do not export from a test file")
+ * is just as true under vitest. The whole-scope version bought 13 concepts and silently gave one
+ * back. Pairing by rule value keeps all 13.
+ *
+ * Paired on the rule id rather than on the concept id: the generator scope-qualifies a concept name
+ * only when two scopes collide, so `correctness.jest-expect-expect` and `correctness.no-export` are
+ * both jest concepts spelled differently, and matching on the spelling would encode a generator
+ * detail this profile has no business knowing.
  */
-export function conceptsInScope(scope: string): ConceptId[] {
+export function dualFiringConcepts(scope: string, counterpart: string): ConceptId[] {
+  const counterpartValues = new Set(
+    RULE_ENTRIES.filter((entry) => entry.engineRuleId.startsWith(`${counterpart}/`)).map((entry) =>
+      entry.engineRuleId.slice(counterpart.length + 1),
+    ),
+  )
+
   const found = new Set<ConceptId>()
   for (const entry of RULE_ENTRIES) {
     if (!entry.engineRuleId.startsWith(`${scope}/`)) continue
+    if (!counterpartValues.has(entry.engineRuleId.slice(scope.length + 1))) continue
     for (const concept of entry.concepts) found.add(concept)
   }
   return [...found].sort(compareStrings)
@@ -235,15 +249,18 @@ const testFramework = defineProfile<readonly string[]>({
     return { evidence: found.map((candidate) => candidate.evidence!), parameters: disabled }
   },
   consequences: (disabled) =>
-    disabled.flatMap((scope) =>
-      conceptsInScope(scope).map(
+    disabled.flatMap((scope) => {
+      const counterpart = TEST_SCOPES.find((other) => other !== scope)!
+      return dualFiringConcepts(scope, counterpart).map(
         (concept): FrameworkAdjustment => ({
           kind: 'disable-concept',
           concept,
-          reason: `no manifest declares \`${scope}\`, and oxlint's ${scope} plugin fires on any describe/it regardless.`,
+          reason:
+            `oxlint's ${scope} and ${counterpart} plugins both implement this rule and both match on the ` +
+            `bare describe/it shape, so it reports twice; no manifest declares \`${scope}\`.`,
         }),
-      ),
-    ),
+      )
+    }),
 })
 
 /** Strips a leading `./` and any trailing `/` so `'./src/migrations/'` and `'src/migrations'` agree. */

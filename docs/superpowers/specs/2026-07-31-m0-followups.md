@@ -464,3 +464,72 @@ genuine findings the same self-check surfaced (a shadowed `source` binding acros
 cases in `normalize.test.ts`, and a needlessly-renewed-per-run `isVisible` closure in `check.ts` —
 both instances of concepts already in the registry) were real defects in the new code and were fixed,
 not suppressed.
+
+---
+
+## Found building framework awareness (spec §23)
+
+The mechanism itself is spec §23 and needs no summary here. What follows is what building it turned
+up that the design did not predict, plus the measurements a future reader should not have to redo.
+
+**`recommended` moved, and the number is smaller than the concept count suggests.** Concepts that
+elect an owner under `extends: ['recommended']`, against the commit before this change: **152 → 162**
+on this repository and on any vitest-only one, **152 → 163** jest-only, 152 → 153 where both or
+neither are installed. But running the old binary and the new one over byte-identical source produces
+**53 diagnostics each** — the ten newly-elected concepts find nothing here. They are vitest
+test-hygiene rules and this codebase does not commit a stray `.only`. The mechanism is what makes them
+shippable at all (without it they double-report), and whether they earn their place needs a repository
+that actually violates one. Do not cite the 152 → 162 figure as a finding-count improvement; it is a
+coverage figure and the finding-count delta was zero.
+
+**Three rules were measured *out* while measuring the rest in, and one of them is an upstream bug.**
+`vitest/valid-expect` produced 27 findings and 27 false positives, all the identical message "Expect
+takes at most 1 argument" on `expect(value, message)` — which is vitest's own documented signature
+(`<T>(actual: T, message?: string): Assertion<T>`, `@vitest/expect` 3.2.7). oxlint's vitest plugin is
+applying jest's arity rule to vitest, so the rule is wrong about the framework it is named after.
+**Worth reporting upstream to oxc**; nobody has, at time of writing. `jest/valid-expect` is *not*
+excluded, because jest genuinely has no such overload. `no-conditional-expect` (8/8) and
+`require-to-throw-message` (4/4) are excluded for both scopes on ordinary accuracy grounds.
+
+**The dual-firing set is "rules both plugins implement", not "the whole scope", and the difference is
+one concept.** The first implementation disabled every concept in the absent scope, which also turned
+off `correctness.no-export` — from `jest/no-export`, which vitest has no counterpart for and which
+therefore never double-reports. Caught only by diffing the elected set before and after; a
+finding-count check would have missed it, because the rule fires zero times here. **Diff the elected
+concept set, not the diagnostic count, when changing anything that touches `recommended`.**
+
+**The obvious cache test has no teeth, and the shape that does is not obvious.** `configHash` must
+fold in the detection result or a warm run serves a ruleset that no longer applies. But a test where
+the framework-disabled concept is the *only* enabled one passes with or without the fix: the engine
+drops out of the plan entirely and the cache is never consulted. Two concepts are needed — one the
+framework leaves alone, so the engine still runs and the file is still a cache candidate. Verified by
+reverting the fold and watching the test fail. The same trap will apply to any future test of "a
+non-analysed file changed the ruleset".
+
+**A workspace-level knip `entry` replaces knip's defaults rather than extending them**
+(`ConfigurationChief.getConfigForWorkspace`, 6.31.0: `workspaceConfig.entry ? arrayify(...) :
+baseConfig.entry`). The failure mode is the dangerous kind — un-registering `src/index.ts` makes knip
+report *fewer* findings, which reads like the tool improving. `KNIP_DEFAULT_ENTRY` restates knip's two
+defaults and every contribution is unioned onto them; the guard is pinned behaviourally rather than by
+comparing pattern strings, since only a behavioural test catches knip changing its own defaults.
+
+### Left for later, deliberately
+
+- **`suspicious.no-extraneous-class` is in `recommended` again, guarded only by NestJS.** Angular,
+  and any other decorator-driven DI framework, produces the identical empty-class shape and has no
+  profile. The rule will be 100% false positives there exactly as it was on NestJS before this change.
+  An `angular` profile is a five-line addition (`@angular/core`, same single adjustment); it is not
+  here because nothing measured it, and adding an unmeasured profile is the thing §23.5 forbids.
+- **No profile is scoped to a workspace for the *ruleset* consumer.** `disable-concept` is repository
+  wide, so one NestJS package in a monorepo disables the empty-class rule everywhere in it. Engine
+  settings already carry a workspace; rules do not, because §6.2's per-workspace layer would be the
+  right seam and it is not wired to detection yet.
+- **`sgate rules why` is the only surface for detection.** There is no `sgate frameworks` listing, so
+  the only way to see everything detected is to ask about a concept some profile touched. Cheap to
+  add once there is a reason to.
+- **The `literal` probe is one file, one property path, string literals only.** No `satisfies`
+  unwrapping, no spread of a shared base config, no variable resolution. Each of those makes MikroORM
+  detection stand down rather than answer wrongly, which is the right failure direction, but a
+  repository that hits one gets no explanation beyond "not a plain string literal".
+- **Detection is not in the lockfile.** §23.4 and §5.5 both say it should be — framework drift is
+  ruleset drift and `--frozen-rules` must fail on it — but `slop-gate.lock` does not exist yet.
