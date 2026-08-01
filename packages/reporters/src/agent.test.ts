@@ -434,14 +434,20 @@ test('fits every budget it can, and says so plainly for the ones it cannot', () 
   // The whole contract in one sweep, with no floor constant to keep in step with the prose: below
   // the floor the report overruns and declares it; at or above, it fits. A report that overran
   // without declaring it would fail here at whichever budget it happened at.
-  let overran = 0
-  for (let budget = 100; budget <= 4_000; budget += 25) {
-    const output = capture([done(many)], { maxTokens: budget })
-    if (estimate(output) <= budget) continue
-    overran += 1
-    expect(output, `budget ${budget}`).toContain('note: the fixed sections alone estimate above the requested budget.')
+  //
+  // Swept with and without a coverage gap, because the gap block is the newest thing the sizing
+  // render has to bound: it is printed identically in both passes, and an asymmetry there would let
+  // the finished document exceed a budget the reservation said it fitted.
+  for (const unavailableEngines of [[], [absentEngine()]]) {
+    let overran = 0
+    for (let budget = 100; budget <= 4_000; budget += 25) {
+      const output = capture([done(many, { unavailableEngines })], { maxTokens: budget })
+      if (estimate(output) <= budget) continue
+      overran += 1
+      expect(output, `budget ${budget}`).toContain('note: the fixed sections alone estimate above the requested budget.')
+    }
+    expect(overran).toBeGreaterThan(0)
   }
-  expect(overran).toBeGreaterThan(0)
 })
 
 test('counts a multi-byte message in bytes, so non-ASCII text cannot overrun the budget', () => {
