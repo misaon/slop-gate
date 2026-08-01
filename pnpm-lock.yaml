@@ -38,6 +38,9 @@ importers:
       '@misaon/slop-gate-engine-oxlint':
         specifier: workspace:*
         version: link:../engine-oxlint
+      '@misaon/slop-gate-engine-tsc':
+        specifier: workspace:*
+        version: link:../engine-tsc
       '@misaon/slop-gate-reporters':
         specifier: workspace:*
         version: link:../reporters
@@ -72,6 +75,16 @@ importers:
       oxlint:
         specifier: ^1.75.0
         version: 1.76.0
+
+  packages/engine-tsc:
+    dependencies:
+      '@misaon/slop-gate-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
 
   packages/reporters:
     dependencies:

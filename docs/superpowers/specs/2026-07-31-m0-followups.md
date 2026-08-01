@@ -49,6 +49,93 @@ subprocess spawn) and `materializeConfig()` (a temp-file write and delete) for a
 to do — and a missing engine binary fails the run with exit 3 even when every result is cached.
 Spec §8.1 assigns the cache filter to the planner; M0 does not implement that.
 
+## `tsc` landed (M2's second engine, and the first project-granularity one)
+
+Full design writeup, captured `tsc` output for every case, and measured numbers:
+`.superpowers/engine-tsc-report.md`. What's worth carrying forward here specifically:
+
+**What was restructured in `streamCheck`, and what deliberately was not.** The paragraph above called
+for a prepare/plan/schedule split "with one engine and 294 tests to lean on"; this is the second
+engine, and the honest answer is that the full split *still* was not done. What actually changed:
+`streamCheck`'s per-assignment loop now branches on `engine.capabilities.granularity`, and the
+`'project'` branch is a new, separate function (`runProjectAssignment`) with its own cache primitives
+(`deriveProjectResultKey`, `openProjectResultStore` — `packages/core/src/cache/keys.ts` and
+`result-store.ts`) rather than a variant of the per-file path. `buildPlan` needed **zero** changes: an
+`EngineAssignment` already carries a flat file list regardless of granularity, and that shape is
+already enough — the interpretation (batched-per-file cache vs. one aggregate hash) is entirely
+`streamCheck`'s decision, keyed off a capability the interface already declared but nobody read. This
+is probably close to what M2's real split will keep, not throw away.
+
+What was **not** done, on purpose: the "planner is not cache-aware" gap immediately above applies to
+`tsc` exactly as it already applied to oxlint — a fully-cached run still calls `tsc`'s `version()`
+(mitigated for this one engine only: `engine-tsc`'s `version()` reads `typescript`'s own
+`package.json` directly rather than spawning `tsc --version`, so at least it costs a file read, not a
+process spawn) and `materializeConfig()` (cheap for `tsc` — no file write). The real fix (moving the
+cache check into a genuinely cache-aware plan, per spec §8.1) is still deferred; two real engines is
+still not "twelve," and this session did not need it to ship `tsc` correctly.
+
+**A second, narrower interface gap, resolved without touching the `Engine` interface.**
+`Engine.version()` takes no arguments, which is fine for a bundled dependency (oxlint resolves from
+its own install location every time) but wrong for a peer dependency: `tsc`'s own version is a
+property of *which project* is being checked, not a constant. Rather than threading a `rootDir`
+through `version()`'s signature (which would ripple into the interface, oxlint's implementation, and
+every test double implementing `Engine`), `createTscEngine({ rootDir, cacheDir, tsconfigPath? })`
+binds `rootDir` once at construction — both real call sites (`packages/cli/src/engines.ts`'s
+`defaultEngines`, called from `commands/check.ts` and `commands/rules/shared.ts`) already compute
+`rootDir` before constructing the engine list, so `defaultEngines(rootDir)` (previously
+`defaultEngines()`) was a mechanical, two-call-site change. `RunContext` (passed to
+`materializeConfig`/`run`) still has no `cacheDir` field either — `createTscEngine`'s own `cacheDir`
+option (defaulting to the same `join(rootDir, '.slop-gate', 'cache')` `streamCheck` computes
+independently) is what tells it where to put `tsc --incremental`'s build info. **This is a real, sharp
+edge**: the two defaults happen to agree only because neither is overridden in the shipped CLI. A
+caller that overrides `runCheck`'s own `cacheDir` without *also* overriding `createTscEngine`'s
+independently-defaulted one gets a silent split-brain — confirmed the hard way while measuring against
+the linked NestJS playground below: an earlier version of the measurement script redirected
+`runCheck`'s `cacheDir` away from the playground but forgot to also redirect `createTscEngine`'s,
+and `tsc --incremental`'s build info landed inside the playground's own `.slop-gate/cache/tsc/` before
+the mistake was caught and removed. No production code path can hit this today (the CLI always derives
+both from the same `rootDir` with no override), but a future `--cache-dir` flag or a second
+`RunContext`-driven engine would want `cacheDir` threaded through `RunContext` properly rather than
+inheriting this two-defaults-that-happen-to-match shape.
+
+**The probe found real, specific defects in what was assumed going in**, beyond the two the task
+description already flagged (multi-line continuations, TS 5.9.3 not 7.x — both confirmed true):
+
+- **A cold run and a warm `--incremental` rerun of the exact same unfixed error exit with *different*
+  codes** — `2` cold, `1` warm — confirmed directly. Copying oxlint's own
+  `MAX_FINDINGS_EXIT_CODE = 1` verbatim would have misclassified every cold run with real errors as an
+  engine crash; `engine-tsc` uses `2` as its ceiling, with both meanings ("ran fine, diagnostics are in
+  stdout") documented at the constant.
+- **Plain (non-`--pretty`) output has no trailing summary line at all** — no `Found N errors`, unlike
+  `--pretty` mode. A parser that expected one to count errors would silently under-count in the common
+  case (plain mode is the default the moment stdout is not a TTY, confirmed empirically, and is what
+  this adapter deliberately uses).
+- **This repository's own root has no `tsconfig.json`** — only per-package ones
+  (`packages/*/tsconfig.json`) plus a shared `tsconfig.base.json` nothing `extends` at the root. A
+  `createTscEngine({ rootDir: <this repo> })` with the documented default `tsconfigPath` fails outright
+  (`TS5058`, correctly surfaced as an `EngineError`, not swallowed) — this repository cannot dogfood
+  `tsc` from the monorepo root without either an explicit `tsconfigPath` per package or the same
+  per-workspace config discovery the "Decide rather than defer again" section below already flags as
+  unimplemented. Measured per package instead (`.superpowers/engine-tsc-report.md`): zero type errors
+  in all five.
+- The task's own captured multi-line example (`Cannot find module '@misaon/slop-gate'..., There are
+  types at ... but this result could not be resolved under your current 'moduleResolution' setting`)
+  did **not** reproduce against the current build, under either the playground's real `module:
+  commonjs` tsconfig or a forced `moduleResolution: node10` override: `packages/cli/package.json`
+  already declares a top-level `"types"` field *and* an explicit `"types"` condition inside `exports`,
+  which resolves cleanly under every mode tried. A different, reliably-reproducible multi-line
+  diagnostic (`TS2769`, function overload mismatch) was used instead for the fixture and the parser
+  tests; the module-resolution example may have described an earlier state of `packages/cli/package.json`
+  before `"types"` was added, or a resolution path this session did not hit.
+
+**Measured**, `types.type-error` opted in standalone (not part of `recommended` yet): **zero** findings
+in this repository (all five packages, `tsc` pointed at each own `tsconfig.json`) and **zero** in the
+linked NestJS playground (122 of its 179 files are `.ts`/`.tsx`). Not wired into `recommended`: not
+because of the finding count (zero either way is not evidence against turning it on) but because there
+is no measured *cost* signal yet either — a repository with real type errors, and a timing budget
+against spec §16, would both be needed before defaulting it on for every user. Left as an explicit
+opt-in (`rules: { 'types.type-error': 'error' }`) pending that.
+
 ---
 
 ## Found by first real-world use

@@ -1,14 +1,10 @@
 {
-  "name": "@misaon/slop-gate",
+  "name": "@misaon/slop-gate-engine-tsc",
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=24"
-  },
-  "bin": {
-    "sgate": "./bin/sgate.js",
-    "slop-gate": "./bin/sgate.js"
   },
   "exports": {
     ".": {
@@ -18,18 +14,19 @@
   },
   "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "bin"
+    "dist"
   ],
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@misaon/slop-gate-core": "workspace:*",
-    "@misaon/slop-gate-engine-oxlint": "workspace:*",
-    "@misaon/slop-gate-engine-tsc": "workspace:*",
-    "@misaon/slop-gate-reporters": "workspace:*",
-    "citty": "^0.2.0"
+    "@misaon/slop-gate-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
   }
 }

@@ -361,6 +361,19 @@ export const HAND_WRITTEN_CONCEPTS = [
       'the wrong one to be read from or written to.',
   },
   {
+    id: 'types.type-error',
+    group: 'types',
+    title: 'Type error',
+    description:
+      "A type error reported by the TypeScript compiler (`tsc`) against the project's own " +
+      "tsconfig — the same error the developer's editor and existing build already report. One " +
+      'concept covers every `tsc` diagnostic code deliberately: `tsc` has no `--rules`-style catalogue ' +
+      'to introspect (unlike oxlint), and setting this one concept to `off` is what lets a user disable ' +
+      'typechecking wholesale. Type-aware lint concepts such as `types.floating-promise` are a ' +
+      'different domain owned by tsgolint (spec §13.1): those have discrete, separately-electable ' +
+      'rules, unlike a raw compiler diagnostic.',
+  },
+  {
     id: 'dead-code.unused-import',
     group: 'dead-code',
     title: 'Unused import',

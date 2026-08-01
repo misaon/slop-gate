@@ -436,6 +436,168 @@ test('removing the suppression comment invalidates the cache and reveals the fin
   expect(second.diagnostics.some((d) => d.concept === 'correctness.no-debugger')).toBe(true)
 })
 
+// --- Project granularity (spec §8.1/§9) -----------------------------------------------------------
+
+const TSC_ENTRIES: RuleEntry[] = [
+  {
+    engine: 'tsc',
+    engineRuleId: 'type-error',
+    concepts: ['types.type-error'],
+    tier: 1,
+    priority: 100,
+    severityDefault: 'error',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts'],
+    docsUrl: 'https://example.test/type-error',
+    since: '0.1.0',
+  },
+]
+
+const stubProjectEngine = (options: {
+  id?: EngineId
+  findings?: RawDiagnostic[]
+  onRun?: (batchPaths: string[]) => void
+  onDispose?: () => void
+  rulesetHash?: string
+  fail?: string
+}): Engine =>
+  ({
+    id: options.id ?? 'tsc',
+    capabilities: { languages: ['ts'], granularity: 'project', provides: [], fixes: false },
+    version: async () => '5.9.3',
+    materializeConfig: async () => ({
+      path: 'stub-tsconfig',
+      rulesetHash: options.rulesetHash ?? 'stubhash',
+      async dispose() {
+        options.onDispose?.()
+      },
+    }),
+    run: (batch) =>
+      (async function* () {
+        options.onRun?.(batch.files.map((f) => f.path))
+        if (options.fail !== undefined) throw new Error(options.fail)
+        for (const finding of options.findings ?? []) yield finding
+      })(),
+  }) satisfies Engine
+
+const typeErrorFinding = (file: string): RawDiagnostic => ({
+  engineRuleId: 'type-error',
+  message: "Type 'string' is not assignable to type 'number'.",
+  severity: 'error',
+  file,
+  range: { start: 0, end: 1 },
+})
+
+const projectOptions = () => ({
+  rootDir: dir,
+  config: { rules: { 'types.type-error': 'error' } } as never,
+  entries: TSC_ENTRIES,
+  fileSource: createWalkFileSource(),
+  cacheDir: join(dir, '.slop-gate', 'cache'),
+})
+
+test('a project engine receives every assigned file in one run() call, never chunked into batches', async () => {
+  await writeFile(join(dir, 'src/b.ts'), 'export const b = 1\n')
+  const calls: string[][] = []
+  // A tiny batchSize would chunk a file-granularity engine into two run() calls; a project engine
+  // must ignore it — asking `tsc` about a subset of its program is wrong, not just slower (§8.1).
+  const result = await runCheck({
+    ...projectOptions(),
+    batchSize: 1,
+    engines: [stubProjectEngine({ onRun: (paths) => calls.push(paths) })],
+  })
+
+  expect(calls).toHaveLength(1)
+  expect(calls[0]?.slice().sort()).toEqual(['src/a.ts', 'src/b.ts'])
+  expect(result.stats.filesAnalysed).toBe(2)
+})
+
+test('a second identical run for a project engine is served from one aggregate cache entry', async () => {
+  let runs = 0
+  const engine = () => stubProjectEngine({ findings: [typeErrorFinding('src/a.ts')], onRun: () => (runs += 1) })
+
+  const first = await runCheck({ ...projectOptions(), engines: [engine()] })
+  const second = await runCheck({ ...projectOptions(), engines: [engine()] })
+
+  expect(runs).toBe(1)
+  expect(second.diagnostics).toEqual(first.diagnostics)
+  expect(second.stats.filesFromCache).toBeGreaterThan(0)
+})
+
+test('a project cache hit counts every assigned file toward filesFromCache, not just the ones with findings', async () => {
+  await writeFile(join(dir, 'src/b.ts'), 'export const b = 1\n')
+  const engine = () => stubProjectEngine({ findings: [typeErrorFinding('src/a.ts')] })
+
+  await runCheck({ ...projectOptions(), engines: [engine()] })
+  const second = await runCheck({ ...projectOptions(), engines: [engine()] })
+
+  // Two files assigned (src/a.ts, src/b.ts); a project cache hit is all-or-nothing, not per file.
+  expect(second.stats.filesFromCache).toBe(2)
+})
+
+test('changing any one file in the project invalidates the whole aggregate cache entry, not just that file', async () => {
+  await writeFile(join(dir, 'src/b.ts'), 'export const b = 1\n')
+  let runs = 0
+  const engine = () => stubProjectEngine({ findings: [typeErrorFinding('src/a.ts')], onRun: () => (runs += 1) })
+
+  await runCheck({ ...projectOptions(), engines: [engine()] })
+  await writeFile(join(dir, 'src/b.ts'), 'export const b = 2\n')
+  await runCheck({ ...projectOptions(), engines: [engine()] })
+
+  expect(runs).toBe(2)
+})
+
+test('a project engine re-runs after its own ruleset hash changes, even with no file changed', async () => {
+  let runs = 0
+  const engine = (rulesetHash: string) =>
+    stubProjectEngine({ findings: [typeErrorFinding('src/a.ts')], rulesetHash, onRun: () => (runs += 1) })
+
+  await runCheck({ ...projectOptions(), engines: [engine('hash-1')] })
+  await runCheck({ ...projectOptions(), engines: [engine('hash-2')] })
+
+  expect(runs).toBe(2)
+})
+
+test('a project engine clean file is still scanned for a stale suppression on a cold run', async () => {
+  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line types.type-error -- stale\nconst clean = 1\n')
+  const result = await runCheck({
+    ...projectOptions(),
+    config: { rules: { 'types.type-error': 'error', 'config.unused-suppression': 'warn' } } as never,
+    engines: [stubProjectEngine({})],
+  })
+
+  expect(result.diagnostics).toHaveLength(1)
+  expect(result.diagnostics[0]).toMatchObject({ concept: 'config.unused-suppression', file: 'src/a.ts' })
+})
+
+test('a project engine diagnostic for a file outside the assignment (e.g. the tsconfig itself) is still reported', async () => {
+  // tsconfig.json is JSON, not TS — buildPlan never assigns it to a `languages: ['ts']` engine, so
+  // this exercises the "an engine reported against a file outside its own assignment" path
+  // deliberately, rather than by accident.
+  await writeFile(join(dir, 'tsconfig.json'), '{}\n')
+  const result = await runCheck({
+    ...projectOptions(),
+    engines: [stubProjectEngine({ findings: [typeErrorFinding('tsconfig.json')] })],
+  })
+
+  expect(result.diagnostics).toHaveLength(1)
+  expect(result.diagnostics[0]?.file).toBe('tsconfig.json')
+})
+
+test('a project engine failure is reported without aborting the run, and still disposes the handle', async () => {
+  let disposed = false
+  const result = await runCheck({
+    ...projectOptions(),
+    engines: [stubProjectEngine({ fail: 'tsc boom', onDispose: () => (disposed = true) })],
+  })
+
+  expect(result.engineFailures).toEqual([{ engine: 'tsc', message: 'tsc boom' }])
+  expect(result.diagnostics).toEqual([])
+  expect(disposed).toBe(true)
+})
+
 test('toggling config.unused-suppression itself invalidates the cache and changes what is reported', async () => {
   // The ruleset hash (`configHash` in check.ts, folded into every cache key) has to move when a
   // rule's *own* level changes, not just when a rule it detects changes — otherwise a warm run

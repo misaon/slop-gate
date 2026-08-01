@@ -627,7 +627,7 @@ dependencies.
 |---|---|---|---|
 | JS/TS/JSX lint | **oxlint** (NAPI, in-process) | bundled | Also handles `<script>` blocks in `.vue`/`.svelte`/`.astro` |
 | Type-aware findings | **tsgolint** via oxlint | bundled | 59/61 typescript-eslint type-aware rules |
-| Type errors | **tsc** (TS 7) | peer | Shell out and parse; `--incremental`. Uses the repo's own TypeScript version |
+| Type errors | **tsc** (TS 7 eventually; TS 5.9.3 measured) | peer | Shell out and parse; `--incremental`. Uses the repo's own TypeScript version |
 | Formatting, ~20 file types | **oxfmt** | bundled | Exclusive owner of `formatting.*`, incl. import and Tailwind class sorting |
 | Dead code, dependency hygiene | **knip** | bundled | Pure JS. Project granularity, runs in a worker |
 | CSS/SCSS semantics | **Biome, scoped to CSS** | lazy | Registry enforces zero overlap with oxlint |
@@ -645,6 +645,30 @@ credibility on its first run.
 The escape hatch is the mechanism that lets us claim complete coverage today and improve silently:
 as oxlint gains template support, the registry re-elects owners and ESLint's planned file set shrinks
 toward empty — with no change to any user's configuration.
+
+**`tsc` implemented (M2, first project-granularity engine).** `@misaon/slop-gate-engine-tsc` shells out
+to the resolved project's own `tsc -p <tsconfig> --noEmit --pretty false --incremental`, parsing plain
+text — confirmed against the real 5.9.3 binary that `--pretty false` (or simply omitting `--pretty`,
+which already auto-detects non-TTY output) never emits ANSI codes or a code frame, only
+`file(line,col): error TSxxxx: message`, with **no length**, only a starting position, and **no
+trailing summary line** (`Found N errors...` is `--pretty`-only). A diagnostic is not always one line:
+multi-candidate errors (overload mismatches, some module-resolution messages) continue onto further
+lines with two- or four-space indentation and no `file(line,col):` prefix of their own — the only
+correct way to parse this is a line-based state machine that treats any non-matching line as a
+continuation of whichever diagnostic is currently open. `RawDiagnostic.range` is filled in as a
+deliberate one-character span at the reported column, `typescript` is resolved from the *analysed
+project's own* directory (never `engine-tsc`'s own install location — it is a peer dependency), and the
+resolved `bin/tsc` needed the identical Windows shebang-spawn fix oxlint's own resolver already has
+(both are extensionless `#!/usr/bin/env node` scripts) — now shared as `resolveScriptBin`
+(`packages/core/src/exec/resolve-script-bin.ts`) rather than duplicated. One concept,
+`types.type-error`, covers every TS error code deliberately: `tsc` has no `--rules`-style catalogue to
+introspect the way oxlint does, and one concept is what lets `'types.type-error': 'off'` disable
+typechecking wholesale without inventing group-wildcard config syntax. Project-granularity caching
+(spec §9) landed as a genuinely separate code path in `streamCheck`, not a variant of the per-file one —
+see `.superpowers/engine-tsc-report.md` for the full design writeup, the captured-output log every
+claim above is checked against, and the measured finding counts this repository and the linked NestJS
+playground actually produced (both zero, at time of writing — `types.type-error` is not yet in the
+`recommended` preset; see that report for why).
 
 ---
 

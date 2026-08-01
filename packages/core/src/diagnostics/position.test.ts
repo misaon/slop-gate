@@ -91,3 +91,53 @@ test('rangeOfLine clamps a line number below 1 to the first line', () => {
   const index = createLineIndex('aaa\nbbb\n')
   expect(index.rangeOfLine(0)).toEqual(index.rangeOfLine(1))
 })
+
+// --- offsetAt: the inverse of positionAt, needed by engines that report (line, column) text ------
+
+test('offsetAt maps line 1 column 1 to offset zero', () => {
+  const index = createLineIndex('const a = 1\n')
+  expect(index.offsetAt({ line: 1, column: 1 })).toBe(0)
+})
+
+test('offsetAt maps a position on a later line', () => {
+  const index = createLineIndex('a\nbb\nccc\n')
+  expect(index.offsetAt({ line: 3, column: 1 })).toBe(5)
+})
+
+test('offsetAt round-trips with positionAt', () => {
+  const index = createLineIndex('a\nbb\nccc\n')
+  for (const offset of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
+    expect(index.offsetAt(index.positionAt(offset))).toBe(offset)
+  }
+})
+
+test('offsetAt counts columns in UTF-16 code units, not bytes', () => {
+  // 'č' is 2 bytes in UTF-8 but 1 UTF-16 code unit — mirrors position.test.ts's positionAt case,
+  // inverted: column 4 (just before 'x') must land on the byte offset 'x' actually starts at.
+  const source = 'čč x'
+  const byteOffsetOfX = new TextEncoder().encode('čč ').length
+  expect(byteOffsetOfX).toBe(5)
+  expect(createLineIndex(source).offsetAt({ line: 1, column: 4 })).toBe(byteOffsetOfX)
+})
+
+test('offsetAt counts an astral-plane character as two UTF-16 code units', () => {
+  const source = '😀x'
+  const byteOffsetOfX = new TextEncoder().encode('😀').length
+  expect(byteOffsetOfX).toBe(4)
+  expect(createLineIndex(source).offsetAt({ line: 1, column: 3 })).toBe(byteOffsetOfX)
+})
+
+test('offsetAt clamps a line past the end of the source to the last line', () => {
+  const index = createLineIndex('aaa\nbbb')
+  expect(index.offsetAt({ line: 99, column: 1 })).toBe(index.offsetAt({ line: 2, column: 1 }))
+})
+
+test('offsetAt clamps a column past the end of a line to the line end', () => {
+  const index = createLineIndex('aaa\nbbb\n')
+  expect(index.offsetAt({ line: 1, column: 999 })).toBe(index.rangeOfLine(1).end)
+})
+
+test('offsetAt clamps a column below 1 to the start of the line', () => {
+  const index = createLineIndex('aaa\nbbb\n')
+  expect(index.offsetAt({ line: 2, column: 0 })).toBe(index.rangeOfLine(2).start)
+})
