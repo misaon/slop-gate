@@ -1,0 +1,26 @@
+%YAML 1.2
+---
+# Legal YAML that a stricter-than-correct implementation reports on. Multi-document files are the
+# reason this fixture exists: `parseDocument` treats a second document as an error, which would flag
+# every Kubernetes manifest in existence.
+block: |
+  a tab	inside the line is content, not indentation
+folded: >
+  wrapped text
+  joined into one line
+quoted: "an escaped \t tab"
+anchors: &shared
+  x: 1
+alias: *shared
+merged:
+  <<: *shared
+  y: 2
+empty_value:
+explicit_null: ~
+...
+---
+second_document: true
+---
+# An empty document between two real ones.
+---
+last_document: true

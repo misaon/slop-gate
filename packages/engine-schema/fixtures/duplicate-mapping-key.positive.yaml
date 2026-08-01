@@ -1,0 +1,16 @@
+# The finding lands on the *second* occurrence, which is the one a reader has to delete.
+name: app
+version: "1"
+name: other # SGATE_HIT
+
+config:
+  host: primary.example
+  port: 5432
+  host: replica.example # SGATE_HIT
+
+---
+# A second document gets its own findings; a key repeated across documents does not.
+name: app
+tuning:
+  workers: 4
+  workers: 8 # SGATE_HIT

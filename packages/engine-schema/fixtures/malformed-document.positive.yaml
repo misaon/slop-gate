@@ -1,0 +1,14 @@
+# Three documents, three different ways to be unparseable. The parser recovers at each document
+# boundary, so one file proves all three — and each finding lands on the line that caused it.
+
+# A tab used as indentation, which YAML forbids outright.
+root:
+	child: 1 # SGATE_HIT
+---
+# An alias naming an anchor that is never defined anywhere.
+value: *nowhere # SGATE_HIT
+---
+# An alias naming an anchor defined further down. YAML resolves in document order, so this one
+# has no referent at the point it is used.
+use: *later # SGATE_HIT
+later: &later 1
