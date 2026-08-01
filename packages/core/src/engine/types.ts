@@ -88,6 +88,25 @@ export type EngineConfigHandle = {
 
 export type FileBatch = { readonly files: readonly InventoryFile[] }
 
+/** One finding the fix loop wants edits for. Only ever built from a diagnostic that survived
+ *  arbitration, suppression and the tier gate — see `run/fix.ts`. */
+export type FixTarget = {
+  readonly file: string
+  readonly engineRuleId: string
+  readonly range: ByteRange
+}
+
+/**
+ * Edits for one `(file, rule)` pair. Not keyed to an individual `FixTarget`: every target sharing a
+ * file and a rule also shares the tier, priority and severity arbitration ranks by, so a finer
+ * attribution would carry no information the pipeline could act on.
+ */
+export type DerivedFix = {
+  readonly file: string
+  readonly engineRuleId: string
+  readonly edits: readonly Edit[]
+}
+
 export interface Engine {
   readonly id: EngineId
   readonly capabilities: EngineCapabilities
@@ -99,4 +118,23 @@ export interface Engine {
     context: RunContext,
     signal: AbortSignal,
   ): AsyncIterable<RawDiagnostic>
+  /**
+   * Optional second route to fix data, for an engine that cannot *describe* a fix and can only
+   * *perform* one. oxlint is the case this exists for: none of its five output formats carries fix
+   * data, so `@misaon/slop-gate-engine-oxlint` obtains edits by running `--fix` over copies and
+   * diffing (see that package's `derive-fixes.ts`).
+   *
+   * Called by `sgate fix` **after** normalization, unlike `RawDiagnostic.fix` which rides along with
+   * the finding. That ordering is the reason to have two routes rather than one: only diagnostics
+   * that survived arbitration, the tier gate and inline suppressions become targets, so an engine
+   * that must re-run itself never does that work for a finding the user already silenced or the
+   * registry never owned.
+   *
+   * An engine that reports its fixes inline does not implement this.
+   */
+  deriveFixes?(
+    targets: readonly FixTarget[],
+    context: RunContext,
+    signal: AbortSignal,
+  ): Promise<readonly DerivedFix[]>
 }

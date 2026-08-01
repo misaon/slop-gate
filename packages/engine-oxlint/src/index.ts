@@ -11,9 +11,11 @@ import {
   type RunContext,
 } from '@misaon/slop-gate-core'
 import { materializeOxlintConfig } from './config.ts'
+import { deriveOxlintFixes } from './derive-fixes.ts'
 import { parseOxlintOutput } from './parse.ts'
 import { resolveOxlintBinary, type OxlintInvocation } from './resolve-binary.ts'
 
+export { deriveOxlintFixes, loadFixCatalogue, type DeriveOxlintFixesOptions } from './derive-fixes.ts'
 export { PARSE_ERROR_RULE_ID, parseOxlintOutput, toEngineRuleId } from './parse.ts'
 export { resolveOxlintBinary, type OxlintInvocation } from './resolve-binary.ts'
 
@@ -50,6 +52,13 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
 
     run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
       return execute(invocation, batch, handle, context, signal)
+    },
+
+    // oxlint reports no fix data in any output format (see `derive-fixes.ts` for what was checked),
+    // so it takes the second route: `sgate fix` hands it the findings it wants edits for, and the
+    // adapter obtains them by running `--fix` over copies. Never called by `sgate check`.
+    deriveFixes(targets, context, signal) {
+      return deriveOxlintFixes({ invocation, targets, context, signal })
     },
   }
 }

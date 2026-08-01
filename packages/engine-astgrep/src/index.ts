@@ -47,10 +47,13 @@ export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engi
       languages: ['ts', 'tsx', 'js', 'jsx'],
       granularity: 'file',
       provides: [],
-      // ast-grep has a real `fix:` key and `--update-all`. None of the five shipped rules declares
-      // one — every `slop.*` finding here is a judgement about intent that a mechanical rewrite
-      // cannot make (deleting a comment, inventing an error handler) — so claiming the capability
-      // would promise `sgate fix` edits this adapter has none of.
+      // ast-grep has a real `fix:` key, and the adapter now carries its `replacement` through as a
+      // `RawFix` (see `parse.ts`'s `fixOf`) — so the *plumbing* for `sgate fix` is here and tested.
+      // The capability stays `false` because it describes what this engine will actually produce on
+      // a run, and none of the five shipped rules declares a `fix:`: every `slop.*` finding here is a
+      // judgement about intent that a mechanical rewrite cannot make (deleting a comment, inventing
+      // an error handler). Flipping this to `true` is a one-line change for whoever adds the first
+      // rule with a rewrite; claiming it now would promise edits this ruleset has none of.
       fixes: false,
     },
 

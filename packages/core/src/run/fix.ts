@@ -4,10 +4,13 @@ import { writeFileAtomic } from '../cache/atomic-write.ts'
 import { hashJson } from '../cache/keys.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { SlopGateConfig } from '../config/types.ts'
-import type { Diagnostic, FixKind } from '../diagnostics/types.ts'
+import type { Diagnostic, Edit, FixKind } from '../diagnostics/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
-import type { Engine } from '../engine/types.ts'
+import type { Engine, FixTarget, RunContext } from '../engine/types.ts'
 import { LEVEL_TO_SEVERITY } from '../engine/normalize.ts'
+import { engineAdjustmentsFor } from '../frameworks/adjustments.ts'
+import type { FrameworkDetection } from '../frameworks/types.ts'
+import { parseSuppressions } from '../suppressions/parse.ts'
 import { applyEdits } from '../fix/apply.ts'
 import { arbitrateEdits } from '../fix/arbitrate.ts'
 import { unifiedDiff } from '../fix/diff.ts'
@@ -152,7 +155,7 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
   // could disagree. It is genuinely load-bearing rather than belt-and-braces — a project-granularity
   // engine is explicitly allowed to report against files the inventory never contained (see
   // `runProjectAssignment`), and a fix attached to one of those must not be applied.
-  const { inventory, resolver, entries } = await resolveRun({
+  const { inventory, resolver, entries, frameworks } = await resolveRun({
     rootDir: options.rootDir,
     config: options.config,
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
@@ -214,7 +217,18 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       }
     }
 
-    const byFile = gather(check.diagnostics, { tier, writable, rootDir: options.rootDir, ledger, priorities, skipped })
+    const diagnostics = await withDerivedFixes(check.diagnostics, {
+      engines: options.engines,
+      rootDir: options.rootDir,
+      tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
+      tier,
+      entries,
+      writable,
+      frameworks,
+      signal,
+    })
+
+    const byFile = gather(diagnostics, { tier, writable, rootDir: options.rootDir, ledger, priorities, skipped })
     if (byFile.size === 0) break
 
     let changedThisPass = false
@@ -284,6 +298,104 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
 
     return { tier, dryRun, files, rules, oscillations, passes, truncated, initial, skipped, engineFailures }
   }
+}
+
+type DeriveContext = {
+  engines: readonly Engine[]
+  rootDir: string
+  tmpDir: string
+  tier: FixTier
+  entries: readonly RuleEntry[]
+  writable: ReadonlySet<string>
+  frameworks: FrameworkDetection
+  signal: AbortSignal
+}
+
+/**
+ * Asks every engine implementing `Engine.deriveFixes` for edits covering the diagnostics it owns
+ * that arrived without one, and merges the answers back onto those diagnostics.
+ *
+ * Running here rather than inside the engine's own `run()` is what makes the targets *earned*: a
+ * diagnostic only reaches this point if arbitration elected its rule, the resolved level kept it,
+ * and it was not suppressed (`runCheck` drops suppressed findings from `diagnostics`). An engine
+ * that has to spawn itself again to produce a fix therefore never does so for work the pipeline was
+ * going to discard.
+ *
+ * **A file containing any inline suppression directive is excluded outright**, and that is the one
+ * deliberately blunt rule here. A derived fix comes from re-running the engine over a whole file, so
+ * it rewrites *every* occurrence the rule finds there — including one the user silenced, which the
+ * engine has no way to know about. Judging that per occurrence would mean matching hunks back to
+ * individual findings by proximity, a guess that is wrong exactly when it matters. Skipping the file
+ * costs a few unfixed findings in the rare file that carries a directive, and never applies a fix
+ * somebody explicitly said not to. Engine-*reported* fixes (ast-grep) are unaffected: they ride on
+ * an individual diagnostic and disappear with it when it is suppressed.
+ */
+async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveContext): Promise<Diagnostic[]> {
+  const providers = ctx.engines.filter((engine) => engine.deriveFixes !== undefined)
+  if (providers.length === 0) return [...diagnostics]
+
+  const fixKinds = new Map(ctx.entries.map((entry) => [ruleRefKey(entry), entry.fixKind]))
+  const suppressionFree = new Map<string, boolean>()
+  const isSuppressionFree = async (file: string): Promise<boolean> => {
+    const known = suppressionFree.get(file)
+    if (known !== undefined) return known
+    let clean = false
+    try {
+      clean = parseSuppressions(await readFile(join(ctx.rootDir, file), 'utf8')).length === 0
+    } catch {
+      clean = false
+    }
+    suppressionFree.set(file, clean)
+    return clean
+  }
+
+  const targetsByEngine = new Map<string, FixTarget[]>()
+  for (const diagnostic of diagnostics) {
+    if (diagnostic.fix !== undefined || diagnostic.file === null) continue
+    if (!ctx.writable.has(diagnostic.file)) continue
+    const kind = fixKinds.get(diagnostic.ruleId)
+    if (kind === undefined || kind === 'none' || FIX_TIER_RANK[kind] > FIX_TIER_RANK[ctx.tier]) continue
+    if (!providers.some((engine) => engine.id === diagnostic.engine)) continue
+    if (!(await isSuppressionFree(diagnostic.file))) continue
+
+    const engineRuleId = diagnostic.ruleId.slice(diagnostic.ruleId.indexOf('/') + 1)
+    const targets = targetsByEngine.get(diagnostic.engine) ?? []
+    targets.push({ file: diagnostic.file, engineRuleId, range: diagnostic.range })
+    targetsByEngine.set(diagnostic.engine, targets)
+  }
+  if (targetsByEngine.size === 0) return [...diagnostics]
+
+  const editsByKey = new Map<string, readonly Edit[]>()
+  for (const engine of providers) {
+    const targets = targetsByEngine.get(engine.id)
+    if (targets === undefined) continue
+    const context: RunContext = {
+      rootDir: ctx.rootDir,
+      tmpDir: ctx.tmpDir,
+      adjustments: engineAdjustmentsFor(engine.id, ctx.frameworks),
+      fixTier: ctx.tier,
+    }
+    for (const derived of await engine.deriveFixes!(targets, context, ctx.signal)) {
+      editsByKey.set(`${engine.id}\0${derived.file}\0${derived.engineRuleId}`, derived.edits)
+    }
+  }
+
+  // The whole `(file, rule)` edit set is attached to the *first* diagnostic of that pair, not copied
+  // onto each: `gather` flattens every diagnostic's edits into the same candidate pool, so attaching
+  // them n times would hand arbitration n identical copies of each edit, all conflicting with each
+  // other, and n-1 of them would be dropped as overlaps for no reason.
+  const claimed = new Set<string>()
+  return diagnostics.map((diagnostic) => {
+    if (diagnostic.fix !== undefined || diagnostic.file === null) return diagnostic
+    const kind = fixKinds.get(diagnostic.ruleId)
+    if (kind === undefined || kind === 'none') return diagnostic
+    const engineRuleId = diagnostic.ruleId.slice(diagnostic.ruleId.indexOf('/') + 1)
+    const key = `${diagnostic.engine}\0${diagnostic.file}\0${engineRuleId}`
+    const edits = editsByKey.get(key)
+    if (edits === undefined || claimed.has(key)) return diagnostic
+    claimed.add(key)
+    return { ...diagnostic, fix: { kind, description: `Apply the ${engineRuleId} fix.`, edits: [...edits] } }
+  })
 }
 
 function refuseFor(state: WorktreeState): FixRefusal | null {

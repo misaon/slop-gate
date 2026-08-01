@@ -151,11 +151,13 @@ export { openStatIndex, type StatIndex } from './cache/stat-index.ts'
 export { openProjectResultStore, openResultStore, type ProjectResultStore, type ResultStore } from './cache/result-store.ts'
 
 export type {
+  DerivedFix,
   Engine,
   EngineCapabilities,
   EngineConfigHandle,
   EngineRuleSelection,
   FileBatch,
+  FixTarget,
   RawDiagnostic,
   RawFix,
   RawSeverity,
@@ -182,6 +184,7 @@ export { FIX_TIER_RANK, type ArbitrationResult, type CandidateEdit, type DropRea
 export { arbitrateEdits, rangesConflict } from './fix/arbitrate.ts'
 export { applyEdits, decodeUtf8, encodeUtf8 } from './fix/apply.ts'
 export { unifiedDiff } from './fix/diff.ts'
+export { editsFromRewrite } from './fix/derive.ts'
 export { createOscillationLedger, type Oscillation, type OscillationLedger } from './fix/oscillation.ts'
 export { inspectWorktree, type InspectWorktreeOptions, type WorktreeState } from './fix/worktree.ts'
 export { writeFileAtomic, type WriteFileAtomicOptions } from './cache/atomic-write.ts'
