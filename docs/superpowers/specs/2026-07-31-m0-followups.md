@@ -90,6 +90,18 @@ has no way to know yet. Recorded here so nobody re-adds one of these thinking it
   is worth being precise about which one a future reader is citing. See the comment above the
   `no-shadow` entry in `packages/core/src/registry/entries.ts` for the same note in context.
 
+- **`no-underscore-dangle`**, found auditing what the *generated* `recommended` preset actually
+  fires on a real project (srvc-bat, post-M1a registry generation): 5 of its 6 total findings there
+  were this rule, every one the same identifier (`request_`) at its point of declaration, repeated
+  five times in one file (`test/test-runner.ts`). Confirmed deliberate, not careless: that file
+  imports `* as request` from `supertest`, so every method-local `request_` is systematically
+  avoiding a collision with the already-imported name — the same convention applied consistently
+  five times over, not a defect. Same class as `no-extraneous-class` above, just a naming convention
+  rather than a framework requirement: oxlint's `suspicious` category is not the arbiter of whether a
+  finding belongs in `recommended`, whether it is a defect a competent developer would actually want
+  to change is. See the reason recorded directly on the entry in
+  `packages/core/src/registry/exclusions.ts`.
+
 **The general lesson, which will recur as the registry grows past this one rule:** a rule's value
 depends on the framework present in the repository, and the registry
 (`packages/core/src/registry/entries.ts`) has no notion of framework awareness — no way to know a
@@ -182,6 +194,19 @@ gets for free from a human reading the code.**
 `config.dead-override`, `config.unused-suppression`) — a concept the orchestrator services itself
 will never have a matching `RuleEntry`, and counting that against the repository's engine coverage
 would warn about the tool's own diagnostics on every run.
+
+`uncovered` also does not report a concept whose only mismatch is language — every candidate is
+otherwise capable (right engine, right capabilities, not deprecated) and would run if the repository
+contained that language. Found running the real CLI after registry generation landed: `recommended`'s
+271 concepts include many React/Vue/Jest-scoped ones this repository's and srvc-bat's files never
+exercise, and both repositories printed an identical, permanent "115 enabled concepts have no capable
+engine" line as a result — noise about the repository's shape, not a coverage shortfall.
+`registry/elect.ts`'s `electOwners` now splits `isApplicable` into `isCapable` (engine participation,
+capabilities, deprecation) plus the language check, and only pushes a concept onto `uncovered` when no
+candidate is capable even ignoring language. Verified clean against every existing `elect.test.ts`
+case plus new ones, against both repositories (the line disappears from both, finding counts
+unchanged), and against a synthetic fixture pinning a concept to a non-participating engine (still
+reports, confirming the fix does not just silence the line unconditionally).
 
 `positionAt` yields U+FFFD for an offset inside a multi-byte character; oxlint's offsets are always on
 character boundaries, verified. `findConfigFile` walks past the repository boundary, matching
