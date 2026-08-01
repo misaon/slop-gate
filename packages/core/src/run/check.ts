@@ -9,7 +9,8 @@ import type { Diagnostic, Severity } from '../diagnostics/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import { LEVEL_TO_SEVERITY, normalizeDiagnostics } from '../engine/normalize.ts'
-import type { Engine, EngineConfigHandle, RawDiagnostic } from '../engine/types.ts'
+import type { Engine, EngineConfigHandle, RawDiagnostic, RunContext } from '../engine/types.ts'
+import { engineAdjustmentsFor } from '../frameworks/adjustments.ts'
 import { compareStrings } from '../ordering.ts'
 import { buildPlan, type EngineAssignment } from '../planner/plan.ts'
 import type { ElectionResult } from '../registry/elect.ts'
@@ -87,7 +88,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // invoked yet. Shared verbatim with `sgate rules`'s governance commands via `resolveRun`; see
   // that module's own doc comment for why this is the extraction boundary rather than the full
   // prepare/plan/schedule split M2 needs.
-  const { resolver, election, inventory, entries } = await resolveRun({
+  const { resolver, election, inventory, entries, frameworks } = await resolveRun({
     rootDir: options.rootDir,
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),
@@ -100,7 +101,14 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // Hashes the full entries, not just their ids: normalization bakes `concepts`, `classify`,
   // `severityDefault` and `docsUrl` into every cached diagnostic, so an upgrade that changes any of
   // them without adding or removing a rule would otherwise serve stale attribution forever.
-  const configHash = hashJson({ config: options.config, entries })
+  //
+  // `frameworks` is in here for the same class of reason, and it is load-bearing rather than tidy
+  // (spec §23.4): adding `@nestjs/core` to a `package.json` changes the effective ruleset without
+  // changing any file oxlint was assigned, so without it a warm run keeps serving diagnostics from a
+  // ruleset that no longer applies. Same silent-stale-warm-run shape as the stat index trusting
+  // `(size, mtimeMs)`, one layer up. `frameworks.applied` alone would do, but the whole detection is
+  // hashed so a profile moving between applied and inapplicable also invalidates.
+  const configHash = hashJson({ config: options.config, entries, frameworks })
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
   // Project-granularity engines (spec §8.1: `tsc`, `knip`) cache one whole-program result per
@@ -147,10 +155,15 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
 
       try {
         const version = await engine.version()
-        const handle = await engine.materializeConfig(assignment.selection, {
+        // One context per assignment, reused for `materializeConfig` and every `run` below: the
+        // framework adjustments are narrowed to this engine, so building it twice would mean
+        // narrowing twice and risking the two disagreeing.
+        const runContext: RunContext = {
           rootDir: options.rootDir,
           tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
-        })
+          adjustments: engineAdjustmentsFor(engine.id, frameworks),
+        }
+        const handle = await engine.materializeConfig(assignment.selection, runContext)
         enginesRun += 1
 
         // The one branch project-granularity forces (see `runProjectAssignment`'s own doc comment
@@ -170,6 +183,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               version,
               {
                 rootDir: options.rootDir,
+                runContext,
                 useCache,
                 configHash,
                 entries,
@@ -234,7 +248,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             for await (const raw of engine.run(
               { files: batch },
               handle,
-              { rootDir: options.rootDir, tmpDir: join(options.rootDir, '.slop-gate', 'tmp') },
+              runContext,
               signal,
             )) {
               raws.push(raw)
@@ -338,6 +352,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
 
 type ProjectAssignmentContext = {
   rootDir: string
+  runContext: RunContext
   useCache: boolean
   configHash: string
   entries: readonly RuleEntry[]
@@ -418,7 +433,7 @@ async function* runProjectAssignment(
   for await (const raw of engine.run(
     { files: assignment.files },
     handle,
-    { rootDir: ctx.rootDir, tmpDir: join(ctx.rootDir, '.slop-gate', 'tmp') },
+    ctx.runContext,
     ctx.signal,
   )) {
     raws.push(raw)

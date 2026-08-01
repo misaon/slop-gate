@@ -615,3 +615,105 @@ test('toggling config.unused-suppression itself invalidates the cache and change
   expect(on.diagnostics.some((d) => d.concept === 'config.unused-suppression')).toBe(true)
   expect(off.diagnostics.some((d) => d.concept === 'config.unused-suppression')).toBe(false)
 })
+
+const EXTRANEOUS_CLASS_ENTRY: RuleEntry = {
+  ...ENTRIES[0]!,
+  engineRuleId: 'no-extraneous-class',
+  concepts: ['suspicious.no-extraneous-class'],
+}
+
+const extraneousClassFinding: RawDiagnostic = {
+  engineRuleId: 'no-extraneous-class',
+  message: 'Unexpected empty class',
+  severity: 'error',
+  file: 'src/a.ts',
+  range: { start: 0, end: 5 },
+}
+
+/** `recommended` (a preset — §6.2 layer 2) enables it; the framework layer sits above and may turn
+ *  it off, which is the whole arrangement these two tests exercise from opposite sides. */
+const presetEnabled = () => ({
+  ...baseOptions(),
+  config: { extends: ['recommended'] } as never,
+  entries: [...ENTRIES, EXTRANEOUS_CLASS_ENTRY],
+  engines: [stubEngine({ findings: [debuggerFinding('src/a.ts'), extraneousClassFinding] })],
+})
+
+const withNestDependency = async (): Promise<void> => {
+  await writeFile(
+    join(dir, 'package.json'),
+    JSON.stringify({ name: 'fixture', dependencies: { '@nestjs/core': '^11.0.0' } }),
+  )
+}
+
+/**
+ * Spec §23.4, and the reason `configHash` folds in the detection result rather than only the config
+ * and the entries.
+ *
+ * The shape matters, and the obvious version of this test does not have teeth: if the *only* enabled
+ * concept is the one the framework disables, the engine drops out of the plan entirely and the cache
+ * is never consulted, so the assertion passes with or without the fold. Two concepts are needed — one
+ * the framework leaves alone, so the engine still runs and the file is still a cache candidate, and
+ * one it turns off. `src/a.ts` is byte-identical across all three runs and `package.json` is not a
+ * file this engine claims, so nothing else in the per-file key moves. Without the fold, the warm run
+ * replays the cached array and keeps reporting a concept that is no longer enabled.
+ */
+test('a dependency change that turns one of two concepts off is not served from the warm cache', async () => {
+  const cold = await runCheck(presetEnabled())
+  expect(cold.diagnostics.map((d) => d.concept).sort()).toEqual([
+    'correctness.no-debugger',
+    'suspicious.no-extraneous-class',
+  ])
+
+  const warm = await runCheck(presetEnabled())
+  expect(warm.stats.filesFromCache).toBeGreaterThan(0)
+  expect(warm.diagnostics).toHaveLength(2)
+
+  await withNestDependency()
+
+  const detected = await runCheck(presetEnabled())
+  expect(detected.diagnostics.map((d) => d.concept)).toEqual(['correctness.no-debugger'])
+})
+
+test('removing the dependency again re-enables the concept, so the layer is not sticky', async () => {
+  await withNestDependency()
+  expect((await runCheck(presetEnabled())).diagnostics).toHaveLength(1)
+
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture' }))
+  expect((await runCheck(presetEnabled())).diagnostics).toHaveLength(2)
+})
+
+/**
+ * The framework layer never wins an argument with a person (spec §23.2). A user who writes this rule
+ * into their own config in a NestJS repository means it, and gets it — root config is §6.2 layer 4,
+ * above the framework layer at 3.
+ */
+test('a concept the user enables in their own config survives a framework that would disable it', async () => {
+  await withNestDependency()
+  const result = await runCheck({
+    ...presetEnabled(),
+    config: { extends: ['recommended'], rules: { 'suspicious.no-extraneous-class': 'error' } } as never,
+  })
+
+  expect(result.diagnostics.map((d) => d.concept).sort()).toEqual([
+    'correctness.no-debugger',
+    'suspicious.no-extraneous-class',
+  ])
+})
+
+/**
+ * The `angular` profile end to end, and the reason it exists at all: `@NgModule({...}) export class
+ * AppModule {}` is the identical construct `no-extraneous-class` was measured 11/11 wrong on in
+ * NestJS. Unlike the other profiles this one's warrant is mechanism identity rather than its own
+ * false-positive count (spec §23.5), so the thing worth pinning is that detection and the layer
+ * actually connect — not a finding rate this test could not honestly produce anyway.
+ */
+test('an Angular repository gets the empty-class concept turned off, same as a NestJS one', async () => {
+  await writeFile(
+    join(dir, 'package.json'),
+    JSON.stringify({ name: 'fixture', dependencies: { '@angular/core': '^19.0.0' } }),
+  )
+
+  const result = await runCheck(presetEnabled())
+  expect(result.diagnostics.map((d) => d.concept)).toEqual(['correctness.no-debugger'])
+})

@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import type { InventoryFile, RawDiagnostic, RunContext } from '@misaon/slop-gate-core'
+import {
+  detectFrameworks,
+  engineAdjustmentsFor,
+  type EngineAdjustments,
+  type InventoryFile,
+  type RawDiagnostic,
+  type RunContext,
+} from '@misaon/slop-gate-core'
 import { createKnipEngine } from './index.ts'
 import { KNIP_ISSUE_TYPES, KNIP_SURFACED_ISSUE_TYPES } from './issue-types.ts'
 import { resolveKnipBinary } from './resolve-binary.ts'
@@ -310,6 +317,152 @@ test(
     await expect(stat(join(dir, 'node_modules', '.cache', 'knip'))).rejects.toThrow()
     await handle.dispose()
     await expect(stat(handle.path)).rejects.toThrow()
+  },
+  TIMEOUT,
+)
+
+// --- Framework awareness (spec §23): the three knip cases the M0 follow-ups measured -------------
+
+/**
+ * Runs the whole detection chain against the fixture currently on disk and narrows it to knip, so
+ * these tests exercise the real profiles rather than hand-written adjustments. `paths` is the
+ * inventory the planner would have assigned.
+ */
+const knipAdjustments = async (paths: readonly string[]): Promise<EngineAdjustments> => {
+  const detection = await detectFrameworks({
+    inventory: {
+      root: dir,
+      files: paths.map((path) => file(path)),
+      languages: new Set(['ts']),
+      workspaces: [{ name: 'root', dir: '' }],
+    },
+  })
+  return engineAdjustmentsFor('knip', detection)
+}
+
+/** The same repository analysed twice: once as knip sees it today, once with the profiles applied. */
+const withAndWithout = async (
+  paths: readonly string[],
+): Promise<{ before: string[]; after: string[]; adjustments: EngineAdjustments }> => {
+  const engine = createKnipEngine()
+  const files = paths.map((path) => file(path))
+  const describe = (found: readonly RawDiagnostic[]): string[] =>
+    found.map((d) => `${d.engineRuleId} ${d.file} ${d.message}`).sort()
+
+  const bare = await engine.materializeConfig(everything(), context)
+  const before = describe(await collect(engine.run({ files }, bare, context, AbortSignal.timeout(TIMEOUT))))
+  await bare.dispose()
+
+  const adjustments = await knipAdjustments(paths)
+  const aware: RunContext = { ...context, adjustments }
+  const handle = await engine.materializeConfig(everything(), aware)
+  const after = describe(await collect(engine.run({ files }, handle, aware, AbortSignal.timeout(TIMEOUT))))
+  await handle.dispose()
+
+  return { before, after, adjustments }
+}
+
+const MIKRO_ORM_FILES = ['package.json', 'src/index.ts', 'mikro-orm.config.ts', 'src/migrations/Migration001.ts']
+
+const writeMikroOrmFixture = async (): Promise<void> => {
+  await write(
+    'package.json',
+    JSON.stringify({
+      name: 'api',
+      dependencies: { '@mikro-orm/core': '^6.0.0', '@mikro-orm/migrations': '^6.0.0', 'used-dep': '^1.0.0' },
+    }),
+  )
+  await write('src/index.ts', "import { thing } from 'used-dep'\n\nexport const main = (): unknown => thing\n")
+  await write(
+    'mikro-orm.config.ts',
+    "import { defineConfig } from '@mikro-orm/core'\n\nexport default defineConfig({ migrations: { path: './src/migrations' } })\n",
+  )
+  await write(
+    'src/migrations/Migration001.ts',
+    "import { Migration } from '@mikro-orm/migrations'\n\nexport class Migration001 extends Migration {}\n",
+  )
+}
+
+test(
+  'the MikroORM profile clears the migration and ORM-config false positives',
+  async () => {
+    await writeMikroOrmFixture()
+    const { before, after, adjustments } = await withAndWithout(MIKRO_ORM_FILES)
+
+    expect(adjustments).toEqual([
+      { key: 'entry', workspace: '', values: ['mikro-orm.config.ts', 'src/migrations/*.{js,mjs,cjs,ts,mts,cts}'] },
+    ])
+
+    // Without the profile these are exactly the findings §13.2 measured: files nothing imports, and
+    // the dependencies that are only reachable through them.
+    expect(before).toContainEqual(expect.stringContaining('files src/migrations/Migration001.ts'))
+    expect(before).toContainEqual(expect.stringContaining('files mikro-orm.config.ts'))
+    expect(before).toContainEqual(expect.stringContaining('@mikro-orm/migrations'))
+
+    expect(after.filter((line) => line.startsWith('files '))).toEqual([])
+    expect(after.filter((line) => line.includes('@mikro-orm/'))).toEqual([])
+  },
+  TIMEOUT,
+)
+
+/**
+ * The single highest-risk line in the framework change, pinned behaviourally. A workspace-level
+ * `entry` **replaces** knip's defaults (`KNIP_DEFAULT_ENTRY`, config.ts), so a contribution written
+ * without them un-registers `src/index.ts` as an entry point — and the symptom is knip reporting
+ * *fewer* findings, which reads like the tool getting better. Both assertions below fail if the
+ * defaults are ever dropped: the entry file itself becomes an unused file, and the dependency only it
+ * imports becomes an unused dependency.
+ */
+test(
+  'a contributed entry is unioned onto knip own defaults, not written over them',
+  async () => {
+    await writeMikroOrmFixture()
+    const { after } = await withAndWithout(MIKRO_ORM_FILES)
+
+    expect(after).not.toContainEqual(expect.stringContaining('files src/index.ts'))
+    expect(after).not.toContainEqual(expect.stringContaining('used-dep'))
+  },
+  TIMEOUT,
+)
+
+test(
+  'the VitePress profile points knip at a site that is not at the workspace root',
+  async () => {
+    await write(
+      'package.json',
+      JSON.stringify({ name: 'root', dependencies: { 'used-dep': '^1.0.0' }, devDependencies: { vitepress: '^2.0.0' } }),
+    )
+    await write('src/index.ts', "import { thing } from 'used-dep'\n\nexport const main = (): unknown => thing\n")
+    await write('docs/.vitepress/config.mts', "import { defineConfig } from 'vitepress'\n\nexport default defineConfig({})\n")
+
+    const { before, after } = await withAndWithout(['package.json', 'src/index.ts', 'docs/.vitepress/config.mts'])
+
+    expect(before).toContainEqual(expect.stringContaining('files docs/.vitepress/config.mts'))
+    expect(before).toContainEqual(expect.stringContaining('vitepress'))
+
+    expect(after).not.toContainEqual(expect.stringContaining('files docs/.vitepress/config.mts'))
+    expect(after.filter((line) => line.includes('vitepress'))).toEqual([])
+  },
+  TIMEOUT,
+)
+
+test(
+  'the NestJS-on-Express profile clears the transitively-provided express dependency',
+  async () => {
+    await write(
+      'package.json',
+      JSON.stringify({ name: 'api', dependencies: { '@nestjs/core': '^11.0.0', '@nestjs/platform-express': '^11.0.0' } }),
+    )
+    await write(
+      'src/index.ts',
+      "import type { Request } from 'express'\nimport { NestFactory } from '@nestjs/core'\n\nexport const main = (r: Request): unknown => [NestFactory, r]\n",
+    )
+
+    const { before, after } = await withAndWithout(['package.json', 'src/index.ts'])
+
+    expect(before).toContainEqual(expect.stringContaining('unlisted src/index.ts'))
+    expect(before.some((line) => line.includes('express'))).toBe(true)
+    expect(after.filter((line) => line.startsWith('unlisted '))).toEqual([])
   },
   TIMEOUT,
 )

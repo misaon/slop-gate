@@ -99,6 +99,43 @@ export {
 
 export { toPosix } from './paths.ts'
 
+// --- Framework awareness (spec §23): one detection pass, two consumers ---------------------------
+export {
+  engineAdjustmentsFor,
+  frameworkRuleLayers,
+  settingValues,
+  settingValuesFor,
+  type FrameworkRuleLayer,
+} from './frameworks/adjustments.ts'
+export {
+  EMPTY_DETECTION,
+  buildDetectionContext,
+  defineProfile,
+  detectFrameworks,
+  findDependency,
+  findFiles,
+  relativeToWorkspace,
+  type DetectFrameworksOptions,
+} from './frameworks/detect.ts'
+export { extractStringLiteral } from './frameworks/literal.ts'
+export { FRAMEWORK_PROFILES, dualFiringConcepts } from './frameworks/profiles.ts'
+export type {
+  AnyFrameworkProfile,
+  DependencyField,
+  DetectionContext,
+  EngineAdjustments,
+  EngineSetting,
+  FrameworkAdjustment,
+  FrameworkApplication,
+  FrameworkDetection,
+  FrameworkEvidence,
+  FrameworkId,
+  FrameworkProfile,
+  InapplicableFramework,
+  Manifest,
+  ManifestDependency,
+} from './frameworks/types.ts'
+
 export {
   RESULT_SCHEMA_VERSION,
   deriveProjectResultKey,

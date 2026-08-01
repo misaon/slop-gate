@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { createRuleSetResolver } from '../config/resolve.ts'
+import { EMPTY_DETECTION } from '../frameworks/detect.ts'
 import { electOwners } from '../registry/elect.ts'
 import type { RuleEntry } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
@@ -39,6 +40,7 @@ test('surfaces both a suppressed overlap and a dead override from an already-res
     election,
     entries,
     inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] },
+    frameworks: EMPTY_DETECTION,
   }
 
   const conflicts = buildRulesConflicts(resolved)
@@ -69,6 +71,7 @@ test('reports both as empty on a run with no overlaps and no dead overrides', ()
     election,
     entries: [],
     inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] },
+    frameworks: EMPTY_DETECTION,
   }
 
   const conflicts = buildRulesConflicts(resolved)

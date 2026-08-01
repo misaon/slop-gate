@@ -5,6 +5,7 @@ import {
   wasEnabledBeforeBeingDisabled,
   type ConceptEnablement,
   type ConceptWhy,
+  type FrameworkEvidence,
   type IneligibleCandidate,
   type ProvenanceLayer,
   type RuleSetting,
@@ -19,9 +20,27 @@ export const RULES_WHY_JSON_VERSION = 1
 
 const LAYER_LABEL: Readonly<Record<ProvenanceLayer, string>> = {
   preset: 'preset',
+  framework: 'framework',
   'root-config': 'root config',
   'workspace-config': 'workspace config',
   override: 'override',
+}
+
+/**
+ * One line of evidence, phrased so the reader can act on it: which file declares the thing that made
+ * detection fire. "Off because NestJS" is a dead end for someone who disagrees; naming the manifest
+ * and the dependency tells them exactly what to change, and tells them immediately if detection is
+ * wrong (spec §23.4).
+ */
+function evidenceText(evidence: FrameworkEvidence): string {
+  switch (evidence.kind) {
+    case 'manifest-dependency':
+      return `\`${evidence.name}\` in ${evidence.file} (${evidence.field})`
+    case 'path-present':
+      return `${evidence.file} is present`
+    case 'config-literal':
+      return `\`${evidence.property}\` is \`${evidence.value}\` in ${evidence.file}`
+  }
 }
 
 function settingText(setting: RuleSetting): string {
@@ -109,7 +128,12 @@ function isLanguageMismatch(explanation: ConceptWhy): boolean {
  */
 function verdict(explanation: ConceptWhy): string {
   if (explanation.servicedBySlopGate) return 'Emitted by slop-gate itself, not by any engine rule.'
-  if (!explanation.enablement.enabled) return 'Produces no findings: not enabled by any layer.'
+  if (!explanation.enablement.enabled) {
+    const framework = explanation.frameworks.at(-1)
+    return framework === undefined
+      ? 'Produces no findings: not enabled by any layer.'
+      : `Produces no findings: framework \`${framework.id}\` turned it off.`
+  }
   if (explanation.owner !== undefined) return `Produces findings via \`${ruleRefKey(explanation.owner)}\`.`
   if (isLanguageMismatch(explanation)) {
     return 'Produces no findings: no matching-language files in this repository.'
@@ -149,6 +173,29 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     const lines = [`  Enabled: ${explanation.enablement.enabled ? paint('green', 'yes') : paint('yellow', 'no')} — ${enablementSummary(explanation.enablement)}`]
     lines.push(...provenanceLines(explanation.enablement))
     if (explanation.pinnedOwner !== undefined) lines.push(`  Pinned owner: \`${explanation.pinnedOwner}\` (via \`owners\` in config)`)
+    writeUnit(lines)
+  }
+
+  if (explanation.frameworks.length > 0) {
+    const lines: string[] = []
+    for (const framework of explanation.frameworks) {
+      lines.push(`  ${paint('bold', 'Framework')}: ${framework.id} — ${framework.summary}`)
+      for (const evidence of framework.evidence) lines.push(`      detected via ${evidenceText(evidence)}`)
+      for (const line of wrapText(framework.reason, Math.max(1, width - 6))) lines.push(`      ${line}`)
+    }
+    writeUnit(lines)
+  }
+
+  // Not filtered to this concept — a profile that stood down has no adjustments to filter by, which
+  // is the whole reason to surface it: the reader is looking at a finding some profile would have
+  // removed, and the actionable part is which parameter it could not resolve.
+  if (explanation.inapplicableFrameworks.length > 0) {
+    const lines = [`  ${paint('dim', 'Frameworks detected but not applied')}`]
+    for (const framework of explanation.inapplicableFrameworks) {
+      const prefix = `    ${framework.id} — `
+      const [first, ...rest] = wrapText(framework.blocked, Math.max(1, width - displayWidth(prefix)))
+      lines.push(`${prefix}${first}`, ...rest.map((line) => `${' '.repeat(displayWidth(prefix))}${line}`))
+    }
     writeUnit(lines)
   }
 
