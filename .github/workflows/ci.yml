@@ -19,7 +19,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm generate:registry:check
-      - run: pnpm test
       - run: pnpm build
+      - run: pnpm typecheck
+        if: always()
+      - run: pnpm generate:registry:check
+        if: always()
+      - run: pnpm test
+        if: always()
