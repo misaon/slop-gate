@@ -197,7 +197,11 @@ test('reports a concept as uncovered when its only candidate belongs to a non-pa
   expect(result.uncovered).toEqual(['style.no-var'])
 })
 
-test('excludes candidates whose languages are absent from the repository', () => {
+test('excludes candidates whose languages are absent from the repository, but does not report it as uncovered', () => {
+  // A language mismatch is not a coverage gap: the candidate is otherwise fully capable (its engine
+  // participated, no capability was missing, it isn't deprecated) and would run if this repository
+  // contained CSS files. Reporting this as "no capable engine" would be noise about the repository's
+  // shape (it has no CSS), not a real shortfall — see `ElectionResult.uncovered`'s doc comment.
   const result = electOwners({
     entries: [entry({ engine: 'biome-css', engineRuleId: 'css-rule', concepts: ['style.no-var'], languages: ['css'] })],
     enabledConcepts: new Set(['style.no-var']),
@@ -207,7 +211,42 @@ test('excludes candidates whose languages are absent from the repository', () =>
   })
 
   expect(result.owners.size).toBe(0)
-  expect(result.uncovered).toEqual(['style.no-var'])
+  expect(result.uncovered).toEqual([])
+})
+
+test('separates a language mismatch from a genuine coverage gap within the same run', () => {
+  const result = electOwners({
+    entries: [
+      // Right engine, no missing capability, not deprecated — this fails only because the repo
+      // has no CSS files. Not a gap.
+      entry({ engine: 'oxlint', engineRuleId: 'css-rule', concepts: ['style.no-var'], languages: ['css'] }),
+      // Right language for this repo, but its only candidate's engine never participated in this
+      // run at all — a real gap, independent of language.
+      entry({ engine: 'eslint', engineRuleId: 'eslint-only', concepts: ['dead-code.unused-variable'], tier: 2 }),
+    ],
+    enabledConcepts: new Set(['style.no-var', 'dead-code.unused-variable']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['ts' as const]),
+    participatingEngines: new Set(['oxlint']),
+  })
+
+  expect(result.uncovered).toEqual(['dead-code.unused-variable'])
+})
+
+test('reports a genuine coverage gap even when the missing piece is a capability, not language', () => {
+  // The one candidate has the right engine and the right language, but requires a capability
+  // (`types`) nothing in this run provides — a real gap no amount of matching language fixes.
+  const result = electOwners({
+    entries: [
+      entry({ engine: 'tsgolint', engineRuleId: 'typed', concepts: ['slop.as-any-cast'], tier: 1, requires: ['types'] }),
+    ],
+    enabledConcepts: new Set(['slop.as-any-cast']),
+    capabilities: NO_CAPABILITIES,
+    languages: ALL_LANGUAGES,
+    participatingEngines: ALL_ENGINES,
+  })
+
+  expect(result.uncovered).toEqual(['slop.as-any-cast'])
 })
 
 test('honours a pinned owner even when a faster candidate exists', () => {

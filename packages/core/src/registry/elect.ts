@@ -34,6 +34,15 @@ export type ElectionResult = {
   owners: Map<string, RuleRef>
   selection: Map<EngineId, Set<string>>
   suppressed: SuppressionRecord[]
+  /**
+   * Concepts with no elected owner for a reason *other* than "the repository does not contain the
+   * language this concept applies to" — i.e. a genuine coverage gap: the concept's only candidates
+   * are deprecated, belong to an engine this run never instantiated, or require a capability no
+   * participating engine provides. A concept whose every candidate is otherwise fully capable and
+   * fails only on language (e.g. a Vue-scoped rule in a repository with no `.vue` files) is
+   * correctly uncovered but is *not* pushed here — that is expected behaviour, not a shortfall, and
+   * reporting it on every run would be noise about the repository's shape, not the tool's coverage.
+   */
   uncovered: string[]
 }
 
@@ -48,11 +57,18 @@ export function electOwners(input: ElectionInput): ElectionResult {
   const suppressed: SuppressionRecord[] = []
   const uncovered: string[] = []
 
-  const isApplicable = (entry: RuleEntry): boolean =>
+  // Everything `isApplicable` checks except the language intersection — i.e. "would this candidate
+  // run at all, in this configuration, regardless of what the repository's files are written in".
+  // Splitting this out is what lets the empty-`eligible` branch below tell a genuine coverage gap
+  // (no capable engine, full stop) apart from a language mismatch (a capable engine exists, the
+  // repository just doesn't contain that language).
+  const isCapable = (entry: RuleEntry): boolean =>
     entry.deprecated === undefined &&
     input.participatingEngines.has(entry.engine) &&
-    entry.requires.every((capability) => input.capabilities.has(capability)) &&
-    entry.languages.some((language) => input.languages.has(language))
+    entry.requires.every((capability) => input.capabilities.has(capability))
+
+  const isApplicable = (entry: RuleEntry): boolean =>
+    isCapable(entry) && entry.languages.some((language) => input.languages.has(language))
 
   const compare = (a: RuleEntry, b: RuleEntry): number =>
     a.tier - b.tier ||
@@ -60,9 +76,8 @@ export function electOwners(input: ElectionInput): ElectionResult {
     compareStrings(a.engineRuleId, b.engineRuleId)
 
   for (const concept of [...input.enabledConcepts].sort(compareStrings)) {
-    const ranked = input.entries
-      .filter((e) => e.concepts.includes(concept as never) && isApplicable(e))
-      .sort(compare)
+    const candidates = input.entries.filter((e) => e.concepts.includes(concept as never))
+    const ranked = candidates.filter(isApplicable).sort(compare)
     const pinned = input.pinnedOwners?.[concept]
     const eligible = pinned === undefined ? ranked : ranked.filter((e) => e.engine === pinned)
 
@@ -70,7 +85,15 @@ export function electOwners(input: ElectionInput): ElectionResult {
       // A concept slop-gate emits itself (e.g. `config.rule-overlap`) will never have a `RuleEntry`
       // — counting it against the repository's engine coverage would warn about the tool's own
       // diagnostics on every single run.
-      if (!SLOP_GATE_SERVICED_CONCEPTS.has(concept)) uncovered.push(concept)
+      if (!SLOP_GATE_SERVICED_CONCEPTS.has(concept)) {
+        // Recomputed ignoring the language filter specifically: if some candidate is otherwise fully
+        // capable (right engine, right capabilities, not deprecated) and only fails on language, the
+        // repository simply doesn't contain that language — not a coverage gap. Only push a concept
+        // here when *no* candidate would run even discounting language entirely.
+        const capable = candidates.filter(isCapable)
+        const eligibleIgnoringLanguage = pinned === undefined ? capable : capable.filter((e) => e.engine === pinned)
+        if (eligibleIgnoringLanguage.length === 0) uncovered.push(concept)
+      }
       continue
     }
 
