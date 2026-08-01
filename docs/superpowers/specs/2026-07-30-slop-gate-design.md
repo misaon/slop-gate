@@ -632,7 +632,7 @@ dependencies.
 | Formatting, ~20 file types | **oxfmt** | bundled | Exclusive owner of `formatting.*`, incl. import and Tailwind class sorting |
 | Dead code, dependency hygiene | **knip** | bundled | Pure JS. Project granularity. Shelled out to today, not run in a worker — see §13.2 |
 | CSS/SCSS semantics | **Biome, scoped to CSS** | lazy | Registry enforces zero overlap with oxlint |
-| Structural and slop rules | **ast-grep** | bundled | Declarative YAML, cross-language |
+| Structural and slop rules | **ast-grep** | bundled | Declarative YAML, cross-language. Implemented — see §13.3 |
 | GitHub Actions correctness | **actionlint** | lazy | Go binary |
 | GitHub Actions security | **zizmor** | lazy | Rust binary |
 | Config files | **JSON Schema** / SchemaStore | bundled | docker-compose, tsconfig, package.json, renovate — cheap, high value. Schemas cached locally |
@@ -773,34 +773,121 @@ unavailable" for nearly every user. The consequence shows up in the API: `create
   deliberately exclude `yaml`, since this adapter overrides knip's own workspace discovery and
   `pnpm-workspace.yaml` therefore no longer influences the outcome.
 
+### 13.3 `ast-grep`: the pattern-shaped slop rules
+
+**Implemented (M2, fourth engine, second with `granularity: 'file'`).**
+`@misaon/slop-gate-engine-astgrep` shells out to a bundled `ast-grep 0.45.0`, running
+`scan --rule <file> --json=compact --inspect summary <paths...>` and parsing the JSON array of
+matches. Byte offsets come straight off `range.byteOffset`, which is what §10 wants; the per-match
+line/column fields are 0-based and ignored.
+
+**It is the one adapter that must not use `resolveScriptBin`, and the reason is a live install
+hazard rather than a preference.** That helper always returns `node <script>`, correct for
+`bin/oxlint`, `bin/tsc` and `bin/knip.js`, which are all `#!/usr/bin/env node` scripts. The file at
+`@ast-grep/cli/ast-grep` is *not one thing*: the published tarball ships a small JS fallback shim
+there, and the package's `postinstall` **overwrites that same path in place** with the native binary
+hardlinked out of the matching platform package. Whether `node <that path>` works therefore depends
+on whether a lifecycle script ran — and under pnpm 10 it does not, because build scripts are blocked
+unless the package is listed in `onlyBuiltDependencies` (observed directly on this repository:
+`Ignored build scripts: @ast-grep/cli@0.45.0`). A `node` prefix would work here today and break the
+moment someone runs `pnpm approve-builds`, or installs with npm. The adapter resolves the platform
+package (`@ast-grep/cli-darwin-arm64` and its six siblings) **from `@ast-grep/cli`'s own directory**,
+because under pnpm's non-hoisted layout it is that package's dependency and is not reachable from
+ours, and spawns the native binary directly. musl Linux falls back to `PATH`: upstream publishes no
+musl build, and the `-gnu` optional dependency still installs there because `os`/`cpu` match and libc
+is not expressible — present, and unrunnable.
+
+**One rule document per (rule, language), not per rule.** ast-grep's `language:` field takes a single
+value and its extension map is not ours: `TypeScript` matches `.ts`/`.mts`/`.cts` and **not** `.tsx`;
+`JavaScript` matches `.js`/`.jsx`/`.mjs`/`.cjs`. A missing document produces zero findings and exit 0,
+so the gap is silent. Duplicate `id`s across documents are accepted and every finding still reports
+the shared id, which is what keeps **one `engineRuleId` per concept** — two entries claiming one
+concept would leave arbitration electing one and discarding the other's findings at normalisation.
+
+**`--inspect summary` is this engine's `number_of_rules`, and it guards two silent failures.**
+`effectiveRuleCount` (documents actually loaded) is asserted against `EngineConfigHandle.ruleCount`.
+`skippedFileCount` catches the worse one: **past roughly 4 MB ast-grep declines a file, reports
+nothing and exits 0**, which slop-gate would then write to the cache as a clean result. (The
+threshold is a property of the parse tree rather than byte count alone — a 3.7 MB file of statements
+parsed, a 4.1 MB one did not, and a 5.2 MB file that was one long comment did.) The counter is 0 for
+the benign cases, so the guard does not fire on an ordinary mixed batch. A missing summary is itself
+treated as a failure: an adapter whose guard has been disabled by an upstream format change should
+say so. Two more behaviours are guarded because they are hard failures rather than empty results —
+`ast-grep scan` with no path arguments scans `.`, and `--rule` pointed at an empty document refuses
+to start.
+
+**Explicitly named paths bypass ast-grep's own `.gitignore` and hidden-file walking** (verified), which
+is the behaviour this pipeline needs: the inventory (§7) is the authority on what gets analysed, and a
+second engine-local ignore layer would subtract from it invisibly.
+
+The rules themselves, and what they measured, are §14.
+
 ---
 
 ## 14. The slop ruleset
 
-Pattern-shaped rules are ast-grep YAML (contributable without writing code, cross-language).
+Pattern-shaped rules are ast-grep YAML (contributable without writing code, cross-language; §13.3).
 AST- and type-dependent rules are oxlint JS plugins, gated behind a capability probe because that API
 is alpha.
 
-Initial set:
+**Five of the eleven concepts below shipped in M2.** The table records what each one actually is
+today rather than what was planned, because three turned out to belong somewhere else and three more
+were measured out of the rules that carry them.
 
-| Concept | Detects |
-|---|---|
-| `slop.narrative-comment` | Comments addressing a reader about process: "In a real implementation…", "Note that we…", "This is a placeholder" |
-| `slop.redundant-comment` | A comment restating the line beneath it |
-| `slop.swallowed-error` | `catch` that is empty, or only logs and continues |
-| `slop.as-any-cast` | `as any`, `as unknown as T` |
-| `slop.stub-implementation` | Exported function whose body only throws "not implemented" or returns a placeholder literal |
-| `slop.defensive-bloat` | Null checks on values already narrowed by their types |
-| `slop.duplicate-utility` | Near-identical helper defined in two or more places |
-| `slop.emoji-in-code` | Emoji in identifiers or strings outside i18n and docs |
-| `slop.over-abstracted-wrapper` | Single-caller wrapper that only forwards its arguments |
-| `slop.hallucinated-import` | Import of a module that is neither declared nor resolvable |
-| `slop.config-drift` | Generated config blocks contradicting the repo's actual setup |
+| Concept | Status | Detects |
+|---|---|---|
+| `slop.narrative-comment` | **shipped** (ast-grep) | A comment describing a hypothetical other version of the code: "in a real implementation…", "this is a placeholder", "your code would go here". **Not** "Note that we…" — see below |
+| `slop.double-cast` | **shipped** (ast-grep) | `x as unknown as T`, `x as any as T`. New concept; see `slop.as-any-cast` |
+| `slop.swallowed-error` | **shipped**, opt-in by concept (ast-grep) | A `catch` with an empty body. **Not** "only logs and continues" — see below |
+| `slop.stub-implementation` | **shipped** (ast-grep) | Exported function whose first non-comment statement throws "not implemented". **Not** "returns a placeholder literal" — `return null` is unclassifiable |
+| `slop.emoji-in-code` | **shipped**, opt-in by concept (ast-grep) | Emoji in a string or template literal. Identifiers are not checked because JS identifiers cannot contain emoji |
+| `slop.as-any-cast` | **owned by oxlint** | `typescript/no-explicit-any` covers `x as any`, `const x: any`, `f(p: any)` and `<any>x` natively at tier 0. ast-grep must not contest it |
+| `slop.hallucinated-import` | **owned by knip** | `deps.unresolved-import` (§13.2) already is this concept's static-analysis half |
+| `slop.redundant-comment` | **not expressible in ast-grep** | Needs a comment's text compared against the text of the node beneath it. ast-grep relates *nodes* and constrains a node's own text; it cannot test one node's text against another's |
+| `slop.defensive-bloat` | blocked | Needs type information — the M2 type-aware work already recorded as blocking |
+| `slop.duplicate-utility` | blocked | Cross-file analysis ast-grep does not do |
+| `slop.over-abstracted-wrapper` | blocked | Cross-file (single-*caller*) analysis |
+| `slop.config-drift` | not started | Bespoke; belongs with the JSON Schema engine, not here |
 
-Every slop rule ships with: a documentation page explaining *why* the pattern is a problem, a declared
-`fixKind`, fixture tests covering true **and** false positives, and a documented escape for the
-legitimate cases. A slop rule with a high false-positive rate damages the project more than its
-absence, so the false-positive fixtures are mandatory, not optional.
+Every slop rule ships with: a documentation page explaining *why* the pattern is a problem
+(`docs/rules/slop.*.md`), a declared `fixKind`, fixture tests covering true **and** false positives,
+and a documented escape for the legitimate cases. A slop rule with a high false-positive rate damages
+the project more than its absence, so the false-positive fixtures are mandatory, not optional.
+
+**Measured, on two corpora: this repository's 163 JS/TS files (§20 — "the tool's own source has to
+survive its own `slop.*` ruleset") and 3,366 third-party JS/TS files (~45 MB) under `node_modules`.**
+
+| Rule | slop-gate | third-party | Verdict | Preset |
+|---|---|---|---|---|
+| `slop.narrative-comment` | 0 | 2 | Both the same rollup comment, `// Placeholder until proper Symbol.Iterator support` — a self-declared placeholder. **0 false positives over 3,529 files** | `slop` |
+| `slop.stub-implementation` | 0 | 0 | 0 false positives; also 0 true positives on real code — published libraries do not ship stubs, which is the point | `slop` |
+| `slop.double-cast` | 2 | 65 | Both slop-gate hits genuine (`RegExpExecArray` asserted to a tuple). The 65 are 7 files in 2 packages, 62 in `zod` | `slop` |
+| `slop.swallowed-error` | 0 | 433 | ~19 of a 22-item sample deliberate: feature probes, optional reads, best-effort cleanup | **none** |
+| `slop.emoji-in-code` | 20 | 127 | **20/20 false positives here** — the pretty reporter's severity glyphs and the tests for wide characters | **none** |
+
+**The false-positive rate is what is measured; recall is not.** No corpus of known AI-generated code
+was available, so what these numbers establish is that the rules are quiet on human code. That each
+one fires on the pattern it names is established by `packages/engine-astgrep/fixtures`, and nothing
+stronger is claimed.
+
+**Three sub-patterns were written, measured and removed, and that list is the more useful record.**
+`slop.narrative-comment` shipped without the reader-addressing family §14 originally named by
+example — "note that we", "as you can see", "we'll", "here we", "notice that" — because it produced
+**76 findings on the third-party corpus and every one was a legitimate explanation**. `for now` (25),
+`in (production|reality)` (2), `for testing purposes` (2), `this is a (simplified|example|mock|dummy)`
+(2) and `you can (typically|…)` (1) went the same way. `slop.swallowed-error` shipped without the
+"only logs and continues" half: 5 findings, every one a CLI printing an error at its top level.
+Each rejected phrase survives verbatim in `narrative-comment.negative.ts`, so widening a regex
+re-flags it and fails a test.
+
+**Adding a second file-granularity engine exposed a real defect in the orchestrator**, worth stating
+here because it is about the escape §14 mandates rather than about ast-grep.
+`normalizeDiagnostics` synthesises `config.unused-suppression` once per **(engine, file)** while
+seeing only that engine's diagnostics, so an inline suppression naming a `slop.*` concept was both
+correctly honoured by ast-grep *and* reported as matching nothing by oxlint's pass over the same
+file. Fixed by scoping the unused judgement to an engine that owns one of the directive's targets,
+plus a duplicate collapse in `run/check.ts`. One residual case — a *bare* directive with no targets,
+where two engines can still disagree — is recorded in the follow-ups.
 
 ---
 

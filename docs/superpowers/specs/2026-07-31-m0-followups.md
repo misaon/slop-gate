@@ -587,3 +587,123 @@ comparing pattern strings, since only a behavioural test catches knip changing i
   repository that hits one gets no explanation beyond "not a plain string literal".
 - **Detection is not in the lockfile.** §23.4 and §5.5 both say it should be — framework drift is
   ruleset drift and `--frozen-rules` must fail on it — but `slop-gate.lock` does not exist yet.
+
+## Found building the ast-grep engine and the first real `slop.*` rules (spec §13.3, §14)
+
+The mechanism is spec §13.3 and the measurements are in §14 and on each entry in
+`registry/entries.manual.ts`. What follows is what building it turned up, and what a future reader
+should not have to rediscover.
+
+### Two concepts §14 lists were already owned, and one is not expressible
+
+Worth recording as decisions rather than omissions, because all three look like gaps in the shipped
+set:
+
+- **`slop.as-any-cast` is oxlint's.** `typescript/no-explicit-any` is tier 0, like ast-grep, so
+  engine preference would hand oxlint the concept anyway and an ast-grep entry would contribute
+  nothing but a `config.rule-overlap`. Verified against oxlint 1.76.0 on a five-case fixture: it
+  reports `x as any`, `const b: any`, `function d(p: any)` and `<any>x`, four findings all with
+  `code: "typescript(no-explicit-any)"`, and reports **nothing** for `x as unknown as string` —
+  there is no `any` in that source to find. That residue is `slop.double-cast`, a new concept, which
+  is why §14's single row became two.
+- **`slop.hallucinated-import` is knip's `deps.unresolved-import`.** The concept catalogue already
+  said so in its own description before this work started; checking first is the cheapest thing in
+  this whole change.
+- **`slop.redundant-comment` cannot be written in ast-grep.** Its rule language relates nodes
+  (`inside`, `has`, `precedes`, `follows`) and constrains a node's own text (`regex`, `constraints`).
+  There is no construct that tests one node's text against another node's, which is exactly what "a
+  comment restating the line beneath it" requires. It needs a JS plugin, and it should not be
+  attempted with a heuristic that guesses.
+
+### ast-grep 0.45.0: three behaviours that fail silently
+
+Stated to the standard this document sets for an engine claim — the version, the observation, and
+the fixture that produced it.
+
+- **A file past roughly 4 MB is skipped, reported as zero findings, exit 0.** Reproduced on a
+  generated 4.8 MB JavaScript file containing a matching `catch (e) {}` on line 1: `[]` on stdout,
+  exit 0, and `skippedFileCount=1` in `--inspect summary`. Not a plain byte threshold — 3.7 MB of
+  statements parsed, 4.1 MB did not, and 5.2 MB that was one long comment did — so it is a property
+  of the parse tree. **This is the failure mode caching makes permanent**, which is why the adapter
+  turns it into an `EngineError` naming the batch's largest files rather than trusting it.
+- **`ast-grep scan` with no path arguments scans `.`.** An empty `FileBatch` reaching the binary
+  would walk the entire repository and report on files the planner never assigned.
+- **`--rule` pointed at an empty document is a hard error**, `Cannot parse rule`, not an empty
+  result. So "no rules elected" has to be handled before the spawn, not by it.
+
+None of the three is a defect worth reporting upstream — each is defensible behaviour for a
+command-line tool — but all three are indistinguishable from "clean" to a caller that only reads
+stdout and the exit code.
+
+### `resolveScriptBin` does not generalise to a package whose bin target is rewritten by postinstall
+
+The shared helper's contract is "resolve a `#!/usr/bin/env node` script and spawn it as
+`node <script>`", which held for all three previous adapters. `@ast-grep/cli` breaks it in a way that
+is invisible on a machine where the postinstall ran: the file at `@ast-grep/cli/ast-grep` is a JS
+shim in the tarball and is **overwritten in place** with the native binary by `postinstall.js`. Under
+pnpm 10 that script is blocked by default (`Ignored build scripts: @ast-grep/cli@0.45.0` on this
+repository), so the same path is a script on one developer's machine and a Mach-O binary on the next.
+Resolving the platform package directly is unambiguous in both cases.
+
+**Two things to carry forward.** The next lazily-delivered binary engine (actionlint, zizmor,
+hadolint per §13.1) will not be a Node script either, so `resolveScriptBin` is the wrong helper for
+all of them — the seam that generalises is "resolve a native executable for this platform triple",
+and it is worth extracting the second time it is needed rather than the first. And this repository
+should decide deliberately whether to add `onlyBuiltDependencies: ['@ast-grep/cli']` to
+`pnpm-workspace.yaml`: it is not needed (the adapter never touches the shim) and skipping it saves a
+52 MB hardlink, but a contributor running `ast-grep` by hand from `node_modules/.bin` pays a Node
+process and a stderr warning per invocation.
+
+### The suppression parser is textual, and this change ran into it twice
+
+`parseSuppressions` scans raw file text with no idea of comments or string literals, so **any file
+that documents the directive syntax gains phantom directives of its own**. That is pre-existing —
+`packages/core/src/suppressions/parse.ts` produces three against slop-gate's own `check`, and
+`normalize.test.ts` ten — but it is now load-bearing for a different reason: every ast-grep rule's
+`note` is help text that wants to show the user exactly what to write. Writing the token in full in
+four `note` strings added four phantom `config.unused-suppression` findings to this repository before
+the notes were reworded to name the `sgate-disable` family and leave the exact spelling to
+`docs/rules/`. New tests *about* directives assemble the token from parts for the same reason, with a
+comment saying so.
+
+The real fix is for the parser to require the directive to be inside a comment, which needs a lexer
+it does not have. Until then the branch's own rule holds: **this change adds zero findings to
+`sgate check` on this repository** (65 before, 65 after), and that was verified against a clean
+checkout rather than assumed.
+
+### A directive naming another engine's concept was reported as unused — fixed, with one case left
+
+The defect and the fix are in §14 and in `judgedBy` (`engine/normalize.ts`). What is left:
+
+- **A bare directive** — `disable-next-line` with a reason and no targets — suppresses every concept,
+  so no engine can be excluded on ownership grounds. Two file-granularity engines that disagree about
+  whether it matched anything still produce one spurious `config.unused-suppression`. Not reachable
+  from any escape this repository documents, all of which name their target, but it is real.
+- **The architecture, not the symptom.** Both synthetic concepts are per-*file* facts computed inside
+  a per-*(engine, file)* function, and both fixes work around that rather than removing it. The right
+  shape is a single suppression pass per file after every engine has reported, which the "Restructure
+  before M2" entry above is the natural home for. The obstacle is that folding it into
+  `normalizeDiagnostics` is precisely what makes these diagnostics survive a cache hit, so moving it
+  means giving the per-file cache entry somewhere to keep the directive outcome.
+
+### Deferred deliberately
+
+- **Rules are TypeScript template literals, not `.yml` files.** §14 wants them contributable without
+  writing code, and today a contributor edits verbatim ast-grep YAML inside `rules.ts`. Shipping real
+  `.yml` files means teaching `tsdown` to copy them and reading them relative to `dist`, which is
+  worth doing when there is a third-party contribution to accept, not before.
+- **`slop.swallowed-error` sees only `try`/`catch`.** A `.catch(() => {})` on a promise chain is the
+  same defect and is not detected; it is a straightforward second alternative in the same rule, and it
+  needs its own measurement before it is added.
+- **`slop.stub-implementation` misses a function exported separately** (`function f() {…}` then
+  `export { f }`), because there is no enclosing `export_statement`. Expressible with a second rule
+  keyed on the export clause; unmeasured, so not written.
+- **No rule declares a `fix:`**, and `capabilities.fixes` is `false` accordingly. Every one of these
+  findings is a judgement about intent — deleting a comment, inventing an error handler — that a
+  mechanical rewrite cannot make. `slop.double-cast` is the only plausible candidate and its fix
+  (narrow the source type) is not a rewrite.
+- **The 4 MB skip is an `EngineError`, which fails that engine for the whole run** (§18 isolates it,
+  exit 3). Naming the offending file instead of the batch's largest would need `--inspect entity`,
+  one stderr line per scanned file; worth it if anyone actually hits this.
+- **`vue`, `svelte` and `astro` are not covered.** ast-grep has no grammar for them, so unlike oxlint
+  this engine cannot reach `<script>` blocks. The `slop.*` concepts apply there too.
