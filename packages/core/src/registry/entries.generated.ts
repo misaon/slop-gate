@@ -12135,7 +12135,6 @@ export const GENERATED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, 'er
   'suspicious.no-required-prop-with-default': 'warn',
   'suspicious.no-self-import': 'warn',
   'suspicious.no-this-in-exported-function': 'warn',
-  'suspicious.no-unassigned-import': 'warn',
   'suspicious.no-underscore-dangle': 'warn',
   'suspicious.no-unnecessary-type-constraint': 'warn',
   'suspicious.no-unneeded-ternary': 'warn',

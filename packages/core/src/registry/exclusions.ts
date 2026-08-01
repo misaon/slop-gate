@@ -57,6 +57,16 @@ const jestVitestExclusions = Object.fromEntries(
 
 export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
   ...jestVitestExclusions,
+  'import/no-unassigned-import': {
+    reason:
+      "Measured across both repositories this generator was validated against: 5 findings total " +
+      "(1 on slop-gate itself, 4 on the srvc-bat playground), every single one a deliberate, " +
+      "canonical side-effect-only import — `import 'reflect-metadata'` (a jest setup file), " +
+      "`import 'dotenv/config'`, `import './custom.css'` (a VitePress theme), and `import '@/tracing'` " +
+      "(app startup instrumentation), plus this repo's own CLI entry shim (`import '../dist/main.js'`). " +
+      "These are the textbook use case side-effect imports exist for, not an accidentally-unused " +
+      "import — 5/5 (100%) false positives across two independently-chosen, unrelated codebases.",
+  },
   'unicorn/no-array-sort': {
     reason:
       "Measured on this repository: every one of 21 occurrences — not a sample, all of them — is " +
