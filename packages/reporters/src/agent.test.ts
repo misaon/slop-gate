@@ -302,20 +302,39 @@ test('keeps a worked example for every concept before deepening any one of them'
     ...repeat(6, (index) => ({ concept: 'style.beta', ruleId: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
   ]
 
-  const output = capture([done(many)], { maxTokens: 700 })
-  expect(coverageLine(output)).toContain('omitted')
-  expect(output).toContain('- src/a0.ts:')
-  expect(output).toContain('- src/b0.ts:')
-  expect(output).not.toContain('- src/a5.ts:')
+  // Swept across every budget rather than pinned to one, so the assertion is the rotation invariant
+  // itself and not a number that has to be re-tuned whenever a line of the fixed sections changes.
+  // Every finding here renders to the same size, so rotation admits them strictly alternately and
+  // the two groups can never differ by more than one.
+  const full = estimate(capture([done(many)], { maxTokens: 100_000 }))
+  let sawBoth = false
+  for (let budget = 200; budget <= full; budget += 40) {
+    const output = capture([done(many)], { maxTokens: budget })
+    const shown = [...output.matchAll(/^- src\/([ab])\d+\.ts:/gm)].map((match) => match[1])
+    const alpha = shown.filter((group) => group === 'a').length
+    const beta = shown.filter((group) => group === 'b').length
+
+    expect(Math.abs(alpha - beta), `budget ${budget}`).toBeLessThanOrEqual(1)
+    if (alpha > 0 && beta > 0) sawBoth = true
+    if (alpha > 1) expect(beta, `budget ${budget}`).toBeGreaterThan(0)
+  }
+  expect(sawBoth).toBe(true)
 })
 
-test('stays inside the budget once the budget clears the fixed sections', () => {
+test('fits every budget it can, and says so plainly for the ones it cannot', () => {
   const many = repeat(40, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
 
-  for (const budget of [600, 900, 1_500, 4_000, 20_000]) {
+  // The whole contract in one sweep, with no floor constant to keep in step with the prose: below
+  // the floor the report overruns and declares it; at or above, it fits. A report that overran
+  // without declaring it would fail here at whichever budget it happened at.
+  let overran = 0
+  for (let budget = 100; budget <= 4_000; budget += 25) {
     const output = capture([done(many)], { maxTokens: budget })
-    expect(estimate(output), `budget ${budget}`).toBeLessThanOrEqual(budget)
+    if (estimate(output) <= budget) continue
+    overran += 1
+    expect(output, `budget ${budget}`).toContain('note: the fixed sections alone estimate above the requested budget.')
   }
+  expect(overran).toBeGreaterThan(0)
 })
 
 test('counts a multi-byte message in bytes, so non-ASCII text cannot overrun the budget', () => {
@@ -340,6 +359,20 @@ test('prints the fixed sections in full and admits it when the budget cannot eve
   expect(output).toContain('note: the fixed sections alone estimate above the requested budget.')
   expect(coverageLine(output)).toContain('0 of 4 findings shown, 4 omitted')
   expect(output).toContain('### correctness.no-debugger — 4 findings in 4 files')
+})
+
+test('never drops a finding the complete report would have fitted', () => {
+  // The complete report carries none of the bookkeeping a truncated one needs, so it can be smaller
+  // than the space that would be reserved to truncate it. Reserving first made a budget in that band
+  // produce a *larger* document than a generous budget did, and claim findings were dropped.
+  const many = repeat(12, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
+  const complete = capture([done(many)], { maxTokens: 100_000 })
+
+  for (const budget of [estimate(complete), estimate(complete) + 1, estimate(complete) + 200]) {
+    const output = capture([done(many)], { maxTokens: budget })
+    expect(coverageLine(output), `budget ${budget}`).toContain('12 of 12 findings shown, 0 omitted')
+    expect(estimate(output), `budget ${budget}`).toBeLessThanOrEqual(budget)
+  }
 })
 
 test('says nothing was omitted when the budget held everything', () => {

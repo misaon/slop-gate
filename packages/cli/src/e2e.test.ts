@@ -1,10 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { cp, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { loadConfig, runCheck, toPosix } from '@misaon/slop-gate-core'
+import { loadConfig, runCheck, toPosix, type CheckResult } from '@misaon/slop-gate-core'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
+import { createReporter } from '@misaon/slop-gate-reporters'
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/basic')
 let dir: string
@@ -121,6 +123,46 @@ test('a warm run still reports each of two byte-identical files, not a cross-fil
 
 test('reports no engine failures', async () => {
   expect((await check(false)).engineFailures).toEqual([])
+}, 60_000)
+
+const agentReport = (result: CheckResult, maxTokens?: number): string => {
+  let output = ''
+  createReporter('agent', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: (file) => (file === null ? null : readFileSync(join(dir, file), 'utf8')),
+    ...(maxTokens === undefined ? {} : { maxTokens }),
+  }).onEvent({ type: 'done', result })
+  return output
+}
+
+test('the agent report is byte-identical whether the run was served cold or from cache', async () => {
+  // The end of the determinism chain the unit tests cover a link at a time: a real oxlint run over
+  // real files, once cold and once warm, through the real reporter. `stats.durationMs` and
+  // `stats.filesFromCache` differ between these two results by construction, so this is the test
+  // that fails the moment either of them reaches the output — and with it the property that makes
+  // this format diffable and cacheable.
+  const cold = await check(true)
+  const warm = await check(true)
+
+  expect(warm.stats.filesFromCache).not.toBe(cold.stats.filesFromCache)
+  expect(agentReport(warm)).toBe(agentReport(cold))
+  expect(agentReport(warm, 900)).toBe(agentReport(cold, 900))
+}, 60_000)
+
+test('the agent report accounts for every finding the same run reported', async () => {
+  const result = await check(false)
+  const output = agentReport(result)
+
+  expect(output).toContain(`coverage: ${result.diagnostics.length} of ${result.diagnostics.length} findings shown, 0 omitted`)
+  for (const diagnostic of result.diagnostics) {
+    const where = diagnostic.file === null ? '(configuration)' : `${diagnostic.file}:${diagnostic.position.startLine}:`
+    expect(output, diagnostic.concept).toContain(where)
+    expect(output, diagnostic.concept).toContain(`### ${diagnostic.concept}`)
+  }
 }, 60_000)
 
 test('an inline suppression hides a real oxlint finding, and an unused one is reported', async () => {

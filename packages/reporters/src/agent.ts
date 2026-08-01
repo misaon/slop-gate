@@ -114,9 +114,16 @@ function render(result: CheckResult, context: ReporterContext, entries: readonly
   const groups = buildGroups(result, context, entries)
   const budget = context.maxTokens
 
-  if (budget === undefined) {
-    return document(result, groups, new Set(groups.flatMap((group) => group.findings)), budget)
-  }
+  const everything = new Set(groups.flatMap((group) => group.findings))
+  if (budget === undefined) return document(result, groups, everything, budget)
+
+  // Tried whole first. A complete report carries none of the bookkeeping a truncated one needs — no
+  // omission list, no statement of the admission rule — so it can be *smaller* than the reservation
+  // that would be set aside to truncate it. Without this, a budget in that band produced a larger
+  // document than a generous budget did, and said findings were dropped when the complete report
+  // would have fitted.
+  const complete = document(result, groups, everything, budget)
+  if (estimateTokens(complete) <= budget) return complete
 
   // The reservation is a *sizing* render: no finding admitted, every optional block present, and
   // every count printed at its widest. That makes it a true upper bound on the fixed sections rather
@@ -490,6 +497,12 @@ function sectionLines(section: Section, groups: readonly Group[]): string[] {
     return [
       '## judgement — no fix is declared for these. Decide and edit them yourself.',
       `${scale}. \`sgate fix\` will not touch them at any tier, so nothing here conflicts with a fix run.`,
+      // The third option an agent otherwise has to guess at. Deciding a finding is wrong is a real
+      // outcome of exercising judgement, and the directive is the only way to record that decision
+      // where the next run will see it — spelling it out here costs one line and stops an agent
+      // either inventing a syntax or editing correct code to silence a false positive.
+      'If one is a false positive, record that instead of changing the code: ' +
+        '`// sgate-disable-next-line <concept> -- <reason>` on the line above it. The reason is required.',
     ]
   }
 
@@ -499,13 +512,27 @@ function sectionLines(section: Section, groups: readonly Group[]): string[] {
   const highest = present.at(-1) ?? 'safe'
   const flag = highest === 'safe' ? 'sgate fix' : highest === 'suggested' ? 'sgate fix --suggest' : 'sgate fix --unsafe'
 
-  return [
+  const lines = [
     '## automated — `sgate fix` rewrites these. Do not edit them by hand.',
-    `${scale}. Run: \`${flag}\` (--dry-run first to see the exact diff).`,
+    `${scale}. Run: \`${flag}\``,
     `Tiers present: ${present.map((tier) => `${tier} ${tiers.get(tier)}`).join(', ')}. ` +
       'A tier is the registry\'s declared trust level for a rule\'s fix; plain `sgate fix` applies `safe` only, ' +
       '`--suggest` adds `suggested`, `--unsafe` adds both.',
   ]
+
+  // Said when it is true, because the alternative reading is much worse. `sgate check` never asks an
+  // engine to produce fix data — for oxlint that means re-running the binary once per rule per file
+  // (spec §11.1), which is not work a plain check should do — so a finding here normally arrives with
+  // no edit attached. An agent that saw a `tier unsafe` group and no diff would reasonably conclude
+  // the tool could not work one out, and start editing.
+  if (!groups.some((group) => group.findings.some((finding) => finding.diagnostic.fix !== undefined))) {
+    lines.push(
+      `No edit is shown below: \`sgate check\` does not derive fixes, because for some engines that means ` +
+        `re-running them once per rule. \`${flag} --dry-run\` prints the exact diff without writing anything.`,
+    )
+  }
+
+  return lines
 }
 
 function groupLines(group: Group, shown: ReadonlySet<Finding>, options: DocumentOptions): string[] {
