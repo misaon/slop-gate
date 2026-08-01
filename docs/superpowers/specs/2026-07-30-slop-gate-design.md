@@ -629,7 +629,7 @@ dependencies.
 | Type-aware findings | **tsgolint** via oxlint | bundled | 59/61 typescript-eslint type-aware rules |
 | Type errors | **tsc** (TS 7 eventually; TS 5.9.3 measured) | peer | Shell out and parse; `--incremental`. Uses the repo's own TypeScript version |
 | Formatting, ~20 file types | **oxfmt** | bundled | Exclusive owner of `formatting.*`, incl. import and Tailwind class sorting |
-| Dead code, dependency hygiene | **knip** | bundled | Pure JS. Project granularity, runs in a worker |
+| Dead code, dependency hygiene | **knip** | bundled | Pure JS. Project granularity. Shelled out to today, not run in a worker — see §13.2 |
 | CSS/SCSS semantics | **Biome, scoped to CSS** | lazy | Registry enforces zero overlap with oxlint |
 | Structural and slop rules | **ast-grep** | bundled | Declarative YAML, cross-language |
 | GitHub Actions correctness | **actionlint** | lazy | Go binary |
@@ -669,6 +669,107 @@ see `.superpowers/engine-tsc-report.md` for the full design writeup, the capture
 claim above is checked against, and the measured finding counts this repository and the linked NestJS
 playground actually produced (both zero, at time of writing — `types.type-error` is not yet in the
 `recommended` preset; see that report for why).
+
+### 13.2 `knip`: dead code and dependency hygiene
+
+**Implemented (M2, second project-granularity engine).** `@misaon/slop-gate-engine-knip` shells out to
+its own bundled `knip --reporter json`, parsing the JSON report.
+
+**What it does that a bare `knip` run cannot.** knip discovers workspaces the way a package manager
+does: `package.json#workspaces`, `pnpm-workspace.yaml`, and so on. slop-gate's inventory (§7) has
+already listed every file in the repository before any engine starts, nested manifests included, so the
+set of real packages is simply *known* — declared or not. The adapter therefore **synthesises knip's
+workspace map from the inventory**, deriving one entry per `package.json` in the assigned file list
+(`synthesizeKnipWorkspaces`). Measured against a fixture reproducing the shape below, this produces
+**byte-identical findings to the same repository with its workspaces properly declared** — the
+synthesis is not an approximation of the declared case, it is the declared case. Two further
+inventory-derived suppressions ride along: `.slop-gate/**` (our own cache and temp directory, which
+`check` must never report on whether or not `init` has gitignored it) and the slop-gate config file
+itself, whose path only the CLI knows.
+
+**Why that matters — the grounding measurement.** `knip --reporter json` was run once, read-only,
+against a real NestJS monorepo-ish project (24 issues: 15 `files`, 12 `devDependencies`, 11 `exports`,
+7 `dependencies`, 3 `owners`, 3 `unlisted`). Accuracy was poor, and the cause was diagnosed rather than
+guessed: that repository declares **no** workspaces in `package.json` and has no `pnpm-workspace.yaml`,
+yet `tech-docs/` has its own `package.json`. knip saw a single package, never reached `tech-docs/**`
+from the root entry graph, and never activated its own VitePress plugin. **knip's accuracy collapses
+when it cannot see the workspace structure**, and that is exactly the gap the inventory closes.
+
+**What it cannot do, stated plainly.** Workspace synthesis fixes what knip could not *see*; it does not
+fix what knip cannot *know*. Measured against a fixture reproducing that repository's shape:
+
+- **The VitePress false positives survive it.** Declaring `tech-docs` a workspace does make knip read
+  its manifest and enable its VitePress plugin — but that plugin's entry patterns are
+  `.vitepress/config.*` relative to the *workspace root*, and the real site lives at
+  `tech-docs/docs/.vitepress/`. The two config files stay unused-file findings, and `vitepress` itself
+  now additionally reports as an unused devDependency **and** an unlisted binary. Naive synthesis went
+  from 18 findings to 20 on that fixture: two more, both wrong. Pointing the plugin at the right
+  subdirectory is framework awareness, which the registry does not have (see the M0 follow-ups).
+- **ORM migrations, runtime-loaded config and convention directories remain unused files.** They are
+  loaded, never imported; no import graph can see them.
+- **A dependency re-exported by a framework meta-package reads as unlisted.** `express` through
+  `@nestjs/platform-express` is the measured case.
+
+**Measured accuracy, two independent repositories** (a NestJS-shaped fixture reproducing the grounding
+run, and this repository): `files` **13/13 false positives**; `dependencies` **3/3** (config-referenced
+`@mikro-orm/*` on one, `require.resolve`-spawned `oxlint` on the other); `unlisted` **3/3**, all three
+the same logical `express`; `devDependencies` 4 true / 1 false; `binaries` 1 true / 1 false; `exports`
+1 true / 0 false. **Nothing knip owns is in `recommended`**, and the reason is accuracy, not cost —
+knip checks this repository's 153 JS/TS files in ~0.31s standalone and ~0.39s through the full
+pipeline, which is cheap for a project engine. The ten concepts are opt-in by concept, exactly like
+`types.type-error`. Every entry in `packages/core/src/registry/entries.manual.ts` records its own
+measurement.
+
+**Ten of knip's seventeen issue types are surfaced, one concept each; seven are excluded with a written
+reason each** (`packages/engine-knip/src/issue-types.ts`), and a test asserts the two sets partition
+knip's vocabulary so no category can be dropped silently. Unlike `tsc` — whose whole domain collapses
+into one synthetic `type-error` because it has no selectable rule set at all — knip *does* publish a
+real selection vocabulary: the names its own `--include`/`--exclude` accept. That is what
+`RuleEntry.engineRuleId` names here, so a user can turn off one distrusted category
+(`'dead-code.unused-file': 'off'`) without losing the rest. `severityDefault` is `warn` throughout
+except `deps.unresolved-import`, which is `error` on categorical grounds: everything else in the group
+asks "is this still needed?", a judgement, while an import resolving to nothing means the module cannot
+load.
+
+**knip reports the same logical finding once per referencing file** — `express` appeared three times in
+the grounding run, once per importing source file, each with its own real position. Those stay three
+diagnostics. Collapsing them would have to pick one file arbitrarily, and, decisively, an inline
+`sgate-disable-next-line deps.unlisted-dependency` at one import site would then silently govern (or
+fail to govern) the other two. knip already deduplicates *within* a file, so no two are ever the same
+position.
+
+**Bundled, not peer** — the opposite of `tsc`, deliberately. `tsc` is a peer because a type error must
+match what the developer's editor and existing CI already report; knip has no editor counterpart to
+agree with, so that argument does not exist here and the opposite one does: knip's findings are a
+property of its own version and plugin catalogue, and the accuracy figures above are only reproducible
+against a pinned one. It also has no peer dependencies of its own (it parses with `oxc-parser`, not
+`typescript`), and essentially no repository has knip installed — a peer would mean "engine
+unavailable" for nearly every user. The consequence shows up in the API: `createKnipEngine()` needs no
+`rootDir`, where `createTscEngine({ rootDir })` does.
+
+**Three implementation details worth carrying forward.**
+
+- **knip's `exports` map does not list `./package.json`**, so the `require.resolve('<pkg>/package.json')`
+  both other adapters use throws `ERR_PACKAGE_PATH_NOT_EXPORTED` (verified against 6.31.0, and pinned
+  by a test so a future release that adds the export is noticed). Left to `resolveScriptBin`'s own
+  `catch` that degrades silently to a bare `knip` on `PATH`, which a globally-installed `sgate` has no
+  reason to have. `resolveKnipPackageJson` reaches the manifest through the package's `.` entry point
+  instead. `bin/knip.js` then needs the identical Windows `node <script>` treatment as `bin/oxlint` and
+  `bin/tsc` — the `.js` extension is no reprieve, since `CreateProcess` cannot launch a `.js` file as
+  an image either.
+- **`--no-exit-code` collapses knip's exit-code ambiguity.** Without it knip exits 1 for "found issues"
+  and 2 for "could not run" — the same trap `engine-tsc` had to reason its way through. With it, 0
+  means the run succeeded and anything else is a real failure; confirmed directly that a genuine error
+  still exits 2 under the flag.
+- **The config is materialised in two phases**, because its two halves become available at two
+  different moments: the elected ruleset at `materializeConfig`, the workspace map only at `run` (it is
+  derived from the planner's file list, per §7's "engines receive explicit file lists"). `run` merges
+  the second half into the file the first wrote. `rulesetHash` covers only the ruleset half; the
+  workspace half needs no hash because a project assignment's cache key already folds in every assigned
+  file's path and content hash — which is why knip's declared languages include `json` and `jsonc`
+  (§9: "re-run only when JS/TS files, `package.json` files or the workspace graph changed"), and
+  deliberately exclude `yaml`, since this adapter overrides knip's own workspace discovery and
+  `pnpm-workspace.yaml` therefore no longer influences the outcome.
 
 ---
 
