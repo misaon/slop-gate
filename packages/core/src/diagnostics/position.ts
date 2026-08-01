@@ -5,6 +5,16 @@ const decoder = new TextDecoder()
 
 export type LineIndex = {
   positionAt(byteOffset: number): { line: number; column: number }
+  /**
+   * The inverse of `positionAt`: a 1-based line and a 1-based UTF-16-code-unit column back to a byte
+   * offset. Needed by any engine that reports positions as text (line, column) rather than byte
+   * spans — `tsc`'s plain-text diagnostics are the first such source (see `@misaon/slop-gate-engine-tsc`'s
+   * `parse.ts`); oxlint, by contrast, hands back byte offsets directly and never calls this. Clamped
+   * the same way `rangeOfLine` clamps a line number, and the same way `positionAt` clamps an offset:
+   * an out-of-range line or column produces a usable (if imprecise) offset, never an exception —
+   * a malformed or unexpected engine report is not a reason to crash the whole run.
+   */
+  offsetAt(position: { line: number; column: number }): number
   lineRangeOf(range: ByteRange): ByteRange
   sliceBytes(range: ByteRange): string
   /**
@@ -44,6 +54,19 @@ export function createLineIndex(source: string): LineIndex {
       const line = lineIndexAt(clamped)
       const prefix = decoder.decode(bytes.subarray(lineStarts[line]!, clamped))
       return { line: line + 1, column: prefix.length + 1 }
+    },
+    offsetAt(position) {
+      const index = Math.max(0, Math.min(position.line - 1, lineStarts.length - 1))
+      const lineStart = lineStarts[index]!
+      const nextLineStart = lineStarts[index + 1]
+      const lineEnd = nextLineStart === undefined ? bytes.length : nextLineStart - 1
+      // Decoding just this line (not the whole file) and re-encoding only the requested prefix is
+      // what makes this the exact inverse of `positionAt`'s `prefix.length + 1`: slicing a JS string
+      // by UTF-16 code units, then measuring the UTF-8 byte length of that slice, correctly accounts
+      // for every multi-byte character before the target column without walking the file byte by byte.
+      const lineText = decoder.decode(bytes.subarray(lineStart, lineEnd))
+      const prefix = lineText.slice(0, Math.max(0, position.column - 1))
+      return lineStart + encoder.encode(prefix).length
     },
     lineRangeOf(range) {
       const startLine = lineIndexAt(Math.max(0, Math.min(range.start, bytes.length)))

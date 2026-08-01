@@ -66,6 +66,7 @@ export { defineConfig } from './config/define.ts'
 export { PRESETS } from './config/presets.ts'
 
 export { ConfigError, EngineError } from './errors.ts'
+export { resolveScriptBin, type ResolveScriptBinOptions, type ScriptBinInvocation } from './exec/resolve-script-bin.ts'
 export { findConfigFile, loadConfig } from './config/load.ts'
 
 export {
@@ -100,15 +101,17 @@ export { toPosix } from './paths.ts'
 
 export {
   RESULT_SCHEMA_VERSION,
+  deriveProjectResultKey,
   deriveResultKey,
   hashContent,
   hashJson,
   hashRuleSelection,
   stableStringify,
+  type ProjectResultKeyInput,
   type ResultKeyInput,
 } from './cache/keys.ts'
 export { openStatIndex, type StatIndex } from './cache/stat-index.ts'
-export { openResultStore, type ResultStore } from './cache/result-store.ts'
+export { openProjectResultStore, openResultStore, type ProjectResultStore, type ResultStore } from './cache/result-store.ts'
 
 export type {
   Engine,

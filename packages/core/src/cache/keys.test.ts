@@ -1,5 +1,13 @@
 import { expect, test } from 'vitest'
-import { deriveResultKey, hashContent, hashJson, hashRuleSelection, stableStringify } from './keys.ts'
+import {
+  deriveProjectResultKey,
+  deriveResultKey,
+  hashContent,
+  hashJson,
+  hashRuleSelection,
+  stableStringify,
+  type ProjectResultKeyInput,
+} from './keys.ts'
 
 const base = {
   engineId: 'oxlint',
@@ -66,4 +74,66 @@ test('cannot be collided by shifting content across a component boundary', () =>
   const b = { ...base, engineId: 'a\0b', engineVersion: 'c' }
 
   expect(deriveResultKey(a)).not.toBe(deriveResultKey(b))
+})
+
+// --- deriveProjectResultKey: project-granularity engines (spec §8.1/§9) --------------------------
+
+const projectBase: ProjectResultKeyInput = {
+  engineId: 'tsc',
+  engineVersion: '5.9.3',
+  engineRulesetHash: 'abc',
+  configHash: 'ghi',
+  files: [
+    { path: 'src/a.ts', hash: 'hash-a' },
+    { path: 'src/b.ts', hash: 'hash-b' },
+  ],
+}
+
+test('the same inputs produce the same project key', () => {
+  expect(deriveProjectResultKey(projectBase)).toBe(deriveProjectResultKey({ ...projectBase }))
+})
+
+test('a project key is independent of the order files were assigned in', () => {
+  const reordered: ProjectResultKeyInput = { ...projectBase, files: [...projectBase.files].reverse() }
+  expect(deriveProjectResultKey(reordered)).toBe(deriveProjectResultKey(projectBase))
+})
+
+test.each([
+  ['engineId', { engineId: 'knip' }],
+  ['engineVersion', { engineVersion: '5.9.4' }],
+  ['engineRulesetHash', { engineRulesetHash: 'changed' }],
+  ['configHash', { configHash: 'changed' }],
+])('a different project %s produces a different key', (_label, patch) => {
+  expect(deriveProjectResultKey({ ...projectBase, ...patch })).not.toBe(deriveProjectResultKey(projectBase))
+})
+
+test('adding a file to the project changes the key', () => {
+  const withExtraFile: ProjectResultKeyInput = {
+    ...projectBase,
+    files: [...projectBase.files, { path: 'src/c.ts', hash: 'hash-c' }],
+  }
+  expect(deriveProjectResultKey(withExtraFile)).not.toBe(deriveProjectResultKey(projectBase))
+})
+
+test('changing one file’s hash changes the project key even though the file list is otherwise identical', () => {
+  const changed: ProjectResultKeyInput = {
+    ...projectBase,
+    files: [{ path: 'src/a.ts', hash: 'different' }, projectBase.files[1]!],
+  }
+  expect(deriveProjectResultKey(changed)).not.toBe(deriveProjectResultKey(projectBase))
+})
+
+test('a project key never collides with a per-file key built from the same raw values', () => {
+  // Different shapes (`files` array vs. a single `filePath`/`fileHash` pair) should already make
+  // this true structurally, but this pins it directly rather than leaving it as an assumption — a
+  // project-granularity and a file-granularity engine must never share a results directory entry.
+  const asFileKey = deriveResultKey({
+    engineId: projectBase.engineId,
+    engineVersion: projectBase.engineVersion,
+    engineRulesetHash: projectBase.engineRulesetHash,
+    filePath: 'src/a.ts',
+    fileHash: 'hash-a',
+    configHash: projectBase.configHash,
+  })
+  expect(deriveProjectResultKey(projectBase)).not.toBe(asFileKey)
 })

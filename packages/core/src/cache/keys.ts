@@ -45,3 +45,25 @@ export function deriveResultKey(input: ResultKeyInput): string {
   // silently shadow `RESULT_SCHEMA_VERSION`.
   return hashJson({ schema: RESULT_SCHEMA_VERSION, input })
 }
+
+/**
+ * The cache key components for a **project-granularity** engine (spec §8.1: `tsc`, `knip` — whole-
+ * program analysis, not cacheable per file). `ResultKeyInput` above is keyed by one file's path and
+ * content hash; a project engine has no single file to key against, so this instead folds in every
+ * file the planner assigned it, each with its own content hash — spec §9's "aggregate input hash".
+ * Sorting by path before hashing (see `deriveProjectResultKey`) is what makes the result independent
+ * of the inventory's own file ordering, the same concern `hashRuleSelection` exists for.
+ */
+export type ProjectResultKeyInput = {
+  engineId: string
+  engineVersion: string
+  engineRulesetHash: string
+  configHash: string
+  files: ReadonlyArray<{ path: string; hash: string }>
+}
+
+export function deriveProjectResultKey(input: ProjectResultKeyInput): string {
+  const sortedFiles = [...input.files].sort((a, b) => compareStrings(a.path, b.path))
+  // Nested under its own `schema`, matching `deriveResultKey` — same reasoning, same protection.
+  return hashJson({ schema: RESULT_SCHEMA_VERSION, input: { ...input, files: sortedFiles } })
+}

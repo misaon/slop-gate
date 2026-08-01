@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import type { Diagnostic } from '../diagnostics/types.ts'
-import type { ResultKeyInput } from './keys.ts'
-import { openResultStore } from './result-store.ts'
+import type { ProjectResultKeyInput, ResultKeyInput } from './keys.ts'
+import { openProjectResultStore, openResultStore } from './result-store.ts'
 
 let cacheDir: string
 
@@ -84,4 +84,73 @@ test('records what produced the entry, so a surprising cache hit can be explaine
     await readFile(join(cacheDir, 'results', key.slice(0, 2), `${key}.json`), 'utf8'),
   )
   expect((raw as { key: ResultKeyInput }).key).toEqual(components)
+})
+
+// --- ProjectResultStore: project-granularity engines (spec §8.1/§9) -------------------------------
+
+const projectComponents: ProjectResultKeyInput = {
+  engineId: 'tsc',
+  engineVersion: '5.9.3',
+  engineRulesetHash: 'abc',
+  configHash: 'ghi',
+  files: [{ path: 'src/a.ts', hash: 'def' }],
+}
+
+test('project store returns null for an unknown key', async () => {
+  expect(await openProjectResultStore(cacheDir).get('tsc', 'a'.repeat(64))).toBeNull()
+})
+
+test('project store round-trips diagnostics keyed by engine and aggregate hash', async () => {
+  const store = openProjectResultStore(cacheDir)
+  await store.set('tsc', 'b'.repeat(64), [diagnostic], projectComponents)
+  expect(await store.get('tsc', 'b'.repeat(64))).toEqual([diagnostic])
+})
+
+test('project store distinguishes a cached clean project (whole program, zero findings) from a miss', async () => {
+  const store = openProjectResultStore(cacheDir)
+  const key = 'c'.repeat(64)
+  await store.set('tsc', key, [], projectComponents)
+
+  expect(await store.get('tsc', key)).toEqual([])
+  expect(await store.get('tsc', 'd'.repeat(64))).toBeNull()
+})
+
+test('project store lays entries out at results/project/<engineId>/<key>.json, per spec §9', async () => {
+  const store = openProjectResultStore(cacheDir)
+  const key = 'e'.repeat(64)
+  await store.set('tsc', key, [], projectComponents)
+
+  const { access } = await import('node:fs/promises')
+  await expect(access(join(cacheDir, 'results', 'project', 'tsc', `${key}.json`))).resolves.toBeUndefined()
+})
+
+test('project store scopes entries by engine id: the same key under two engines does not collide', async () => {
+  const store = openProjectResultStore(cacheDir)
+  const key = 'f'.repeat(64)
+  await store.set('tsc', key, [diagnostic], projectComponents)
+  await store.set('knip', key, [], { ...projectComponents, engineId: 'knip' })
+
+  expect(await store.get('tsc', key)).toEqual([diagnostic])
+  expect(await store.get('knip', key)).toEqual([])
+})
+
+test('project store treats a corrupt entry as a miss', async () => {
+  const store = openProjectResultStore(cacheDir)
+  const key = 'a1'.padEnd(64, '0')
+  await store.set('tsc', key, [diagnostic], projectComponents)
+  await mkdir(join(cacheDir, 'results', 'project', 'tsc'), { recursive: true })
+  await writeFile(join(cacheDir, 'results', 'project', 'tsc', `${key}.json`), '{ not json')
+
+  expect(await store.get('tsc', key)).toBeNull()
+})
+
+test('project store records what produced the entry, so a surprising cache hit can be explained', async () => {
+  const store = openProjectResultStore(cacheDir)
+  const key = 'a2'.padEnd(64, '0')
+  await store.set('tsc', key, [diagnostic], projectComponents)
+
+  const raw: unknown = JSON.parse(
+    await readFile(join(cacheDir, 'results', 'project', 'tsc', `${key}.json`), 'utf8'),
+  )
+  expect((raw as { key: ProjectResultKeyInput }).key).toEqual(projectComponents)
 })
