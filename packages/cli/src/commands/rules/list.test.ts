@@ -44,6 +44,13 @@ test('lists the recommended preset\'s enabled concepts as json, each with a leve
   const debuggerEntry = parsed.entries.find((entry) => entry.concept === 'correctness.no-debugger')
   expect(debuggerEntry).toMatchObject({ level: 'error', owner: { engine: 'oxlint', engineRuleId: 'no-debugger' } })
   expect(debuggerEntry?.enablement.baseProvenance[0]).toMatchObject({ layer: 'preset', source: 'recommended' })
+
+  // `recommended` genuinely includes plenty of JSX/framework-scoped concepts a bare TypeScript
+  // fixture repo never exercises — real, end-to-end confirmation of the distinction found running
+  // this against this repository itself (see RulesListEntry.languageMismatch's own doc comment).
+  const languageMismatched = parsed.entries.filter((entry) => entry.languageMismatch)
+  expect(languageMismatched.length).toBeGreaterThan(0)
+  for (const entry of languageMismatched) expect(entry.uncovered).toBe(false)
 })
 
 test('filters by --only, matching a real registry concept via glob', async () => {
