@@ -375,6 +375,16 @@ Node's native type stripping first; on failure (older Node, non-erasable syntax)
 path aliases — Node does not resolve them at runtime, and this is detected and reported with a clear
 message rather than failing obscurely.
 
+Loading a `.ts`/`.js` config in a project whose `package.json` lacks `"type": "module"` makes Node
+emit a `[MODULE_TYPELESS_PACKAGE_JSON]` process warning — it cannot tell CommonJS from ESM from the
+package scope alone, so it reparses and warns about the overhead. `sgate init` writes `.mts` for such
+a project specifically to make the extension unambiguous, but that only helps new setups; an existing
+or hand-written `.ts` config still triggers it on every run. The config file is ours, loaded by our
+own code, so the noise is ours to own rather than Node's: `importModule` (`config/load.ts`) suppresses
+this one warning code for the duration of the import and restores the prior `process` warning
+listeners immediately after, so any unrelated warning is unaffected. Matched on `warning.code`, never
+on the message text, which is Node's to reword at any time.
+
 Loading a config file executes repository code. This is the same trust model as ESLint, Vite and
 Prettier, and it is documented explicitly.
 
