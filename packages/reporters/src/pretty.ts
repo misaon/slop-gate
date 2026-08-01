@@ -140,7 +140,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     for (const gap of gaps) {
       writeUnit([
         `  ${paint(['bgYellow', 'black'], ' COVERAGE GAP ')} ${gap.engine} is not installed — ${gap.reason}`,
-        `  ${paint('yellow', `${plural(gap.displaced.length, 'concept')} went unchecked or to a lower-ranked rule.`)}` +
+        `    ${paint('yellow', `${plural(gap.displaced.length, 'concept')} went unchecked or to a lower-ranked rule.`)}` +
           (gap.install === undefined ? '' : ` ${paint('yellow', `Install it with \`${gap.install}\`.`)}`),
       ])
     }
