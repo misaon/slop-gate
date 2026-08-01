@@ -56,6 +56,16 @@ export type CheckEvent =
 
 const DEFAULT_BATCH_SIZE = 500
 
+// A suppressed diagnostic (`Diagnostic.suppressed` set — today only `by: 'inline'`, from a source
+// comment; see `suppressions/apply.ts`) is still a real object in the per-file cache entry
+// `normalizeDiagnostics` returns — that is what lets it survive a warm cache hit and is what a
+// future `--show-suppressed` flag would read instead of restructuring anything upstream of it. This
+// is the one seam that decides whether the *default* result and severity counts see it: applied
+// identically to a fresh normalize and a cache hit below, so which path served a file never changes
+// what the user sees. Module-level rather than declared inside `streamCheck`: it captures nothing
+// from that generator's scope, so nesting it there would recreate an identical closure on every run.
+const isVisible = (diagnostic: Diagnostic): boolean => diagnostic.suppressed === undefined
+
 export async function runCheck(options: CheckOptions): Promise<CheckResult> {
   for await (const event of streamCheck(options)) {
     if (event.type === 'done') return event.result
@@ -175,6 +185,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             }
             filesFromCache += 1
             for (const diagnostic of hit) {
+              if (!isVisible(diagnostic)) continue
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
             }
@@ -197,14 +208,14 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             for (const raw of raws) byFile.get(raw.file)?.push(raw)
 
             for (const [path, fileRaws] of byFile) {
-              // Reading unconditionally would pull the whole source tree into memory a second
-              // time — the stat index already read every file to hash it — for no benefit:
-              // normalization only touches the source when there is a finding to position.
-              if (fileRaws.length === 0) {
-                if (useCache) await resultStore.set(keys.get(path)!, [], keyInputs.get(path)!)
-                continue
-              }
-
+              // No shortcut for `fileRaws.length === 0` here (there used to be one, storing `[]`
+              // straight into the cache without ever reading the file): a clean file — the engine
+              // reports nothing for it — is exactly where a *stale* inline suppression comment
+              // survives, code that used to need it long since fixed, comment never removed. That
+              // is the modal case `config.unused-suppression` exists to catch, so this file's
+              // source has to be read and scanned for directives regardless of whether it produced
+              // any raw findings this run — `suppressionScanFiles` below is what makes
+              // `normalizeDiagnostics` do that even with an empty `raws`.
               const source = await readSource(path)
               const normalized = normalizeDiagnostics({
                 engine: engine.id,
@@ -221,10 +232,18 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
                 // there would let an override scoped to one glob fire at default severity on every
                 // other file the engine touches, which defeats the point of scoping it.
                 levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
+                suppressionScanFiles: [path],
               })
 
+              // `normalized` — the *complete* per-file array, suppressed findings included — is what
+              // gets cached: `config.unused-suppression` is computed once, right here, from
+              // knowledge of every diagnostic this file produced, and a warm run must replay that
+              // same array rather than silently losing it (see `NormalizeInput.suppressionScanFiles`
+              // and this file's own module doc comment). Only `collected`/the stream below decide
+              // what the user actually sees.
               if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
               for (const diagnostic of normalized) {
+                if (!isVisible(diagnostic)) continue
                 collected.push(diagnostic)
                 yield { type: 'diagnostic', diagnostic }
               }

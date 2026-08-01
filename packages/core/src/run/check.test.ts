@@ -361,3 +361,95 @@ test('an engine that provides a capability lets a capability-requiring rule be e
   expect(result.diagnostics[0]?.ruleId).toBe('tsgolint/typed-rule')
   expect(result.ruleset.uncovered).toEqual([])
 })
+
+// --- Inline suppressions (design spec §6.3) -------------------------------------------------------
+
+// A function, not a top-level constant: `baseOptions()` reads `dir`, which `beforeEach` only sets
+// once a test is actually running — evaluating this eagerly at module load time would run before
+// any `dir` exists at all.
+const withUnusedSuppressionOn = () => ({
+  ...baseOptions(),
+  config: {
+    rules: { 'correctness.no-debugger': 'error', 'config.unused-suppression': 'warn' },
+  } as never,
+})
+
+test('a suppressed finding is hidden from the default result and does not count toward severity totals', async () => {
+  const source = '// sgate-disable-next-line correctness.no-debugger -- reason\ndebugger\n'
+  await writeFile(join(dir, 'src/a.ts'), source)
+  const offset = source.lastIndexOf('debugger')
+
+  const result = await runCheck({
+    ...baseOptions(),
+    engines: [stubEngine({ findings: [{ ...debuggerFinding('src/a.ts'), range: { start: offset, end: offset + 8 } }] })],
+  })
+
+  expect(result.diagnostics.some((d) => d.concept === 'correctness.no-debugger')).toBe(false)
+  expect(result.counts).toEqual({ error: 0, warn: 0, info: 0 })
+})
+
+test('an unused-suppression diagnostic is served from the cache, not recomputed, on the second run', async () => {
+  // The comment targets a concept this file never actually reports (the file is otherwise clean),
+  // so the directive is unused from the very first run — the scenario `fileRaws.length === 0` used
+  // to short-circuit past entirely (see the comment in check.ts this test guards).
+  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line correctness.no-debugger -- stale, fixed in #1\nconst clean = 1\n')
+  let runs = 0
+  const engine = () => stubEngine({ onRun: () => (runs += 1) })
+
+  const cold = await runCheck({ ...withUnusedSuppressionOn(), engines: [engine()] })
+  const warm = await runCheck({ ...withUnusedSuppressionOn(), engines: [engine()] })
+
+  expect(runs).toBe(1)
+  expect(cold.diagnostics.map((d) => d.concept)).toEqual(['config.unused-suppression'])
+  expect(warm.diagnostics).toEqual(cold.diagnostics)
+  expect(warm.stats.filesFromCache).toBeGreaterThan(0)
+})
+
+test('a zero-finding file is still scanned for a stale suppression on a cold run', async () => {
+  // Same fixture as above, but asserted against a single cold run: proves the detection does not
+  // depend on having already primed anything via a previous call — the very first `runCheck` must
+  // already read this file's source and parse it, even though the engine reports nothing for it.
+  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line correctness.no-debugger -- stale\nconst clean = 1\n')
+  const result = await runCheck({ ...withUnusedSuppressionOn(), engines: [stubEngine({})] })
+
+  expect(result.diagnostics).toHaveLength(1)
+  expect(result.diagnostics[0]).toMatchObject({ concept: 'config.unused-suppression', file: 'src/a.ts' })
+})
+
+test('removing the suppression comment invalidates the cache and reveals the finding it was hiding', async () => {
+  const suppressed = '// sgate-disable-next-line correctness.no-debugger -- reason\ndebugger\n'
+  await writeFile(join(dir, 'src/a.ts'), suppressed)
+  const suppressedOffset = suppressed.lastIndexOf('debugger')
+  const options = { ...baseOptions(), engines: [stubEngine({ findings: [{ ...debuggerFinding('src/a.ts'), range: { start: suppressedOffset, end: suppressedOffset + 8 } }] })] }
+
+  const first = await runCheck(options)
+  expect(first.diagnostics.some((d) => d.concept === 'correctness.no-debugger')).toBe(false)
+
+  const bare = 'debugger\n'
+  await writeFile(join(dir, 'src/a.ts'), bare)
+  const bareOffset = bare.indexOf('debugger')
+  const second = await runCheck({
+    ...baseOptions(),
+    engines: [stubEngine({ findings: [{ ...debuggerFinding('src/a.ts'), range: { start: bareOffset, end: bareOffset + 8 } }] })],
+  })
+
+  expect(second.diagnostics.some((d) => d.concept === 'correctness.no-debugger')).toBe(true)
+})
+
+test('toggling config.unused-suppression itself invalidates the cache and changes what is reported', async () => {
+  // The ruleset hash (`configHash` in check.ts, folded into every cache key) has to move when a
+  // rule's *own* level changes, not just when a rule it detects changes — otherwise a warm run
+  // would keep serving a suppression's cached "unused" verdict from before the concept was turned
+  // off, or keep hiding it after turning it on, regardless of what the current config says.
+  await writeFile(join(dir, 'src/a.ts'), '// sgate-disable-next-line correctness.no-debugger -- stale\nconst clean = 1\n')
+
+  const on = await runCheck({ ...withUnusedSuppressionOn(), engines: [stubEngine({})] })
+  const off = await runCheck({
+    ...baseOptions(),
+    config: { rules: { 'correctness.no-debugger': 'error', 'config.unused-suppression': 'off' } } as never,
+    engines: [stubEngine({})],
+  })
+
+  expect(on.diagnostics.some((d) => d.concept === 'config.unused-suppression')).toBe(true)
+  expect(off.diagnostics.some((d) => d.concept === 'config.unused-suppression')).toBe(false)
+})
