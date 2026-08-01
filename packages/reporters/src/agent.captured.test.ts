@@ -197,6 +197,7 @@ const report = (maxTokens?: number): string => {
     diagnostics: [...CAPTURED],
     counts: { error: CAPTURED.filter((d) => d.severity === 'error').length, warn: CAPTURED.filter((d) => d.severity === 'warn').length, info: 0 },
     engineFailures: [],
+    unavailableEngines: [],
     stats: { filesScanned: 232, filesAnalysed: 199, filesFromCache: 0, enginesRun: 1, durationMs: 155 },
     ruleset: { enabledConcepts: 284, suppressed: 0, uncovered: [], unknownKeys: [] },
   }

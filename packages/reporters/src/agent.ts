@@ -15,6 +15,7 @@ import {
   type FixKind,
   type RuleEntry,
   type Severity,
+  type UnavailableEngine,
 } from '@misaon/slop-gate-core'
 import { SEVERITY_ORDER } from './severity.ts'
 import type { Reporter, ReporterContext } from './index.ts'
@@ -392,6 +393,7 @@ function document(
   const total = groups.reduce((sum, group) => sum + group.findings.length, 0)
   const shownCount = groups.reduce((sum, group) => sum + group.findings.filter((finding) => shown.has(finding)).length, 0)
   const omitted = total - shownCount
+  const gaps = result.unavailableEngines.filter(isGap)
 
   const lines: string[] = [`slop-gate agent report v${AGENT_REPORT_VERSION}`]
 
@@ -418,7 +420,7 @@ function document(
     )
   }
   lines.push('')
-  lines.push(...coverageLines({ groups, shown, total, shownCount, omitted, budget, options }))
+  lines.push(...coverageLines({ groups, shown, total, shownCount, omitted, gaps: gaps.length, budget, options }))
 
   for (const section of ['automated', 'judgement'] as const) {
     const inSection = groups.filter((group) => group.section === section)
@@ -432,9 +434,59 @@ function document(
   }
 
   lines.push('')
-  lines.push(...nextActionLines(groups, options.sizing === true ? total : omitted, budget))
+  lines.push(...nextActionLines(groups, options.sizing === true ? total : omitted, budget, gaps))
 
   return `${lines.join('\n')}\n`
+}
+
+/**
+ * Whether an absent engine actually cost this run anything.
+ *
+ * `displaced` is populated only where the engine would have *won* a concept it contests, so an empty
+ * one means its absence changed no ownership at all — nothing went unchecked, nothing was downgraded.
+ * Calling that INCOMPLETE would be crying wolf, and a report that says INCOMPLETE when nothing is
+ * missing teaches its reader to skip the word on the run where something is.
+ */
+const isGap = (engine: UnavailableEngine): boolean => engine.displaced.length > 0
+
+/**
+ * An engine that is registered but not installed here, under the same `INCOMPLETE:` prefix an engine
+ * *failure* gets: the consequence for the reader is identical — part of the run did not happen — and
+ * one grep-able token for "this report is partial" is worth more than a second vocabulary for the
+ * second cause.
+ *
+ * The two sub-lines are the distinction an agent has to act on. A concept nothing else covers is
+ * simply unverified; one a lower-ranked rule picked up *was* checked, just by the rule arbitration
+ * would not have chosen. Collapsing them into "some things were missed" would leave an agent
+ * unable to tell which findings it is entitled to trust.
+ */
+function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
+  const lines: string[] = []
+  for (const engine of engines.filter(isGap)) {
+    lines.push(
+      `INCOMPLETE: engine \`${engine.engine}\` is registered but not installed here — ${engine.reason}. ` +
+        'Nothing it would have reported appears below; do not read a clean section as clean.' +
+        (engine.install === undefined ? '' : ` Install it with \`${engine.install}\`.`),
+    )
+    for (const record of engine.displaced) {
+      if (record.insteadOwnedBy === undefined) lines.push(`  unchecked: ${record.concept} — no other engine here covers it.`)
+    }
+    for (const record of engine.displaced) {
+      const instead = record.insteadOwnedBy
+      if (instead === undefined) continue
+      lines.push(
+        `  downgraded: ${record.concept} — \`${ruleRefKey(instead)}\` owns it instead, ` +
+          `which arbitration ranks below \`${ruleRefKey(record.wouldOwn)}\`.`,
+      )
+    }
+  }
+  for (const engine of engines.filter((candidate) => !isGap(candidate))) {
+    lines.push(
+      `note: engine \`${engine.engine}\` is not installed here — ${engine.reason}. ` +
+        'It would have owned nothing in this run, so no coverage was lost.',
+    )
+  }
+  return lines
 }
 
 function incompletenessLines(result: CheckResult): string[] {
@@ -445,6 +497,7 @@ function incompletenessLines(result: CheckResult): string[] {
         `Nothing it would have reported appears below; do not read a clean section as clean.`,
     )
   }
+  lines.push(...unavailableLines(result.unavailableEngines))
   if (result.ruleset.unknownKeys.length > 0) {
     lines.push(`config: ${result.ruleset.unknownKeys.length} rule key(s) in the config name nothing — run \`sgate rules list\`.`)
   }
@@ -465,6 +518,7 @@ type CoverageInput = {
   readonly total: number
   readonly shownCount: number
   readonly omitted: number
+  readonly gaps: number
   readonly budget: number | undefined
   readonly options: DocumentOptions
 }
@@ -476,9 +530,19 @@ type CoverageInput = {
  * silence — and it names the admission rule, so an agent can tell what it is *not* looking at.
  */
 function coverageLines(input: CoverageInput): string[] {
-  const { total, budget } = input
+  const { total, budget, gaps } = input
   const sizing = input.options.sizing === true
-  if (total === 0) return ['coverage: no findings. Nothing was omitted.']
+  // Stated before the budget accounting, never after. A reader that takes only the first sentence of
+  // the coverage line has to come away with the correction, not with the reassurance — and on a run
+  // with no findings the reassurance is the entire rest of the sentence.
+  const engines = `${gaps} engine${gaps === 1 ? '' : 's'} could not run (see INCOMPLETE above)`
+  if (total === 0) {
+    return [
+      gaps === 0
+        ? 'coverage: no findings. Nothing was omitted.'
+        : `coverage: ${engines}, so this is not a clean result. No findings from what did run, and nothing was omitted.`,
+    ]
+  }
 
   // One line shape for every case, rather than a friendlier "all shown" phrasing when nothing was
   // dropped: the sizing render has to bound the real one, and a branch whose *shorter* count can
@@ -486,7 +550,8 @@ function coverageLines(input: CoverageInput): string[] {
   const shownCount = sizing ? total : input.shownCount
   const omitted = sizing ? total : input.omitted
   const scope = budget === undefined ? 'no --max-tokens set' : `--max-tokens ${budget}`
-  const lines = [`coverage: ${shownCount} of ${total} findings shown, ${omitted} omitted (${scope}).`]
+  const accounting = `${shownCount} of ${total} findings shown, ${omitted} omitted (${scope}).`
+  const lines = [gaps === 0 ? `coverage: ${accounting}` : `coverage: ${engines}, so this is not the whole picture. ${accounting}`]
   if (budget === undefined) return lines
 
   lines.push(
@@ -593,10 +658,25 @@ function groupLines(group: Group, shown: ReadonlySet<Finding>, options: Document
   return lines
 }
 
-function nextActionLines(groups: readonly Group[], omitted: number, budget: number | undefined): string[] {
+function nextActionLines(
+  groups: readonly Group[],
+  omitted: number,
+  budget: number | undefined,
+  gaps: readonly UnavailableEngine[],
+): string[] {
   const automated = groups.filter((group) => group.section === 'automated')
   const judgement = groups.filter((group) => group.section === 'judgement')
   const actions: string[] = []
+
+  // First, ahead of the findings work. Everything below is advice about what this report *contains*;
+  // this is the one action that changes what the next report is able to contain at all, and an agent
+  // that starts editing before it knows the report is partial is working from the wrong map.
+  for (const engine of gaps) {
+    const command = engine.install === undefined ? '' : ` (\`${engine.install}\`)`
+    actions.push(
+      `Install \`${engine.engine}\`${command} and re-run — ${engine.displaced.length} concept(s) went unchecked or to a lower-ranked rule.`,
+    )
+  }
 
   if (automated.length > 0) {
     const findings = automated.reduce((sum, group) => sum + group.findings.length, 0)
