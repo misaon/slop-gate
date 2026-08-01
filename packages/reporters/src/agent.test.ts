@@ -304,10 +304,10 @@ test('the gap is stated even when findings were also produced', () => {
   )
 })
 
-test('an absent engine with no install command still names the command it does have', () => {
-  const output = capture([
-    done([], { unavailableEngines: [absentEngine({ install: undefined })] }),
-  ])
+test('an absent engine with no install command still declares the gap', () => {
+  const { install, ...withoutInstall } = absentEngine()
+  expect(install).toBeDefined()
+  const output = capture([done([], { unavailableEngines: [withoutInstall] })])
 
   expect(output).toContain(
     'INCOMPLETE: engine `astgrep` is registered but not installed here — `ast-grep` was not found on PATH. ' +

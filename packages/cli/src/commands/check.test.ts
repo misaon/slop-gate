@@ -181,3 +181,17 @@ test('--no-cache reaches the command as cache: false through citty real argv par
   expect(parseArgs(['--no-cache'], argsDef).cache).toBe(false)
   expect(parseArgs(['--cache'], argsDef).cache).toBe(true)
 })
+
+test('--require-engines is off unless asked for, and reaches the command through the real argv parser', () => {
+  const argsDef = check.args as never
+  expect(parseArgs([], argsDef)['require-engines']).toBe(false)
+  expect(parseArgs(['--require-engines'], argsDef)['require-engines']).toBe(true)
+})
+
+test('--require-engines on a fully equipped machine still exits clean', async () => {
+  // The direction that is cheap to get wrong: nothing in `defaultEngines` declares `availability`
+  // today, so this asserts the flag adds no failure of its own when nothing is missing. The failing
+  // direction is `exit-codes.test.ts`'s, which can supply an absent engine directly.
+  await runCheckCapturingStdout({ 'require-engines': true })
+  expect(process.exitCode).toBe(EXIT_CODES.clean)
+})
