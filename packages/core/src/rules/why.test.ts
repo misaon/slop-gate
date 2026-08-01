@@ -40,6 +40,7 @@ const resolved = (
     entries,
     inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] },
     frameworks: EMPTY_DETECTION,
+    unavailableEngines: [],
   }
 }
 

@@ -782,3 +782,41 @@ test('two directives written on one line stay two findings', async () => {
 
   expect(result.diagnostics.filter((d) => d.concept === 'config.unused-suppression')).toHaveLength(2)
 })
+
+test('an engine appearing moves the concept to it, and the warm cache does not serve the old owner', async () => {
+  // What this proves: ownership transfer across an availability change is never served stale.
+  //
+  // What it does **not** prove, and no test here does: that folding `unavailableEngines` into
+  // `configHash` is what prevents that. It passes with the fold removed, because the ownership
+  // change already alters each engine's `rulesetHash` and assignment. The fold is kept as cheap
+  // insurance and `check.ts` says so; do not read this test as guarding it.
+  const optional = (available: boolean): Engine => ({
+    ...stubEngine({ id: 'astgrep', findings: [debuggerFinding('src/a.ts')] }),
+    availability: async () => (available ? { available: true } : { available: false, reason: 'not installed' }),
+  })
+  const always = (): Engine => {
+    const base = stubEngine({ id: 'oxlint', findings: [debuggerFinding('src/a.ts')] })
+    return {
+      ...base,
+      materializeConfig: async (selection) => ({
+        path: 'stub',
+        rulesetHash: [...selection.keys()].sort().join(','),
+        dispose: async () => {},
+      }),
+    }
+  }
+  const entries = [
+    { ...ENTRIES[0]!, engine: 'oxlint' as const, engineRuleId: 'no-debugger', tier: 2 as const },
+    { ...ENTRIES[0]!, engine: 'astgrep' as const, engineRuleId: 'no-debugger', tier: 0 as const },
+  ]
+
+  const cold = await runCheck({ ...baseOptions(), entries, engines: [always(), optional(false)] })
+  expect(cold.diagnostics.map((d) => d.engine)).toEqual(['oxlint'])
+
+  const warm = await runCheck({ ...baseOptions(), entries, engines: [always(), optional(false)] })
+  expect(warm.stats.filesFromCache).toBeGreaterThan(0)
+
+  // astgrep appears. It outranks oxlint, so it takes the concept and oxlint must fall silent.
+  const installed = await runCheck({ ...baseOptions(), entries, engines: [always(), optional(true)] })
+  expect(installed.diagnostics.map((d) => d.engine)).toEqual(['astgrep'])
+})

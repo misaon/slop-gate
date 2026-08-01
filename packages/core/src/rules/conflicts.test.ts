@@ -41,6 +41,7 @@ test('surfaces both a suppressed overlap and a dead override from an already-res
     entries,
     inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] },
     frameworks: EMPTY_DETECTION,
+    unavailableEngines: [],
   }
 
   const conflicts = buildRulesConflicts(resolved)
@@ -73,6 +74,7 @@ test('reports both as empty on a run with no overlaps and no dead overrides', ()
     entries: [],
     inventory: { root: '/fixture', files: [], languages: new Set(), workspaces: [] },
     frameworks: EMPTY_DETECTION,
+    unavailableEngines: [],
   }
 
   const conflicts = buildRulesConflicts(resolved)

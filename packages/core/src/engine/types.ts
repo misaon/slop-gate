@@ -107,9 +107,38 @@ export type DerivedFix = {
   readonly edits: readonly Edit[]
 }
 
+/**
+ * Whether an engine can actually run here. `reason` and `install` are only read when it cannot, and
+ * both reach the user: `reason` says what is missing, `install` is the exact command that fixes it
+ * (spec §18).
+ */
+export type EngineAvailability =
+  | { readonly available: true }
+  | { readonly available: false; readonly reason: string; readonly install?: string }
+
 export interface Engine {
   readonly id: EngineId
   readonly capabilities: EngineCapabilities
+  /**
+   * Whether this engine's tooling is present. Omit it entirely for a bundled engine — anything
+   * installed by `npm install` is present by construction, and an implementation that always
+   * returns `available: true` is noise.
+   *
+   * **Contract: this must touch the filesystem and nothing else.** No spawning a process, no
+   * network, no download, no writing anything — a `PATH` lookup and a `stat` are the whole budget.
+   *
+   * The reason is not performance. `sgate rules why` calls this, and `rules why` explains what a run
+   * *would* do without doing any of it; an availability probe that shells out to `<tool> --version`
+   * would make an explain-only command execute a program, and one that lazily fetched a missing
+   * binary would make it change the machine. The obvious implementation is a `--version` spawn, so
+   * this says plainly that the obvious implementation is wrong.
+   *
+   * Reported, never inferred: an engine that is registered but unavailable is a *coverage gap* the
+   * run states out loud, and it is deliberately distinct from an engine that was never registered.
+   * Collapsing the two would leave a user comparing two machines with no way to tell "this build
+   * does not include actionlint" from "actionlint is not installed here".
+   */
+  availability?(): Promise<EngineAvailability>
   version(): Promise<string>
   materializeConfig(selection: EngineRuleSelection, context: RunContext): Promise<EngineConfigHandle>
   run(
