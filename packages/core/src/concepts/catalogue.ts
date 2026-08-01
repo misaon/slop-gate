@@ -393,6 +393,106 @@ export const HAND_WRITTEN_CONCEPTS = [
       'An expression statement produces a value or has no side effect that is ever used — usually a ' +
       'typo for a call, assignment or comparison.',
   },
+  // The knip domain (spec §13.2). Every concept below is *whole-program*: none of them can be decided
+  // by looking at one file, which is what separates them from `dead-code.unused-import` and
+  // `dead-code.unused-variable` above — those are scope-local and oxlint owns them. The corollary
+  // matters when reading a finding: each of these is only as good as the reachability graph knip built,
+  // and that graph is exactly what a repository with an undeclared workspace layout, a runtime-loaded
+  // convention directory or a framework-injected entry point can invalidate. See the measured
+  // false-positive rates recorded on each entry in registry/entries.manual.ts.
+  {
+    id: 'dead-code.unused-file',
+    group: 'dead-code',
+    title: 'Unused file',
+    description:
+      'A file that no entry point reaches, transitively — dead weight that still has to be read, ' +
+      'reviewed and kept compiling. The most entry-point-sensitive concept in the catalogue: a file ' +
+      'discovered at runtime rather than imported (an ORM migration, a convention-loaded theme, a ' +
+      'script named only in `package.json`) is unreachable by static analysis and perfectly alive in ' +
+      'practice, so a finding here is a question, not a verdict.',
+  },
+  {
+    id: 'dead-code.unused-export',
+    group: 'dead-code',
+    title: 'Unused export',
+    description:
+      'An exported binding nothing outside its own module imports. Distinct from ' +
+      '`dead-code.unused-variable`, which is decidable within one file: this one needs the whole ' +
+      'import graph, and is therefore only meaningful once every entry point is known.',
+  },
+  {
+    id: 'dead-code.unused-exported-type',
+    group: 'dead-code',
+    title: 'Unused exported type',
+    description:
+      'An exported type, interface or type alias nothing outside its own module imports. Separate ' +
+      'from `dead-code.unused-export` because the answer is routinely different: a type exported for ' +
+      "a consumer's benefit is a deliberate part of a package's public surface far more often than an " +
+      'exported value is.',
+  },
+  {
+    id: 'dead-code.unused-enum-member',
+    group: 'dead-code',
+    title: 'Unused exported enum member',
+    description:
+      'A member of an exported enum that nothing references. Frequently deliberate — an enum mirroring ' +
+      'an external protocol or database column is expected to carry members this codebase never ' +
+      'constructs — so it is reported for review rather than treated as a defect.',
+  },
+  {
+    id: 'dead-code.duplicate-export',
+    group: 'dead-code',
+    title: 'Duplicate export',
+    description:
+      'The same binding exported under more than one name from the same module — typically a value ' +
+      'exported both by name and as the default. Both spellings stay reachable forever, and consumers ' +
+      'split across them.',
+  },
+  {
+    id: 'deps.unused-dependency',
+    group: 'deps',
+    title: 'Unused dependency',
+    description:
+      'A package declared in `dependencies` that nothing imports. Reachability-derived, so it inherits ' +
+      "every caveat `dead-code.unused-file` carries plus one of its own: a dependency named only in a " +
+      'config file, loaded by a plugin system, or resolved dynamically is used without ever being ' +
+      'imported.',
+  },
+  {
+    id: 'deps.unused-dev-dependency',
+    group: 'deps',
+    title: 'Unused devDependency',
+    description:
+      'A package declared in `devDependencies` that nothing imports and no script invokes. The ' +
+      'canonical case is a tool removed from the repository whose plugin packages were left behind.',
+  },
+  {
+    id: 'deps.unlisted-dependency',
+    group: 'deps',
+    title: 'Unlisted dependency',
+    description:
+      'A package that is imported but appears in no manifest — it works today only because something ' +
+      "else happens to hoist it into `node_modules`, and stops working the moment that other package's " +
+      'own dependencies change. Note the mirror-image false positive: a package legitimately re-exported ' +
+      'by a framework meta-package (Express through a Nest platform adapter, say) reads as unlisted too.',
+  },
+  {
+    id: 'deps.unlisted-binary',
+    group: 'deps',
+    title: 'Unlisted binary',
+    description:
+      'A command invoked from a `package.json` script that no declared dependency provides. Either the ' +
+      'dependency is missing, or the script silently depends on something being installed globally.',
+  },
+  {
+    id: 'deps.unresolved-import',
+    group: 'deps',
+    title: 'Unresolved import',
+    description:
+      'An import specifier that resolves to nothing at all — neither a file nor an installed package. ' +
+      'Unlike the rest of this group this is not a hygiene question: the module cannot load, so the ' +
+      'code cannot run. The static-analysis half of `slop.hallucinated-import` (spec §14).',
+  },
   {
     id: 'style.no-var',
     group: 'style',
