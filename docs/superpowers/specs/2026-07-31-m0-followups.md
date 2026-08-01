@@ -930,6 +930,12 @@ Three things learned doing it:
   164 oxlint and 3 schema, 0 suppressions, 0 uncovered, 116 ineligible, selection sizes unchanged. The
   concept *count* fell 167 → 165, which is exactly the two `config.*` duplicates being retired.
 
+**The first genuine dogfooding result.** Running `sgate check` on this repository caught two defects
+in this very change: a dead `RuleRef` import left behind when `ConceptWhy.owner` became `ownership`,
+and — indirectly, by making the split-ownership case real — a `rules why` verdict that ran to 96
+characters and was being truncated mid-word inside its frame. The gate policing a change to its own
+arbitration is worth more than either fix.
+
 ### Measured: the `schema` engine over 826 real YAML files
 
 Corpus: docker/awesome-compose, kubernetes/examples, actions/starter-workflows and

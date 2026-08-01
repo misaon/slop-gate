@@ -28,8 +28,11 @@ export type OwnerMap = ReadonlyMap<string, readonly ConceptOwnership[]>
  * Where a single rule owns a concept outright there is nobody to disambiguate against, and applying
  * the filter anyway would drop legitimate findings — a project engine reports against files it was
  * never handed and whose language its rule does not list, `tsc` naming `tsconfig.json` (language
- * `jsonc`) being the case in this repository's own test suite. Dropping that would be a coverage
- * loss dressed up as an invariant.
+ * `jsonc`) being the case in this repository's own test suite.
+ *
+ * **Enforcing the language unconditionally here is a coverage loss dressed up as an invariant.** The
+ * first version of this function did exactly that, and the `tsc`/`tsconfig.json` test caught it. An
+ * invariant that discards real findings is worse than the looser rule it replaced.
  *
  * The residual gap: a concept split across languages *and* owned by a project engine that reports
  * outside its own language would have that finding dropped. No such concept exists — every split
