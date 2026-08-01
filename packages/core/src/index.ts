@@ -120,7 +120,7 @@ export type {
   RawSeverity,
   RunContext,
 } from './engine/types.ts'
-export { normalizeDiagnostics, type NormalizeInput } from './engine/normalize.ts'
+export { LEVEL_TO_SEVERITY, normalizeDiagnostics, type NormalizeInput } from './engine/normalize.ts'
 
 export { parseSuppressions, type SuppressionDirective, type SuppressionKind } from './suppressions/parse.ts'
 export { applySuppressions, type ApplySuppressionsResult } from './suppressions/apply.ts'
@@ -130,3 +130,14 @@ export { runCheck, streamCheck, type CheckEvent, type CheckOptions, type CheckRe
 export { resolveRun, type ResolveRunOptions, type ResolvedRun } from './run/resolve-run.ts'
 
 export { LEVEL_STRENGTH } from './config/types.ts'
+
+// --- `sgate rules` governance commands: pure data-shaping over an already-resolved run ------------
+export {
+  resolveEnablement,
+  wasEnabledBeforeBeingDisabled,
+  type ConceptEnablement,
+  type OverrideMention,
+} from './rules/enablement.ts'
+export { explainConcept, type ConceptWhy } from './rules/why.ts'
+export { buildRulesList, type RulesListEntry, type RulesListOptions } from './rules/list.ts'
+export { buildRulesConflicts, type RulesConflicts } from './rules/conflicts.ts'
