@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -819,4 +820,60 @@ test('an engine appearing moves the concept to it, and the warm cache does not s
   // astgrep appears. It outranks oxlint, so it takes the concept and oxlint must fall silent.
   const installed = await runCheck({ ...baseOptions(), entries, engines: [always(), optional(true)] })
   expect(installed.diagnostics.map((d) => d.engine)).toEqual(['astgrep'])
+})
+
+test('the result names the engine that could not run and what its absence cost', async () => {
+  // A real `stat` against a path that genuinely does not exist, not a hard-coded boolean: this is
+  // the whole budget `Engine.availability` allows an adapter, so it is the shape the mechanism has
+  // to work against.
+  const binary = join(dir, 'bin', 'nonexistent-linter')
+  const optional = (): Engine => ({
+    ...stubEngine({ id: 'astgrep', findings: [debuggerFinding('src/a.ts')] }),
+    availability: async () =>
+      existsSync(binary)
+        ? { available: true }
+        : { available: false, reason: '`nonexistent-linter` is not installed', install: 'brew install nonexistent-linter' },
+  })
+  const entries = [
+    { ...ENTRIES[0]!, engine: 'oxlint' as const, tier: 2 as const },
+    { ...ENTRIES[0]!, engine: 'astgrep' as const, tier: 0 as const },
+  ]
+
+  const result = await runCheck({
+    ...baseOptions(),
+    entries,
+    engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] }), optional()],
+  })
+
+  expect(result.unavailableEngines).toEqual([
+    {
+      engine: 'astgrep',
+      reason: '`nonexistent-linter` is not installed',
+      install: 'brew install nonexistent-linter',
+      displaced: [
+        {
+          concept: 'correctness.no-debugger',
+          languages: ['ts'],
+          wouldOwn: { engine: 'astgrep', engineRuleId: 'no-debugger' },
+          insteadOwnedBy: { engine: 'oxlint', engineRuleId: 'no-debugger' },
+        },
+      ],
+    },
+  ])
+  expect(result.engineFailures).toEqual([])
+})
+
+test('an absent engine that would have lost anyway is reported with nothing displaced', async () => {
+  const optional = (): Engine => ({
+    ...stubEngine({ id: 'astgrep' }),
+    availability: async () => ({ available: false, reason: 'not installed' }),
+  })
+  const entries = [
+    { ...ENTRIES[0]!, engine: 'oxlint' as const, tier: 0 as const },
+    { ...ENTRIES[0]!, engine: 'astgrep' as const, tier: 2 as const },
+  ]
+
+  const result = await runCheck({ ...baseOptions(), entries, engines: [stubEngine({}), optional()] })
+
+  expect(result.unavailableEngines).toEqual([{ engine: 'astgrep', reason: 'not installed', displaced: [] }])
 })

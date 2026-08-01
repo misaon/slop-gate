@@ -16,7 +16,7 @@ import { compareStrings } from '../ordering.ts'
 import { buildPlan, type EngineAssignment } from '../planner/plan.ts'
 import type { ElectionResult } from '../registry/elect.ts'
 import { ruleRefKey, type RuleEntry } from '../registry/types.ts'
-import { resolveRun } from './resolve-run.ts'
+import { resolveRun, type UnavailableEngine } from './resolve-run.ts'
 
 export type CheckOptions = {
   rootDir: string
@@ -41,6 +41,16 @@ export type CheckResult = {
   diagnostics: Diagnostic[]
   counts: Record<Severity, number>
   engineFailures: Array<{ engine: string; message: string }>
+  /**
+   * Registered engines whose tooling is absent (`Engine.availability`) — a coverage gap, not a
+   * failure: nothing crashed, and the run is exit 0 by default.
+   *
+   * Required rather than optional, because the shape of the mistake this exists to prevent is a
+   * caller forgetting it. Every reporter prints it, because a run that silently skipped an engine
+   * is otherwise indistinguishable from a clean one — and `--require-engines` turns it into exit 3
+   * for a CI job that meant to have the tool installed.
+   */
+  unavailableEngines: readonly UnavailableEngine[]
   stats: {
     filesScanned: number
     /** Files assigned to at least one engine by the plan — the denominator `filesFromCache` is a count of. */
@@ -387,6 +397,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       diagnostics: collected,
       counts,
       engineFailures,
+      unavailableEngines,
       stats: {
         filesScanned: inventory.files.length,
         filesAnalysed,

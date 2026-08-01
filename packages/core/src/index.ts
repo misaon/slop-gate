@@ -42,6 +42,7 @@ export { RULE_ENTRIES } from './registry/entries.ts'
 export {
   electOwners,
   type ConceptOwnership,
+  type DisplacedOwner,
   type ElectionInput,
   type ElectionResult,
   type IneligibilityReason,
@@ -155,6 +156,7 @@ export { openProjectResultStore, openResultStore, type ProjectResultStore, type 
 export type {
   DerivedFix,
   Engine,
+  EngineAvailability,
   EngineCapabilities,
   EngineConfigHandle,
   EngineRuleSelection,
@@ -190,7 +192,7 @@ export { editsFromRewrite } from './fix/derive.ts'
 export { createOscillationLedger, type Oscillation, type OscillationLedger } from './fix/oscillation.ts'
 export { inspectWorktree, type InspectWorktreeOptions, type WorktreeState } from './fix/worktree.ts'
 export { writeFileAtomic, type WriteFileAtomicOptions } from './cache/atomic-write.ts'
-export { resolveRun, type ResolveRunOptions, type ResolvedRun } from './run/resolve-run.ts'
+export { resolveRun, type ResolveRunOptions, type ResolvedRun, type UnavailableEngine } from './run/resolve-run.ts'
 
 export { LEVEL_STRENGTH } from './config/types.ts'
 
