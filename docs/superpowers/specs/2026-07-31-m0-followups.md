@@ -326,6 +326,18 @@ Three things worth carrying forward from that session specifically.
 
 ## Accepted as is
 
+**The stat index's racy window is a margin, not a proof.** `RACY_WINDOW_MS` is 2s, chosen to cover
+FAT's timestamp granularity with room to spare, and it closes the failure this was written for: a
+same-length edit landing in the same timestamp tick as the previous one, which returned the previous
+content's hash and was caught by a Windows CI run rather than by design. What it does not do is make
+the stat fast path sound in general. Windows can defer a last-write-time update well past two seconds
+for a handle held open, and a network filesystem with a skewed clock can report an mtime that never
+falls outside any fixed window. Both are real, both are rare, and the honest description of the fast
+path remains "trusts `(size, mtimeMs)` once the file has been quiet for a moment" — not "detects every
+change". Widening the window trades cache hits for a guarantee it still would not deliver; the actual
+fix, if a report ever justifies one, is a `--no-cache` escape hatch and content hashing on demand
+rather than a larger constant.
+
 `uncovered` does not report slop-gate's own synthetic concepts (`config.rule-overlap`,
 `config.dead-override`, `config.unused-suppression`) — a concept the orchestrator services itself
 will never have a matching `RuleEntry`, and counting that against the repository's engine coverage
