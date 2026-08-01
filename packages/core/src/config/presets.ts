@@ -1,57 +1,25 @@
+import { GENERATED_RECOMMENDED_RULES } from '../registry/entries.generated.ts'
 import type { PresetName, RuleMap } from './types.ts'
 
+/**
+ * Computed from the generated registry by policy, not listed by hand (design plan Task 3):
+ * `GENERATED_RECOMMENDED_RULES` (registry/entries.generated.ts) already carries every concept whose
+ * source rule is oxlint's `correctness` or `suspicious` category, non-type-aware, and not in
+ * `registry/exclusions.ts` — see the generator's `buildGeneratedRecommended`. `correctness` alone
+ * would silently drop five already-shipped, already-measured-useful rules (`no-shadow` chief among
+ * them — see registry/overrides.ts) that are `suspicious`-category in oxlint's own taxonomy; the
+ * plan's own grounding measurement reports `correctness` and `suspicious` together (319 rules) for
+ * exactly this reason, so both categories are the policy, not `correctness` read literally.
+ *
+ * `correctness.parse-error` is the one concept this preset still lists by hand: it comes from
+ * `entries.manual.ts`'s synthetic `oxlint/parse-error` entry, which no generator can produce because
+ * it is not a real `--rules`-listed rule at all (see that file). The three `config.*` concepts below
+ * are slop-gate's own orchestrator diagnostics (`ConceptDefinition.servicedBySlopGate`) — no
+ * `RuleEntry` claims them either, generated or otherwise.
+ */
 const recommended: RuleMap = {
   'correctness.parse-error': 'error',
-  'correctness.no-debugger': 'error',
-  'correctness.no-duplicate-object-key': 'error',
-  'correctness.no-constant-condition': 'error',
-  // The 35 lines below are genuine bugs sourced from oxlint's `correctness` category (M0's curated
-  // registry expansion — see registry/entries.ts); the 4 after them are `suspicious`-sourced, one
-  // step less certain, so `warn` rather than `error`.
-  'correctness.invalid-super-call': 'error',
-  'correctness.invalid-loop-direction': 'error',
-  'correctness.getter-missing-return': 'error',
-  'correctness.async-promise-executor': 'error',
-  'correctness.class-reassigned': 'error',
-  'correctness.compare-negative-zero': 'error',
-  'correctness.assignment-in-condition': 'error',
-  'correctness.const-reassigned': 'error',
-  'correctness.constant-binary-expression': 'error',
-  'correctness.duplicate-class-member': 'error',
-  'correctness.duplicate-else-if-condition': 'error',
-  'correctness.duplicate-switch-case': 'error',
-  'correctness.empty-destructuring-pattern': 'error',
-  'security.eval-usage': 'error',
-  'correctness.caught-error-reassigned': 'error',
-  'correctness.function-reassigned': 'error',
-  'correctness.global-reassigned': 'error',
-  'correctness.import-binding-reassigned': 'error',
-  'correctness.invalid-regexp': 'error',
-  'correctness.numeric-literal-loses-precision': 'error',
-  'correctness.invalid-native-constructor-call': 'error',
-  'correctness.namespace-object-called': 'error',
-  'correctness.self-assignment': 'error',
-  'correctness.setter-returns-value': 'error',
-  'correctness.shadows-reserved-global': 'error',
-  'correctness.sparse-array-literal': 'error',
-  'correctness.this-before-super': 'error',
-  'correctness.unreachable-code': 'error',
-  'correctness.unsafe-finally-control-flow': 'error',
-  'correctness.unsafe-negation': 'error',
-  'correctness.unsafe-optional-chaining': 'error',
-  'dead-code.no-op-expression': 'error',
-  'correctness.generator-never-yields': 'error',
-  'correctness.nan-comparison': 'error',
-  'correctness.invalid-typeof-comparison': 'error',
-  'correctness.ambiguous-line-break': 'warn',
-  'correctness.unmodified-loop-condition': 'warn',
-  'correctness.native-prototype-extended': 'warn',
-  'correctness.discarded-caught-error': 'warn',
-  // Five-fixes follow-up: a bug risk, not a certain bug (shadowing is sometimes intentional), so
-  // `warn` rather than `error` — the same treatment as the four suspicious-sourced entries above.
-  'correctness.shadows-outer-binding': 'warn',
-  'dead-code.unused-import': 'warn',
-  'dead-code.unused-variable': 'warn',
+  ...GENERATED_RECOMMENDED_RULES,
   'config.rule-overlap': 'info',
   'config.dead-override': 'warn',
   'config.unused-suppression': 'warn',

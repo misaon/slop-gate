@@ -349,6 +349,7 @@ function renderEntriesFile(generated: readonly GeneratedEntry[]): string {
     .join('\n')
 
   return `${GENERATED_FILE_NOTICE('scripts/generate-registry.ts')}
+import type { ConceptId } from '../concepts/catalogue.ts'
 import type { RuleEntry } from './types.ts'
 
 /** One entry per rule in \`oxlint --rules --format json\` (${sorted.length} today) — see the registry-generation report for the field mapping. */
@@ -362,8 +363,12 @@ ${body}
  * \`packages/core/src/config/presets.ts\` reads to build \`recommended\`. Committed and diffable like
  * everything else this script produces, per decision 5: a rule that starts, stops, or changes
  * category on an oxlint upgrade is a reviewable diff here, not a silent behaviour change.
+ *
+ * Typed against \`ConceptId\`, not a plain string index, so a key here that is not a real concept —
+ * impossible today since every key comes straight off a generated entry's own \`concepts\`, but not
+ * impossible for a hand-edit — is a compile error instead of a preset that silently enables nothing.
  */
-export const GENERATED_RECOMMENDED_RULES: Readonly<Record<string, 'error' | 'warn'>> = {
+export const GENERATED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, 'error' | 'warn'>>> = {
 ${recommendedBody}
 }
 `

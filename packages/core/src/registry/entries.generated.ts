@@ -2,6 +2,7 @@
 // Produced by scripts/generate-registry.ts from the live oxlint rule catalogue (`oxlint --rules --format json`).
 // Regenerate: pnpm --filter @misaon/slop-gate-core generate:registry
 // CI fails if this file would differ from a fresh regeneration (generate:registry:check).
+import type { ConceptId } from '../concepts/catalogue.ts'
 import type { RuleEntry } from './types.ts'
 
 /** One entry per rule in `oxlint --rules --format json` (847 today) — see the registry-generation report for the field mapping. */
@@ -11873,8 +11874,12 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
  * `packages/core/src/config/presets.ts` reads to build `recommended`. Committed and diffable like
  * everything else this script produces, per decision 5: a rule that starts, stops, or changes
  * category on an oxlint upgrade is a reviewable diff here, not a silent behaviour change.
+ *
+ * Typed against `ConceptId`, not a plain string index, so a key here that is not a real concept —
+ * impossible today since every key comes straight off a generated entry's own `concepts`, but not
+ * impossible for a hand-edit — is a compile error instead of a preset that silently enables nothing.
  */
-export const GENERATED_RECOMMENDED_RULES: Readonly<Record<string, 'error' | 'warn'>> = {
+export const GENERATED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, 'error' | 'warn'>>> = {
   'correctness.alt-text': 'error',
   'correctness.ambiguous-line-break': 'warn',
   'correctness.anchor-has-content': 'error',
@@ -11934,17 +11939,6 @@ export const GENERATED_RECOMMENDED_RULES: Readonly<Record<string, 'error' | 'war
   'correctness.invalid-regexp': 'error',
   'correctness.invalid-super-call': 'error',
   'correctness.invalid-typeof-comparison': 'error',
-  'correctness.jest-expect-expect': 'error',
-  'correctness.jest-no-conditional-expect': 'error',
-  'correctness.jest-no-disabled-tests': 'error',
-  'correctness.jest-no-focused-tests': 'error',
-  'correctness.jest-no-standalone-expect': 'error',
-  'correctness.jest-prefer-snapshot-hint': 'error',
-  'correctness.jest-require-to-throw-message': 'error',
-  'correctness.jest-valid-describe-callback': 'error',
-  'correctness.jest-valid-expect': 'error',
-  'correctness.jest-valid-expect-in-promise': 'error',
-  'correctness.jest-valid-title': 'error',
   'correctness.jsx-key': 'error',
   'correctness.jsx-no-duplicate-props': 'error',
   'correctness.jsx-no-undef': 'error',
@@ -12108,17 +12102,6 @@ export const GENERATED_RECOMMENDED_RULES: Readonly<Record<string, 'error' | 'war
   'correctness.valid-define-props': 'error',
   'correctness.valid-next-tick': 'error',
   'correctness.valid-params': 'error',
-  'correctness.vitest-expect-expect': 'error',
-  'correctness.vitest-no-conditional-expect': 'error',
-  'correctness.vitest-no-disabled-tests': 'error',
-  'correctness.vitest-no-focused-tests': 'error',
-  'correctness.vitest-no-standalone-expect': 'error',
-  'correctness.vitest-prefer-snapshot-hint': 'error',
-  'correctness.vitest-require-to-throw-message': 'error',
-  'correctness.vitest-valid-describe-callback': 'error',
-  'correctness.vitest-valid-expect': 'error',
-  'correctness.vitest-valid-expect-in-promise': 'error',
-  'correctness.vitest-valid-title': 'error',
   'correctness.void-dom-elements-no-children': 'error',
   'correctness.vue-no-dupe-keys': 'error',
   'correctness.warn-todo': 'error',
@@ -12131,15 +12114,12 @@ export const GENERATED_RECOMMENDED_RULES: Readonly<Record<string, 'error' | 'war
   'suspicious.block-scoped-var': 'warn',
   'suspicious.consistent-function-scoping': 'warn',
   'suspicious.iframe-missing-sandbox': 'warn',
-  'suspicious.jest-no-commented-out-tests': 'warn',
   'suspicious.jsx-no-comment-textnodes': 'warn',
   'suspicious.jsx-no-script-url': 'warn',
   'suspicious.misrefactored-assign-op': 'warn',
   'suspicious.no-absolute-path': 'warn',
   'suspicious.no-accessor-recursion': 'warn',
   'suspicious.no-array-fill-with-reference-type': 'warn',
-  'suspicious.no-array-reverse': 'warn',
-  'suspicious.no-array-sort': 'warn',
   'suspicious.no-async-endpoint-handlers': 'warn',
   'suspicious.no-confusing-array-with': 'warn',
   'suspicious.no-confusing-non-null-assertion': 'warn',
@@ -12168,5 +12148,4 @@ export const GENERATED_RECOMMENDED_RULES: Readonly<Record<string, 'error' | 'war
   'suspicious.require-module-specifiers': 'warn',
   'suspicious.require-post-message-target-origin': 'warn',
   'suspicious.style-prop-object': 'warn',
-  'suspicious.vitest-no-commented-out-tests': 'warn',
 }
