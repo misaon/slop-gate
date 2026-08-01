@@ -136,6 +136,76 @@ is no measured *cost* signal yet either — a repository with real type errors, 
 against spec §16, would both be needed before defaulting it on for every user. Left as an explicit
 opt-in (`rules: { 'types.type-error': 'error' }`) pending that.
 
+## `knip` landed (M2's third engine, and the second project-granularity one)
+
+Full design writeup, the measured false-positive rates and every claim's evidence: spec §13.2. What is
+worth carrying forward as *work*, rather than as documentation of what shipped:
+
+**The prepare/plan/schedule split still was not done, and the second project engine now says something
+specific about what it should keep.** The `tsc` entry above predicted that `streamCheck`'s
+branch-on-granularity shape "is probably close to what M2's real split will keep, not throw away."
+Adding a second project engine did not contradict that: `runProjectAssignment` needed **zero** changes,
+`buildPlan` needed zero changes, and the only core change knip required was none at all — the whole
+adapter fits behind the existing `Engine` interface. The branch-on-granularity code is not awkward for
+two engines. **What is awkward is one level down**, and it is a genuinely new finding:
+
+- **`materializeConfig` cannot see the inventory, and for knip that is load-bearing rather than
+  cosmetic.** `Engine.materializeConfig(selection, context)` receives the elected ruleset and a
+  `RunContext` (`rootDir`, `tmpDir`). knip's config needs a *second* input the interface never
+  supplies: the workspace map, which is derived from the assigned file list. `run(batch, …)` has that
+  list, so the adapter materialises the ruleset half in `materializeConfig` and merges the workspace
+  half in `run` by reading its own temp file back and rewriting it
+  (`mergeWorkspacesIntoConfig`). That works and is fully tested, but it splits ownership of one file
+  across two calls and means `handle.path` names a file that is deliberately incomplete until `run`
+  touches it. `tsc` never hit this because a tsconfig already declares its own program. **The M2 split
+  should give `materializeConfig` the plan** (or at least the assignment) rather than only the
+  selection — that is one parameter, and it collapses the whole two-phase dance.
+- **Two project engines now independently default their own `cacheDir`/`rootDir`.** The `tsc` entry
+  above records the split-brain risk from `createTscEngine`'s independently-defaulted `cacheDir`.
+  `createKnipEngine` sidesteps it by needing neither (knip is bundled and writes no cache of its own —
+  verified it leaves nothing under `node_modules/.cache/knip` without an explicit `--cache`), but that
+  is luck of the engine, not a fix. `RunContext` still has no `cacheDir`.
+- **`runProjectAssignment` reads every assigned file to scan for stale suppressions, and knip's
+  assignment now includes every `.json` and `.jsonc` file.** knip has to claim those languages (a
+  `package.json` must reach `run()` for the workspace map to exist at all, and §9 requires a manifest
+  edit to invalidate its cache), but the consequence is that a repository with a committed
+  `package-lock.json` or large JSON fixtures pays a full read plus a `createLineIndex` over them on
+  every uncached run. Not measured as a problem on this repository (181 files, 385ms end to end), but
+  it scales with total JSON bytes rather than with anything knip cares about.
+- **Spec §13.1's table said knip "runs in a worker"; it does not.** It is shelled out to, like the
+  other two adapters, because the worker pool §8.2 describes does not exist yet. The table has been
+  corrected rather than left aspirational. When the pool lands, knip is the obvious first candidate:
+  it is pure JS with a programmatic `main()` export, so it is the one engine that could skip the
+  subprocess entirely — at the cost of losing `AbortSignal`-based cancellation, which `execFile` gives
+  for free and knip's API does not offer.
+
+**Framework awareness is now blocking a second, independent thing.** The "NestJS empty-class lesson"
+below records that a *rule's* value can depend on the framework present. knip adds the mirror case: an
+*engine's* accuracy can too, and for knip it is the dominant term. Synthesising the workspace map fixes
+what knip could not see; it does not fix knip's VitePress plugin looking for `.vitepress/` at the
+workspace root when the site lives in `docs/.vitepress/`, and measured on a fixture reproducing that
+shape the synthesis therefore made the count *worse* (18 findings → 20, both new ones false). A
+`knip.workspaces['tech-docs'].vitepress.entry` override would fix it and is trivially expressible in
+the config this adapter already synthesises — the missing piece is not plumbing, it is a place to
+record "this repository uses VitePress, and its site root is `docs/`". Same for MikroORM migrations
+(`entry` should include the ORM config's own `migrations.path`) and for a NestJS project's
+`@nestjs/platform-express` re-export of `express`. **Whatever answers the framework-awareness question
+for the registry should be asked to answer it for engine config synthesis at the same time**; they are
+the same detection problem with two consumers.
+
+**Not done, deliberately:** knip has a real `--fix` (including file deletion, behind
+`--allow-remove-files`). `capabilities.fixes` is `false` and every entry's `fixKind` is `'none'`.
+Wiring it into the fix pipeline (§11) is its own piece of work, and claiming the capability early would
+let `sgate fix` promise edits the adapter cannot produce.
+
+**A measurement worth keeping for whoever revisits `recommended`:** the reason nothing knip owns is in
+`recommended` is accuracy (13/13 false positives for `files` across two repositories), *not* cost —
+unlike `tsc`, which was held back for want of a cost signal. knip runs this repository in ~0.31s
+standalone and ~0.39s through the full pipeline. If framework awareness ever lands, the accuracy
+objection is the one that would move, and `exports` (1 true / 0 false, structurally the most
+trustworthy of the ten because it is computed within files knip already reached) is the first
+candidate — it just needs a sample larger than one.
+
 ---
 
 ## Found by first real-world use
