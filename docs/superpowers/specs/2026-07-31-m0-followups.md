@@ -718,3 +718,106 @@ The defect and the fix are in §14 and in `judgedBy` (`engine/normalize.ts`). Wh
   one stderr line per scanned file; worth it if anyone actually hits this.
 - **`vue`, `svelte` and `astro` are not covered.** ast-grep has no grammar for them, so unlike oxlint
   this engine cannot reach `<script>` blocks. The `slop.*` concepts apply there too.
+
+## Found building `sgate fix` (spec §11)
+
+The mechanism is spec §11, rewritten there to match what shipped. What follows is what building it
+turned up, and what is deliberately still missing.
+
+### The premise that `oxlint` reports fix data in its JSON is false
+
+Recorded to this document's own standard for an engine claim — version, observation, reproducer —
+because the work was commissioned on the opposite belief and a future session will be too.
+
+**oxlint 1.76.0 exposes fix data in none of its output formats.** On a five-finding fixture
+(`no-unused-vars`, `eqeqeq`, `typescript/no-explicit-any`, `prefer-const`): `--format json` emits
+`message`, `code`, `severity`, `causes`, `url`, `help`, `filename`, `labels`, `related` and nothing
+resembling a fix; `--format sarif` emits `results[]` with `ruleId`/`level`/`message`/`locations` and
+no `fixes` array, which SARIF has a standard place for; `--format agent` is one line of text per
+finding. There is no `--fix-dry-run`. `--rules --format json` carries a per-rule `fix` *classification*
+(`fixable_fix`, `conditional_dangerous_fix`, …) — which is what the registry generator already reads
+for `RuleEntry.fixKind` — but no edit content.
+
+The consequence is architectural, not cosmetic: the only way to learn what an oxlint fix contains is
+to let it perform one. Hence `Engine.deriveFixes` and the copy-run-diff approach in
+`engine-oxlint/src/derive-fixes.ts`. Worth re-checking on an oxlint upgrade — the day `--format json`
+grows a `fix` key, that whole module collapses into three lines in `parse.ts`.
+
+Two further flag findings, same standard, both in spec §11.1: the three `--fix*` flags are **mutually
+exclusive** (combining any two is an argument error that leaves the file untouched, i.e. silently
+indistinguishable from "no fix"), and they are **not cumulative tiers** (`--fix` applies a
+`fixable_dangerous_fix`; `--fix-suggestions` does not apply a `conditional_fix`). Anyone reaching for
+`--fix` as a "safe only" gate is wrong.
+
+### Measured: what is actually fixable on this repository
+
+At the commit this landed on, `sgate check` reports **65** findings, and:
+
+| tier | fixable | rules |
+|---|---|---|
+| `safe` (default) | **0** | — |
+| `--suggest` | **0** | — |
+| `--unsafe` | **3** | `oxlint/unicorn/no-useless-spread` |
+
+Run for real on a throwaway branch: three files changed, three edits, converged to a fixed point,
+`pnpm typecheck` clean, 940 tests green, `sgate check` 65 → 62. The branch was discarded rather than
+committed — the change under review is the pipeline.
+
+**Do not read "0 safe" as a defect in the pipeline.** It is a property of this repository's ruleset:
+62 of the 65 findings come from rules whose registry `fixKind` is `none` (41 are
+`config.unused-suppression`, itself the documented cost of textual directive scanning), and the
+remaining three are `unsafe`. A repository that enables `style.*` concepts would see a very different
+table — `fixable_fix` covers 155 rules in oxlint's catalogue and `conditional_fix` another 41.
+
+### What `--dry-run` cannot do, and why
+
+It reports **one pass**. A second pass requires the engines to re-read changed files off disk, and
+the engines are subprocesses; a dry run writes nothing, so there is nothing for them to re-read. The
+output says so explicitly rather than presenting a first-pass diff as the finished result.
+
+Making it multi-pass needs either an in-process engine (the worker pool §8.2 describes, which would
+let a NAPI oxlint lint a buffer) or a whole-repository shadow copy, which breaks module resolution
+for anything project-granularity. Neither is worth doing for a preview; the honest label is.
+
+### Deliberately not done
+
+- **`knip`'s `--fix` is still not wired up**, exactly as its own entry above says. `capabilities.fixes`
+  stays `false` and every entry's `fixKind` stays `'none'`. It can delete files (behind
+  `--allow-remove-files`), which is a different risk class from rewriting a range and wants its own
+  measurement and probably its own confirmation prompt. `tsc` has no fixes at all.
+- **No `oxfmt` adapter**, so spec §11 step 6 does not exist. Spec §11.2 states the consequence.
+- **No ast-grep rule declares a `fix:`.** The adapter now carries `replacement`/`replacementOffsets`
+  through and is tested against captured real output, but the shipped `slop.*` ruleset produces no
+  edits — see §14 for why each rule is a judgement about intent rather than a rewrite. Whoever adds
+  the first one flips `capabilities.fixes` to `true` in the same change.
+
+### Sharp edges a future session should know about
+
+- **A derived fix skips any file containing an inline suppression directive, wholesale.** A derived
+  fix comes from re-running the engine over a whole file, so it rewrites every occurrence the rule
+  finds there — including one the user silenced, which the engine cannot know about. Attributing
+  hunks back to individual findings by proximity would be a guess that is wrong exactly when it
+  matters, so the file is skipped instead. Cost: a few unfixed findings in the rare file carrying a
+  directive. On *this* repository that is not rare — `packages/core/src/suppressions/*` and
+  `engine/normalize.test.ts` are full of phantom directives from fixture strings (see "One thing M0
+  does not demonstrate"), so those files can never receive a derived fix until the parser learns what
+  a comment is. Engine-*reported* fixes are unaffected: they ride on a diagnostic and vanish with it.
+- **Every `RuleEntry.priority` in the shipped registry is `50`**, because the generator emits a fixed
+  value. So spec §11 step 2's first tiebreak never fires in practice and severity plus rule id decide
+  every real conflict. `compareEditPrecedence` appends the range and replacement so the order stays
+  total anyway, but the registry's own "fix-conflict tiebreaker" is still, in effect, unused data —
+  the same note `generate-registry.ts` already carries, now with a consumer that would read it.
+- **`fixTouches` still has no consumer.** The fix arbiter is written and does not need it: overlap is
+  decided by byte ranges, which is strictly more precise than a domain tag. The generator's comment
+  says to "revisit this once M3's fix arbiter defines what it actually needs from the field" — the
+  answer is *nothing*, and the field should probably be deleted rather than populated more carefully.
+- **A crash mid-run leaves a partially-fixed tree.** Files are written between passes, because
+  re-running subprocess engines requires it. The dirty-worktree rail is the mitigation and the reason
+  it refuses a non-git directory outright. There is no journal and no rollback; adding one would mean
+  holding every original buffer for the whole run and restoring on failure, which is cheap enough to
+  reconsider if anyone reports it.
+- **`runFix` runs discovery twice on its first pass** — once itself, to build the write allowlist,
+  and once inside `runCheck`. Harmless (a file walk with no engine attached is cheap, per §7) but it
+  is the second consumer that would benefit from `resolveRun`'s result being passable *into*
+  `streamCheck` rather than recomputed, which is the same prepare/plan/schedule seam the M2
+  restructure entry above keeps circling.

@@ -537,23 +537,112 @@ the property that makes baselines usable in practice.
 ## 11. Fix pipeline
 
 `sgate fix` applies fixes at the requested tier (`safe` by default, `--suggest`, `--unsafe`).
+Implemented in `packages/core/src/run/fix.ts` and `packages/core/src/fix/`; the CLI surface is
+`packages/cli/src/commands/fix.ts`.
 
-1. Gather all fixes for a file from all engines as `(range, replacement, kind, ruleId)`.
-2. Sort by start offset. Where ranges overlap, the higher-priority edit wins — priority comes from the
-   registry, then severity, then rule id. Losers are dropped and their rules re-run next pass.
-3. Apply in reverse offset order into an in-memory buffer.
-4. Re-run affected engines on changed files. Iterate to a fixed point, maximum 10 passes.
-5. **Oscillation detection**: buffer hashes are retained per file per pass. A repeated hash means two
-   rules are fighting. We stop fixing that file and emit `config.fix-oscillation` **naming both
-   rules**. A rule pair that endlessly rewrites each other becomes a precise, actionable diagnostic
-   instead of a hang or a corrupted file.
-6. **Formatting runs last, always**, over the changed files only. Combined with the formatter's
-   permanent ownership of `formatting.*` (§5.3), no fix can fight the formatter.
-7. Writes are atomic: temp file plus rename.
+1. Gather all fixes for a file from all engines as `(range, replacement, kind, ruleId)`. `kind` comes
+   from `RuleEntry.fixKind`, never from the engine — see §11.1.
+2. Where ranges overlap, the higher-priority edit wins: registry `priority`, then severity, then rule
+   id. Losers are dropped and their rules re-run next pass. Implemented as a greedy accept in
+   *precedence* order rather than a left-to-right walk by offset, because the spec's original wording
+   under-determines the three-edit case (A overlaps B, B overlaps C, A and C disjoint) — accepting in
+   precedence order gives the same answer for any input ordering, and the accepted set is returned
+   sorted by offset regardless. Half-open intervals, so **exactly adjacent ranges do not conflict**;
+   a zero-width edit sharing a start offset with another edit does, because their order is otherwise
+   undefined.
+3. Apply in reverse offset order into an in-memory buffer. **The buffer is `Uint8Array`, not a
+   string**: ranges are byte offsets (§10) and a JS string indexes UTF-16, so `slice` corrupts every
+   file with non-ASCII text before the finding.
+4. Re-run affected engines on changed files. Iterate to a fixed point, maximum 10 passes. Files are
+   written between passes — the engines are subprocesses reading from disk, so an in-memory-only loop
+   is not available. This is what the dirty-worktree rail exists for: a crash mid-run leaves a
+   partially-fixed tree, and `git diff` is how the user untangles it.
+5. **Oscillation detection**: buffer hashes are retained per file per pass. A repeated hash means the
+   file has re-entered a state it was already in. We stop fixing that file and emit
+   `config.fix-oscillation` **naming every rule that applied an edit from the repeated state
+   onwards** — for the modal two-rule cycle that is exactly the two rules, and for a longer cycle
+   every participant rather than an arbitrary two. The repeat is detected *before* the write and the
+   write is skipped, so the file is left in the previous pass's state rather than at an arbitrary
+   point in the cycle. Silencing the concept hides the report and never restarts the loop.
+6. ~~**Formatting runs last, always**~~ — **not implemented, and not implementable today.** See
+   §11.2.
+7. Writes are atomic: temp file plus rename, via `writeFileAtomic` (which retries a transiently
+   locked rename on Windows).
 
-Safety rails: `fix` refuses to run with a dirty git worktree unless `--allow-dirty`; `--dry-run`
-prints a unified diff and writes nothing; files outside the inventory or matched by `ignore` are never
-touched; a summary of files changed and rules applied is always printed.
+Safety rails, all implemented and each covered by a test:
+
+- refuses to run with a dirty git worktree unless `--allow-dirty`. Untracked files are deliberately
+  not dirt (`--untracked-files=no`): `sgate fix` never creates a file, so an untracked one cannot be
+  confused with one of its edits, and a rail that fires on the wrong signal is one users learn to
+  pass `--allow-dirty` past. A directory that is **not** a git worktree is also refused — there is no
+  way to review or undo the rewrite — as is a `git status` that fails rather than answering.
+- `--dry-run` prints a unified diff and writes nothing, and skips the worktree rail entirely (nothing
+  to protect). It reports **one pass only**, flagged in the output, because a second pass needs the
+  engines to read changed files back off disk.
+- files outside the inventory or matched by `ignore` are never touched. Enforced by an allowlist
+  built from the run's own `FileInventory`, which has already had gitignore, `.slopignore` and config
+  `ignore` applied (§7) — not by a second implementation of the ignore rules. This is load-bearing
+  rather than defensive: a project-granularity engine is explicitly permitted to report against files
+  the inventory never contained (§8.1).
+- an **engine failure aborts the pass before anything is written**. Not in the original list, and it
+  is not caution: a failed engine contributed no edits, so arbitration made overlap decisions without
+  seeing candidates that might have won them. Fewer fixes would be tolerable; differently chosen ones
+  are not.
+- a summary of files changed and rules applied is always printed, including the count of findings
+  that were fixable at each tier — on a run that changed nothing, that line is the answer to "why did
+  nothing happen".
+
+### 11.1 Where fix data comes from
+
+Two routes, because the engines genuinely differ:
+
+- **Reported inline.** `RawDiagnostic.fix` rides along with the finding. ast-grep emits `replacement`
+  and `replacementOffsets` on every match of a rule declaring a `fix:` (verified, 0.45.0), so its
+  adapter carries them through at no extra cost. No shipped `slop.*` rule declares a `fix:` yet
+  (§14), so this path produces nothing on a real repository today — it is proved by tests against
+  captured real output, not by use.
+- **Derived on request.** `Engine.deriveFixes` is called by `sgate fix` *after* normalization.
+  **oxlint 1.76.0 reports fix data in no output format** — checked directly: `--format json` carries
+  `message`/`code`/`severity`/`url`/`help`/`labels` and nothing else, `--format sarif` emits results
+  with no `fixes` array (SARIF has a standard place for them), `--format agent` is one line of text
+  per finding, and there is no `--fix-dry-run`. The only way oxlint will describe a fix is to perform
+  one. So `engine-oxlint` copies the affected files under `.slop-gate/tmp/`, runs `--fix` there **one
+  rule at a time** (which is what makes each resulting edit attributable, and therefore arbitrable),
+  and recovers byte-ranged edits by diffing. The user's files are only read.
+
+In both cases the **tier comes from `RuleEntry.fixKind`**, stamped on in `normalizeDiagnostics`. An
+engine that offers edits for a rule the registry calls unfixable has them dropped, not retiered: D7
+makes the registry the reviewable, committed declaration of how far a fix is trusted, and an adapter
+reporting its own tier would be a second, unreviewed source of truth for exactly that decision.
+
+Two findings about oxlint's fix flags, recorded to the standard the M0 follow-ups set (version,
+observation, reproducer):
+
+- **The three flags are mutually exclusive.** `oxlint 1.76.0 --fix --fix-suggestions` fails with
+  ``Error: `--fix --fix-suggestions` is not expected in this context`` and leaves the file untouched.
+  A caller that only checks whether the file changed reads that as "this rule has no fix".
+- **They are not cumulative tiers.** `--fix` applies a `fixable_dangerous_fix`
+  (`unicorn/no-useless-spread`, rewritten by plain `--fix`), and `--fix-suggestions` does not apply a
+  `conditional_fix` (`prefer-const`, left alone). They select a *kind* of change, not a trust level,
+  so **`--fix` is not a "safe fixes only" flag** and must never be used as a tier gate. The tier gate
+  here is the single-rule config, built from a registry entry the caller already filtered.
+
+### 11.2 The formatting step does not exist
+
+Step 6 above requires formatting to run last over the changed files, resting on a formatter engine
+owning `formatting.*` (§5.3). **No formatter adapter exists.** `oxfmt` is a known engine id with
+nothing behind it.
+
+Stated plainly, because it is the one guarantee §11 promises and does not deliver: **nothing in the
+shipped pipeline prevents a fix from leaving formatting the repository's own formatter would undo.**
+An edit that produces an over-long line, a different quote style, or an import in the wrong position
+is written exactly as the engine produced it. `sgate fix` says so in its own output on every run that
+changed a file. Run your formatter before committing.
+
+This is not a small gap dressed up as a caveat — §5.3's whole argument for the formatter owning
+`formatting.*` is that it dissolves the `eslint-config-prettier` class of problem, and step 6 is the
+half of that argument that applies to *fixes*. Until an oxfmt adapter lands, `sgate fix` and a
+repository's formatter are two tools writing to the same files with no arbitration between them.
 
 ---
 
