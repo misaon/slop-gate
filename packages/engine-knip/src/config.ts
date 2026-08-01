@@ -3,7 +3,10 @@ import { join } from 'node:path'
 import {
   compareStrings,
   hashJson,
+  settingValues,
+  settingValuesFor,
   toPosix,
+  type EngineAdjustments,
   type EngineConfigHandle,
   type EngineRuleSelection,
   type InventoryFile,
@@ -13,6 +16,34 @@ import { KNIP_ISSUE_TYPES, isSurfacedIssueType } from './issue-types.ts'
 
 /** knip's own name for "the repository root workspace" (`ROOT_WORKSPACE_NAME`, `knip/dist/constants.js`). */
 const ROOT_WORKSPACE = '.'
+
+/**
+ * knip's own default `entry` patterns for a workspace, restated.
+ *
+ * **A workspace-level `entry` replaces these; it does not extend them.** Read directly out of
+ * `ConfigurationChief.getConfigForWorkspace` in knip 6.31.0:
+ * `workspaceConfig.entry ? arrayify(workspaceConfig.entry) : baseConfig.entry`. So the moment a
+ * framework profile contributes one migrations glob, `src/index.ts` silently stops being an entry
+ * point — and the symptom is knip reporting *fewer* findings, which reads like an improvement. Every
+ * contribution is therefore unioned onto these, and `index.test.ts` pins the consequence behaviourally
+ * (a repository with a contributed entry must still resolve its own `src/index.ts`) rather than only
+ * pinning these strings, which is what would actually catch knip changing its defaults.
+ *
+ * The `!` suffix is knip's production-mode marker, carried over verbatim from its own defaults.
+ */
+const KNIP_DEFAULT_ENTRY: readonly string[] = [
+  '{index,cli,main}.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!',
+  'src/{index,cli,main}.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!',
+]
+
+/**
+ * The knip settings a framework profile may contribute (spec §23.2). `ignoreDependencies` is written
+ * once at the top level; the other two are per-workspace, which is why they are merged in `run()`
+ * alongside the workspace map rather than in `materializeConfig`.
+ */
+const IGNORE_DEPENDENCIES = 'ignoreDependencies'
+const ENTRY = 'entry'
+const VITEPRESS_ENTRY = 'vitepress.entry'
 
 export type MaterializeKnipConfigOptions = {
   /** Repo-relative path of the slop-gate config file, when one was found. See `buildIgnore`. */
@@ -89,7 +120,16 @@ export async function materializeKnipConfig(
 
   const included = new Set(include)
   const exclude = KNIP_ISSUE_TYPES.filter((type) => !included.has(type)).sort(compareStrings)
-  const config = { include, exclude, ignore: buildIgnore(options) }
+  // Framework-contributed and already a sorted union (spec §23.3), so it folds into `rulesetHash`
+  // like any other part of the ruleset half — unlike the workspace map, whose absence from the hash
+  // `mergeWorkspacesIntoConfig` explains.
+  const ignoreDependencies = settingValues(context.adjustments ?? [], IGNORE_DEPENDENCIES)
+  const config = {
+    include,
+    exclude,
+    ignore: buildIgnore(options),
+    ...(ignoreDependencies.length === 0 ? {} : { ignoreDependencies: [...ignoreDependencies] }),
+  }
 
   const rulesetHash = hashJson(config)
   await mkdir(context.tmpDir, { recursive: true })
@@ -149,9 +189,37 @@ function buildIgnore(options: MaterializeKnipConfigOptions): string[] {
 export async function mergeWorkspacesIntoConfig(
   path: string,
   workspaces: readonly string[],
+  adjustments: EngineAdjustments = [],
 ): Promise<{ include: string[] }> {
   const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
-  config['workspaces'] = Object.fromEntries(workspaces.map((dir) => [dir, {}]))
+  config['workspaces'] = Object.fromEntries(workspaces.map((dir) => [dir, buildWorkspaceConfig(dir, adjustments)]))
   await writeFile(path, JSON.stringify(config, null, 2), 'utf8')
   return { include: (config['include'] as string[] | undefined) ?? [] }
+}
+
+/**
+ * One workspace's entry in knip's `workspaces` map: `{}` unless a framework profile contributed
+ * something scoped to it (spec §23.2).
+ *
+ * Two settings, and the difference between them is knip's, not ours. `entry` is the *workspace's*
+ * entry list and replaces knip's defaults, so `KNIP_DEFAULT_ENTRY` is unioned in — see that constant
+ * for the measurement, and for why getting this wrong would look like an improvement.
+ * `vitepress.entry` is the *plugin's* entry list and replaces only the VitePress plugin's own three
+ * patterns, which the profile already restates under the detected site root, so it is written as-is.
+ *
+ * `workspaces` is keyed by knip's names, where the root is `'.'`; adjustments are keyed by
+ * slop-gate's, where the root is `''`. That one translation is the only thing this function knows
+ * about either vocabulary.
+ */
+function buildWorkspaceConfig(dir: string, adjustments: EngineAdjustments): Record<string, unknown> {
+  const workspace = dir === ROOT_WORKSPACE ? '' : dir
+  const config: Record<string, unknown> = {}
+
+  const entry = settingValuesFor(adjustments, ENTRY, workspace)
+  if (entry.length > 0) config['entry'] = [...KNIP_DEFAULT_ENTRY, ...entry]
+
+  const vitepress = settingValuesFor(adjustments, VITEPRESS_ENTRY, workspace)
+  if (vitepress.length > 0) config['vitepress'] = { entry: [...vitepress] }
+
+  return config
 }
