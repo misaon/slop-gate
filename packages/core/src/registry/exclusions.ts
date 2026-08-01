@@ -96,6 +96,20 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "general lesson this rule is the example of: a rule's value can depend on the framework " +
       "present in the repository, which this registry has no way to detect yet.",
   },
+  'no-underscore-dangle': {
+    reason:
+      "Measured against the srvc-bat playground: 5 of its 6 total `recommended` findings are this " +
+      "rule, every one flagging the same identifier (`request_`) at its point of declaration, " +
+      "repeated across one file (test/test-runner.ts:133,151,163,175,187) — confirmed deliberate, " +
+      "not careless: that file imports `* as request` from `supertest` (line 15), so every method-" +
+      "local `request_` is systematically avoiding a collision with that already-imported name, the " +
+      "same convention applied consistently five times over. Not a defect. Same class as " +
+      "typescript/no-extraneous-class above: oxlint files it under `suspicious`, but the category is " +
+      "not the arbiter of whether it belongs in `recommended` — whether a finding represents " +
+      "something a competent developer would actually want to change is, and a trailing underscore " +
+      "adopted on purpose to dodge shadowing an outer binding does not. A quality gate that argues " +
+      "with a codebase's own naming convention on every run teaches its user to ignore it.",
+  },
   'no-implied-eval': {
     reason:
       "Verified directly against oxlint 1.76.0: `number_of_rules: 1` (the rule is genuinely active) " +
