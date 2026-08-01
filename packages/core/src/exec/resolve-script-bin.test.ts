@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { resolveScriptBin } from './resolve-script-bin.ts'
 
@@ -17,7 +18,17 @@ import { resolveScriptBin } from './resolve-script-bin.ts'
  */
 const PLATFORMS = ['win32', 'darwin', 'linux', 'freebsd'] as const satisfies readonly NodeJS.Platform[]
 
-const resolvedPackageJson = (): string => '/some/install/widget/package.json'
+/**
+ * Expected script paths are composed with `join` rather than written as literals because the
+ * separator is the *host's* choice, not the analysed platform's: `resolveScriptBin` calls the real
+ * `node:path`, so on a Windows runner every case here yields backslashes no matter which value
+ * `process.platform` is stubbed to. Asserting a literal `/some/install/...` therefore tests the
+ * runner's separator instead of the behaviour, and fails on Windows for all four platforms at once.
+ * Stating the install directory and the segments separately keeps the real assertions intact — that
+ * the base is the resolved package's own directory and that every segment is appended to it.
+ */
+const installDir = '/some/install/widget'
+const resolvedPackageJson = (): string => `${installDir}/package.json`
 const fileAlwaysExists = (): boolean => true
 const fileNeverExists = (): boolean => false
 const throwingResolver = (): never => {
@@ -38,7 +49,7 @@ for (const platform of PLATFORMS) {
       })
 
       expect(resolved.command).toBe(process.execPath)
-      expect(resolved.prefixArgs).toEqual(['/some/install/widget/bin/widget'])
+      expect(resolved.prefixArgs).toEqual([join(installDir, 'bin', 'widget')])
     } finally {
       Object.defineProperty(process, 'platform', original)
     }
@@ -90,5 +101,5 @@ test('joins multi-segment bin paths', () => {
     resolvePackageJson: resolvedPackageJson,
     fileExists: fileAlwaysExists,
   })
-  expect(resolved.prefixArgs).toEqual(['/some/install/widget/dist/bin/widget.js'])
+  expect(resolved.prefixArgs).toEqual([join(installDir, 'dist', 'bin', 'widget.js')])
 })

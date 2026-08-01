@@ -6,6 +6,27 @@ import { hashContent } from './keys.ts'
 
 type StatEntry = { size: number; mtimeMs: number; hash: string }
 
+/**
+ * How recently a file may have been written before its `(size, mtimeMs)` pair stops being trusted as
+ * proof that the content is unchanged.
+ *
+ * The stat fast path assumes a write always moves `mtimeMs`. It does not: filesystem timestamp
+ * granularity is coarse (2s on FAT, and Windows updates last-write-time lazily), so two writes close
+ * enough together can leave `mtimeMs` identical. When the replacement content also happens to be the
+ * same length — `const a = 1` to `const a = 2`, flipping a boolean, fixing an equal-length typo, the
+ * single most ordinary edit there is — `size` matches too, and the index hands back the *previous*
+ * file's hash. Every downstream cache lookup is then keyed on content that is no longer on disk, so a
+ * run reports the last version's diagnostics for a file the developer just changed: silently wrong,
+ * and wrong in the direction that hides findings rather than inventing them.
+ *
+ * Git has the same exposure in its own index and calls such entries "racily clean"; the fix here is
+ * its fix. An entry is trusted only once the file's mtime is comfortably in the past, which a file
+ * being actively edited never is, so a just-written file is re-read until it settles. The cost is
+ * bounded to files touched within the window — in practice the handful the developer just saved —
+ * and it is self-healing: no state has to be invalidated for a file to become cacheable again.
+ */
+const RACY_WINDOW_MS = 2_000
+
 export type StatIndex = {
   hashOf(rootDir: string, file: InventoryFile): Promise<string>
   persist(): Promise<void>
@@ -14,15 +35,18 @@ export type StatIndex = {
 
 const INDEX_FILE = 'stat-index.json'
 
-export async function openStatIndex(cacheDir: string): Promise<StatIndex> {
+export async function openStatIndex(cacheDir: string, now: () => number = Date.now): Promise<StatIndex> {
   const entries = new Map<string, StatEntry>(Object.entries(await readIndex(cacheDir)))
   let rehashes = 0
   let dirty = false
 
+  const settled = (mtimeMs: number): boolean => mtimeMs < now() - RACY_WINDOW_MS
+
   return {
     async hashOf(rootDir, file) {
       const cached = entries.get(file.path)
-      if (cached && cached.size === file.size && cached.mtimeMs === file.mtimeMs) return cached.hash
+      if (cached && cached.size === file.size && cached.mtimeMs === file.mtimeMs && settled(file.mtimeMs))
+        return cached.hash
 
       const hash = hashContent(await readFile(join(rootDir, file.path)))
       entries.set(file.path, { size: file.size, mtimeMs: file.mtimeMs, hash })
