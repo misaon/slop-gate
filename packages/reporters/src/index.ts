@@ -1,4 +1,5 @@
 import type { CheckEvent } from '@misaon/slop-gate-core'
+import { createAgentReporter } from './agent.ts'
 import { createJsonReporter } from './json.ts'
 import { createPrettyReporter } from './pretty.ts'
 
@@ -25,19 +26,29 @@ export type ReporterContext = {
    * implementations must return `null` for that case rather than attempt to resolve a path.
    */
   readSource(file: string | null): string | null
+  /**
+   * Upper bound on the `agent` reporter's output, in estimated tokens (`--max-tokens`). Absent means
+   * no bound. Read here for the same reason `width` is — a reporter must not reach into `process`
+   * for something a test needs to pin — and ignored by every other reporter: `pretty` is bounded by
+   * a terminal, and truncating `json` would produce an invalid document rather than a smaller one.
+   */
+  maxTokens?: number
 }
 
 export type Reporter = { onEvent(event: CheckEvent): void }
 
-export const REPORTER_NAMES = ['pretty', 'json'] as const
+export const REPORTER_NAMES = ['pretty', 'json', 'agent'] as const
 
 export type ReporterName = (typeof REPORTER_NAMES)[number]
 
 export function createReporter(name: ReporterName, context: ReporterContext): Reporter {
-  return name === 'json' ? createJsonReporter(context) : createPrettyReporter(context)
+  if (name === 'json') return createJsonReporter(context)
+  if (name === 'agent') return createAgentReporter(context)
+  return createPrettyReporter(context)
 }
 
 export { renderCodeFrame } from './code-frame.ts'
+export { AGENT_REPORT_VERSION, createAgentReporter, type AgentReporterOptions } from './agent.ts'
 export { JSON_REPORT_VERSION } from './json.ts'
 export { createPrettyReporter } from './pretty.ts'
 export {

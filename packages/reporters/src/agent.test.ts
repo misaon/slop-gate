@@ -1,0 +1,358 @@
+import { expect, test } from 'vitest'
+import type { CheckEvent, CheckResult, Diagnostic } from '@misaon/slop-gate-core'
+import { AGENT_REPORT_VERSION, createAgentReporter } from './agent.ts'
+import { createReporter } from './index.ts'
+import type { ReporterContext } from './index.ts'
+
+const diagnostic = (over: Partial<Diagnostic> = {}): Diagnostic => ({
+  concept: 'correctness.no-debugger',
+  ruleId: 'oxlint/no-debugger',
+  engine: 'oxlint',
+  severity: 'error',
+  message: '`debugger` statement is not allowed',
+  file: 'src/a.ts',
+  range: { start: 22, end: 30 },
+  position: { startLine: 2, startColumn: 3, endLine: 2, endColumn: 11 },
+  docsUrl: 'https://example.test/no-debugger',
+  fingerprint: 'abc',
+  ...over,
+})
+
+const result = (over: Partial<CheckResult> = {}): CheckResult => ({
+  diagnostics: [],
+  counts: { error: 0, warn: 0, info: 0 },
+  engineFailures: [],
+  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
+  ruleset: { enabledConcepts: 5, suppressed: 0, uncovered: [], unknownKeys: [] },
+  ...over,
+})
+
+const capture = (events: readonly CheckEvent[], contextOver: Partial<ReporterContext> = {}): string => {
+  let output = ''
+  const reporter = createReporter('agent', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: () => 'export function f() {\n  debugger\n}\n',
+    ...contextOver,
+  })
+  for (const event of events) reporter.onEvent(event)
+  return output
+}
+
+const done = (diagnostics: readonly Diagnostic[], over: Partial<CheckResult> = {}): CheckEvent => ({
+  type: 'done',
+  result: result({
+    diagnostics: [...diagnostics],
+    counts: {
+      error: diagnostics.filter((d) => d.severity === 'error').length,
+      warn: diagnostics.filter((d) => d.severity === 'warn').length,
+      info: diagnostics.filter((d) => d.severity === 'info').length,
+    },
+    ...over,
+  }),
+})
+
+const repeat = (count: number, over: (index: number) => Partial<Diagnostic>): Diagnostic[] =>
+  Array.from({ length: count }, (_, index) => diagnostic(over(index)))
+
+/** The reporter's own accounting, restated here so a budget assertion is measured the way the
+ *  reporter measures — not against a second, looser idea of what a token is. */
+const estimate = (text: string): number => Math.ceil(new TextEncoder().encode(text).length / 3)
+
+const coverageLine = (output: string): string => output.split('\n').find((line) => line.startsWith('coverage:')) ?? ''
+
+test('writes nothing before done, so a partial run never looks like a complete report', () => {
+  const output = capture([
+    { type: 'diagnostic', diagnostic: diagnostic() },
+    { type: 'engine-failed', engine: 'oxlint', message: 'boom' },
+  ])
+  expect(output).toBe('')
+})
+
+test('a clean run says so and asks for nothing', () => {
+  const output = capture([done([])])
+  expect(output).toContain(`slop-gate agent report v${AGENT_REPORT_VERSION}`)
+  expect(output).toContain('findings: 0')
+  expect(output).toContain('coverage: no findings. Nothing was omitted.')
+  expect(output).toContain('1. Nothing to do.')
+})
+
+test('splits findings by whether `sgate fix` handles them and names the flag needed', () => {
+  const output = capture([
+    done([
+      diagnostic({ ruleId: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' }),
+      diagnostic({ ruleId: 'oxlint/vitest/no-conditional-expect', concept: 'correctness.vitest-no-conditional-expect' }),
+    ]),
+  ])
+
+  expect(output).toContain('## automated — `sgate fix` rewrites these. Do not edit them by hand.')
+  expect(output).toContain('Run: `sgate fix --unsafe`')
+  expect(output).toContain('tier unsafe')
+  expect(output).toContain('## judgement — no fix is declared for these.')
+  expect(output.indexOf('## automated')).toBeLessThan(output.indexOf('## judgement'))
+})
+
+test('a rule the run arbitrated against decides the tier, not the shipped registry', () => {
+  // `CheckOptions.entries` is a real seam (`resolveRun` takes it), so a run that narrowed or
+  // replaced the registry must not have the reporter quietly consult the shipped one instead and
+  // promise `sgate fix` will handle something this run's registry calls unfixable.
+  const fixable = done([diagnostic({ ruleId: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' })])
+  expect(capture([fixable], { readSource: () => null })).toContain('## automated')
+
+  let narrowed = ''
+  createAgentReporter(
+    {
+      write: (chunk) => (narrowed += chunk),
+      color: false,
+      unicode: true,
+      width: 80,
+      version: '0.0.0',
+      readSource: () => null,
+    },
+    { entries: [] },
+  ).onEvent(fixable)
+
+  expect(narrowed).not.toContain('## automated')
+  expect(narrowed).toContain('## judgement')
+})
+
+test('states the reason once per concept instead of once per finding', () => {
+  const output = capture([
+    done(
+      repeat(3, (index) => ({
+        concept: 'config.unused-suppression',
+        ruleId: 'slop-gate/config.unused-suppression',
+        engine: 'slop-gate',
+        severity: 'warn',
+        message: 'This suppression does not match any diagnostic on this line.',
+        help: 'Remove the suppression, or fix its target so it matches again.',
+        file: `src/${index}.ts`,
+        position: { startLine: index + 1, startColumn: 1, endLine: index + 1, endColumn: 9 },
+      })),
+    ),
+  ])
+
+  expect(output.match(/^why: /gm)).toHaveLength(1)
+  expect(output.match(/^message: /gm)).toHaveLength(1)
+  expect(output.match(/^help: /gm)).toHaveLength(1)
+  expect(output).toContain('### config.unused-suppression — 3 findings in 3 files · warn')
+})
+
+test('keeps a differing message on the finding rather than hoisting a wrong one', () => {
+  const output = capture([
+    done([
+      diagnostic({ message: 'first problem', file: 'src/a.ts' }),
+      diagnostic({ message: 'second problem', file: 'src/b.ts' }),
+    ]),
+  ])
+
+  expect(output).not.toContain('\nmessage: ')
+  expect(output).toContain('- src/a.ts:2:3-11 — first problem')
+  expect(output).toContain('- src/b.ts:2:3-11 — second problem')
+})
+
+test('shows the offending line beneath each finding', () => {
+  const output = capture([done([diagnostic()])])
+  expect(output).toContain('    2 |   debugger')
+})
+
+test('windows a long line around the finding instead of truncating its head', () => {
+  const filler = 'x'.repeat(400)
+  const output = capture([done([diagnostic({ position: { startLine: 1, startColumn: 380, endLine: 1, endColumn: 390 } })])], {
+    readSource: () => `${filler}NEEDLE${filler}\n`,
+  })
+
+  expect(output).toContain('NEEDLE')
+  expect(output).toContain('…')
+})
+
+test('says how many further lines a multi-line finding spans', () => {
+  const output = capture([done([diagnostic({ position: { startLine: 1, startColumn: 1, endLine: 4, endColumn: 2 } })])], {
+    readSource: () => 'one\ntwo\nthree\nfour\n',
+  })
+
+  expect(output).toContain('- src/a.ts:1:1..4:2')
+  expect(output).toContain('    1 | one  (+3 more lines)')
+})
+
+test('renders a suggested change as a unified diff, built the way `sgate fix` builds it', () => {
+  const source = 'export const a = 1\nexport const b = 2\n'
+  const output = capture(
+    [
+      done([
+        diagnostic({
+          fix: { kind: 'safe', description: 'Use 3 instead.', edits: [{ range: { start: 17, end: 18 }, replacement: '3' }] },
+          position: { startLine: 1, startColumn: 18, endLine: 1, endColumn: 19 },
+        }),
+      ]),
+    ],
+    { readSource: () => source },
+  )
+
+  expect(output).toContain('  fix: Use 3 instead. (tier safe)')
+  expect(output).toContain('--- a/src/a.ts')
+  expect(output).toContain('-export const a = 1')
+  expect(output).toContain('+export const a = 3')
+})
+
+test('says the diff is unavailable rather than silently dropping an edit it cannot apply', () => {
+  const output = capture(
+    [
+      done([
+        diagnostic({
+          fix: { kind: 'safe', description: 'Rewrite.', edits: [{ range: { start: 9_000, end: 9_001 }, replacement: 'x' }] },
+        }),
+      ]),
+    ],
+    { readSource: () => 'short\n' },
+  )
+
+  expect(output).toContain('diff unavailable')
+  expect(output).toContain('out of range')
+})
+
+test('an orchestrator-level finding with no file is located, not skipped', () => {
+  const output = capture([
+    done([diagnostic({ concept: 'config.dead-override', ruleId: 'slop-gate/config.dead-override', engine: 'slop-gate', file: null })]),
+  ])
+
+  expect(output).toContain('### config.dead-override')
+  expect(output).toContain('\n- (configuration)\n')
+})
+
+test('an engine failure is declared before anything else, because it makes the report incomplete', () => {
+  const output = capture([
+    done([diagnostic()], { engineFailures: [{ engine: 'tsc', message: 'exited 2' }] }),
+  ])
+
+  const lines = output.split('\n')
+  expect(lines[3]).toContain('INCOMPLETE: engine `tsc` failed — exited 2.')
+  expect(lines[3]).toContain('do not read a clean section as clean')
+})
+
+test('names concepts nothing could check and config keys that resolve to nothing', () => {
+  const output = capture([
+    done([diagnostic()], {
+      ruleset: { enabledConcepts: 5, suppressed: 0, uncovered: ['a11y.alt-text', 'style.quotes'], unknownKeys: ['oxlint/nope'] },
+    }),
+  ])
+
+  expect(output).toContain('config: 1 rule key(s) in the config name nothing')
+  expect(output).toContain('uncovered: 2 enabled concept(s) have no capable engine here')
+  expect(output).toContain('a11y.alt-text, style.quotes')
+})
+
+test('is byte-identical across two runs over the same result', () => {
+  const diagnostics = [
+    diagnostic({ file: 'src/a.ts' }),
+    diagnostic({ file: 'src/b.ts', concept: 'style.x', ruleId: 'oxlint/style-x', severity: 'warn' }),
+    diagnostic({ file: 'src/c.ts', fix: { kind: 'safe', description: 'd', edits: [{ range: { start: 0, end: 1 }, replacement: 'y' }] } }),
+  ]
+
+  expect(capture([done(diagnostics)])).toBe(capture([done(diagnostics)]))
+  expect(capture([done(diagnostics)], { maxTokens: 900 })).toBe(capture([done(diagnostics)], { maxTokens: 900 }))
+})
+
+test('orders groups by concept when severity and size tie, whatever order they arrived in', () => {
+  // The guard against map iteration order reaching the output. Two groups that tie on every earlier
+  // key differ only by concept id, so a reporter that emitted them in insertion order would produce
+  // different bytes for the same repository depending on which file an engine happened to visit
+  // first — and the whole value of this format as an agent input rests on that never happening.
+  const alpha = repeat(2, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
+  const beta = repeat(2, (index) => ({ concept: 'style.beta', ruleId: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` }))
+
+  const forward = capture([done([...alpha, ...beta])])
+  const reversed = capture([done([...beta, ...alpha])])
+
+  expect(forward).toBe(reversed)
+  expect(forward.indexOf('### style.alpha')).toBeLessThan(forward.indexOf('### style.beta'))
+})
+
+test('reports exactly what the token budget dropped, per concept and in total', () => {
+  const many = [
+    ...repeat(10, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` })),
+    ...repeat(10, (index) => ({ concept: 'style.beta', ruleId: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
+  ]
+
+  const output = capture([done(many)], { maxTokens: 400 })
+  const coverage = coverageLine(output)
+  const shown = Number(/coverage: (\d+) of/.exec(coverage)?.[1])
+  const omitted = Number(/, (\d+) omitted/.exec(coverage)?.[1])
+
+  expect(shown + omitted).toBe(20)
+  expect(omitted).toBeGreaterThan(0)
+  expect(output).toContain('omitted:')
+
+  const perConcept = [...output.matchAll(/^ {2}(\S+) — (\d+) of (\d+) not shown$/gm)]
+  expect(perConcept.reduce((sum, match) => sum + Number(match[2]), 0)).toBe(omitted)
+
+  // The property that makes a truncated report safe to act on: the concept and its *true* count
+  // survive even when every one of its findings was dropped.
+  expect(output).toContain('### style.alpha — 10 findings in 10 files')
+  expect(output).toContain('### style.beta — 10 findings in 10 files')
+  expect(output).toContain(`Re-run with a larger \`--max-tokens\` than 400, or without it, to see the ${omitted} finding(s) omitted above.`)
+})
+
+test('keeps a worked example for every concept before deepening any one of them', () => {
+  const many = [
+    ...repeat(6, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` })),
+    ...repeat(6, (index) => ({ concept: 'style.beta', ruleId: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
+  ]
+
+  const output = capture([done(many)], { maxTokens: 700 })
+  expect(coverageLine(output)).toContain('omitted')
+  expect(output).toContain('- src/a0.ts:')
+  expect(output).toContain('- src/b0.ts:')
+  expect(output).not.toContain('- src/a5.ts:')
+})
+
+test('stays inside the budget once the budget clears the fixed sections', () => {
+  const many = repeat(40, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
+
+  for (const budget of [600, 900, 1_500, 4_000, 20_000]) {
+    const output = capture([done(many)], { maxTokens: budget })
+    expect(estimate(output), `budget ${budget}`).toBeLessThanOrEqual(budget)
+  }
+})
+
+test('counts a multi-byte message in bytes, so non-ASCII text cannot overrun the budget', () => {
+  // Three UTF-8 bytes per CJK character and roughly one token each: counting `String.length` here
+  // would under-count by threefold and blow straight through the budget, which is the one direction
+  // the estimate must never err in.
+  const many = repeat(30, (index) => ({
+    concept: 'style.alpha',
+    ruleId: 'oxlint/alpha',
+    severity: 'warn' as const,
+    file: `src/a${index}.ts`,
+    message: `変数の宣言が重複しています ${index}`,
+  }))
+
+  const output = capture([done(many)], { maxTokens: 700, readSource: () => '変数の宣言が重複しています\n' })
+  expect(estimate(output)).toBeLessThanOrEqual(700)
+})
+
+test('prints the fixed sections in full and admits it when the budget cannot even hold them', () => {
+  const output = capture([done(repeat(4, (index) => ({ file: `src/a${index}.ts` })))], { maxTokens: 5 })
+
+  expect(output).toContain('note: the fixed sections alone estimate above the requested budget.')
+  expect(coverageLine(output)).toContain('0 of 4 findings shown, 4 omitted')
+  expect(output).toContain('### correctness.no-debugger — 4 findings in 4 files')
+})
+
+test('says nothing was omitted when the budget held everything', () => {
+  const output = capture([done([diagnostic()])], { maxTokens: 5_000 })
+
+  expect(coverageLine(output)).toBe('coverage: 1 of 1 findings shown, 0 omitted (--max-tokens 5000).')
+  expect(output).not.toContain('omitted:')
+  expect(output).not.toContain('showing ')
+})
+
+test('reports no timing or cache figures, which would differ between two runs of the same repository', () => {
+  const output = capture([done([diagnostic()])])
+  expect(output).toContain('scope: 3 files scanned, 3 analysed')
+  expect(output).not.toContain('42')
+  expect(output).not.toContain('cached')
+})

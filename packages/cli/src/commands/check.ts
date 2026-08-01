@@ -9,11 +9,19 @@ import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
 import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
 
+/** `'invalid'` rather than a thrown error or a silent `undefined` — see the call site. */
+export function parseMaxTokens(raw: string | undefined): number | undefined | 'invalid' {
+  if (raw === undefined) return undefined
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value > 0 ? value : 'invalid'
+}
+
 export const check = defineCommand({
   meta: { name: 'check', description: 'Analyse the repository and report findings' },
   args: {
     format: { type: 'string', default: 'pretty', description: `Output format (${REPORTER_NAMES.join(', ')})` },
     'max-warnings': { type: 'string', description: 'Fail when warnings exceed this count' },
+    'max-tokens': { type: 'string', description: 'Bound the `agent` report to this many estimated tokens' },
     // Named `cache` (default true), not `no-cache`: citty treats any raw `--no-X` argv token as
     // "negate X", stripping the `no-` prefix before its own parser ever sees it — regardless of
     // whether an arg literally named `no-X` exists. An arg named `no-cache` can therefore never be
@@ -28,6 +36,17 @@ export const check = defineCommand({
 
     if (!REPORTER_NAMES.includes(args.format as ReporterName)) {
       process.stderr.write(`unknown format: ${args.format}. Expected one of ${REPORTER_NAMES.join(', ')}.\n`)
+      process.exitCode = EXIT_CODES.config
+      return
+    }
+
+    // Rejected rather than coerced or ignored. `--max-tokens` is the one flag whose whole purpose is
+    // to make the report drop findings; a typo silently falling back to "no limit" would hand an
+    // agent a report far larger than its context, and a typo silently becoming `0` would hand it one
+    // with no findings at all. Both are failures the caller has to be told about.
+    const maxTokens = parseMaxTokens(args['max-tokens'])
+    if (maxTokens === 'invalid') {
+      process.stderr.write(`--max-tokens must be a positive integer, got: ${args['max-tokens']}\n`)
       process.exitCode = EXIT_CODES.config
       return
     }
@@ -49,6 +68,7 @@ export const check = defineCommand({
       unicode: supportsUnicode(),
       width: process.stdout.columns ?? 80,
       version: readCliVersion(),
+      ...(maxTokens === undefined ? {} : { maxTokens }),
       readSource: (file) => {
         // `file` is `null` for an orchestrator-level diagnostic with nothing to attribute (see
         // `Diagnostic.file`). Guarded explicitly rather than left to `join(rootDir, null)` throwing
