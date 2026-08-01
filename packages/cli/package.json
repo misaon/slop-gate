@@ -28,6 +28,7 @@
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
     "@misaon/slop-gate-engine-oxlint": "workspace:*",
+    "@misaon/slop-gate-engine-tsc": "workspace:*",
     "@misaon/slop-gate-reporters": "workspace:*",
     "citty": "^0.2.0"
   }

@@ -26,7 +26,7 @@ export async function prepareRulesRun(rootDir: string): Promise<ResolvedRun | nu
     rootDir,
     config: loaded.config,
     ...(loaded.kind === 'loaded' ? { configFile: loaded.configFile } : {}),
-    engines: defaultEngines(),
+    engines: defaultEngines(rootDir),
   })
 }
 
