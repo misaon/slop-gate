@@ -408,6 +408,16 @@ export const HAND_WRITTEN_CONCEPTS = [
     servicedBySlopGate: true,
   },
   {
+    id: 'config.suppression-missing-reason',
+    group: 'config',
+    title: 'Suppression missing a reason',
+    description:
+      'An inline `sgate-disable-*` comment has no `-- reason`. It still suppresses the finding — ' +
+      'hiding something a user explicitly silenced, as punishment for comment formatting, is worse ' +
+      'than the formatting problem — but a reason is required so a future reader knows why.',
+    servicedBySlopGate: true,
+  },
+  {
     id: 'config.rule-overlap',
     group: 'config',
     title: 'Overlapping rules',

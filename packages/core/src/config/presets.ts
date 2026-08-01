@@ -23,6 +23,7 @@ const recommended: RuleMap = {
   'config.rule-overlap': 'info',
   'config.dead-override': 'warn',
   'config.unused-suppression': 'warn',
+  'config.suppression-missing-reason': 'warn',
 }
 
 const strict: RuleMap = {
