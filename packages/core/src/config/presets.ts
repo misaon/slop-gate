@@ -34,8 +34,23 @@ const strict: RuleMap = {
   'config.rule-overlap': 'warn',
 }
 
+/**
+ * Opt-in by name (`extends: ['recommended', 'slop']`), which is a different bar from `recommended`:
+ * a user who asks for AI-slop detection has accepted that some of it is a judgement call. It is not
+ * a lower bar, though — membership here is still a measurement, recorded per rule in
+ * `registry/entries.manual.ts` (ast-grep) and `registry/entries.generated.ts` (oxlint).
+ *
+ * Two of the five concepts ast-grep owns are deliberately **not** here, and both exclusions are
+ * numbers rather than caution: `slop.swallowed-error` (433 findings over the third-party corpus,
+ * ~19 of a 22-item sample deliberate) and `slop.emoji-in-code` (20/20 false positives on this
+ * repository, all of them the pretty reporter's own severity glyphs and the tests for them). Both
+ * remain available by concept, the same way everything knip owns is.
+ */
 const slop: RuleMap = {
   'slop.as-any-cast': 'warn',
+  'slop.double-cast': 'warn',
+  'slop.narrative-comment': 'warn',
+  'slop.stub-implementation': 'warn',
 }
 
 export const PRESETS: Readonly<Record<PresetName, RuleMap>> = { recommended, strict, slop }

@@ -511,7 +511,72 @@ export const HAND_WRITTEN_CONCEPTS = [
     title: 'Explicit any',
     description:
       'An explicit `any` — whether an annotation or an `as any` cast — opts out of the type system. ' +
-      'M0 detects it syntactically; the narrower `as unknown as T` pattern needs type information and arrives with the type-aware engine in M2.',
+      'Owned by oxlint (`typescript/no-explicit-any`), which covers all four spellings natively: ' +
+      '`x as any`, `const x: any`, `function f(p: any)` and `<any>x`. The `as unknown as T` form ' +
+      'spec §14 groups under this name is a different defect and has its own concept — see ' +
+      '`slop.double-cast`.',
+  },
+  // The pattern-shaped half of the slop ruleset (spec §14), owned by ast-grep
+  // (`packages/engine-astgrep/src/rules.ts`). Each concept's measured accuracy is recorded on its
+  // `RuleEntry` in registry/entries.manual.ts, not here: a description says what a finding *means*,
+  // an entry says how much to trust it, and only the second changes when a rule is re-measured.
+  {
+    id: 'slop.double-cast',
+    group: 'slop',
+    title: 'Cast laundered through unknown',
+    description:
+      'A type assertion routed through `unknown` or `any` to reach a type the compiler rejected as a ' +
+      'direct cast (`x as unknown as T`). The direct form is refused precisely because the two types ' +
+      'have nothing in common; going the long way round does not make the claim true, it only stops ' +
+      'anyone checking it. Distinct from `slop.as-any-cast`: that one opts out of typing a value, ' +
+      'this one asserts a specific type the evidence contradicts, and oxlint reports nothing for it ' +
+      'because no `any` appears in the source at all.',
+  },
+  {
+    id: 'slop.swallowed-error',
+    group: 'slop',
+    title: 'Swallowed error',
+    description:
+      'A `catch` block that discards the error and continues, so a failed operation is indistinguishable ' +
+      'from a successful one to everything downstream. The counter-case is real and common — a feature ' +
+      'probe, an optional read, a best-effort cleanup — which is why this is reported for review rather ' +
+      'than treated as a defect, and why saying so in a suppression reason is the intended response ' +
+      'when ignoring the error is the point.',
+  },
+  {
+    id: 'slop.stub-implementation',
+    group: 'slop',
+    title: 'Stub implementation',
+    description:
+      'An exported function whose entire body throws "not implemented". It is reachable, callable and ' +
+      'type-checks, so nothing but running it reveals that the feature does not exist — the failure ' +
+      'mode that separates a stub from an honestly missing function, which would not compile at its ' +
+      'call sites. TypeScript already has two ways to say "subclasses must supply this" (`abstract`, ' +
+      'and a declared-only overload) that keep the compiler involved.',
+  },
+  {
+    id: 'slop.narrative-comment',
+    group: 'slop',
+    title: 'Narrative comment',
+    description:
+      'A comment describing a hypothetical other version of the code — "in a real implementation…", ' +
+      '"this is a placeholder", "your code would go here" — rather than explaining the code that is ' +
+      'actually there. It marks work that was described instead of done, and it survives long after ' +
+      'the surrounding code is finished, which is what makes it worse than no comment. A comment ' +
+      'that explains *why* a decision was made is the opposite of this and is deliberately not detected.',
+  },
+  {
+    id: 'slop.emoji-in-code',
+    group: 'slop',
+    title: 'Emoji in a string literal',
+    description:
+      'An emoji inside a string or template literal. Decorative status glyphs leak into log ' +
+      'aggregators, CI transcripts, code review diffs and terminals with no font for them, where they ' +
+      'become replacement characters or mojibake. Deliberate product output — a CLI severity marker, a ' +
+      'UI label — is the routine legitimate case and reads identically to the accidental one, so this ' +
+      'concept is opt-in rather than part of any preset. Identifiers are not checked because ' +
+      'JavaScript identifiers cannot contain emoji: they are excluded from `ID_Start`/`ID_Continue`, ' +
+      'so the only place one can appear in JS or TS is a string.',
   },
   {
     id: 'config.unused-suppression',

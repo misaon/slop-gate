@@ -1,14 +1,10 @@
 {
-  "name": "@misaon/slop-gate",
+  "name": "@misaon/slop-gate-engine-astgrep",
   "version": "0.0.0",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=24"
-  },
-  "bin": {
-    "sgate": "./bin/sgate.js",
-    "slop-gate": "./bin/sgate.js"
   },
   "exports": {
     ".": {
@@ -18,8 +14,7 @@
   },
   "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "bin"
+    "dist"
   ],
   "scripts": {
     "build": "tsdown",
@@ -27,11 +22,6 @@
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
-    "@misaon/slop-gate-engine-astgrep": "workspace:*",
-    "@misaon/slop-gate-engine-knip": "workspace:*",
-    "@misaon/slop-gate-engine-oxlint": "workspace:*",
-    "@misaon/slop-gate-engine-tsc": "workspace:*",
-    "@misaon/slop-gate-reporters": "workspace:*",
-    "citty": "^0.2.0"
+    "@ast-grep/cli": "^0.45.0"
   }
 }

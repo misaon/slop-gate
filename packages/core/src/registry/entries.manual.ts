@@ -231,6 +231,178 @@ const KNIP_RULE_ENTRIES = [
 ] as const satisfies readonly RuleEntry[]
 
 /**
+ * ast-grep (`packages/engine-astgrep`), the fourth engine and the second with `granularity: 'file'`.
+ * It owns the pattern-shaped half of the slop ruleset (spec §14) and nothing else.
+ *
+ * **`tier: 0`.** ast-grep is a native Rust binary over tree-sitter grammars, doing syntax-only
+ * matching — the same tier as oxlint, and not `2` merely because its rules are authored in YAML.
+ * The consequence is deliberate and load-bearing: it puts ast-grep on equal footing with oxlint at
+ * arbitration, where the engine preference order then hands oxlint anything both can do. That is why
+ * there is no entry here for `slop.as-any-cast` — see `slop-double-cast` below.
+ *
+ * **`docsUrl` points at this repository, not at `slop-gate.dev`.** Core's own orchestrator
+ * diagnostics use a `slop-gate.dev/concepts/<id>` URL (`engine/normalize.ts`); that site does not
+ * exist yet, and a slop rule is required by §14 to ship with a page explaining *why* the pattern is a
+ * problem. `docs/rules/*.md` is committed here and reachable today, which is the point of a
+ * `docsUrl`. Move these when the site lands.
+ *
+ * **Levels and preset membership are measurements.** Every rule below was run over two corpora
+ * before it was given either: this repository's own 163 JS/TS files (spec §20 — "the tool's own
+ * source has to survive its own `slop.*` ruleset"), and 3,366 third-party JS/TS files (~45 MB) from
+ * `node_modules`, chosen because it is human-written code nobody wrote to pass these rules. Each
+ * entry records what it found. Two rules earned a place in the `slop` preset; two are opt-in by
+ * concept only, and the reason is a number in both cases.
+ *
+ * **True-positive evidence is weaker than false-positive evidence here, and deliberately so.** No
+ * corpus of known AI-generated code was available to measure against, so what is proved on real code
+ * is the false-positive rate; that a rule fires at all on the pattern it names is proved by
+ * `packages/engine-astgrep/fixtures`. Any claim below of the form "0 false positives over N files"
+ * is measured; there is no matching claim about recall.
+ */
+const ASTGREP_DOCS = 'https://github.com/misaon/slop-gate/blob/main/docs/rules'
+
+const ASTGREP_RULE_ENTRIES = [
+  {
+    engine: 'astgrep',
+    // Measured: 2 findings on this repository, both in `packages/engine-tsc/src/parse.ts`, both
+    // genuine — a `RegExpExecArray` asserted to be a fixed-length tuple of non-optional strings, so
+    // a regex change that makes one group optional yields `undefined` typed as `string` with nothing
+    // to catch it. 65 on the third-party corpus, but concentrated rather than diffuse: 7 files in 2
+    // packages, 62 of them in `zod`, whose entire subject matter is type-level construction. That
+    // shape is what puts it in the `slop` preset (opt-in, by name) and not in `recommended`: on
+    // ordinary application code it is low-volume and points at something real, and on a type-level
+    // library it is a wall — and the author of a type-level library will not have opted in.
+    //
+    // This entry exists at all only because oxlint does not cover it. Verified against oxlint 1.76.0
+    // on a five-case fixture: `typescript/no-explicit-any` reported 4 (`x as any`, `const b: any`,
+    // `function d(p: any)`, `<any>x`) and reported *nothing* for `x as unknown as string` — there is
+    // no `any` in that source to find. Claiming `slop.as-any-cast` here instead would have lost
+    // arbitration to that rule on engine preference at equal tier and contributed nothing.
+    engineRuleId: 'slop-double-cast',
+    concepts: ['slop.double-cast'],
+    tier: 0,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    // TypeScript syntax; `as` is not JavaScript, so the rule has no `language: JavaScript` document.
+    languages: ['ts', 'tsx'],
+    docsUrl: `${ASTGREP_DOCS}/slop.double-cast.md`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'astgrep',
+    // The worst-measured rule shipped here, and the number is the whole reason it is in no preset.
+    // 0 findings on this repository (which contains no empty `catch` at all). 433 on the third-party
+    // corpus across 34 packages; a random sample of 22 was read in context and roughly 19 were
+    // deliberate — feature probes (`try { require.resolve('picomatch') } catch {}`), optional reads,
+    // best-effort cleanup, `new URL(x)` validity tests. The three that were not include one whose
+    // own comment reads `// Swallow // XXX should we be logging these?`, which is the concept
+    // exactly. So: the rule detects what §14 asks for, and in library code most of what it detects
+    // is intentional. Opt-in by concept, like everything knip owns and for the same reason.
+    //
+    // Only the *empty* half of §14's "empty, or only logs and continues" is implemented. The logging
+    // half was written and measured out: 5 findings across the third-party corpus, every one a CLI
+    // printing an error at its top level, where that is the correct handling.
+    engineRuleId: 'slop-swallowed-error',
+    concepts: ['slop.swallowed-error'],
+    tier: 0,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts', 'tsx', 'js', 'jsx'],
+    docsUrl: `${ASTGREP_DOCS}/slop.swallowed-error.md`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'astgrep',
+    // Measured: 0 findings on both corpora — 0 false positives over 3,529 files, and 0 true
+    // positives too. That second half is not a defect of the rule and is worth stating plainly:
+    // published library code does not ship functions that throw "not implemented", which is the
+    // point — unfinished work does. It fires correctly on the fixture, including the cases it must
+    // *not* fire on (an `abstract` member, a non-exported helper, a real `throw new Error('config
+    // file missing')`, a guard clause that throws mid-body).
+    //
+    // In the `slop` preset rather than merely available, on the strength of how narrow the match is:
+    // the function's entire body must be one `throw new X(...)` whose message names non-completion.
+    // The one legitimate shape it can hit is a concrete must-override hook, which TypeScript already
+    // has `abstract` for; the documented escape covers the rest.
+    engineRuleId: 'slop-stub-implementation',
+    concepts: ['slop.stub-implementation'],
+    tier: 0,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts', 'tsx', 'js', 'jsx'],
+    docsUrl: `${ASTGREP_DOCS}/slop.stub-implementation.md`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'astgrep',
+    // The rule this ruleset is named for, and the one measured hardest. 0 findings on this
+    // repository — the strongest available discriminator, because spec §20 mandates dense
+    // explanatory comments here and near-misses are everywhere in them ("in a real run", "a
+    // placeholder path", "in production that transitively loads..."), none of which match. 2 on the
+    // third-party corpus, and both are the same comment in two bundles of rollup — `// Placeholder
+    // until proper Symbol.Iterator support` — which is a genuine self-declared placeholder, so the
+    // measured false-positive count across 3,529 files is **0**.
+    //
+    // That number is the product of measuring six candidate patterns *out*, and the list matters
+    // more than the survivors because §14 names one of them as an example to detect. Dropped, with
+    // counts, on the third-party corpus: the reader-addressing family ("note that we", "as you can
+    // see", "we'll", "here we", "notice that") — **76 findings, every one a legitimate
+    // explanation**, so §14's "Note that we…" example is deliberately not implemented; `for now` —
+    // 25; `this is a (simplified|example|mock|dummy)` — 2; `for testing purposes` — 2;
+    // `in (production|reality)` — 2; `you can (typically|…)` — 1. Re-adding any of them needs a
+    // measurement, not an argument.
+    engineRuleId: 'slop-narrative-comment',
+    concepts: ['slop.narrative-comment'],
+    tier: 0,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts', 'tsx', 'js', 'jsx'],
+    docsUrl: `${ASTGREP_DOCS}/slop.narrative-comment.md`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'astgrep',
+    // Measured: **20 findings on this repository, 20/20 false positives** — twelve in
+    // `packages/reporters/src/display-width.test.ts` and four in `position.test.ts`, which exist
+    // *to* test wide and multi-byte characters, plus the three severity glyphs in
+    // `packages/reporters/src/severity.ts`, which are the product's own output. 127 on the
+    // third-party corpus, dominated by `tsdown`'s CLI status lines. Every single hit across both
+    // corpora is a deliberate glyph, and no syntactic property separates a deliberate one from
+    // `console.log('✅ Done!')` — so this ships opt-in by concept and enters no preset, including
+    // `slop`. It is aimed at repositories where emoji have no business appearing at all, and it is
+    // useless-to-harmful in a CLI, which is what slop-gate happens to be.
+    //
+    // The pattern is `\p{Emoji_Presentation}` plus VS16-qualified pictographs, never `\p{Emoji}`:
+    // that property is true for `#`, `*` and every ASCII digit, so the naive version flags
+    // `'#1 and *2 and 3'`, `'25°C'` and `'€100'` (all reproduced). `™`, `✓`, `→` and the box-drawing
+    // characters this repository's own frame renderer uses are correctly left alone.
+    engineRuleId: 'slop-emoji-in-code',
+    concepts: ['slop.emoji-in-code'],
+    tier: 0,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts', 'tsx', 'js', 'jsx'],
+    docsUrl: `${ASTGREP_DOCS}/slop.emoji-in-code.md`,
+    since: '0.1.0',
+  },
+] as const satisfies readonly RuleEntry[]
+
+/**
  * Entries the registry generator (packages/core/scripts/generate-registry.ts) cannot produce,
  * because neither one is a real row in `oxlint --rules --format json` — merged with
  * `GENERATED_RULE_ENTRIES` into `RULE_ENTRIES` below. Kept hand-written deliberately; see each
@@ -319,4 +491,5 @@ export const MANUAL_RULE_ENTRIES = [
     since: '0.1.0',
   },
   ...KNIP_RULE_ENTRIES,
+  ...ASTGREP_RULE_ENTRIES,
 ] as const satisfies readonly RuleEntry[]

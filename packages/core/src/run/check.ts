@@ -131,6 +131,32 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   let filesFromCache = 0
   let enginesRun = 0
 
+  // `config.unused-suppression` and `config.suppression-missing-reason` are synthesised inside
+  // `normalizeDiagnostics`, which runs once per **(engine, file)** — so a file assigned to two
+  // file-granularity engines produces each of them twice. That was unreachable while oxlint was the
+  // only one (`tsc` and knip are project-granularity); adding ast-grep made it real and doubled both
+  // counts on this repository, 41 -> 55 and 4 -> 8, before this collapse existed.
+  //
+  // Keyed on the directive's own identity — concept, file, byte range and message — rather than on
+  // `fingerprint`, which looks like the obvious choice and is the wrong one. A fingerprint folds in
+  // an `occurrenceIndex` counted within a single `normalizeDiagnostics` call (spec 10.1), and the
+  // two engines no longer judge the same *subset* of a file's directives (see `judgedBy` there), so
+  // the same directive can be occurrence 3 for one engine and occurrence 1 for the other. The
+  // message is part of the key because it names the directive's targets, which is what keeps two
+  // different directives written on one line — a real shape in this repository's own test fixtures
+  // — from collapsing into each other.
+  //
+  // Restricted to the orchestrator's own diagnostics because only those can be produced twice:
+  // arbitration already guarantees one owning engine per concept for everything else.
+  const seenSynthetic = new Set<string>()
+  const isDuplicateSynthetic = (diagnostic: Diagnostic): boolean => {
+    if (diagnostic.engine !== 'slop-gate') return false
+    const key = [diagnostic.concept, diagnostic.file, diagnostic.range.start, diagnostic.range.end, diagnostic.message].join('\0')
+    if (seenSynthetic.has(key)) return true
+    seenSynthetic.add(key)
+    return false
+  }
+
   for (const diagnostic of configDiagnostics({ resolver, election, configFile })) {
     collected.push(diagnostic)
     yield { type: 'diagnostic', diagnostic }
@@ -196,7 +222,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               },
               projectStats,
             )) {
-              if (!isVisible(diagnostic)) continue
+              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic)) continue
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
             }
@@ -235,7 +261,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             }
             filesFromCache += 1
             for (const diagnostic of hit) {
-              if (!isVisible(diagnostic)) continue
+              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic)) continue
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
             }
@@ -293,7 +319,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               // what the user actually sees.
               if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
               for (const diagnostic of normalized) {
-                if (!isVisible(diagnostic)) continue
+                if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic)) continue
                 collected.push(diagnostic)
                 yield { type: 'diagnostic', diagnostic }
               }

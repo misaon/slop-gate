@@ -717,3 +717,68 @@ test('an Angular repository gets the empty-class concept turned off, same as a N
   const result = await runCheck(presetEnabled())
   expect(result.diagnostics.map((d) => d.concept)).toEqual(['correctness.no-debugger'])
 })
+
+// See the identical note in engine/normalize.test.ts: assembled from parts so a test *about*
+// suppression directives does not leave phantom ones in this file's own text.
+const suppression = (rest: string): string => `// sgate-${'disable-next-line'} ${rest}`
+
+// Without this, `stubEngine({ id: 'astgrep' })` is never assigned any work: `buildPlan` only gives
+// an engine files if some elected concept resolves to it, so the second engine would silently drop
+// out and the two tests below would pass whether or not the collapse exists at all. That is the
+// vacuous-plan trap the M0 follow-ups record, reproduced here on the first attempt.
+const TWO_ENGINE_ENTRIES: RuleEntry[] = [
+  ...ENTRIES,
+  {
+    engine: 'astgrep',
+    engineRuleId: 'slop-double-cast',
+    concepts: ['slop.double-cast'],
+    tier: 0,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['ts'],
+    docsUrl: 'https://example.test/slop-double-cast',
+    since: '0.1.0',
+  },
+]
+
+const TWO_ENGINE_RULES = { 'correctness.no-debugger': 'error', 'slop.double-cast': 'warn', 'config.unused-suppression': 'warn' }
+
+test('a directive is reported once, not once per file-granularity engine', async () => {
+  // Two file-granularity engines assigned the same file each run their own `normalizeDiagnostics`
+  // pass over it, and each synthesises its own `config.unused-suppression`. Unreachable while oxlint
+  // was the only one; adding ast-grep doubled both orchestrator concepts on this repository (45 → 90
+  // and 4 → 8) before this collapse existed.
+  //
+  // Both engines must be assigned the file for this to prove anything — see `TWO_ENGINE_ENTRIES`.
+  await writeFile(join(dir, 'src/a.ts'), `${suppression('style.nobody-owns-this -- stale')}\nexport function f() {\n  debugger\n}\n`)
+
+  const result = await runCheck({
+    ...baseOptions(),
+    entries: TWO_ENGINE_ENTRIES,
+    config: { rules: TWO_ENGINE_RULES } as never,
+    engines: [stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep' })],
+  })
+
+  expect(result.diagnostics.filter((d) => d.concept === 'config.unused-suppression')).toHaveLength(1)
+})
+
+test('two directives written on one line stay two findings', async () => {
+  // The collapse keys on the directive's message as well as its position, because the message names
+  // the targets. Keying on position alone would silently merge these — and keying on `fingerprint`
+  // would not collapse the cross-engine duplicate above at all, since its occurrence index is
+  // counted per `normalizeDiagnostics` call and the two engines no longer judge the same subset.
+  const line = `${suppression('style.nobody-owns-this -- one')} ${suppression('style.nor-this -- two')}`
+  await writeFile(join(dir, 'src/a.ts'), `${line}\nexport function f() {\n  debugger\n}\n`)
+
+  const result = await runCheck({
+    ...baseOptions(),
+    entries: TWO_ENGINE_ENTRIES,
+    config: { rules: TWO_ENGINE_RULES } as never,
+    engines: [stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep' })],
+  })
+
+  expect(result.diagnostics.filter((d) => d.concept === 'config.unused-suppression')).toHaveLength(2)
+})
