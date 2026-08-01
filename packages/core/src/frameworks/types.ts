@@ -2,7 +2,7 @@ import type { ConceptId } from '../concepts/catalogue.ts'
 import type { FileInventory } from '../discovery/types.ts'
 import type { EngineId } from '../registry/types.ts'
 
-export type FrameworkId = 'mikro-orm' | 'nestjs' | 'nestjs-express' | 'test-framework' | 'vitepress'
+export type FrameworkId = 'angular' | 'mikro-orm' | 'nestjs' | 'nestjs-express' | 'test-framework' | 'vitepress'
 
 export type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
 

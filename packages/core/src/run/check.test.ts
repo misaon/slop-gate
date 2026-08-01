@@ -700,3 +700,20 @@ test('a concept the user enables in their own config survives a framework that w
     'suspicious.no-extraneous-class',
   ])
 })
+
+/**
+ * The `angular` profile end to end, and the reason it exists at all: `@NgModule({...}) export class
+ * AppModule {}` is the identical construct `no-extraneous-class` was measured 11/11 wrong on in
+ * NestJS. Unlike the other profiles this one's warrant is mechanism identity rather than its own
+ * false-positive count (spec §23.5), so the thing worth pinning is that detection and the layer
+ * actually connect — not a finding rate this test could not honestly produce anyway.
+ */
+test('an Angular repository gets the empty-class concept turned off, same as a NestJS one', async () => {
+  await writeFile(
+    join(dir, 'package.json'),
+    JSON.stringify({ name: 'fixture', dependencies: { '@angular/core': '^19.0.0' } }),
+  )
+
+  const result = await runCheck(presetEnabled())
+  expect(result.diagnostics.map((d) => d.concept)).toEqual(['correctness.no-debugger'])
+})
