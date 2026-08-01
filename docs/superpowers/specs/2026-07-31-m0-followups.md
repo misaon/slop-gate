@@ -298,6 +298,17 @@ gets for free from a human reading the code.**
 
 ## Test gaps worth closing
 
+**A test that asserts a filesystem path must compose the expectation with `node:path`, never with
+literal slashes.** Three separate files have now shipped this bug — `core/exec/resolve-script-bin`,
+and two cases in `engine-astgrep/resolve-binary` — and every time it cost a full red CI cycle on
+Windows and nothing anywhere else. The mechanism is always the same: the code under test calls the
+real `node:path`, so a Windows runner produces backslashes no matter which `process.platform` the
+test stubs. A literal `'/repo/pkg/bin'` therefore asserts the *runner's* separator rather than the
+behaviour, and fails for every stubbed platform at once, which reads like a platform bug and is not
+one. Compose with `join(base, ...segments)`, compare filenames with `basename`, and build substring
+needles with `sep` — the assertions stay exactly as strong, because the test still states the base
+and the segments independently.
+
 - **No non-ASCII or CRLF end-to-end fixture.** Spec §10 says multi-byte content "is covered by
   explicit fixtures" and §17 requires them from M0. Unit coverage in `position.test.ts` is good; the
   engine→reporter chain has none. Verified by hand during review: oxlint byte offset 56 maps to

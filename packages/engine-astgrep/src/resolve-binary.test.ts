@@ -1,8 +1,19 @@
 import { existsSync } from 'node:fs'
+import { basename, join, sep } from 'node:path'
 import { expect, test } from 'vitest'
 import { resolveAstGrepBinary } from './resolve-binary.ts'
 
 const CLI_MANIFEST = '/repo/node_modules/@ast-grep/cli/package.json'
+
+/**
+ * Expected paths are composed with `join`/`basename` rather than written with literal slashes,
+ * because the separator belongs to the *host* running the tests, not to the platform being stubbed:
+ * `resolveAstGrepBinary` calls the real `node:path`, so a Windows runner yields backslashes no matter
+ * what `platform` is set to here. A literal `/repo/...` asserts the runner's separator instead of the
+ * behaviour and fails everywhere on Windows — which is how this file first went red, and is the third
+ * time this repository has made the mistake.
+ */
+const at = (...segments: readonly string[]): string => join('/repo', 'node_modules', ...segments)
 
 const stubs = (overrides: Parameters<typeof resolveAstGrepBinary>[0] = {}) => ({
   platform: 'darwin',
@@ -22,14 +33,12 @@ test('resolves the platform package binary and spawns it directly, with no node 
   const invocation = resolveAstGrepBinary(stubs())
 
   expect(invocation.prefixArgs).toEqual([])
-  expect(invocation.command).toBe(
-    '/repo/node_modules/.pnpm/cli-darwin-arm64/@ast-grep/cli-darwin-arm64/ast-grep',
-  )
+  expect(invocation.command).toBe(at('.pnpm', 'cli-darwin-arm64', '@ast-grep', 'cli-darwin-arm64', 'ast-grep'))
 })
 
 test('asks for the .exe on windows', () => {
   const invocation = resolveAstGrepBinary(stubs({ platform: 'win32', arch: 'x64' }))
-  expect(invocation.command.endsWith('/ast-grep.exe')).toBe(true)
+  expect(basename(invocation.command)).toBe('ast-grep.exe')
   expect(invocation.command).toContain('cli-win32-x64-msvc')
 })
 
@@ -76,6 +85,6 @@ test('resolves the real installed binary from this package, and it exists on dis
 
   expect(invocation.prefixArgs).toEqual([])
   expect(invocation.command).not.toBe('ast-grep')
-  expect(invocation.command).toContain('@ast-grep/cli-')
+  expect(invocation.command).toContain(`@ast-grep${sep}cli-`)
   expect(existsSync(invocation.command)).toBe(true)
 })
