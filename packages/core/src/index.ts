@@ -42,6 +42,8 @@ export {
   electOwners,
   type ElectionInput,
   type ElectionResult,
+  type IneligibilityReason,
+  type IneligibleCandidate,
   type SuppressionReason,
   type SuppressionRecord,
 } from './registry/elect.ts'

@@ -138,6 +138,31 @@ test('reports a key that names neither a concept nor a shipped rule', () => {
   expect(base.unknownKeys).toEqual(['oxlint/no-such-rule'])
 })
 
+test('reports every override block that mentions a concept, regardless of which files it matches', () => {
+  const resolver = createRuleSetResolver({
+    config: {
+      overrides: [
+        { files: ['**/*.test.ts'], rules: { 'style.no-var': 'off' } },
+        { files: ['legacy/**'], rules: { 'style.no-var': 'warn' } },
+        { files: ['src/**'], rules: { 'dead-code.unused-variable': 'error' } },
+      ],
+    },
+  })
+
+  expect(resolver.overridesFor('style.no-var')).toEqual([
+    { source: 'overrides[0] (**/*.test.ts)', setting: 'off' },
+    { source: 'overrides[1] (legacy/**)', setting: 'warn' },
+  ])
+})
+
+test('reports no overrides for a key no override block mentions', () => {
+  const resolver = createRuleSetResolver({
+    config: { overrides: [{ files: ['**/*.test.ts'], rules: { 'style.no-var': 'off' } }] },
+  })
+
+  expect(resolver.overridesFor('correctness.no-debugger')).toEqual([])
+})
+
 test('passes pinned owners through', () => {
   const { base } = createRuleSetResolver({
     config: { owners: { 'dead-code.unused-variable': 'knip' } },
