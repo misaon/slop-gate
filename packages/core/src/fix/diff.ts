@@ -24,6 +24,10 @@ function toLines(buffer: Uint8Array): Line[] {
 
 type Op = { readonly kind: ' ' | '-' | '+'; readonly line: Line }
 
+/** Two lines are the same only if their trailing-newline status matches too — that is what makes a
+ *  file gaining or losing its final newline show up as a change rather than rendering identically. */
+const same = (a: Line, b: Line): boolean => a.text === b.text && a.newline === b.newline
+
 /**
  * Longest common subsequence over lines, after trimming the common head and tail.
  *
@@ -35,8 +39,6 @@ type Op = { readonly kind: ' ' | '-' | '+'; readonly line: Line }
 const MAX_CELLS = 4_000_000
 
 function diffLines(before: readonly Line[], after: readonly Line[]): Op[] {
-  const same = (a: Line, b: Line): boolean => a.text === b.text && a.newline === b.newline
-
   let head = 0
   while (head < before.length && head < after.length && same(before[head]!, after[head]!)) head += 1
 
@@ -58,7 +60,7 @@ function diffLines(before: readonly Line[], after: readonly Line[]): Op[] {
     ops.push(...oldWindow.map((line) => ({ kind: '-' as const, line })))
     ops.push(...newWindow.map((line) => ({ kind: '+' as const, line })))
   } else {
-    const table: number[][] = Array.from({ length: oldWindow.length + 1 }, () => new Array<number>(newWindow.length + 1).fill(0))
+    const table: number[][] = Array.from({ length: oldWindow.length + 1 }, () => Array.from<number>({ length: newWindow.length + 1 }).fill(0))
     for (let i = oldWindow.length - 1; i >= 0; i -= 1) {
       for (let j = newWindow.length - 1; j >= 0; j -= 1) {
         table[i]![j] = same(oldWindow[i]!, newWindow[j]!)

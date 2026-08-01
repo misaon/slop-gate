@@ -66,7 +66,7 @@ export function editsFromRewrite(before: Uint8Array, after: Uint8Array): Edit[] 
     return [trim(before, oldWindow[0]?.start ?? anchor, oldWindow.at(-1)?.end ?? anchor, newWindow.map((l) => l.text).join(''))]
   }
 
-  const table: number[][] = Array.from({ length: oldWindow.length + 1 }, () => new Array<number>(newWindow.length + 1).fill(0))
+  const table: number[][] = Array.from({ length: oldWindow.length + 1 }, () => Array.from<number>({ length: newWindow.length + 1 }).fill(0))
   for (let i = oldWindow.length - 1; i >= 0; i -= 1) {
     for (let j = newWindow.length - 1; j >= 0; j -= 1) {
       table[i]![j] = oldWindow[i]!.text === newWindow[j]!.text

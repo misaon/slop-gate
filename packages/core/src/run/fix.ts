@@ -199,8 +199,6 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       signal,
     })
 
-    if (pass === 1) initial = summariseFindings(check.diagnostics)
-
     // Rail 2. An engine that failed contributed nothing to this pass's candidate set, which means
     // arbitration made overlap decisions without seeing edits that might have won them. Fewer fixes
     // would be tolerable; *differently chosen* fixes are not, so nothing from this pass is written.
@@ -227,6 +225,12 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       frameworks,
       signal,
     })
+
+    // Measured *after* the derivation, not before it: an engine that has to re-run itself to produce
+    // a fix (oxlint) attaches nothing during `runCheck`, so summarising `check.diagnostics` would
+    // report every oxlint-fixable finding as unfixable — and that number is exactly what a user reads
+    // to decide whether `--suggest` or `--unsafe` would help.
+    if (pass === 1) initial = summariseFindings(diagnostics)
 
     const byFile = gather(diagnostics, { tier, writable, rootDir: options.rootDir, ledger, priorities, skipped })
     if (byFile.size === 0) break
