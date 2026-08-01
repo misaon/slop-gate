@@ -120,7 +120,11 @@ async function* execute(
   // declares the program); knip's equivalent declaration is the workspace map, and the repository is
   // under no obligation to have written one. The inventory has, implicitly, by listing every
   // `package.json` in the repository. See `synthesizeKnipWorkspaces`.
-  const { include } = await mergeWorkspacesIntoConfig(handle.path, synthesizeKnipWorkspaces(batch.files))
+  const { include } = await mergeWorkspacesIntoConfig(
+    handle.path,
+    synthesizeKnipWorkspaces(batch.files),
+    context.adjustments ?? [],
+  )
 
   const args = [
     ...invocation.prefixArgs,
