@@ -65,7 +65,9 @@ test('resolves an election and ruleset without ever invoking the engine', async 
     engines: [neverInvokedEngine()],
   })
 
-  expect(resolved.election.owners.get('correctness.no-debugger')).toEqual({ engine: 'oxlint', engineRuleId: 'no-debugger' })
+  expect(resolved.election.owners.get('correctness.no-debugger')).toEqual([
+    { owner: { engine: 'oxlint', engineRuleId: 'no-debugger' }, languages: ['ts'] },
+  ])
   expect(resolved.resolver.anyEnabledConcepts.has('correctness.no-debugger')).toBe(true)
 })
 
@@ -112,6 +114,6 @@ test('excludes a candidate whose engine is absent from the given engines list, m
     engines: [neverInvokedEngine()],
   })
 
-  expect(resolved.election.owners.get('correctness.no-debugger')?.engine).toBe('oxlint')
+  expect(resolved.election.owners.get('correctness.no-debugger')?.[0]?.owner.engine).toBe('oxlint')
   expect(resolved.election.suppressed).toEqual([])
 })

@@ -4,6 +4,7 @@ import {
   splitRuleSetting,
   wasEnabledBeforeBeingDisabled,
   type ConceptEnablement,
+  type ConceptOwnership,
   type ConceptWhy,
   type FrameworkEvidence,
   type IneligibleCandidate,
@@ -114,11 +115,27 @@ function ineligibilityText(record: IneligibleCandidate): string {
  */
 function isLanguageMismatch(explanation: ConceptWhy): boolean {
   return (
-    explanation.owner === undefined &&
+    explanation.ownership.length === 0 &&
     !explanation.uncovered &&
     !explanation.servicedBySlopGate &&
     explanation.ineligible.some((record) => record.reason === 'language-mismatch')
   )
+}
+
+/**
+ * Ownership as one phrase, whether one rule owns the concept everywhere or several split it by
+ * language.
+ *
+ * Languages are named **only when ownership is actually split**. For the overwhelmingly common
+ * single-owner case they would be noise — the reader asked who owns a concept, not which file
+ * extensions exist — and the answer has to stay short enough to sit inside one sentence. When two
+ * engines do own it, naming the languages is the entire content of the answer.
+ */
+function describeOwnership(ownership: readonly ConceptOwnership[]): string {
+  if (ownership.length === 1) return `\`${ruleRefKey(ownership[0]!.owner)}\``
+  return ownership
+    .map(({ owner, languages }) => `\`${ruleRefKey(owner)}\` for ${languages.join(', ')}`)
+    .join(' and ')
 }
 
 /**
@@ -134,7 +151,7 @@ function verdict(explanation: ConceptWhy): string {
       ? 'Produces no findings: not enabled by any layer.'
       : `Produces no findings: framework \`${framework.id}\` turned it off.`
   }
-  if (explanation.owner !== undefined) return `Produces findings via \`${ruleRefKey(explanation.owner)}\`.`
+  if (explanation.ownership.length > 0) return `Produces findings via ${describeOwnership(explanation.ownership)}.`
   if (isLanguageMismatch(explanation)) {
     return 'Produces no findings: no matching-language files in this repository.'
   }
@@ -213,10 +230,19 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
   if (!explanation.servicedBySlopGate && explanation.enablement.enabled) {
     const candidateIndex = indexCandidates(explanation.candidates)
 
-    if (explanation.owner !== undefined) {
-      const tier = tierOf(candidateIndex, explanation.owner)
+    if (explanation.ownership.length > 0) {
       const glyph = levelGlyph(explanation.enablement.level as never, context, paint)
-      writeUnit([`  ${glyph}  Owner: ${paint('bold', ruleRefKey(explanation.owner))}${tier === undefined ? '' : ` (tier ${tier})`}`])
+      const label = explanation.ownership.length === 1 ? 'Owner' : 'Owners'
+      const lines = [`  ${glyph}  ${label}:`]
+      for (const { owner, languages } of explanation.ownership) {
+        const tier = tierOf(candidateIndex, owner)
+        // The language list is dropped for a sole owner for the same reason `describeOwnership`
+        // drops it: it answers a question nobody asked unless ownership is genuinely split.
+        const scope = explanation.ownership.length === 1 ? '' : ` for ${languages.join(', ')}`
+        lines.push(`      ${paint('bold', ruleRefKey(owner))}${tier === undefined ? '' : ` (tier ${tier})`}${scope}`)
+      }
+      // Kept on one line in the common case, so the single-owner rendering is unchanged.
+      writeUnit(explanation.ownership.length === 1 ? [`${lines[0]!.replace(/:$/, ':')} ${lines[1]!.trim()}`] : lines)
     } else if (explanation.uncovered) {
       writeUnit([`  ${paint('yellow', 'Uncovered')} — no capable engine in this run owns this concept.`])
     } else if (isLanguageMismatch(explanation)) {
@@ -227,7 +253,10 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
       const lines = [`  ${paint('bold', 'Suppressed candidates')} (lost arbitration to the owner above)`]
       for (const record of explanation.suppressed) {
         const tier = tierOf(candidateIndex, record.suppressed)
-        lines.push(`    ${ruleRefKey(record.suppressed)}${tier === undefined ? '' : ` (tier ${tier})`} — ${record.reason}`)
+        // The languages are what make a suppression checkable: "lost to oxlint on ts" is a claim a
+        // reader can verify, where a bare "lost" invites the question this whole change answers.
+        const scope = explanation.ownership.length > 1 ? ` on ${record.languages.join(', ')}` : ''
+        lines.push(`    ${ruleRefKey(record.suppressed)}${tier === undefined ? '' : ` (tier ${tier})`} — ${record.reason}${scope}`)
       }
       writeUnit(lines)
     }

@@ -42,7 +42,10 @@ test('lists the recommended preset\'s enabled concepts as json, each with a leve
   expect(parsed.version).toBe(1)
   expect(parsed.entries.length).toBeGreaterThan(0)
   const debuggerEntry = parsed.entries.find((entry) => entry.concept === 'correctness.no-debugger')
-  expect(debuggerEntry).toMatchObject({ level: 'error', owner: { engine: 'oxlint', engineRuleId: 'no-debugger' } })
+  expect(debuggerEntry).toMatchObject({
+    level: 'error',
+    ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-debugger' }, languages: ['ts'] }],
+  })
   expect(debuggerEntry?.enablement.baseProvenance[0]).toMatchObject({ layer: 'preset', source: 'recommended' })
 
   // `recommended` genuinely includes plenty of JSX/framework-scoped concepts a bare TypeScript
@@ -68,7 +71,10 @@ test('filters to a specific engine via --engine', async () => {
   const parsed = JSON.parse(output) as { entries: RulesListEntry[] }
 
   expect(parsed.entries.length).toBeGreaterThan(0)
-  for (const entry of parsed.entries) expect(entry.owner?.engine).toBe('oxlint')
+  for (const entry of parsed.entries) {
+    // `--engine` keeps a concept this engine owns for any language, so assert over every owner.
+    expect(entry.ownership.map((o) => o.owner.engine)).toContain('oxlint')
+  }
 })
 
 test('rejects an unknown --engine value as a config error, before touching the filesystem resolution', async () => {

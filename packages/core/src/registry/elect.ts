@@ -10,6 +10,28 @@ export type SuppressionRecord = {
   suppressed: RuleRef
   winner: RuleRef
   reason: SuppressionReason
+  /**
+   * The languages this rule actually lost on, sorted — never every language the concept spans. Two
+   * rules that both cover `ts` collide there and nowhere else if that is all they share.
+   *
+   * One record per losing rule, not one per language, deliberately: a loser beaten across four
+   * languages is one fact about one rule, and splitting it four ways would multiply the volume of
+   * `rules conflicts` and `config.rule-overlap` for no added information.
+   */
+  languages: readonly LanguageId[]
+}
+
+/**
+ * One rule's ownership of one concept, over the languages it won.
+ *
+ * A concept usually has exactly one of these. It has more than one when different engines own it for
+ * different languages — `correctness.parse-error` belongs to oxlint for TypeScript and to the schema
+ * engine for YAML — which is not a conflict, because no file is both.
+ */
+export type ConceptOwnership = {
+  readonly owner: RuleRef
+  /** Languages present in this repository that `owner` owns the concept for. Sorted. */
+  readonly languages: readonly LanguageId[]
 }
 
 /**
@@ -62,7 +84,12 @@ export type ElectionInput = {
 }
 
 export type ElectionResult = {
-  owners: Map<string, RuleRef>
+  /**
+   * Concept → the rules that own it, one entry per owning rule, ordered by engine preference then
+   * rule id. Empty-array entries are never stored: a concept with no owner is simply absent, which
+   * keeps `owners.has(concept)` meaning what it always did.
+   */
+  owners: Map<string, readonly ConceptOwnership[]>
   selection: Map<EngineId, Set<string>>
   suppressed: SuppressionRecord[]
   /**
@@ -92,7 +119,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
   const preference = input.enginePreference ?? ENGINE_PREFERENCE
   const rank = new Map(preference.map((engine, index) => [engine, index]))
 
-  const owners = new Map<string, RuleRef>()
+  const owners = new Map<string, readonly ConceptOwnership[]>()
   const selection = new Map<EngineId, Set<string>>()
   const suppressed: SuppressionRecord[] = []
   const uncovered: string[] = []
@@ -142,56 +169,93 @@ export function electOwners(input: ElectionInput): ElectionResult {
     }
 
     const pinned = input.pinnedOwners?.[concept]
-    const eligible = pinned === undefined ? ranked : ranked.filter((e) => e.engine === pinned)
 
-    if (eligible.length === 0) {
-      // A pin naming an engine absent from `ranked` discards every otherwise-viable candidate the
-      // same way: the `continue` below means the suppressed-recording loop further down never
-      // runs for this concept, so without this, a candidate that would have won on merit — tier,
-      // engine preference, everything — vanishes with no record at all, same as the pre-ranking
-      // case just above. `pinned !== undefined` is not redundant with `eligible.length === 0`
-      // here: when there is no pin, `eligible` is just `ranked`, so an empty `eligible` already
-      // means an empty `ranked` and this loop is a no-op either way.
-      if (pinned !== undefined) {
-        for (const candidate of ranked) ineligible.push({ concept, candidate: refOf(candidate), reason: 'pinned-to-other-engine' })
+    // **Arbitration runs once per language, not once per concept.** A file has exactly one language,
+    // so this is the scope at which "only one rule may report a concept here" is actually a
+    // statement about anything: two rules that never share a language never meet on a file and were
+    // never in conflict. `ranked` is already in arbitration order, so the per-language winner is
+    // just its first entry that covers that language.
+    const contested = [...new Set(ranked.flatMap((e) => e.languages))]
+      .filter((language) => input.languages.has(language))
+      .sort(compareStrings)
+
+    const ownedLanguages = new Map<string, { ref: RuleRef; languages: LanguageId[] }>()
+    const lostLanguages = new Map<string, { record: Omit<SuppressionRecord, 'languages'>; languages: LanguageId[] }>()
+
+    for (const language of contested) {
+      const here = ranked.filter((e) => e.languages.includes(language))
+      const eligible = pinned === undefined ? here : here.filter((e) => e.engine === pinned)
+      const winner = eligible[0]
+      if (winner === undefined) continue
+
+      const winnerKey = ruleRefKey(winner)
+      const owned = ownedLanguages.get(winnerKey) ?? { ref: refOf(winner), languages: [] }
+      owned.languages.push(language)
+      ownedLanguages.set(winnerKey, owned)
+
+      const enabled = selection.get(winner.engine) ?? new Set<string>()
+      enabled.add(winner.engineRuleId)
+      selection.set(winner.engine, enabled)
+
+      for (const loser of here) {
+        const loserKey = ruleRefKey(loser)
+        if (loserKey === winnerKey) continue
+        // A pin only explains a suppression for a candidate that arbitration would otherwise have
+        // ranked ahead of the winner (`compare(loser, winner) < 0`) — checking `loser.engine !==
+        // pinned` instead mislabels any non-pinned-engine loser as 'pinned-owner' even when it
+        // would have lost to the winner anyway, so a pin that merely agrees with what arbitration
+        // would already have picked hides the real reason (finding 2).
+        const pinOverrode = pinned !== undefined && compare(loser, winner) < 0
+        const reason = reasonFor(winner, loser, pinOverrode)
+        // Keyed by loser *and* winner *and* reason: a rule beaten by two different winners on two
+        // languages is two distinct facts, and collapsing them would attribute both to whichever
+        // language happened to be processed first.
+        const key = `${loserKey} ${winnerKey} ${reason}`
+        const lost = lostLanguages.get(key) ?? {
+          record: { concept, suppressed: refOf(loser), winner: refOf(winner), reason },
+          languages: [],
+        }
+        lost.languages.push(language)
+        lostLanguages.set(key, lost)
       }
-      // A concept slop-gate emits itself (e.g. `config.rule-overlap`) will never have a `RuleEntry`
-      // — counting it against the repository's engine coverage would warn about the tool's own
-      // diagnostics on every single run.
-      if (!SLOP_GATE_SERVICED_CONCEPTS.has(concept)) {
-        // Recomputed ignoring the language filter specifically: if some candidate is otherwise fully
-        // capable (right engine, right capabilities, not deprecated) and only fails on language, the
-        // repository simply doesn't contain that language — not a coverage gap. Only push a concept
-        // here when *no* candidate would run even discounting language entirely.
-        const capable = candidates.filter(isCapable)
-        const eligibleIgnoringLanguage = pinned === undefined ? capable : capable.filter((e) => e.engine === pinned)
-        if (eligibleIgnoringLanguage.length === 0) uncovered.push(concept)
+    }
+
+    if (ownedLanguages.size > 0) {
+      owners.set(
+        concept,
+        [...ownedLanguages.values()].map(({ ref, languages }) => ({ owner: ref, languages })),
+      )
+      // Emitted in loser order rather than language order so the sequence does not depend on which
+      // language happened to be arbitrated first (see the entry-order-independence test).
+      for (const key of [...lostLanguages.keys()].sort(compareStrings)) {
+        const { record, languages } = lostLanguages.get(key)!
+        suppressed.push({ ...record, languages })
       }
       continue
     }
 
-    const winner = eligible[0]!
-    owners.set(concept, refOf(winner))
-
-    const enabled = selection.get(winner.engine) ?? new Set<string>()
-    enabled.add(winner.engineRuleId)
-    selection.set(winner.engine, enabled)
-
-    const winnerKey = ruleRefKey(winner)
-    for (const loser of ranked) {
-      if (ruleRefKey(loser) === winnerKey) continue
-      // A pin only explains a suppression for a candidate that arbitration would otherwise have
-      // ranked ahead of the winner (`compare(loser, winner) < 0`) — checking `loser.engine !==
-      // pinned` instead mislabels any non-pinned-engine loser as 'pinned-owner' even when it
-      // would have lost to the winner anyway, so a pin that merely agrees with what arbitration
-      // would already have picked hides the real reason (finding 2).
-      const pinOverrode = pinned !== undefined && compare(loser, winner) < 0
-      suppressed.push({
-        concept,
-        suppressed: refOf(loser),
-        winner: refOf(winner),
-        reason: reasonFor(winner, loser, pinOverrode),
-      })
+    // No language elected an owner. Everything below is the pre-existing no-owner accounting,
+    // unchanged in meaning — it just now asks "did this concept find an owner anywhere" rather than
+    // "did this concept find an owner".
+    //
+    // A pin naming an engine absent from `ranked` discards every otherwise-viable candidate: without
+    // this, a candidate that would have won on merit — tier, engine preference, everything —
+    // vanishes with no record at all. `pinned !== undefined` is not redundant here: when there is no
+    // pin, an empty result already means an empty `ranked` and this loop is a no-op either way.
+    if (pinned !== undefined) {
+      for (const candidate of ranked) ineligible.push({ concept, candidate: refOf(candidate), reason: 'pinned-to-other-engine' })
+    }
+    // A concept slop-gate emits itself (e.g. `config.rule-overlap`) will never have a `RuleEntry`
+    // — counting it against the repository's engine coverage would warn about the tool's own
+    // diagnostics on every single run.
+    if (!SLOP_GATE_SERVICED_CONCEPTS.has(concept)) {
+      // Recomputed ignoring the language filter specifically: if some candidate is otherwise fully
+      // capable (right engine, right capabilities, not deprecated) and only fails on language, the
+      // repository simply doesn't contain that language — not a coverage gap. Only push a concept
+      // here when *no* candidate would run even discounting language entirely.
+      const capable = candidates.filter(isCapable)
+      const eligibleIgnoringLanguage = pinned === undefined ? capable : capable.filter((e) => e.engine === pinned)
+      if (eligibleIgnoringLanguage.length === 0) uncovered.push(concept)
     }
   }
 

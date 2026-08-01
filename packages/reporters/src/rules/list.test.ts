@@ -6,7 +6,7 @@ import { renderRulesListJson, renderRulesListPretty, RULES_LIST_JSON_VERSION } f
 
 const entry = (over: Partial<RulesListEntry> & Pick<RulesListEntry, 'concept' | 'group'>): RulesListEntry => ({
   level: 'warn',
-  owner: null,
+  ownership: [],
   servicedBySlopGate: false,
   uncovered: false,
   languageMismatch: false,
@@ -24,8 +24,8 @@ const capture = (entries: readonly RulesListEntry[], contextOver: Partial<RulesR
 
 test('renders one row per entry, grouped by concept group, with the owner and level', () => {
   const output = capture([
-    entry({ concept: 'correctness.no-debugger', group: 'correctness', level: 'error', owner: { engine: 'oxlint', engineRuleId: 'no-debugger' } }),
-    entry({ concept: 'dead-code.unused-variable', group: 'dead-code', owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, suppressedCount: 1 }),
+    entry({ concept: 'correctness.no-debugger', group: 'correctness', level: 'error', ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-debugger' }, languages: ['ts'] }] }),
+    entry({ concept: 'dead-code.unused-variable', group: 'dead-code', ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }], suppressedCount: 1 }),
   ])
 
   expect(output).toContain('correctness (1)')
@@ -37,7 +37,7 @@ test('renders one row per entry, grouped by concept group, with the owner and le
 })
 
 test('marks an uncovered concept distinctly from an owned one', () => {
-  const output = capture([entry({ concept: 'style.no-var', group: 'style', uncovered: true, owner: null })])
+  const output = capture([entry({ concept: 'style.no-var', group: 'style', uncovered: true, ownership: [] })])
   expect(output).toMatch(/uncovered/i)
 })
 
@@ -48,11 +48,11 @@ test('marks a slop-gate-serviced concept distinctly, without claiming an engine 
 
 test('marks a language mismatch as not applicable, distinctly from both an owned and an uncovered concept', () => {
   // The bug this test guards against was found running this renderer against the real registry:
-  // `owner: null` on a concept that is neither uncovered nor slop-gate-serviced used to fall
+  // `ownership: []` on a concept that is neither uncovered nor slop-gate-serviced used to fall
   // through to a bare "(no elected owner)" — which reads as broken arbitration for what is, in this
   // shape, the single most common row in a real `rules list` run (see `languageMismatch`'s own doc
   // comment on `RulesListEntry`).
-  const output = capture([entry({ concept: 'style.component-definition-name-casing', group: 'style', owner: null, languageMismatch: true })])
+  const output = capture([entry({ concept: 'style.component-definition-name-casing', group: 'style', ownership: [], languageMismatch: true })])
 
   expect(output).toMatch(/not applicable/i)
   expect(output).not.toContain('no elected owner')
@@ -67,8 +67,8 @@ test('says so plainly when no concepts are enabled', () => {
 test('summarises total, overlap, uncovered and language-mismatch counts in the footer', () => {
   const output = capture([
     entry({ concept: 'a.one', group: 'a', suppressedCount: 2 }),
-    entry({ concept: 'a.two', group: 'a', uncovered: true, owner: null }),
-    entry({ concept: 'a.three', group: 'a', languageMismatch: true, owner: null }),
+    entry({ concept: 'a.two', group: 'a', uncovered: true, ownership: [] }),
+    entry({ concept: 'a.three', group: 'a', languageMismatch: true, ownership: [] }),
   ])
   expect(output).toMatch(/3 enabled concepts/)
   expect(output).toMatch(/2 rule overlaps/)
@@ -88,8 +88,8 @@ test('never puts a wide or fullwidth character in a framed line', () => {
   // can never safely carry one, standards-correct width or not.
   const busy = [
     entry({ concept: 'a.one', group: 'a', suppressedCount: 3 }),
-    entry({ concept: 'a.two', group: 'a', uncovered: true, owner: null }),
-    entry({ concept: 'a.three', group: 'a', languageMismatch: true, owner: null }),
+    entry({ concept: 'a.two', group: 'a', uncovered: true, ownership: [] }),
+    entry({ concept: 'a.three', group: 'a', languageMismatch: true, ownership: [] }),
     entry({ concept: 'config.rule-overlap', group: 'config', servicedBySlopGate: true }),
   ]
   const outputs = [capture([]), capture(busy)]

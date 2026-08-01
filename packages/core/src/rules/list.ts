@@ -1,7 +1,8 @@
 import picomatch from 'picomatch'
 import { SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
 import type { RuleLevel } from '../config/types.ts'
-import type { EngineId, RuleRef } from '../registry/types.ts'
+import type { ConceptOwnership } from '../registry/elect.ts'
+import type { EngineId } from '../registry/types.ts'
 import { compareStrings } from '../ordering.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
 import { resolveEnablement, type ConceptEnablement } from './enablement.ts'
@@ -13,11 +14,17 @@ export type RulesListEntry = {
   group: string
   /** Never `'off'`: only concepts `resolver.anyEnabledConcepts` contains are listed at all. */
   level: Exclude<RuleLevel, 'off'>
-  owner: RuleRef | null
+  /**
+   * Every rule owning this concept, one entry per rule with the languages it won. Empty when nothing
+   * owns it. Almost always a single entry — a concept split across engines by language (oxlint owns
+   * `correctness.parse-error` for TypeScript, the schema engine owns it for YAML) is the case this
+   * is a list for, and the case a single `owner` field could only misreport.
+   */
+  ownership: readonly ConceptOwnership[]
   servicedBySlopGate: boolean
   uncovered: boolean
   /**
-   * True when `owner` is null for a reason *other* than a genuine coverage gap: this repository
+   * True when `ownership` is empty for a reason *other* than a genuine coverage gap: this repository
    * simply contains no files in a language any candidate applies to (see `ElectionResult.uncovered`'s
    * own doc comment — the same distinction, read here rather than re-derived: an enabled,
    * non-serviced concept with no owner is uncovered unless this is set, and never both). Verified
@@ -59,8 +66,10 @@ export function buildRulesList(resolved: ResolvedRun, options: RulesListOptions 
   const entries: RulesListEntry[] = []
   for (const concept of resolved.resolver.anyEnabledConcepts) {
     if (isMatch !== null && !isMatch(concept)) continue
-    const owner = resolved.election.owners.get(concept) ?? null
-    if (options.engine !== undefined && owner?.engine !== options.engine) continue
+    const ownership = resolved.election.owners.get(concept) ?? []
+    // `--engine` keeps a concept this engine owns *for any language*: a concept it owns only for
+    // YAML is still a concept it owns.
+    if (options.engine !== undefined && !ownership.some(({ owner }) => owner.engine === options.engine)) continue
     const uncovered = resolved.election.uncovered.includes(concept)
     if (options.uncoveredOnly === true && !uncovered) continue
     const servicedBySlopGate = SLOP_GATE_SERVICED_CONCEPTS.has(concept)
@@ -69,14 +78,14 @@ export function buildRulesList(resolved: ResolvedRun, options: RulesListOptions 
       concept,
       group: concept.split('.')[0]!,
       level: resolved.resolver.maxLevelOf(concept) as Exclude<RuleLevel, 'off'>,
-      owner,
+      ownership,
       servicedBySlopGate,
       uncovered,
       // Necessarily the case whenever a non-serviced concept has no owner and is not uncovered:
       // `electOwners` only ever leaves both false when some candidate is fully capable (engine
       // participates, no missing capability, not deprecated) and fails solely on language — the
       // exact condition that keeps a concept out of `uncovered` in the first place.
-      languageMismatch: owner === null && !uncovered && !servicedBySlopGate,
+      languageMismatch: ownership.length === 0 && !uncovered && !servicedBySlopGate,
       suppressedCount: suppressedCounts.get(concept) ?? 0,
       enablement: resolveEnablement(resolved.resolver, concept),
     })

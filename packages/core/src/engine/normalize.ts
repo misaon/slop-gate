@@ -2,7 +2,8 @@ import type { RuleLevel } from '../config/types.ts'
 import { fingerprint } from '../diagnostics/fingerprint.ts'
 import { createLineIndex, type LineIndex } from '../diagnostics/position.ts'
 import type { Diagnostic, Fix, Severity } from '../diagnostics/types.ts'
-import { isOwned } from '../registry/ownership.ts'
+import { detectLanguage } from '../discovery/language.ts'
+import { isOwned, owningEngines, type OwnerMap } from '../registry/ownership.ts'
 import { ruleRefKey, type EngineId, type RuleEntry, type RuleRef } from '../registry/types.ts'
 import { applySuppressions } from '../suppressions/apply.ts'
 import { parseSuppressions, type SuppressionDirective } from '../suppressions/parse.ts'
@@ -12,7 +13,7 @@ export type NormalizeInput = {
   engine: EngineId
   raws: readonly RawDiagnostic[]
   entries: readonly RuleEntry[]
-  owners: ReadonlyMap<string, RuleRef>
+  owners: OwnerMap
   sourceOf: (file: string) => string
   levelOf: (concept: string) => RuleLevel | undefined
   /**
@@ -58,7 +59,14 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
     if (entry === undefined) continue
 
     const concept = classify(entry, raw.message)
-    if (!isOwned(input.owners, { concept, engine: input.engine, engineRuleId: raw.engineRuleId })) continue
+    // `language` is what makes this exact rather than approximate: a rule that won this concept
+    // for `ts` and lost it for `vue` owns it *somewhere*, and without the language this check
+    // would keep its `vue` findings — the double reporting arbitration exists to prevent.
+    // Derived from the path rather than plumbed through, because that is precisely how the
+    // inventory assigned it in the first place, and a project engine may report against a file
+    // that was never in its own batch.
+    const language = detectLanguage(raw.file)
+    if (!isOwned(input.owners, { concept, engine: input.engine, engineRuleId: raw.engineRuleId, language })) continue
 
     const level = input.levelOf(concept)
     if (level === 'off') continue
@@ -191,15 +199,17 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
  *   the M0 follow-ups, and not reachable from any escape this repository documents, all of which
  *   name their target.
  */
-function judgedBy(directive: SuppressionDirective, engine: EngineId, owners: ReadonlyMap<string, RuleRef>): boolean {
+function judgedBy(directive: SuppressionDirective, engine: EngineId, owners: OwnerMap): boolean {
   if (directive.targets.length === 0) return true
   // A target is either a concept id (`slop.double-cast`, resolved through the election) or a rule id
   // (`oxlint/no-shadow`, whose first segment names the engine directly) — `directiveMatches` accepts
   // both, so both have to resolve to an engine here or the rule-id spelling keeps the bug.
+  // One list of owning engines per target, because a concept split across languages has more than
+  // one owner and any of them is reason enough for this engine to have an opinion.
   const engines = directive.targets.map((target) =>
-    target.includes('/') ? target.slice(0, target.indexOf('/')) : owners.get(target)?.engine,
+    target.includes('/') ? [target.slice(0, target.indexOf('/'))] : owningEngines(owners, target),
   )
-  return engines.some((owner) => owner === engine) || engines.every((owner) => owner === undefined)
+  return engines.some((owners_) => owners_.includes(engine)) || engines.every((owners_) => owners_.length === 0)
 }
 
 /**

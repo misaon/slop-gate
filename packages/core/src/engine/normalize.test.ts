@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { createLineIndex } from '../diagnostics/position.ts'
+import type { OwnerMap } from '../registry/ownership.ts'
 import type { RuleEntry, RuleRef } from '../registry/types.ts'
 import { normalizeDiagnostics } from './normalize.ts'
 import type { RawDiagnostic } from './types.ts'
@@ -40,7 +41,15 @@ const noDebugger: RuleEntry = {
 
 const entries = [unusedVars, noDebugger]
 
-const owners = new Map<string, RuleRef>([
+/**
+ * An owner map in the `(concept, language)` shape `electOwners` now produces. The tests here are all
+ * about a single `.ts` file, so every concept is owned for `ts` and the language dimension is
+ * uniform — see `registry/elect.test.ts` for the split-ownership cases.
+ */
+const ownerMap = (pairs: readonly (readonly [string, RuleRef])[]): OwnerMap =>
+  new Map(pairs.map(([concept, owner]) => [concept, [{ owner, languages: ['ts' as const] }]]))
+
+const owners = ownerMap([
   ['dead-code.unused-variable', { engine: 'oxlint', engineRuleId: 'no-unused-vars' }],
   ['dead-code.unused-import', { engine: 'oxlint', engineRuleId: 'no-unused-vars' }],
   ['correctness.no-debugger', { engine: 'oxlint', engineRuleId: 'no-debugger' }],
@@ -88,9 +97,7 @@ test('drops a finding from a rule the registry does not describe', () => {
 })
 
 test('drops a finding whose concept is owned by a different rule', () => {
-  const otherOwner = new Map<string, RuleRef>([
-    ['correctness.no-debugger', { engine: 'eslint', engineRuleId: 'no-debugger' }],
-  ])
+  const otherOwner = ownerMap([['correctness.no-debugger', { engine: 'eslint', engineRuleId: 'no-debugger' }]])
   const result = normalizeDiagnostics({
     engine: 'oxlint',
     raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger' })],
@@ -354,7 +361,9 @@ test('an engine that owns none of a directive\'s targets does not call it unused
   // oxlint's pass over a file whose only finding is ast-grep's reported the (correctly working)
   // suppression as matching nothing.
   const fileSource = `${directive('slop.double-cast -- checked above')}\nconst a = 1\n`
-  const withAstGrep = new Map(owners).set('slop.double-cast', { engine: 'astgrep', engineRuleId: 'slop-double-cast' })
+  const withAstGrep: OwnerMap = new Map(owners).set('slop.double-cast', [
+    { owner: { engine: 'astgrep', engineRuleId: 'slop-double-cast' }, languages: ['ts'] },
+  ])
 
   const result = normalizeDiagnostics({
     engine: 'oxlint',
@@ -428,7 +437,9 @@ test('a missing reason is reported regardless of who owns the target', () => {
   // Deliberately not scoped by ownership: whether a directive carries a reason is a property of the
   // comment, not of any engine. Duplicates across engines are collapsed in `run/check.ts`.
   const fileSource = `${directive('slop.double-cast')}\nconst a = 1\n`
-  const withAstGrep = new Map(owners).set('slop.double-cast', { engine: 'astgrep', engineRuleId: 'slop-double-cast' })
+  const withAstGrep: OwnerMap = new Map(owners).set('slop.double-cast', [
+    { owner: { engine: 'astgrep', engineRuleId: 'slop-double-cast' }, languages: ['ts'] },
+  ])
 
   const result = normalizeDiagnostics({
     engine: 'oxlint',

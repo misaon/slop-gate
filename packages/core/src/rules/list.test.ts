@@ -53,8 +53,8 @@ test('lists one row per enabled concept, sorted, with its owner and level', () =
   const rows = buildRulesList(resolved(config, entries, ['oxlint', 'eslint']))
 
   expect(rows.map((row) => row.concept)).toEqual(['correctness.no-debugger', 'dead-code.unused-variable'])
-  expect(rows[0]).toMatchObject({ group: 'correctness', level: 'error', owner: { engine: 'oxlint', engineRuleId: 'no-debugger' } })
-  expect(rows[1]).toMatchObject({ suppressedCount: 1, owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' } })
+  expect(rows[0]).toMatchObject({ group: 'correctness', level: 'error', ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-debugger' }, languages: ['ts'] }] })
+  expect(rows[1]).toMatchObject({ suppressedCount: 1, ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }] })
 })
 
 test('does not list a concept no layer enables', () => {
@@ -64,7 +64,7 @@ test('does not list a concept no layer enables', () => {
 
 test('marks a concept with no elected owner as uncovered when no participating engine can serve it', () => {
   const rows = buildRulesList(resolved({ rules: { 'correctness.no-debugger': 'error' } }, entries, ['eslint']))
-  expect(rows[0]).toMatchObject({ concept: 'correctness.no-debugger', owner: null, uncovered: true })
+  expect(rows[0]).toMatchObject({ concept: 'correctness.no-debugger', ownership: [], uncovered: true })
 })
 
 test('filters by a concept glob via --only', () => {
@@ -80,14 +80,14 @@ test('filters to concepts a specific engine currently owns', () => {
 test('marks a language mismatch distinctly from a genuine coverage gap, without marking it uncovered', () => {
   // Reproduces the real shape found running this against the actual CLI: `recommended` enables
   // plenty of JSX/Vue-scoped concepts a plain TypeScript repository's file set never exercises.
-  // `owner` is null (no candidate is actually applicable here) but this is not a coverage gap, so
+  // `ownership` is empty (no candidate is actually applicable here) but this is not a coverage gap, so
   // `uncovered` must stay false — the same distinction `elect.ts`'s own tests already prove at the
   // `ElectionResult` level, checked here at the `RulesListEntry` level a renderer actually reads.
   const vueOnly = entry({ engine: 'oxlint', engineRuleId: 'vue-rule', concepts: ['style.no-var'], languages: ['vue'] })
   const rows = buildRulesList(resolved({ rules: { 'style.no-var': 'warn' } }, [vueOnly]))
 
   expect(rows).toHaveLength(1)
-  expect(rows[0]).toMatchObject({ owner: null, uncovered: false, languageMismatch: true })
+  expect(rows[0]).toMatchObject({ ownership: [], uncovered: false, languageMismatch: true })
 })
 
 test('filters to uncovered concepts only', () => {

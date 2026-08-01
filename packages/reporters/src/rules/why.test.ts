@@ -11,7 +11,7 @@ const explanation = (over: Partial<ConceptWhy> = {}): ConceptWhy => ({
   enablement: { enabled: true, level: 'error', baseProvenance: [{ layer: 'preset', source: 'recommended', setting: 'error' }], overrides: [] },
   pinnedOwner: undefined,
   candidates: [],
-  owner: undefined,
+  ownership: [],
   suppressed: [],
   ineligible: [],
   uncovered: false,
@@ -72,7 +72,7 @@ test('shows the owner and an ineligible non-participating engine — the real ox
   const output = capture(
     explanation({
       concept: 'dead-code.unused-variable',
-      owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
+      ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }],
       candidates: [
         { engine: 'oxlint', engineRuleId: 'no-unused-vars', tier: 0 } as never,
         { engine: 'eslint', engineRuleId: '@typescript-eslint/no-unused-vars', tier: 2 } as never,
@@ -179,8 +179,16 @@ test('reports a concept serviced by slop-gate itself distinctly from an ordinary
 test('never puts a wide or fullwidth character in a framed line', () => {
   const busy = explanation({
     concept: 'dead-code.unused-variable',
-    owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
-    suppressed: [{ concept: 'dead-code.unused-variable', suppressed: { engine: 'eslint', engineRuleId: 'x' }, winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, reason: 'lower-tier' }],
+    ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }],
+    suppressed: [
+      {
+        concept: 'dead-code.unused-variable',
+        languages: ['ts'],
+        suppressed: { engine: 'eslint', engineRuleId: 'x' },
+        winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
+        reason: 'lower-tier',
+      },
+    ],
     ineligible: [{ concept: 'dead-code.unused-variable', candidate: { engine: 'eslint', engineRuleId: 'x' }, reason: 'engine-not-participating' }],
   })
   const outputs = [capture(explanation()), capture(busy), capture(explanation({ isKnownConcept: false }))]
