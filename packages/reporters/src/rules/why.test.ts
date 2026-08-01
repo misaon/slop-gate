@@ -1,6 +1,6 @@
 import type { ConceptWhy } from '@misaon/slop-gate-core'
 import { expect, test } from 'vitest'
-import { hasWideOrFullwidthCharacter } from '../display-width.ts'
+import { displayWidth, hasWideOrFullwidthCharacter } from '../display-width.ts'
 import type { RulesReporterContext } from './context.ts'
 import { renderRulesWhyJson, renderRulesWhyPretty, RULES_WHY_JSON_VERSION } from './why.ts'
 
@@ -24,6 +24,11 @@ const capture = (result: ConceptWhy, contextOver: Partial<RulesReporterContext> 
   renderRulesWhyPretty(result, context)
   return output
 }
+
+/** Collapses runs of whitespace (including the newline/indent a wrapped ineligibility explanation
+ *  now introduces — see `wrapText`'s use in `why.ts`) so a phrase-level assertion still matches
+ *  regardless of exactly where the renderer happened to wrap the line it appears in. */
+const flat = (output: string): string => output.replace(/\s+/g, ' ')
 
 test('reports an unknown concept without throwing, and does not attempt to describe it', () => {
   const output = capture(explanation({ concept: 'not.a.concept', isKnownConcept: false, enablement: { enabled: false, level: 'off', baseProvenance: [], overrides: [] } }))
@@ -79,7 +84,7 @@ test('shows the owner and an ineligible non-participating engine — the real ox
   expect(output).toContain('Owner:')
   expect(output).toContain('oxlint/no-unused-vars')
   expect(output).toContain('eslint/@typescript-eslint/no-unused-vars')
-  expect(output).toMatch(/no `eslint` engine is registered in this run/)
+  expect(flat(output)).toMatch(/no `eslint` engine is registered in this run/)
   expect(output).toMatch(/produces findings via `oxlint\/no-unused-vars`/i)
 })
 
@@ -101,8 +106,41 @@ test('explains a type-aware candidate blocked on a missing capability, citing th
   )
 
   expect(output).toMatch(/uncovered/i)
-  expect(output).toContain('type-aware support is not wired up')
-  expect(output).toContain('2026-07-31-m0-followups.md')
+  expect(flat(output)).toContain('type-aware support is not wired up')
+  expect(flat(output)).toContain('2026-07-31-m0-followups.md')
+
+  // Measured printing this against a real type-aware concept (`correctness.no-floating-promises`
+  // with `rules why`, capability text included): the unwrapped line ran to 228 characters — this
+  // reason's explanation must never be handed to the terminal as one raw line the way it used to be.
+  const lines = output.split('\n')
+  const candidateLine = lines.find((line) => line.includes('oxlint/no-floating-promises'))
+  expect(candidateLine).toBeDefined()
+  const candidateLineIndex = lines.indexOf(candidateLine!)
+  // Collect every subsequent line up to the next blank line (the wrapped continuation of this
+  // candidate's explanation, before `writeUnit`'s own unit-separating blank line).
+  const continuationLines: string[] = []
+  for (let i = candidateLineIndex + 1; i < lines.length && lines[i] !== ''; i++) continuationLines.push(lines[i]!)
+  expect(continuationLines.length).toBeGreaterThan(0) // long enough to actually wrap
+
+  // `wrapText`'s own contract (see its doc comment) breaks only at whitespace: a single token wider
+  // than the budget — here, the doc path itself, with no internal whitespace to break on — is
+  // emitted whole rather than split mid-character. So every line must fit the frame *unless* it is
+  // exactly one such unsplittable token, which is what actually happens on the last line below.
+  for (const line of [candidateLine!, ...continuationLines]) {
+    if (displayWidth(line) <= 80) continue
+    expect(line.trim().split(/\s+/), line).toHaveLength(1)
+  }
+
+  // Wrapping must not drop, duplicate or reorder words from the underlying explanation text —
+  // `ineligibilityText` itself is not exported, so this pins the literal wording `why.ts` builds for
+  // this reason rather than reaching into the private helper that produces it.
+  const rejoined = [candidateLine!.slice(candidateLine!.indexOf('—')), ...continuationLines]
+    .map((line) => line.trim())
+    .join(' ')
+  expect(rejoined).toBe(
+    '— requires type information (`types`), which no participating engine provides yet — type-aware ' +
+      'support is not wired up (see "Blocks M2" in docs/superpowers/specs/2026-07-31-m0-followups.md)',
+  )
 })
 
 test('explains a language mismatch without implying a genuine coverage gap', () => {
@@ -118,7 +156,7 @@ test('explains a language mismatch without implying a genuine coverage gap', () 
       ineligible: [{ concept: 'style.no-var', candidate: { engine: 'oxlint', engineRuleId: 'vue-rule' }, reason: 'language-mismatch' }],
     }),
   )
-  expect(output).toMatch(/no files in a language this rule applies to/)
+  expect(flat(output)).toMatch(/no files in a language this rule applies to/)
   expect(output).toMatch(/not applicable/i)
   expect(output).not.toMatch(/uncovered/i)
   expect(output).toMatch(/no matching-language files in this repository/i) // the closing verdict

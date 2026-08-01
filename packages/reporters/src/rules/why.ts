@@ -11,6 +11,7 @@ import {
 } from '@misaon/slop-gate-core'
 import { displayWidth } from '../display-width.ts'
 import { createFrameKit, plural } from '../frame.ts'
+import { wrapText } from '../wrap-text.ts'
 import type { RulesReporterContext } from './context.ts'
 import { indexCandidates, levelGlyph, tierOf } from './shared.ts'
 
@@ -117,7 +118,7 @@ function verdict(explanation: ConceptWhy): string {
 }
 
 export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesReporterContext): void {
-  const { paint, frameTop, frameRow, frameBottom, writeUnit, inner } = createFrameKit(context)
+  const { paint, frameTop, frameRow, frameBottom, writeUnit, inner, width } = createFrameKit(context)
 
   {
     const left = `  ${context.unicode ? '◆' : '*'}  slop-gate rules why`
@@ -187,7 +188,17 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     if (explanation.ineligible.length > 0) {
       const lines = [`  ${paint('bold', 'Other candidates that never contested this concept')}`]
       for (const record of explanation.ineligible) {
-        lines.push(`    ${ruleRefKey(record.candidate)} — ${ineligibilityText(record)}`)
+        // The M2-blocker reason in particular (`ineligibilityText`'s `missing-capability`/`types`
+        // case) is 180+ characters — measured printing this against a real type-aware concept, it
+        // ran to 228 and overflowed every normal terminal width unwrapped. Wrapped the same way
+        // `pretty.ts` wraps a diagnostic message: on plain text via `wrapText`, continuation lines
+        // aligned under this candidate's own prefix (which varies in length row to row, so the
+        // indent is computed per record rather than reusing one fixed column).
+        const prefix = `    ${ruleRefKey(record.candidate)} — `
+        const detailWidth = Math.max(1, width - displayWidth(prefix))
+        const [firstLine, ...continuationLines] = wrapText(ineligibilityText(record), detailWidth)
+        const indent = ' '.repeat(displayWidth(prefix))
+        lines.push(`${prefix}${firstLine}`, ...continuationLines.map((line) => `${indent}${line}`))
       }
       writeUnit(lines)
     }
