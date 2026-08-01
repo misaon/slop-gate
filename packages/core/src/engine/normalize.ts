@@ -134,6 +134,7 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
 
     const lineIndex = lineIndexes.get(file)!
     for (const directive of applied.unused) {
+      if (!judgedBy(directive, input.engine, input.owners)) continue
       const built = suppressionDiagnostic({
         concept: 'config.unused-suppression',
         directive,
@@ -163,6 +164,41 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
 
   const withMarkers = diagnostics.map((diagnostic) => replacements.get(diagnostic) ?? diagnostic)
   return [...withMarkers, ...synthetic]
+}
+
+/**
+ * Whether *this* engine's view of a file is entitled to call a directive unused.
+ *
+ * This function runs once per (engine, file), and it only ever sees one engine's diagnostics — so
+ * "no diagnostic here matched the directive" means "not from me", not "not from anyone". With one
+ * file-granularity engine those were the same statement. With two they are not, and the difference
+ * is user-visible on the exact comment the documentation tells people to write: a
+ * `disable-next-line` naming `slop.double-cast` correctly suppresses ast-grep's finding *and* is
+ * reported as an unused suppression by oxlint's pass over the same file, which never had a
+ * `slop.double-cast` diagnostic to suppress. Reproduced before this guard existed.
+ *
+ * Ownership is the available answer: `owners` is the election result, so an engine that does not own
+ * any of a directive's targets could never have produced a diagnostic for it and has no opinion
+ * worth reporting. Two deliberate exceptions —
+ *
+ * - **Targets nobody owns.** A directive naming a concept no participating engine covers can never
+ *   match anything and is exactly the dead suppression this concept exists for, so every engine
+ *   reports it and `run/check.ts` collapses the duplicates.
+ * - **A bare directive** (a `disable-next-line` with a reason and no targets) suppresses every
+ *   concept, so no engine can be excluded on ownership grounds. It is still judged by all of them,
+ *   and two engines that disagree still produce one spurious finding — the residual gap, recorded in
+ *   the M0 follow-ups, and not reachable from any escape this repository documents, all of which
+ *   name their target.
+ */
+function judgedBy(directive: SuppressionDirective, engine: EngineId, owners: ReadonlyMap<string, RuleRef>): boolean {
+  if (directive.targets.length === 0) return true
+  // A target is either a concept id (`slop.double-cast`, resolved through the election) or a rule id
+  // (`oxlint/no-shadow`, whose first segment names the engine directly) — `directiveMatches` accepts
+  // both, so both have to resolve to an engine here or the rule-id spelling keeps the bug.
+  const engines = directive.targets.map((target) =>
+    target.includes('/') ? target.slice(0, target.indexOf('/')) : owners.get(target)?.engine,
+  )
+  return engines.some((owner) => owner === engine) || engines.every((owner) => owner === undefined)
 }
 
 function classify(entry: RuleEntry, message: string): string {

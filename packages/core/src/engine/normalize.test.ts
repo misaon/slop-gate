@@ -340,3 +340,105 @@ test('a file with no directives at all is unaffected', () => {
   const result = run([raw({ engineRuleId: 'no-debugger', message: 'debugger' })])
   expect(result[0]?.suppressed).toBeUndefined()
 })
+
+// Spelled in parts on purpose. `parseSuppressions` reads raw file text with no idea of string
+// literals, so a test *about* directives that writes one out in full turns this file into a source
+// of phantom `config.unused-suppression` findings against slop-gate's own `check` — the ten already
+// above are exactly that. Assembling the token keeps the runtime source identical and the file text
+// inert; the underlying limitation is recorded in the M0 follow-ups.
+const directive = (rest: string): string => `// sgate-${'disable-next-line'} ${rest}`
+
+test('an engine that owns none of a directive\'s targets does not call it unused', () => {
+  // The defect this guards was user-visible the moment a second file-granularity engine existed:
+  // `normalizeDiagnostics` runs once per (engine, file) and sees only that engine's diagnostics, so
+  // oxlint's pass over a file whose only finding is ast-grep's reported the (correctly working)
+  // suppression as matching nothing.
+  const fileSource = `${directive('slop.double-cast -- checked above')}\nconst a = 1\n`
+  const withAstGrep = new Map(owners).set('slop.double-cast', { engine: 'astgrep', engineRuleId: 'slop-double-cast' })
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners: withAstGrep,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    suppressionScanFiles: ['src/a.ts'],
+  })
+
+  expect(result).toEqual([])
+})
+
+test('the owning engine still calls its own unmatched directive unused', () => {
+  // The other half, and the one that would make the guard above vacuous if it were wrong: scoping by
+  // ownership must not stop the engine that *does* own the concept from reporting a dead suppression.
+  const fileSource = `${directive('correctness.no-debugger -- stale')}\nconst a = 1\n`
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    suppressionScanFiles: ['src/a.ts'],
+  })
+
+  expect(result.map((d) => d.concept)).toEqual(['config.unused-suppression'])
+})
+
+test('a target no participating engine owns is still reported, by whoever is looking', () => {
+  // A directive naming a concept nothing covers can never match and is the dead suppression this
+  // concept exists for. Excluding every engine on ownership grounds would silently stop reporting
+  // it; `run/check.ts` collapses the resulting duplicates instead.
+  const fileSource = `${directive('style.invented-concept -- stale')}\nconst a = 1\n`
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    suppressionScanFiles: ['src/a.ts'],
+  })
+
+  expect(result.map((d) => d.concept)).toEqual(['config.unused-suppression'])
+})
+
+test('a rule-id target is resolved by its engine prefix, not through the election', () => {
+  // `directiveMatches` accepts `oxlint/no-shadow` as well as a concept id, so ownership has to be
+  // readable from the spelling too — otherwise the rule-id form keeps the bug the concept form lost.
+  const fileSource = `${directive('astgrep/slop-double-cast -- checked above')}\nconst a = 1\n`
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    suppressionScanFiles: ['src/a.ts'],
+  })
+
+  expect(result).toEqual([])
+})
+
+test('a missing reason is reported regardless of who owns the target', () => {
+  // Deliberately not scoped by ownership: whether a directive carries a reason is a property of the
+  // comment, not of any engine. Duplicates across engines are collapsed in `run/check.ts`.
+  const fileSource = `${directive('slop.double-cast')}\nconst a = 1\n`
+  const withAstGrep = new Map(owners).set('slop.double-cast', { engine: 'astgrep', engineRuleId: 'slop-double-cast' })
+
+  const result = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [],
+    entries,
+    owners: withAstGrep,
+    sourceOf: () => fileSource,
+    levelOf: (concept) => (concept === 'config.suppression-missing-reason' ? 'warn' : undefined) as never,
+    suppressionScanFiles: ['src/a.ts'],
+  })
+
+  expect(result.map((d) => d.concept)).toEqual(['config.suppression-missing-reason'])
+})
