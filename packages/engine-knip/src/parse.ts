@@ -77,7 +77,7 @@ const qualify = (item: KnipItem): string => (item.namespace === undefined ? item
  * three rows, each with its own real position (measured — this is exactly what the srvc-bat grounding
  * run showed). They stay three diagnostics rather than being collapsed into one, because slop-gate's
  * whole diagnostic model is per-(file, range): a single collapsed finding would have to pick one file
- * arbitrarily, and — decisively — an inline `sgate-disable-next-line deps.unlisted-dependency` on one
+ * arbitrarily, and — decisively — an inline `sgate-disable-*` for `deps.unlisted-dependency` on one
  * import site would then silently govern, or fail to govern, the other two. knip already deduplicates
  * *within* a file (its issue store is keyed by file then symbol), so no two of the three are ever the
  * same position.
