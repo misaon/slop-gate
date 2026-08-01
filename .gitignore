@@ -5,6 +5,12 @@ dist/
 .turbo/
 *.tsbuildinfo
 .superpowers/
+# engine-tsc's own tests need `typescript` (a peer dependency) to resolve for real, which requires
+# Node's module resolution to walk up from the fixture directory into this repo's own hoisted
+# node_modules — impossible from a fixture under the system temp dir, which shares no ancestor with
+# this repo at all. Fixtures therefore live in a throwaway directory inside the package itself
+# instead (see packages/engine-tsc/src/index.test.ts), always removed in `afterEach`.
+.test-tmp/
 # Stray artifact from a killed packages/cli/src/main.test.ts run (see 7159a6e) — narrowed from the
 # original blanket `*.generated.ts`, which also matched packages/core/src/registry/entries.generated.ts
 # and packages/core/src/concepts/concepts.generated.ts. Those two *are* committed: the registry
