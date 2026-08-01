@@ -821,3 +821,65 @@ for anything project-granularity. Neither is worth doing for a preview; the hone
   is the second consumer that would benefit from `resolveRun`'s result being passable *into*
   `streamCheck` rather than recomputed, which is the same prepare/plan/schedule seam the M2
   restructure entry above keeps circling.
+
+---
+
+## Found building the `agent` reporter (spec §12.3)
+
+### `fixTouches` finally has a consumer, and it is a label
+
+The `agent` reporter prints `touches statements` on an automated group. That is the first read of
+`RuleEntry.fixTouches` anywhere, and it does not change the "delete it" recommendation above: the
+reporter uses it as a human-legible hint about what a fix will move, not as a decision input. If the
+field is deleted, one facet disappears from a group header and nothing else changes.
+
+### `sgate init` advertised a format that did not exist
+
+`AGENTS_BODY` in `packages/cli/src/commands/init.ts` has told every initialised repository to run
+`sgate check --format agent` since M0. Until this branch, `--format agent` exited 2 with
+`unknown format: agent`. The `does not advertise commands that do not exist` test next to it was a
+blocklist of literal strings (`'sgate fix'`, `'rules why'`) and so could not catch it — worse, it was
+still *forbidding* `sgate fix` weeks after that command shipped. It now extracts every `sgate <word>`
+from the body and checks it against the registered subcommand set. **A test that enumerates what must
+not appear cannot notice what is missing**; state the invariant over the content instead.
+
+### The budget floor is group headers, and that is deliberate
+
+"A group header is never dropped" means the fixed cost of the report grows with the number of
+*concepts* in the run, not the number of findings. Roughly 600 estimated tokens for two concepts,
+1,600 for this repository's six. A repository triggering 60 concepts would have a floor near 12,000
+and `--max-tokens 4000` would be unmeetable — the report would print in full and say so.
+
+That is the right trade at this scale and it will stop being right at some scale. The escape, if it is
+ever needed, is a third tier between "full group" and "dropped": a one-line-per-concept index
+(`concept — N findings, docs`) that replaces the four-line header once the count of groups passes some
+threshold. Not built, because nothing has produced a run big enough to need it, and building it now
+would mean guessing the threshold.
+
+### Measured: what the reporter says about this repository
+
+At the commit this landed on, `sgate check --format agent` is 18.6 kB, an estimated 6,194 tokens, over
+66 findings in 6 concepts — 3 automated (all `oxlint/unicorn/no-useless-spread`, tier `unsafe`) and 63
+judgement. Byte-identical across a cold and a warm run, verified with `cmp` against the real CLI, not
+only in the test suite.
+
+The split agrees exactly with `sgate fix --dry-run --unsafe`, which applies three edits from that same
+rule and reports `0 safe, 0 suggested, 3 unsafe`. That agreement is a *shared-source* property, not two
+independent measurements confirming each other: both read `RuleEntry.fixKind`. What the reporter cannot
+know is whether an edit will actually materialise for a given finding — a derived fix can be skipped
+because the file carries an inline suppression directive (see the sharp edge above), and on this
+repository that is not a rare case. The section header therefore promises what `sgate fix` is *willing*
+to rewrite, not what it will succeed at.
+
+### Deliberately not done
+
+- **No `--format agent` for `sgate fix`.** The reporter consumes a `CheckResult`; `FixResult` is a
+  different shape with its own summary renderer (`renderFixSummary`). Worth revisiting once a second
+  consumer wants it.
+- **No fingerprints in the output.** They are the stable identity across reformats and the thing a
+  baseline is keyed on, but an agent acts on a location, and 32 hex characters per finding is real
+  budget spent on something nothing in the loop reads yet. Add them when `sgate baseline` lands and an
+  agent has a reason to name one.
+- **No `--with-fixes` on `sgate check`.** It would make the diff path live by running the derivation
+  step `runFix` does, at the cost of re-running oxlint once per rule per file on a command whose whole
+  point is to be fast. `sgate fix --dry-run` already answers the question and the report says so.
