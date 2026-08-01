@@ -1,0 +1,33 @@
+{
+  "name": "@misaon/slop-gate-core",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "generate:registry": "node scripts/generate-registry.ts",
+    "generate:registry:check": "node scripts/generate-registry.ts --check"
+  },
+  "dependencies": {
+    "ignore": "^7.0.6",
+    "oxc-transform": "^0.142.0",
+    "picomatch": "^4.0.5",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/picomatch": "^4.0.3"
+  }
+}

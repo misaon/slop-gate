@@ -1,0 +1,11 @@
+# LF in the repository on every platform.
+#
+# Windows CI runners default to core.autocrlf=true, which rewrites checked-out
+# files to CRLF. The registry generator writes LF and byte-compares its output
+# against what is committed, so without this the freshness check fails on
+# Windows and only on Windows — which is exactly how it was found.
+#
+# Making that comparison line-ending-insensitive would have hidden real drift,
+# so the repository enforces the invariant instead of the check tolerating its
+# absence. Golden reporter output and code-frame fixtures depend on it too.
+* text=auto eol=lf

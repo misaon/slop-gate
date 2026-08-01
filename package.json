@@ -1,0 +1,26 @@
+{
+  "name": "slop-gate-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": { "node": ">=24" },
+  "license": "MIT",
+  "scripts": {
+    "build": "turbo run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "turbo run typecheck",
+    "generate:registry": "turbo run build --filter=@misaon/slop-gate-engine-oxlint && pnpm --filter @misaon/slop-gate-core generate:registry",
+    "generate:registry:check": "turbo run build --filter=@misaon/slop-gate-engine-oxlint && pnpm --filter @misaon/slop-gate-core generate:registry:check",
+    "check": "pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@misaon/slop-gate": "workspace:*",
+    "@misaon/slop-gate-engine-oxlint": "workspace:*",
+    "@types/node": "^24.0.0",
+    "tsdown": "^0.15.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

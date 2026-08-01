@@ -349,9 +349,29 @@ One filesystem pass per run, shared by every engine.
 
 - In a git repository with `git` available: `git ls-files -co --exclude-standard -z --deduplicate`.
   This yields exactly the tracked plus non-ignored untracked files, correctly and fast, without
-  reimplementing ignore semantics.
-- Otherwise: an internal parallel walker with ignore-file parsing.
-- `.slopignore` and config `ignore` are applied on top.
+  reimplementing ignore semantics. Verified to honour nested `.gitignore` at every level,
+  `.git/info/exclude` and the global `core.excludesFile`.
+- Otherwise (no git, or `git` unavailable): an internal parallel walker that collects every
+  `.gitignore` it passes as it descends and applies each with real gitignore semantics — negation,
+  nesting, and a directory pattern excluding everything beneath it — via the `ignore` package (the
+  same engine eslint uses for `.eslintignore`). A deeper `.gitignore` is tested after its ancestors,
+  so it can override them, matching git's own precedence; once a directory itself is excluded,
+  nothing beneath it is visited, including a deeper negation, matching the documented gitignore(5)
+  limitation ("It is not possible to re-include a file if a parent directory of that file is
+  excluded"). This walker does not read `.git/info/exclude` or `core.excludesFile` — outside a git
+  repository neither exists to read.
+- `.slopignore` and config `ignore` are applied on top of whichever source ran, as one combined
+  rule set — a path either excludes is excluded, and a `!negation` in either can re-include a path
+  the other matched, the same way two blocks appended to one `.gitignore` combine. Both are real
+  gitignore patterns via the `ignore` package, not bare globs: a bare directory name, a trailing
+  slash and a leading slash all anchor and mark directories exactly as they would in a `.gitignore`,
+  and an unrooted pattern like `*.ts` matches at every depth. This is one syntax across both
+  surfaces rather than "globs in config, gitignore in `.slopignore`".
+  `.dockerignore`, `.npmignore` and `.eslintignore` are deliberately never read: each answers a
+  different question than "what should be analysed" (`.dockerignore` routinely excludes `test/`
+  and `docs/`, which users want linted) and reading one would silently narrow what gets analysed
+  with no signal — the same class of failure as the cache-inventoried bug (M0 follow-ups). Do not
+  add this thinking it was an oversight.
 - **Language detection**: extension map, then special filenames (`Dockerfile`, `docker-compose.yml`,
   `.github/workflows/*.yml`), then shebang sniffing for extensionless files.
 - **Workspace attribution**: the workspace graph is built from `pnpm-workspace.yaml`,
@@ -493,9 +513,12 @@ touched; a summary of files changed and rules applied is always printed.
 
 All reporters consume the same diagnostic stream.
 
-- **`pretty`** (default, human): grouped by file, code frames, OSC 8 hyperlinks to rule docs, summary
-  table, top-offending files, optional `--timing` breakdown per engine and rule. Honours `NO_COLOR`,
-  `FORCE_COLOR`, TTY detection and narrow terminals; degrades to plain text when not a TTY.
+- **`pretty`** (default, human): framed header and footer, an open (unframed) body grouped by file
+  with code frames, OSC 8 hyperlinks to rule docs, top-offending files, optional `--timing` breakdown
+  per engine and rule. Honours `NO_COLOR`, `FORCE_COLOR` and TTY detection for colour, and `TERM=dumb`
+  separately for an ASCII-only frame and severity-marker fallback — colour and Unicode degrade
+  independently, so a non-TTY pipe (colour off) still gets the real frame and emoji glyphs, and only
+  `TERM=dumb` (not "not a TTY") drops to ASCII.
 - **`agent`**: the differentiator. Deterministic ordering, token budget via `--max-tokens`, minimum
   sufficient context per finding (concept, why it matters, exact location, offending snippet, and the
   suggested change as a unified diff when one exists), **grouped by fix strategy** so an agent can
@@ -742,7 +765,7 @@ a signal that it holds more than one responsibility. The tool's own source has t
 
 | Milestone | Content | Definition of done |
 |---|---|---|
-| **M0 Foundation** | Repo, tooling, CI. Core types, config loader, discovery, inventory, cache skeleton, `pretty` reporter, worker pool. `check` with oxlint only. Minimal `init` that writes a default config. | `sgate check` finds real issues in a real repo, end to end |
+| **M0 Foundation** | Repo, tooling, CI. Core types, config loader, discovery, inventory, cache skeleton, `pretty` reporter. `check` with oxlint only, engines run sequentially. Minimal `init` that writes a default config. | `sgate check` finds real issues in a real repo, end to end |
 | **M1 Governance** | Concept taxonomy, registry generation, arbitration, provenance, all `rules` subcommands, lockfile, dead-override and unused-suppression detection, generated config types | `sgate rules why` and `sgate rules conflicts` produce correct answers on a repo with deliberately conflicting rules |
 | **M2 Engine breadth** | oxfmt, tsc, knip, biome-css, schema, actionlint, zizmor, eslint escape hatch. Scheduler maturity, streaming, project-granularity caching | All target file types covered: TS, JS, YAML, CSS/SCSS, HTML, Vue, React, Tailwind, Dockerfile, docker-compose, GitHub Actions |
 | **M3 Fix and safety** | Edit arbiter, three fix tiers, oscillation detection, formatter-last, dry-run diffs, baseline | Property tests pass; a deliberately oscillating rule pair is reported, not hung on |

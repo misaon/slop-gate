@@ -46,6 +46,7 @@ slop-gate/
     ├── core/                     @misaon/slop-gate-core
     │   └── src/
     │       ├── index.ts                    public surface
+    │       ├── ordering.ts                 locale-free string comparator
     │       ├── diagnostics/
     │       │   ├── types.ts                Diagnostic, Edit, Severity, ByteRange
     │       │   ├── position.ts             byte offset → UTF-16 line/column
@@ -181,6 +182,7 @@ packages:
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "declaration": true,
     "noEmit": true
@@ -447,6 +449,7 @@ const decoder = new TextDecoder()
 export type LineIndex = {
   positionAt(byteOffset: number): { line: number; column: number }
   lineRangeOf(range: ByteRange): ByteRange
+  sliceBytes(range: ByteRange): string
 }
 
 export function createLineIndex(source: string): LineIndex {
@@ -482,6 +485,11 @@ export function createLineIndex(source: string): LineIndex {
         start: lineStarts[startLine]!,
         end: nextLineStart === undefined ? bytes.length : nextLineStart - 1,
       }
+    },
+    sliceBytes(range) {
+      const start = Math.max(0, Math.min(range.start, bytes.length))
+      const end = Math.max(start, Math.min(range.end, bytes.length))
+      return decoder.decode(bytes.subarray(start, end))
     },
   }
 }
@@ -603,10 +611,8 @@ export type FingerprintInput = {
 }
 
 export function fingerprint(input: FingerprintInput): string {
-  const lineRange = createLineIndex(input.source).lineRangeOf(input.range)
-  const window = Buffer.from(input.source, 'utf8')
-    .subarray(lineRange.start, lineRange.end)
-    .toString('utf8')
+  const index = createLineIndex(input.source)
+  const window = index.sliceBytes(index.lineRangeOf(input.range))
   const normalized = window.replace(/\s+/g, ' ').trim()
 
   return createHash('sha256')
@@ -934,7 +940,7 @@ a typo in a config is a type error rather than a silent no-op."
 This is the mechanism the whole product rests on (§5). Read spec §5.1–§5.3 before starting.
 
 **Files:**
-- Create: `packages/core/src/languages.ts`
+- Create: `packages/core/src/languages.ts`, `packages/core/src/ordering.ts`
 - Create: `packages/core/src/registry/types.ts`, `packages/core/src/registry/entries.ts`, `packages/core/src/registry/elect.ts`, `packages/core/src/registry/ownership.ts`
 - Test: `packages/core/src/registry/elect.test.ts`, `packages/core/src/registry/entries.test.ts`, `packages/core/src/registry/ownership.test.ts`
 - Modify: `packages/core/src/index.ts`
@@ -981,6 +987,32 @@ export const LANGUAGES = [
 export type LanguageId = (typeof LANGUAGES)[number]
 
 export const SCRIPT_LANGUAGES: readonly LanguageId[] = ['ts', 'tsx', 'js', 'jsx']
+```
+
+And `packages/core/src/paths.ts`. Three modules need this one-liner (`language.ts`, `workspaces.ts`,
+`sources.ts`); three private copies would violate the no-duplicated-logic constraint.
+
+```ts
+/** Public data structures carry POSIX separators regardless of the host platform. */
+export function toPosix(value: string): string {
+  return value.replaceAll('\\', '/')
+}
+```
+
+Also create `packages/core/src/ordering.ts`. Several outputs in this project are hashed or compared
+byte-for-byte across machines, CI runners and three runtimes — the elected ruleset (M1's lockfile),
+the engine ruleset hash that forms part of a cache key, the file inventory order, and the diagnostic
+order golden reports assert on. `String.prototype.localeCompare` is unfit for all of them: it is not
+total (`'abc'.localeCompare('a​bc')` is `0` for two distinct strings, leaving the winner
+dependent on input order) and not locale-invariant (plain-ASCII identifiers collate differently under
+`da-DK`, and a `small-icu` build collapses to root collation). Every ordering that feeds a hash or a
+golden file goes through this comparator instead.
+
+```ts
+/** Code-unit ordering: total, locale-free, identical on every runtime. */
+export function compareStrings(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
 ```
 
 - [ ] **Step 2: Create the registry types**
@@ -1329,6 +1361,7 @@ Expected: FAIL, cannot resolve `./elect.ts`.
 
 ```ts
 import type { LanguageId } from '../languages.ts'
+import { compareStrings } from '../ordering.ts'
 import { ENGINE_PREFERENCE, type Capability, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
 
 export type SuppressionReason = 'lower-tier' | 'engine-preference' | 'rule-id-tiebreak' | 'pinned-owner'
@@ -1375,32 +1408,40 @@ export function electOwners(input: ElectionInput): ElectionResult {
   const compare = (a: RuleEntry, b: RuleEntry): number =>
     a.tier - b.tier ||
     (rank.get(a.engine) ?? preference.length) - (rank.get(b.engine) ?? preference.length) ||
-    a.engineRuleId.localeCompare(b.engineRuleId)
+    compareStrings(a.engineRuleId, b.engineRuleId)
 
-  for (const concept of [...input.enabledConcepts].sort()) {
-    const applicable = input.entries.filter((e) => e.concepts.includes(concept as never) && isApplicable(e))
+  for (const concept of [...input.enabledConcepts].sort(compareStrings)) {
+    const ranked = input.entries
+      .filter((e) => e.concepts.includes(concept as never) && isApplicable(e))
+      .sort(compare)
     const pinned = input.pinnedOwners?.[concept]
-    const eligible = pinned === undefined ? applicable : applicable.filter((e) => e.engine === pinned)
+    const eligible = pinned === undefined ? ranked : ranked.filter((e) => e.engine === pinned)
 
     if (eligible.length === 0) {
       uncovered.push(concept)
       continue
     }
 
-    const [winner, ...losers] = [...eligible].sort(compare)
-    owners.set(concept, refOf(winner!))
+    const winner = eligible[0]!
+    owners.set(concept, refOf(winner))
 
-    const enabled = selection.get(winner!.engine) ?? new Set<string>()
-    enabled.add(winner!.engineRuleId)
-    selection.set(winner!.engine, enabled)
+    const enabled = selection.get(winner.engine) ?? new Set<string>()
+    enabled.add(winner.engineRuleId)
+    selection.set(winner.engine, enabled)
 
-    const alsoRejectedByPin = pinned === undefined ? [] : applicable.filter((e) => e.engine !== pinned)
-    for (const loser of [...losers, ...alsoRejectedByPin]) {
+    const winnerKey = ruleRefKey(winner)
+    for (const loser of ranked) {
+      if (ruleRefKey(loser) === winnerKey) continue
+      // A pin only explains a suppression for a candidate arbitration would otherwise have ranked
+      // ahead of the winner. Testing `loser.engine !== pinned` instead mislabels every
+      // other-engine loser as 'pinned-owner', so a pin that merely agrees with what arbitration
+      // would have chosen anyway hides the real reason.
+      const pinOverrode = pinned !== undefined && compare(loser, winner) < 0
       suppressed.push({
         concept,
         suppressed: refOf(loser),
-        winner: refOf(winner!),
-        reason: reasonFor(winner!, loser, pinned !== undefined),
+        winner: refOf(winner),
+        reason: reasonFor(winner, loser, pinOverrode),
       })
     }
   }
@@ -1408,15 +1449,24 @@ export function electOwners(input: ElectionInput): ElectionResult {
   return { owners, selection, suppressed, uncovered }
 }
 
-function reasonFor(winner: RuleEntry, loser: RuleEntry, isPinned: boolean): SuppressionReason {
-  if (isPinned) return 'pinned-owner'
+function reasonFor(winner: RuleEntry, loser: RuleEntry, pinOverrode: boolean): SuppressionReason {
+  if (pinOverrode) return 'pinned-owner'
   if (winner.tier !== loser.tier) return 'lower-tier'
   if (winner.engine !== loser.engine) return 'engine-preference'
   return 'rule-id-tiebreak'
 }
 ```
 
-Iterating `[...input.enabledConcepts].sort()` is not cosmetic: it makes `suppressed` and `uncovered` ordering independent of `Set` insertion order, which is what the order-independence test pins down. A non-deterministic election would produce a non-deterministic lockfile hash in M1.
+Three details here are load-bearing for M1's lockfile hash, and every one of them was a bug in an
+earlier draft of this plan:
+
+- Concepts are iterated in sorted order, so `suppressed` and `uncovered` do not inherit `Set`
+  insertion order.
+- Everything derives from the single `ranked` list, so the loser order does not inherit
+  `input.entries` order either. Ranking once and filtering the ranked list is the whole trick.
+- Losers sharing the winner's `ruleRefKey` are skipped, so a duplicated rule identity cannot record
+  the winner as its own loser. The `entries.test.ts` uniqueness invariant should make that
+  unreachable; this guard keeps the hashed output sane if it ever is not.
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
@@ -1706,6 +1756,7 @@ Append to `packages/core/src/index.ts`:
 
 ```ts
 export { LANGUAGES, SCRIPT_LANGUAGES, type LanguageId } from './languages.ts'
+export { compareStrings } from './ordering.ts'
 export {
   ENGINE_PREFERENCE,
   ruleRefKey,
@@ -1804,17 +1855,26 @@ export type SlopGateConfig = {
 
 const RULE_LEVELS: readonly RuleLevel[] = ['off', 'info', 'warn', 'error']
 
+/** Ordinal strength, for "the strongest level any layer assigns". */
+export const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
+
 export function isRuleLevel(value: unknown): value is RuleLevel {
   return typeof value === 'string' && RULE_LEVELS.includes(value as RuleLevel)
 }
 
+/**
+ * Narrows on `typeof === 'string'`, not `Array.isArray`. A `readonly` tuple is not assignable to
+ * `Array.isArray`'s `any[]` predicate, so that form narrows in neither direction: the tuple branch
+ * degrades to `any` and the string branch still needs a cast. Both sides then escape strict
+ * checking entirely, which is exactly what this function exists to provide.
+ */
 export function splitRuleSetting(setting: RuleSetting): {
   level: RuleLevel
   options: Record<string, unknown>
 } {
-  return Array.isArray(setting)
-    ? { level: setting[0], options: setting[1] }
-    : { level: setting as RuleLevel, options: {} }
+  return typeof setting === 'string'
+    ? { level: setting, options: {} }
+    : { level: setting[0], options: setting[1] }
 }
 ```
 
@@ -1913,6 +1973,14 @@ test('strict is at least as strict as recommended', () => {
 test('splitRuleSetting normalises both shapes', () => {
   expect(splitRuleSetting('warn')).toEqual({ level: 'warn', options: {} })
   expect(splitRuleSetting(['error', { max: 80 }])).toEqual({ level: 'error', options: { max: 80 } })
+})
+
+test('splitRuleSetting reads level and options from the tuple in order', () => {
+  const setting: RuleSetting = ['error', { max: 80, allow: ['a'] }]
+  const { level, options } = splitRuleSetting(setting)
+
+  expect(level).toBe('error')
+  expect(options).toEqual({ max: 80, allow: ['a'] })
 })
 ```
 
@@ -2068,9 +2136,14 @@ test('rejects a default export that is not an object', async () => {
   await expect(loadConfig(dir)).rejects.toThrow(/must export a configuration object/)
 })
 
-test('reports a syntax error as a ConfigError naming the file', async () => {
+test('reports a syntax error with the real parse diagnostic, not a misleading one', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { rules: `)
+
+  // Asserting only on the filename would pass even when the "no default export" branch fires,
+  // which is what an earlier version of this code actually did.
+  await expect(loadConfig(dir)).rejects.toThrow(/could not be parsed/)
   await expect(loadConfig(dir)).rejects.toThrow(/slop-gate\.config\.ts/)
+  await expect(loadConfig(dir)).rejects.not.toThrow(/default export/)
 })
 
 test('explains path aliases when an import cannot be resolved', async () => {
@@ -2173,20 +2246,36 @@ async function importModule(file: string): Promise<unknown> {
  * the original rather than to a temp directory so relative imports inside the config still resolve.
  */
 async function importTransformed(file: string, originalCause: unknown): Promise<unknown> {
-  const source = await readFile(file, 'utf8')
-  const { transform } = await import('oxc-transform')
   const { dir, name } = parsePath(file)
-  const token = createHash('sha256').update(source).digest('hex').slice(0, 8)
-  const scratch = join(dir, `${name}.${token}.sgate.mjs`)
+  let scratch: string | undefined
 
   try {
-    const result = transform(file, source, { sourcemap: false })
+    const source = await readFile(file, 'utf8')
+    const { transform } = await import('oxc-transform')
+    const result = await transform(file, source, { sourcemap: false })
+
+    // oxc-transform is error-tolerant: a total parse failure yields `code: ''` plus a populated
+    // `errors`, and an empty module imports perfectly well. Without this check the caller reaches
+    // the "no default export" branch and the user is told to add an export when their real problem
+    // is an unclosed brace — while oxc's own precise diagnostic is thrown away.
+    const [firstError] = result.errors
+    if (firstError !== undefined) {
+      // `codeframe` carries the exact source location; `message` alone loses it.
+      throw new ConfigError(`${file} could not be parsed: ${firstError.codeframe ?? firstError.message}`)
+    }
+
+    const token = createHash('sha256').update(source).digest('hex').slice(0, 8)
+    scratch = join(dir, `${name}.${token}.sgate.mjs`)
     await writeFile(scratch, result.code, 'utf8')
     return await import(pathToFileURL(scratch).href)
   } catch (cause) {
-    throw new ConfigError(`failed to load ${file}: ${describe(originalCause)}`, { cause })
+    if (cause instanceof ConfigError) throw cause
+    throw new ConfigError(
+      `failed to load ${file}: ${describe(originalCause)} (fallback also failed: ${describe(cause)})`,
+      { cause },
+    )
   } finally {
-    await rm(scratch, { force: true })
+    if (scratch !== undefined) await rm(scratch, { force: true })
   }
 }
 
@@ -2208,7 +2297,11 @@ function describe(error: unknown): string {
 Run: `pnpm test -- config/load`
 Expected: PASS, 9 tests.
 
-If the "syntax error" test fails because the fallback path throws something other than `ConfigError`, check that `transform` genuinely rejects the malformed source. `oxc-transform` is error-tolerant by design, so it may return code that then fails at import time — in that case the `catch` around the dynamic `import(scratch)` still produces a `ConfigError`, which is what the test asserts. Do not weaken the test; fix the implementation so both routes end in `ConfigError`.
+`oxc-transform` is error-tolerant by design: on a total parse failure it does not throw, it returns
+`code: ''` with a populated `errors` array. An empty `.mjs` is valid ESM, so it imports cleanly and
+the failure never reaches the fallback's own `catch`. That is why the implementation inspects
+`result.errors` explicitly rather than relying on an exception, and why the test asserts on the parse
+message rather than only on the filename — the filename appears in the misleading message too.
 
 - [ ] **Step 7: Export from the package surface**
 
@@ -2353,6 +2446,25 @@ test('overrides apply in declaration order', () => {
   expect(resolver.forFile('src/new/a.ts').rules.get('style.no-var')?.level).toBe('warn')
 })
 
+test('an override that enables a concept widens the planner view without reviving a disabled rule', () => {
+  const { anyEnabledConcepts, maxLevelOf } = createRuleSetResolver({
+    config: {
+      extends: ['recommended'],
+      rules: { 'correctness.no-debugger': 'off' },
+      overrides: [{ files: ['legacy/**'], rules: { 'style.no-var': 'error' } }],
+    },
+  })
+
+  // Turned off by the root config on top of the preset: the base cascade is last-wins, so this
+  // must stay off for the planner too.
+  expect(anyEnabledConcepts.has('correctness.no-debugger')).toBe(false)
+  expect(maxLevelOf('correctness.no-debugger')).toBe('off')
+
+  // Enabled only by an override: the engine must still be configured to run it.
+  expect(anyEnabledConcepts.has('style.no-var')).toBe(true)
+  expect(maxLevelOf('style.no-var')).toBe('error')
+})
+
 test('files matching the same overrides share one resolved bucket', () => {
   const resolver = createRuleSetResolver({
     config: { overrides: [{ files: ['**/*.test.ts'], rules: { 'style.no-var': 'off' } }] },
@@ -2447,6 +2559,15 @@ export type RuleSetResolver = {
   base: ResolvedRuleSet
   forFile(relativePath: string): ResolvedRuleSet
   bucketCount(): number
+  /**
+   * Concepts enabled by the base config **or by any override block**. The planner elects and
+   * configures against this, not against `base`: an override that enables a concept only under
+   * `legacy/**` must still cause the engine to run that rule, or the override is silently dead.
+   * Per-file severity is then applied during normalization via `forFile`.
+   */
+  anyEnabledConcepts: ReadonlySet<string>
+  /** The strongest level any layer assigns to a concept, or `off` if no layer mentions it. */
+  maxLevelOf(concept: string): RuleLevel
 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
@@ -2482,8 +2603,31 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const base = materialize(baseLayers, pinnedOwners)
   const buckets = new Map<string, ResolvedRuleSet>([['', base]])
 
+  // Seeded from the already-resolved base, then maxed against overrides only. The base cascade
+  // (preset -> root -> workspace) is last-wins by contract, so maxing across it would revive a rule
+  // the user turned off with the commonest idiom there is: `extends: ['recommended']` plus an
+  // explicit `'some.concept': 'off'`. Overrides are different — they apply to a subset of files, so
+  // a rule any override enables must still be configured on the engine for the whole run, and
+  // `forFile` narrows it back down during normalization.
+  const maxLevels = new Map<string, RuleLevel>()
+  for (const [key, resolution] of base.rules) maxLevels.set(key, resolution.level)
+  for (const override of overrides) {
+    for (const [key, setting] of Object.entries(override.rules)) {
+      if (setting === undefined) continue
+      const { level } = splitRuleSetting(setting)
+      if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[maxLevels.get(key) ?? 'off']) maxLevels.set(key, level)
+    }
+  }
+  const anyEnabledConcepts = new Set(
+    [...maxLevels].filter(([key, level]) => level !== 'off' && isConceptId(key)).map(([key]) => key),
+  )
+
   return {
     base,
+    anyEnabledConcepts,
+    maxLevelOf(concept) {
+      return maxLevels.get(concept) ?? 'off'
+    },
     forFile(relativePath) {
       const matched = overrides.filter((override) => override.isMatch(relativePath))
       const key = matched.map((override) => override.source).join('|')
@@ -2655,6 +2799,9 @@ test.each([
   ['index.html', 'html'],
   ['package.json', 'json'],
   ['tsconfig.json', 'jsonc'],
+  ['tsconfig.build.json', 'jsonc'],
+  ['packages/app/tsconfig.node.json', 'jsonc'],
+  ['jsconfig.app.json', 'jsonc'],
   ['.oxlintrc.json', 'jsonc'],
   ['config.yaml', 'yaml'],
   ['config.yml', 'yaml'],
@@ -2734,6 +2881,9 @@ const BY_EXTENSION: Readonly<Record<string, LanguageId>> = {
 /** Files whose name, not extension, decides the language. */
 const JSONC_BASENAMES = new Set(['tsconfig.json', 'jsconfig.json', '.oxlintrc.json', 'biome.json'])
 
+/** `tsconfig.build.json`, `jsconfig.app.json` — the project-references naming convention. */
+const JSONC_PATTERN = /^(?:tsconfig|jsconfig)\..+\.json$/
+
 const WORKFLOW_PATTERN = /^\.github\/workflows\/[^/]+\.ya?ml$/
 
 export function detectLanguage(relativePath: string): LanguageId {
@@ -2743,7 +2893,7 @@ export function detectLanguage(relativePath: string): LanguageId {
 
   if (WORKFLOW_PATTERN.test(normalized)) return 'github-workflow'
   if (lower === 'dockerfile' || lower.startsWith('dockerfile.')) return 'dockerfile'
-  if (JSONC_BASENAMES.has(lower) || lower.endsWith('.tsconfig.json')) return 'jsonc'
+  if (JSONC_BASENAMES.has(lower) || JSONC_PATTERN.test(lower) || lower.endsWith('.tsconfig.json')) return 'jsonc'
 
   const dot = lower.lastIndexOf('.')
   if (dot <= 0) return 'unknown'
@@ -2838,6 +2988,39 @@ test('does not attribute a file to a workspace it merely shares a name prefix wi
   expect(graph.attribute('packages/app-legacy/src/a.ts').dir).toBe('')
 })
 
+test('rejects a malformed pnpm-workspace.yaml instead of silently finding no workspaces', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "unclosed\n   bad: [')
+
+  await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/pnpm-workspace\.yaml/)
+})
+
+test('accepts a pnpm-workspace.yaml that parses but declares no packages', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'onlyBuiltDependencies:\n  - esbuild\n')
+
+  expect((await buildWorkspaceGraph(dir)).nodes).toEqual([{ name: 'root', dir: '' }])
+})
+
+test('rejects a workspace pattern that escapes the repository root', async () => {
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'root' }))
+  await writeFile(join(dir, 'pnpm-workspace.yaml'), 'packages:\n  - "../outside/*"\n')
+  await writePackage('../outside/leaked', '@x/leaked')
+
+  await expect(buildWorkspaceGraph(dir)).rejects.toThrow(/outside the repository root/)
+})
+
+test('reads the object form of package.json workspaces', async () => {
+  await writeFile(
+    join(dir, 'package.json'),
+    JSON.stringify({ name: 'root', workspaces: { packages: ['apps/*'] } }),
+  )
+  await writePackage('apps/web', '@x/web')
+
+  const graph = await buildWorkspaceGraph(dir)
+  expect(graph.nodes.map((n) => n.dir).sort()).toEqual(['', 'apps/web'])
+})
+
 test('falls back to the directory name when a package has no name', async () => {
   await writeFile(join(dir, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }))
   const target = join(dir, 'packages', 'anon')
@@ -2863,6 +3046,7 @@ import { glob, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import picomatch from 'picomatch'
 import { parse as parseYaml } from 'yaml'
+import { ConfigError } from '../errors.ts'
 
 export type WorkspaceNode = {
   readonly name: string
@@ -2887,11 +3071,19 @@ const readJson = async (path: string): Promise<Record<string, unknown> | null> =
 
 async function readPatterns(rootDir: string): Promise<string[]> {
   const pnpmFile = join(rootDir, 'pnpm-workspace.yaml')
-  try {
-    const parsed = parseYaml(await readFile(pnpmFile, 'utf8')) as { packages?: unknown }
+  const pnpmSource = await readFile(pnpmFile, 'utf8').catch(() => null)
+
+  // A missing file legitimately means "not a pnpm workspace". A malformed one does not: swallowing
+  // it would silently produce a root-only graph, so every file attributes to the root and any
+  // per-workspace config is ignored without explanation.
+  if (pnpmSource !== null) {
+    let parsed: { packages?: unknown }
+    try {
+      parsed = parseYaml(pnpmSource) as { packages?: unknown }
+    } catch (cause) {
+      throw new ConfigError(`${pnpmFile} is not valid YAML`, { cause })
+    }
     if (Array.isArray(parsed?.packages)) return parsed.packages.filter((p): p is string => typeof p === 'string')
-  } catch {
-    // No pnpm workspace file; fall through to package.json.
   }
 
   const rootPackage = await readJson(join(rootDir, 'package.json'))
@@ -2919,8 +3111,15 @@ export async function buildWorkspaceGraph(rootDir: string): Promise<WorkspaceGra
   const found = new Map<string, WorkspaceNode>()
   for (const pattern of positive) {
     for await (const match of glob(`${pattern}/package.json`, { cwd: rootDir })) {
-      const dir = toPosix(dirname(match))
-      if (dir === '.' || isExcluded(dir) || found.has(dir)) continue
+      // Resolve then re-relativise so `..` is collapsed wherever it appears, not just at the
+      // start. `WorkspaceNode.dir` is contractually repo-relative and downstream code joins it
+      // onto the root, so a pattern like `../shared/*` or `packages/../../shared/*` must not
+      // produce a node at all.
+      const dir = toPosix(relative(rootDir, resolve(rootDir, dirname(match))))
+      if (dir === '..' || dir.startsWith('../')) {
+        throw new ConfigError(`workspace pattern "${pattern}" resolves outside the repository root`)
+      }
+      if (dir === '' || isExcluded(dir) || found.has(dir)) continue
       const manifest = await readJson(join(rootDir, match))
       const name = typeof manifest?.['name'] === 'string' ? manifest['name'] : dir.slice(dir.lastIndexOf('/') + 1)
       found.set(dir, { name, dir })
@@ -3126,9 +3325,10 @@ Expected: FAIL, cannot resolve `./inventory.ts`.
 
 ```ts
 import { execFile } from 'node:child_process'
-import { readdir, stat } from 'node:fs/promises'
+import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { toPosix } from '../paths.ts'
 
 const run = promisify(execFile)
 
@@ -3138,8 +3338,6 @@ export type FileSource = {
 }
 
 const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
-
-const toPosix = (value: string): string => value.replaceAll('\\', '/')
 
 export function createGitFileSource(): FileSource {
   return {
@@ -3180,11 +3378,20 @@ export function createWalkFileSource(): FileSource {
   }
 }
 
+/**
+ * Asks git whether this directory is inside a work tree, rather than looking for a literal `.git`.
+ * A `.git` probe only ever finds the repository root, so running from `packages/app/` would fall
+ * back to the walker — which has no gitignore support at all — precisely in the monorepo case the
+ * git source exists to serve. Git resolves both its implicit pathspec and its relative output
+ * against `cwd`, so the subtree scoping is correct without extra flags.
+ */
 export async function selectFileSource(rootDir: string): Promise<FileSource> {
   try {
-    await stat(join(rootDir, '.git'))
-    await run('git', ['--version'])
-    return createGitFileSource()
+    const { stdout } = await run('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: rootDir,
+      encoding: 'utf8',
+    })
+    return stdout.trim() === 'true' ? createGitFileSource() : createWalkFileSource()
   } catch {
     return createWalkFileSource()
   }
@@ -3196,10 +3403,11 @@ export async function selectFileSource(rootDir: string): Promise<FileSource> {
 `packages/core/src/discovery/inventory.ts`:
 
 ```ts
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import picomatch from 'picomatch'
 import type { LanguageId } from '../languages.ts'
+import { compareStrings } from '../ordering.ts'
 import { detectLanguage } from './language.ts'
 import { createGitFileSource, createWalkFileSource, selectFileSource, type FileSource } from './sources.ts'
 import type { FileInventory, InventoryFile } from './types.ts'
@@ -3214,6 +3422,21 @@ export type BuildInventoryOptions = {
   signal?: AbortSignal
 }
 
+/**
+ * Spec section 7 pairs `.slopignore` with config `ignore`. It exists so a repository can exclude
+ * paths from analysis without touching its config file or its `.gitignore` — test fixtures holding
+ * deliberately broken code being the motivating case. gitignore-style lines; blanks and `#`
+ * comments skipped; an absent file means no patterns.
+ */
+async function readSlopIgnore(rootDir: string): Promise<string[]> {
+  const source = await readFile(join(rootDir, '.slopignore'), 'utf8').catch(() => null)
+  if (source === null) return []
+  return source
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'))
+}
+
 export async function buildInventory(options: BuildInventoryOptions): Promise<FileInventory> {
   const signal = options.signal ?? new AbortController().signal
   const source = options.source ?? (await selectFileSource(options.rootDir))
@@ -3222,7 +3445,8 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
     buildWorkspaceGraph(options.rootDir),
   ])
 
-  const isIgnored = options.ignore?.length ? picomatch(options.ignore as string[], { dot: true }) : () => false
+  const patterns = [...(await readSlopIgnore(options.rootDir)), ...(options.ignore ?? [])]
+  const isIgnored = patterns.length > 0 ? picomatch(patterns, { dot: true }) : () => false
   const languages = new Set<LanguageId>()
   const files: InventoryFile[] = []
 
@@ -3231,7 +3455,13 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
       if (isIgnored(path)) return
       signal.throwIfAborted()
 
-      const stats = await stat(join(options.rootDir, path)).catch(() => null)
+      // A file vanishing mid-run is a benign race. A permission error is not: swallowing it would
+      // quietly shrink the inventory, and every later stage would report a clean result for files
+      // it never saw.
+      const stats = await stat(join(options.rootDir, path)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null
+        throw error
+      })
       if (stats === null || !stats.isFile()) return
 
       const language = detectLanguage(path)
@@ -3246,7 +3476,7 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
     }),
   )
 
-  files.sort((a, b) => a.path.localeCompare(b.path))
+  files.sort((a, b) => compareStrings(a.path, b.path))
   return { root: options.rootDir, files, languages, workspaces: workspaces.nodes }
 }
 ```
@@ -3330,8 +3560,8 @@ test('hashes content deterministically', () => {
   expect(hashContent('a')).not.toBe(hashContent('b'))
 })
 
-test('hashes a string and an equivalent buffer identically', () => {
-  expect(hashContent('abc')).toBe(hashContent(Buffer.from('abc', 'utf8')))
+test('hashes a string and its utf-8 bytes identically', () => {
+  expect(hashContent('abc')).toBe(hashContent(new TextEncoder().encode('abc')))
 })
 
 test('stringifies objects with sorted keys so key order cannot change a hash', () => {
@@ -3365,6 +3595,15 @@ test('the same inputs produce the same key', () => {
 test('keys are filesystem-safe hex', () => {
   expect(deriveResultKey(base)).toMatch(/^[0-9a-f]{64}$/)
 })
+
+test('cannot be collided by shifting content across a component boundary', () => {
+  // The separator itself must be the shifted character. Using an ordinary space here would pass
+  // against a naive `\0`-join too, so the test would prove nothing.
+  const a = { ...base, engineId: 'a', engineVersion: 'b\u0000c' }
+  const b = { ...base, engineId: 'a\u0000b', engineVersion: 'c' }
+
+  expect(deriveResultKey(a)).not.toBe(deriveResultKey(b))
+})
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -3378,10 +3617,11 @@ Expected: FAIL, cannot resolve `./keys.ts`.
 
 ```ts
 import { createHash } from 'node:crypto'
+import { compareStrings } from '../ordering.ts'
 
 export const RESULT_SCHEMA_VERSION = 1
 
-export function hashContent(content: string | Buffer): string {
+export function hashContent(content: string | Uint8Array): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
@@ -3402,7 +3642,7 @@ export function hashJson(value: unknown): string {
 }
 
 export function hashRuleSelection(ruleIds: Iterable<string>): string {
-  return hashContent([...ruleIds].sort().join('\0'))
+  return hashJson([...ruleIds].sort(compareStrings))
 }
 
 export type ResultKeyInput = {
@@ -3413,17 +3653,14 @@ export type ResultKeyInput = {
   configHash: string
 }
 
+/**
+ * Hashes the structured input rather than joining components with a separator. A `\0` join is not
+ * injective over untyped strings: `{engineId: 'a', engineVersion: 'b\0c'}` and
+ * `{engineId: 'a\0b', engineVersion: 'c'}` produce the same joined string and therefore the same
+ * cache key. JSON escaping removes that whole class of boundary-shift collision.
+ */
 export function deriveResultKey(input: ResultKeyInput): string {
-  return hashContent(
-    [
-      String(RESULT_SCHEMA_VERSION),
-      input.engineId,
-      input.engineVersion,
-      input.engineRulesetHash,
-      input.fileHash,
-      input.configHash,
-    ].join('\0'),
-  )
+  return hashJson({ schema: RESULT_SCHEMA_VERSION, ...input })
 }
 ```
 
@@ -3532,6 +3769,7 @@ Expected: FAIL, cannot resolve `./stat-index.ts`.
 `packages/core/src/cache/stat-index.ts`:
 
 ```ts
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { InventoryFile } from '../discovery/types.ts'
@@ -3568,7 +3806,7 @@ export async function openStatIndex(cacheDir: string): Promise<StatIndex> {
       if (!dirty) return
       await mkdir(cacheDir, { recursive: true })
       const target = join(cacheDir, INDEX_FILE)
-      const scratch = `${target}.${process.pid}.tmp`
+      const scratch = `${target}.${randomUUID()}.tmp`
       await writeFile(scratch, JSON.stringify(Object.fromEntries(entries)), 'utf8')
       await rename(scratch, target)
       dirty = false
@@ -3680,17 +3918,19 @@ Expected: FAIL, cannot resolve `./result-store.ts`.
 `packages/core/src/cache/result-store.ts`:
 
 ```ts
+import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Diagnostic } from '../diagnostics/types.ts'
-import { RESULT_SCHEMA_VERSION } from './keys.ts'
+import { RESULT_SCHEMA_VERSION, type ResultKeyInput } from './keys.ts'
 
 export type ResultStore = {
   get(key: string): Promise<Diagnostic[] | null>
-  set(key: string, diagnostics: readonly Diagnostic[]): Promise<void>
+  set(key: string, diagnostics: readonly Diagnostic[], components: ResultKeyInput): Promise<void>
 }
 
-type StoredResult = { schema: number; diagnostics: Diagnostic[] }
+/** `key` records what produced this entry, so a surprising cache hit can be explained. */
+type StoredResult = { schema: number; key: ResultKeyInput; diagnostics: Diagnostic[] }
 
 export function openResultStore(cacheDir: string): ResultStore {
   const pathFor = (key: string): string => join(cacheDir, 'results', key.slice(0, 2), `${key}.json`)
@@ -3706,11 +3946,15 @@ export function openResultStore(cacheDir: string): ResultStore {
       }
     },
 
-    async set(key, diagnostics) {
+    async set(key, diagnostics, components) {
       const target = pathFor(key)
       await mkdir(dirname(target), { recursive: true })
-      const payload: StoredResult = { schema: RESULT_SCHEMA_VERSION, diagnostics: [...diagnostics] }
-      const scratch = `${target}.${process.pid}.tmp`
+      const payload: StoredResult = {
+        schema: RESULT_SCHEMA_VERSION,
+        key: components,
+        diagnostics: [...diagnostics],
+      }
+      const scratch = `${target}.${randomUUID()}.tmp`
       await writeFile(scratch, JSON.stringify(payload), 'utf8')
       await rename(scratch, target)
     },
@@ -3857,6 +4101,10 @@ export type RunContext = {
 export type EngineConfigHandle = {
   readonly path: string
   readonly rulesetHash: string
+  /** How many rules this config enables, when the engine can report it. Lets `run` assert that the
+   *  engine activated exactly the elected set — catching both unelected rules leaking in and
+   *  elected rules silently not running. */
+  readonly ruleCount?: number
   dispose(): Promise<void>
 }
 
@@ -3919,11 +4167,14 @@ const unusedVars: RuleEntry = {
   since: '0.1.0',
 }
 
+// `classify` is omitted rather than set to `undefined`: `exactOptionalPropertyTypes` rejects an
+// explicit `undefined` for an optional property.
+const { classify: _unusedClassify, ...unusedVarsWithoutClassify } = unusedVars
+
 const noDebugger: RuleEntry = {
-  ...unusedVars,
+  ...unusedVarsWithoutClassify,
   engineRuleId: 'no-debugger',
   concepts: ['correctness.no-debugger'],
-  classify: undefined,
   severityDefault: 'error',
   docsUrl: 'https://example.test/no-debugger',
 }
@@ -4077,7 +4328,7 @@ export type NormalizeInput = {
   levelOf: (concept: string) => RuleLevel | undefined
 }
 
-const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Severity>> = {
+export const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Severity>> = {
   error: 'error',
   warn: 'warn',
   info: 'info',
@@ -4294,6 +4545,8 @@ import { relative } from 'node:path'
 import { EngineError, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
 
 type OxlintSpan = { offset: number; length: number }
+type OxlintPayload = { diagnostics?: OxlintDiagnostic[]; number_of_rules?: number }
+
 type OxlintDiagnostic = {
   message: string
   code: string
@@ -4322,18 +4575,41 @@ const SEVERITIES: Readonly<Record<string, RawSeverity>> = {
   info: 'info',
 }
 
-export function parseOxlintOutput(stdout: string, rootDir: string): RawDiagnostic[] {
+export function parseOxlintOutput(
+  stdout: string,
+  rootDir: string,
+  expected?: { ruleCount: number },
+): RawDiagnostic[] {
   const trimmed = stdout.trim()
   if (trimmed === '') return []
 
-  let parsed: { diagnostics?: OxlintDiagnostic[] }
+  // oxlint can print a plain-text preamble before the JSON — notably `No files found to lint.` when
+  // a batch path no longer exists, which is routine in a caching linter. Parsing from the first
+  // brace keeps a vanished file from destroying the whole batch under a misdiagnosing error.
+  const jsonStart = trimmed.indexOf('{')
+  if (jsonStart === -1) {
+    throw new EngineError('oxlint', `oxlint produced no json output: ${trimmed.slice(0, 200)}`)
+  }
+
+  let parsed: OxlintPayload
   try {
-    parsed = JSON.parse(trimmed) as { diagnostics?: OxlintDiagnostic[] }
+    parsed = JSON.parse(trimmed.slice(jsonStart)) as OxlintPayload
   } catch (cause) {
     throw new EngineError('oxlint', `could not parse oxlint json output: ${trimmed.slice(0, 200)}`, { cause })
   }
   if (!Array.isArray(parsed.diagnostics)) {
     throw new EngineError('oxlint', 'oxlint json output has no diagnostics array')
+  }
+
+  // Every payload reports how many rules actually ran. Comparing it to the elected count turns two
+  // otherwise-silent failures loud: a category we forgot to disable leaking rules in (count too
+  // high), and an elected rule oxlint never activated (count too low).
+  if (expected !== undefined && parsed.number_of_rules !== expected.ruleCount) {
+    throw new EngineError(
+      'oxlint',
+      `expected ${expected.ruleCount} rule(s) to run, oxlint ran ${parsed.number_of_rules}. ` +
+        `The materialised config is not selecting exactly the elected ruleset.`,
+    )
   }
 
   const results: RawDiagnostic[] = []
@@ -4370,7 +4646,13 @@ function toRepoRelative(filename: string, rootDir: string): string {
 ```ts
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { hashJson, type EngineConfigHandle, type EngineRuleSelection, type RunContext } from '@misaon/slop-gate-core'
+import {
+  compareStrings,
+  hashJson,
+  type EngineConfigHandle,
+  type EngineRuleSelection,
+  type RunContext,
+} from '@misaon/slop-gate-core'
 
 const LEVEL_TO_OXLINT: Readonly<Record<string, string>> = {
   error: 'error',
@@ -4379,6 +4661,22 @@ const LEVEL_TO_OXLINT: Readonly<Record<string, string>> = {
   off: 'off',
 }
 
+/**
+ * oxlint enables 114 rules by default regardless of whether `categories` is absent or `{}` —
+ * confirmed against the real binary. Every category must be turned off explicitly, or a rule the
+ * registry never elected still reports and bypasses arbitration. `"all"` is a CLI-only shorthand
+ * and is rejected by the config parser.
+ */
+const ALL_CATEGORIES_OFF = {
+  correctness: 'off',
+  suspicious: 'off',
+  pedantic: 'off',
+  perf: 'off',
+  style: 'off',
+  restriction: 'off',
+  nursery: 'off',
+} as const
+
 export async function materializeOxlintConfig(
   selection: EngineRuleSelection,
   context: RunContext,
@@ -4386,14 +4684,19 @@ export async function materializeOxlintConfig(
   const rules = Object.fromEntries(
     [...selection]
       .filter(([, level]) => level !== 'off')
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => compareStrings(a, b))
       .map(([ruleId, level]) => [ruleId, LEVEL_TO_OXLINT[level] ?? 'warn']),
   )
 
-  // `categories: {}` disables oxlint's own defaults so slop-gate's ruleset is the only source
-  // of enabled rules. Without it, oxlint's `correctness` category would report rules the
-  // registry never elected, bypassing arbitration entirely.
-  const config = { $schema: undefined, categories: {}, rules }
+  // oxlint only activates a rule whose scope is listed in `plugins`. Without this, an elected rule
+  // from any scope beyond eslint/typescript/unicorn/oxc is silently ignored: no warning, no config
+  // rejection, `number_of_rules: 0`. That is the mirror image of the categories defect — instead of
+  // unelected rules running, elected rules do not.
+  const plugins = [
+    ...new Set(Object.keys(rules).flatMap((id) => (id.includes('/') ? [id.split('/')[0]!] : []))),
+  ].sort(compareStrings)
+
+  const config = { categories: ALL_CATEGORIES_OFF, plugins, rules }
   const rulesetHash = hashJson(config)
 
   await mkdir(context.tmpDir, { recursive: true })
@@ -4403,6 +4706,7 @@ export async function materializeOxlintConfig(
   return {
     path,
     rulesetHash,
+    ruleCount: Object.keys(rules).length,
     async dispose() {
       await rm(path, { force: true })
     },
@@ -4410,7 +4714,15 @@ export async function materializeOxlintConfig(
 }
 ```
 
-`info` maps to oxlint's `warn` because oxlint has no third level; the distinction is preserved in our own diagnostics because normalization takes severity from the resolved level, not from the engine (Task 11 Step 5).
+`info` maps to oxlint's `warn` because oxlint has no third level; the distinction is preserved in our
+own diagnostics because normalization takes severity from the resolved level, not from the engine
+(Task 11 Step 5).
+
+The exhaustive `categories` block is not defensive padding. An earlier draft of this plan used
+`categories: {}` on the assumption that an empty object disables the defaults. It does not — oxlint
+still enables 114 rules — and no test in this task would have caught it, because every rule these
+tests select happens to also be default-on. Arbitration would have been silently bypassed for any
+default-on rule the registry chose *not* to elect.
 
 - [ ] **Step 12: Write the failing engine tests**
 
@@ -4536,6 +4848,7 @@ test('raises an EngineError when the binary is missing', async () => {
 ```ts
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   EngineError,
@@ -4557,10 +4870,15 @@ const run = promisify(execFile)
 /** oxlint exits 1 when it reports findings; only higher codes are real failures. */
 const MAX_FINDINGS_EXIT_CODE = 1
 
+/**
+ * oxlint's `exports` map does not list `./bin/oxlint`, so `require.resolve('oxlint/bin/oxlint')`
+ * always throws `ERR_PACKAGE_PATH_NOT_EXPORTED`. `./package.json` is exported, so resolve that and
+ * join the package's own documented binary path.
+ */
 function resolveBinary(): string {
   const require = createRequire(import.meta.url)
   try {
-    return require.resolve('oxlint/bin/oxlint')
+    return join(dirname(require.resolve('oxlint/package.json')), 'bin', 'oxlint')
   } catch {
     return 'oxlint'
   }
@@ -4581,7 +4899,8 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
 
     async version() {
       const { stdout } = await run(binary, ['--version'], { encoding: 'utf8' })
-      return stdout.trim().replace(/^oxlint\s+/, '')
+      // Prints `Version: 1.76.0`, not `oxlint 1.76.0`.
+      return stdout.trim().replace(/^version:\s*/i, '')
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
@@ -4609,7 +4928,6 @@ async function* execute(
     '--disable-nested-config',
     '--format',
     'json',
-    '--silent',
     ...batch.files.map((file) => file.path),
   ]
 
@@ -4632,11 +4950,20 @@ async function* execute(
     }
   }
 
-  yield* parseOxlintOutput(stdout, context.rootDir)
+  yield* parseOxlintOutput(
+    stdout,
+    context.rootDir,
+    handle.ruleCount === undefined ? undefined : { ruleCount: handle.ruleCount },
+  )
 }
 ```
 
-`--silent` suppresses oxlint's own rendering while `--format json` still writes the machine output, and `--disable-nested-config` stops oxlint from picking up `.oxlintrc.json` files left in the repository — slop-gate's materialised config must be the only one in effect, or arbitration is bypassed.
+`--disable-nested-config` stops oxlint from picking up `.oxlintrc.json` files left in the repository —
+slop-gate's materialised config must be the only one in effect, or arbitration is bypassed.
+
+There is deliberately no `--silent`. It reads as "suppress oxlint's own rendering, keep the machine
+output", but under `--format json` it empties the `diagnostics` array, so every run reports zero
+findings.
 
 The `--format json` flag exists alongside a native `agent` format in oxlint 1.75. We deliberately consume `json`: our `agent` reporter (M4) renders every engine uniformly, and adopting one engine's agent format would make the others inconsistent.
 
@@ -4663,10 +4990,11 @@ git add packages
 git commit -m "feat(engine-oxlint): oxlint adapter behind the Engine interface
 
 Rule ids and output shape were recorded from the real binary before the
-parser was written. Materialised configs set categories to {} so only
-rules the registry elected can run; nested .oxlintrc.json files are
-ignored for the same reason. Normalization emits at most one diagnostic
-per finding, attributing multi-concept rules via registry classify data."
+parser was written. Materialised configs turn every oxlint category off
+explicitly so only rules the registry elected can run; nested
+.oxlintrc.json files are ignored for the same reason. Normalization emits
+at most one diagnostic per finding, attributing multi-concept rules via
+registry classify data."
 ```
 
 ---
@@ -4691,7 +5019,12 @@ per finding, attributing multi-concept rules via registry classify data."
 - `buildPlan` performs no IO, so the whole routing decision is unit-testable without a filesystem or a real engine.
 - When one engine rule owns several concepts with different levels, the engine is configured at the **strongest** level and normalization re-derives the per-concept severity (Task 11). Configuring at the weakest level would silently lose findings for the stricter concept.
 - Config-level findings — overlapping rules and dead overrides — are emitted as ordinary diagnostics against the config file, which is how §5.4's "runs as part of check" becomes real rather than aspirational.
-- M0 runs engines concurrently and batches sequentially within an engine. oxlint parallelises internally, so a worker pool would add complexity for no gain here; the real scheduler arrives in M2.
+- **M0 runs engines sequentially**, one after another, and batches sequentially within each engine.
+  That is not an oversight: M0 ships exactly one engine, so engine-level concurrency would be
+  unobservable and untestable, and oxlint already parallelises internally across the files in a
+  batch. The real scheduler — worker pool, streaming across engines, cgroup-aware concurrency —
+  arrives in M2 with the second engine, where it can be measured. Do not add ad-hoc concurrency here
+  without a test that can detect it.
 
 - [ ] **Step 1: Write the failing planner tests**
 
@@ -4745,7 +5078,7 @@ const planWith = (args: {
   const resolver = createRuleSetResolver({ config: { rules: args.rules as never } })
   const election = electOwners({
     entries: args.entries,
-    enabledConcepts: resolver.base.enabledConcepts,
+    enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(),
     languages: new Set(args.files.map((f) => f.language)),
   })
@@ -4800,8 +5133,10 @@ test('gives an engine only files in languages it supports', () => {
 })
 
 test('omits an engine that supports no file in the inventory', () => {
+  // The rule IS elected (its language is present), so this exercises the file-filter skip rather
+  // than the earlier no-elected-rules branch: only the engine's capabilities exclude every file.
   const plan = planWith({
-    entries: [entry({ engine: 'oxlint', engineRuleId: 'r', concepts: ['correctness.no-debugger'], languages: ['css'] })],
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'r', concepts: ['correctness.no-debugger'], languages: ['ts'] })],
     engines: [fakeEngine('oxlint', ['css'])],
     files: [file('a.ts', 'ts')],
     rules: { 'correctness.no-debugger': 'error' },
@@ -4857,6 +5192,7 @@ import type { RuleLevel } from '../config/types.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import type { Engine, EngineRuleSelection } from '../engine/types.ts'
+import { compareStrings } from '../ordering.ts'
 import type { ElectionResult } from '../registry/elect.ts'
 import type { EngineId, RuleEntry } from '../registry/types.ts'
 
@@ -4871,10 +5207,7 @@ export type PlanInput = {
   inventory: FileInventory
   election: ElectionResult
   resolver: RuleSetResolver
-  entries: readonly RuleEntry[]
 }
-
-const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
 
 export function buildPlan(input: PlanInput): EngineAssignment[] {
   const conceptsByRule = new Map<string, string[]>()
@@ -4885,7 +5218,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
 
   const assignments: EngineAssignment[] = []
 
-  for (const engine of [...input.engines].sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const engine of [...input.engines].sort((a, b) => compareStrings(a.id, b.id))) {
     const ruleIds = input.election.selection.get(engine.id)
     if (ruleIds === undefined || ruleIds.size === 0) continue
 
@@ -4894,7 +5227,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
     if (files.length === 0) continue
 
     const selection = new Map<string, RuleLevel>()
-    for (const ruleId of [...ruleIds].sort()) {
+    for (const ruleId of [...ruleIds].sort(compareStrings)) {
       const concepts = conceptsByRule.get(`${engine.id}/${ruleId}`) ?? []
       const level = strongestLevel(concepts, input.resolver)
       if (level !== 'off') selection.set(ruleId, level)
@@ -4910,7 +5243,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
 function strongestLevel(concepts: readonly string[], resolver: RuleSetResolver): RuleLevel {
   let strongest: RuleLevel = 'off'
   for (const concept of concepts) {
-    const level = resolver.base.rules.get(concept as never)?.level ?? 'off'
+    const level = resolver.maxLevelOf(concept)
     if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[strongest]) strongest = level
   }
   return strongest
@@ -5144,7 +5477,7 @@ Expected: FAIL, cannot resolve `./check.ts`.
 ```ts
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { deriveResultKey, hashJson } from '../cache/keys.ts'
+import { deriveResultKey, hashJson, type ResultKeyInput } from '../cache/keys.ts'
 import { openResultStore } from '../cache/result-store.ts'
 import { openStatIndex } from '../cache/stat-index.ts'
 import { createRuleSetResolver } from '../config/resolve.ts'
@@ -5154,6 +5487,7 @@ import { buildInventory, type FileSource } from '../discovery/inventory.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import { normalizeDiagnostics } from '../engine/normalize.ts'
 import type { Engine, RawDiagnostic } from '../engine/types.ts'
+import { compareStrings } from '../ordering.ts'
 import { buildPlan } from '../planner/plan.ts'
 import { electOwners } from '../registry/elect.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
@@ -5223,7 +5557,10 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     pinnedOwners: resolver.base.pinnedOwners,
   })
 
-  const configHash = hashJson({ config: options.config, entries: entries.map(ruleRefKey) })
+  // Hashes the full entries, not just their ids: normalization bakes `concepts`, `classify`,
+  // `severityDefault` and `docsUrl` into every cached diagnostic, so an upgrade that changes any of
+  // them without adding or removing a rule would otherwise serve stale attribution forever.
+  const configHash = hashJson({ config: options.config, entries })
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
   const engineById = new Map(options.engines.map((engine) => [engine.id, engine]))
@@ -5247,7 +5584,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     yield { type: 'diagnostic', diagnostic }
   }
 
-  const plan = buildPlan({ engines: options.engines, inventory, election, resolver, entries })
+  const plan = buildPlan({ engines: options.engines, inventory, election, resolver })
 
   for (const assignment of plan) {
     const engine = engineById.get(assignment.engineId)
@@ -5264,16 +5601,19 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       try {
         const pending: InventoryFile[] = []
         const keys = new Map<string, string>()
+        const keyInputs = new Map<string, ResultKeyInput>()
 
         for (const file of assignment.files) {
-          const key = deriveResultKey({
+          const components = {
             engineId: engine.id,
             engineVersion: version,
             engineRulesetHash: handle.rulesetHash,
             fileHash: await statIndex.hashOf(options.rootDir, file),
             configHash,
-          })
+          }
+          const key = deriveResultKey(components)
           keys.set(file.path, key)
+          keyInputs.set(file.path, components)
 
           const hit = useCache ? await resultStore.get(key) : null
           if (hit === null) {
@@ -5302,6 +5642,13 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           for (const raw of raws) byFile.get(raw.file)?.push(raw)
 
           for (const [path, fileRaws] of byFile) {
+            // Reading unconditionally would pull the whole source tree into memory a second time —
+            // the stat index already read every file to hash it — for no benefit: normalization
+            // only touches the source when there is a finding to position.
+            if (fileRaws.length === 0) {
+              if (useCache) await resultStore.set(keys.get(path)!, [], keyInputs.get(path)!)
+              continue
+            }
             const source = await readSource(path)
             const normalized = normalizeDiagnostics({
               engine: engine.id,
@@ -5309,10 +5656,14 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               entries,
               owners: election.owners,
               sourceOf: () => source,
-              levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level,
+              // Defaults to `off`, not `undefined`. Now that election considers override-only
+              // concepts, a rule scoped to `legacy/**` is configured on the engine for the whole
+              // run — and normalizeDiagnostics treats an undefined level as "use the registry
+              // default severity", which would report it on every file instead of the matching glob.
+              levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
             })
 
-            if (useCache) await resultStore.set(keys.get(path)!, normalized)
+            if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
             for (const diagnostic of normalized) {
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
@@ -5329,10 +5680,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     }
   }
 
-  await statIndex.persist()
-
+  // In a `finally` because a consumer breaking out of the stream early — the entire point of
+  // streaming — would otherwise discard every hash computed this run.
   collected.sort(
-    (a, b) => a.file.localeCompare(b.file) || a.range.start - b.range.start || a.concept.localeCompare(b.concept),
+    (a, b) =>
+      compareStrings(a.file, b.file) || a.range.start - b.range.start || compareStrings(a.concept, b.concept),
   )
 
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 }
@@ -5351,7 +5703,9 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
         durationMs: Math.round(performance.now() - startedAt),
       },
       ruleset: {
-        enabledConcepts: resolver.base.enabledConcepts.size,
+        // `anyEnabledConcepts`, not `base`: a concept enabled only by an override is still checked
+        // on the files it matches, so reporting the base count would undercount the run.
+        enabledConcepts: resolver.anyEnabledConcepts.size,
         suppressed: election.suppressed.length,
         uncovered: election.uncovered,
         unknownKeys: resolver.base.unknownKeys,
@@ -5374,7 +5728,7 @@ function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
       concept,
       ruleId: `slop-gate/${concept}`,
       engine: 'slop-gate',
-      severity: level === 'error' ? 'error' : level === 'info' ? 'info' : 'warn',
+      severity: LEVEL_TO_SEVERITY[level],
       message,
       file: input.configFile,
       range: { start: 0, end: 0 },
@@ -5504,10 +5858,13 @@ test('handles a finding on the first line', () => {
   expect(frame).not.toContain('0 |')
 })
 
-test('underlines the full span on a single line', () => {
+test('puts the caret under the character at the start column', () => {
   const frame = renderCodeFrame(source, { startLine: 1, startColumn: 7, endLine: 1, endColumn: 8 })
-  const underline = frame.split('\n').find((line) => line.includes('^'))
-  expect(underline?.indexOf('^')).toBe(frame.split('\n')[0]!.indexOf('const'))
+  const [codeLine, underline] = frame.split('\n')
+
+  // `const` begins at the code line's column 1, so column 7 is six characters further right. Both
+  // rows carry the same gutter, so the indices are directly comparable.
+  expect(underline!.indexOf('^')).toBe(codeLine!.indexOf('const') + 6)
 })
 
 test('underlines only to end of line for a multi-line span', () => {
@@ -5518,8 +5875,7 @@ test('underlines only to end of line for a multi-line span', () => {
 
 test('emits no escape codes when colour is off', () => {
   const frame = renderCodeFrame(source, { startLine: 1, startColumn: 1, endLine: 1, endColumn: 2 }, { color: false })
-  // eslint-disable-next-line no-control-regex
-  expect(frame).not.toMatch(/\[/)
+  expect(frame).not.toContain('\u001B[')
 })
 ```
 
@@ -5653,6 +6009,16 @@ test('summarises counts, cache use and duration', () => {
   expect(output).toContain('42')
 })
 
+test('pluralises the words a developer reads on every run', () => {
+  const singular = capture([{ type: 'done', result: result({ stats: { filesScanned: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 } }) }])
+  expect(singular).toContain('1 file,')
+  expect(singular).not.toContain('1 files')
+
+  const plural = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 2, info: 0 } }) }])
+  expect(plural).toContain('2 warnings')
+  expect(plural).not.toContain('2 warns')
+})
+
 test('says so plainly when nothing was found', () => {
   const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
   expect(output).toMatch(/no issues/i)
@@ -5675,8 +6041,7 @@ test('mentions suppressed overlaps in the summary', () => {
 
 test('emits no escape codes when colour is off', () => {
   const output = capture([{ type: 'diagnostic', diagnostic: diagnostic() }, { type: 'done', result: result() }])
-  // eslint-disable-next-line no-control-regex
-  expect(output).not.toMatch(/\[/)
+  expect(output).not.toContain('\u001B[')
 })
 ```
 
@@ -5736,6 +6101,14 @@ const SEVERITY_STYLE: Readonly<Record<Severity, Parameters<typeof styleText>[0]>
   info: 'blue',
 }
 
+const SEVERITY_LABEL: Readonly<Record<Severity, string>> = {
+  error: 'error',
+  warn: 'warning',
+  info: 'note',
+}
+
+const plural = (count: number, noun: string): string => `${count} ${noun}${count === 1 ? '' : 's'}`
+
 export function createPrettyReporter(context: ReporterContext): Reporter {
   const paint = (style: Parameters<typeof styleText>[0], text: string): string =>
     context.color ? styleText(style, text) : text
@@ -5771,7 +6144,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
 
     const parts = (['error', 'warn', 'info'] as const)
       .filter((severity) => result.counts[severity] > 0)
-      .map((severity) => paint(SEVERITY_STYLE[severity], `${result.counts[severity]} ${severity}${result.counts[severity] === 1 ? '' : 's'}`))
+      .map((severity) => paint(SEVERITY_STYLE[severity], plural(result.counts[severity], SEVERITY_LABEL[severity])))
 
     context.write('\n')
     context.write(
@@ -5782,20 +6155,26 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     context.write(
       paint(
         'dim',
-        `${result.stats.filesScanned} files, ${result.stats.filesFromCache} cached, ${result.stats.durationMs}ms`,
+        `${plural(result.stats.filesScanned, 'file')}, ${result.stats.filesFromCache} cached, ${result.stats.durationMs}ms`,
       ),
     )
     context.write('\n')
 
     if (result.ruleset.suppressed > 0) {
-      const count = result.ruleset.suppressed
       context.write(
-        paint('dim', `${count} rule overlap${count === 1 ? '' : 's'} resolved — run \`sgate rules conflicts\` for detail.\n`),
+        paint(
+          'dim',
+          `${plural(result.ruleset.suppressed, 'rule overlap')} resolved — run \`sgate rules conflicts\` for detail.\n`,
+        ),
       )
     }
     if (result.ruleset.uncovered.length > 0) {
+      const count = result.ruleset.uncovered.length
       context.write(
-        paint('yellow', `${result.ruleset.uncovered.length} enabled concepts have no capable engine in this repo.\n`),
+        paint(
+          'yellow',
+          `${plural(count, 'enabled concept')} ${count === 1 ? 'has' : 'have'} no capable engine in this repo.\n`,
+        ),
       )
     }
   }
@@ -5876,7 +6255,7 @@ Expected: PASS, 16 tests across the three files.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add packages/reporters
+git add packages/reporters pnpm-lock.yaml
 git commit -m "feat(reporters): streaming pretty output and versioned json
 
 Pretty prints each diagnostic on arrival with a header when the file
@@ -5915,7 +6294,7 @@ reporter emits one versioned document, which is the integration contract."
   "license": "MIT",
   "engines": { "node": ">=24" },
   "bin": { "sgate": "./bin/sgate.js", "slop-gate": "./bin/sgate.js" },
-  "exports": { ".": { "types": "./dist/main.d.ts", "import": "./dist/main.js" } },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist", "bin"],
   "scripts": { "build": "tsdown", "typecheck": "tsc --noEmit -p tsconfig.json" },
   "dependencies": {
@@ -5934,7 +6313,33 @@ reporter emits one versioned document, which is the integration contract."
 import '../dist/main.js'
 ```
 
-`tsconfig.json` and `tsdown.config.ts` mirror `packages/core`'s, with `entry: ['src/main.ts']`. Then:
+`tsconfig.json` mirrors `packages/core`'s. `tsdown.config.ts` builds **two** entries,
+`entry: ['src/main.ts', 'src/index.ts']`:
+
+- `main.ts` is the executable the bin shim loads. It runs on import, so it must never be what
+  `import ... from '@misaon/slop-gate'` resolves to — that would execute the CLI as a side effect of
+  loading a config file.
+- `index.ts` is the library surface, and it is what the package `exports`. A generated
+  `slop-gate.config.ts` imports `defineConfig` from here, which is the whole point of that helper:
+  it gives the config file autocompletion over concept ids and turns a typo into a type error.
+
+```ts
+// packages/cli/src/index.ts
+export { defineConfig } from '@misaon/slop-gate-core'
+export type {
+  ConceptId,
+  EngineId,
+  OverrideBlock,
+  PresetName,
+  RuleKey,
+  RuleLevel,
+  RuleMap,
+  RuleSetting,
+  SlopGateConfig,
+} from '@misaon/slop-gate-core'
+```
+
+Then:
 
 ```bash
 pnpm install
@@ -6036,7 +6441,10 @@ export const check = defineCommand({
   args: {
     format: { type: 'string', default: 'pretty', description: `Output format (${REPORTER_NAMES.join(', ')})` },
     'max-warnings': { type: 'string', description: 'Fail when warnings exceed this count' },
-    'no-cache': { type: 'boolean', default: false, description: 'Ignore cached results' },
+    // Named `cache`, not `no-cache`: citty treats any `--no-X` token as a negation of `X`, so an
+    // arg literally named `no-cache` can never be set from the command line — `--no-cache` would
+    // silently do nothing. `--no-cache` still works, as the negation of this.
+    cache: { type: 'boolean', default: true, description: 'Use cached results (--no-cache to skip)' },
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
@@ -6048,15 +6456,19 @@ export const check = defineCommand({
       return
     }
 
+    // A local flag, not `process.exitCode`, as the sentinel: a stale exit code left by an earlier
+    // call in the same process would otherwise silently abort a perfectly good run.
+    let configFailed = false
     const loaded = await loadConfig(rootDir).catch((error: unknown) => {
       if (error instanceof ConfigError) {
         process.stderr.write(`${error.message}\n`)
         process.exitCode = EXIT_CODES.config
+        configFailed = true
         return undefined
       }
       throw error
     })
-    if (process.exitCode === EXIT_CODES.config) return
+    if (configFailed) return
 
     const controller = new AbortController()
     const onInterrupt = (): void => controller.abort()
@@ -6082,7 +6494,7 @@ export const check = defineCommand({
         config: loaded?.config ?? DEFAULT_CONFIG,
         ...(loaded === null || loaded === undefined ? {} : { configFile: loaded.file }),
         engines: [createOxlintEngine()],
-        useCache: !args['no-cache'],
+        useCache: args.cache,
         signal: controller.signal,
       })) {
         reporter.onEvent(event)
@@ -6114,24 +6526,70 @@ function supportsColor(): boolean {
 `packages/cli/src/main.ts`:
 
 ```ts
-import { defineCommand, runMain } from 'citty'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { defineCommand, runCommand, showUsage, type CommandDef } from 'citty'
 import { EXIT_CODES } from './exit-codes.ts'
 
+const packageDir = dirname(fileURLToPath(import.meta.url))
+const { version } = JSON.parse(readFileSync(join(packageDir, '../package.json'), 'utf8')) as { version: string }
+
+const subCommands = {
+  check: () => import('./commands/check.ts').then((module) => module.check),
+  // `init` is registered in Task 15, which creates ./commands/init.ts. Listing it here first
+  // would fail typecheck and build against a module that does not exist yet.
+}
+
 const main = defineCommand({
-  meta: {
-    name: 'sgate',
-    description: 'slop-gate — one quality gate over many analysis engines',
-  },
-  subCommands: {
-    check: () => import('./commands/check.ts').then((module) => module.check),
-    init: () => import('./commands/init.ts').then((module) => module.init),
-  },
+  meta: { name: 'sgate', version, description: 'slop-gate — one quality gate over many analysis engines' },
+  subCommands,
 })
 
-await runMain(main).catch((error: unknown) => {
+const rawArgs = process.argv.slice(2)
+
+/**
+ * citty's `runMain` provides `--help`/`--version`, but on every usage error — unknown subcommand,
+ * missing argument, no command at all — it calls `process.exit()` directly rather than throwing.
+ * That bypasses `process.exitCode`, the one thing this layer owns, and reports exit 1 ("findings")
+ * for a run that never checked anything: a typo would tell an agent its code has problems.
+ * `runCommand` throws instead (`E_UNKNOWN_COMMAND`, `E_NO_COMMAND`), so the catch maps them to
+ * `EXIT_CODES.config`. Its cost is that it has no `--help`/`--version` handling of its own —
+ * calling it with `['check', '--help']` starts running `check` for real — so that part is
+ * replicated here with citty's exported `showUsage`.
+ */
+// One catch around the whole dispatch, not just the `runCommand` branch: `resolveHelpTarget`
+// dynamically imports a subcommand, which transitively loads the engine layer, so a broken oxlint
+// install makes `sgate check --help` reject. Left unhandled that exits 1 — "the check found
+// problems" — for a run that never checked anything, which is the exact confusion this layer exists
+// to prevent. A plain `includes` scan for the help flags is enough here: no subcommand takes
+// positional arguments, so `--help` cannot arrive as another flag's value.
+try {
+  if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
+    const target = await resolveHelpTarget(rawArgs)
+    await showUsage(target.cmd, target.parent)
+  } else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
+    console.log(version)
+  } else {
+    await runCommand(main, { rawArgs })
+  }
+} catch (error: unknown) {
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
   process.exitCode = EXIT_CODES.config
-})
+}
+
+/**
+ * A deliberately simple one-level lookup matching this CLI's shape: a flat list of subcommands, no
+ * aliases, no nesting. citty's own `resolveSubCommand` handles both and is not exported; revisit
+ * if a later command grows either.
+ */
+async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: CommandDef; parent?: CommandDef }> {
+  const name = args.find((arg) => !arg.startsWith('-'))
+  const loader =
+    name === undefined ? undefined : (subCommands as unknown as Record<string, (() => Promise<CommandDef>) | undefined>)[name]
+  if (loader === undefined) return { cmd: main }
+  return { cmd: await loader(), parent: main }
+}
 ```
 
 Subcommands are lazily imported so `sgate --help` never loads the engine layer.
@@ -6141,11 +6599,15 @@ Subcommands are lazily imported so `sgate --help` never loads the engine layer.
 ```bash
 pnpm build
 node packages/cli/bin/sgate.js --help
-node packages/cli/bin/sgate.js check --format json | head -40
+node packages/cli/bin/sgate.js check --format json > /tmp/sgate-check.json
 echo "exit=$?"
+head -40 /tmp/sgate-check.json
 ```
 
-Expected: `--help` lists `check` and `init`. `check` produces a JSON document with `version: 1`. Exit code is 0 or 1 — never 2 or 3. A `2` means config loading broke; a `3` means the oxlint adapter cannot run and Task 11 needs revisiting.
+Capture to a file rather than piping into `head`: in a pipeline `$?` is the exit code of the *last*
+command, so `| head` would report `head`'s status and mask whatever `sgate` actually returned.
+
+Expected: `--help` lists `check` (Task 15 adds `init`). `check` produces a JSON document with `version: 1`. Exit code is 0 or 1 — never 2 or 3. A `2` means config loading broke; a `3` means the oxlint adapter cannot run and Task 11 needs revisiting.
 
 - [ ] **Step 8: Commit**
 
@@ -6325,7 +6787,18 @@ test('running init twice changes nothing the second time', async () => {
 })
 ```
 
-- [ ] **Step 5: Implement init**
+- [ ] **Step 5: Implement init and register it**
+
+Register the subcommand in `packages/cli/src/main.ts`, replacing the placeholder comment Task 14 left:
+
+```ts
+  subCommands: {
+    check: () => import('./commands/check.ts').then((module) => module.check),
+    init: () => import('./commands/init.ts').then((module) => module.init),
+  },
+```
+
+Then implement the command itself.
 
 `packages/cli/src/commands/init.ts`:
 
