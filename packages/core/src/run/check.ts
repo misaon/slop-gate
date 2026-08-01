@@ -1,17 +1,17 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { deriveResultKey, hashJson, type ResultKeyInput } from '../cache/keys.ts'
-import { openResultStore } from '../cache/result-store.ts'
-import { openStatIndex } from '../cache/stat-index.ts'
+import { deriveProjectResultKey, deriveResultKey, hashJson, type ProjectResultKeyInput, type ResultKeyInput } from '../cache/keys.ts'
+import { openProjectResultStore, openResultStore, type ProjectResultStore } from '../cache/result-store.ts'
+import { openStatIndex, type StatIndex } from '../cache/stat-index.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Severity } from '../diagnostics/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import { LEVEL_TO_SEVERITY, normalizeDiagnostics } from '../engine/normalize.ts'
-import type { Engine, RawDiagnostic } from '../engine/types.ts'
+import type { Engine, EngineConfigHandle, RawDiagnostic } from '../engine/types.ts'
 import { compareStrings } from '../ordering.ts'
-import { buildPlan } from '../planner/plan.ts'
+import { buildPlan, type EngineAssignment } from '../planner/plan.ts'
 import type { ElectionResult } from '../registry/elect.ts'
 import { ruleRefKey, type RuleEntry } from '../registry/types.ts'
 import { resolveRun } from './resolve-run.ts'
@@ -103,6 +103,10 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   const configHash = hashJson({ config: options.config, entries })
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
+  // Project-granularity engines (spec §8.1: `tsc`, `knip`) cache one whole-program result per
+  // engine against an aggregate input hash, never per file — a different shape from `resultStore`
+  // above, not a special case of it. See `runProjectAssignment` below.
+  const projectResultStore = openProjectResultStore(cacheDir)
   const engineById = new Map(options.engines.map((engine) => [engine.id, engine]))
   const sources = new Map<string, string>()
 
@@ -148,6 +152,49 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
         })
         enginesRun += 1
+
+        // The one branch project-granularity forces (see `runProjectAssignment`'s own doc comment
+        // below for why the rest of this loop is untouched): a project engine has no per-file cache
+        // entries and must see every assigned file in one `run()` call, never chunked into
+        // `batchSize` pages — chunking would ask `tsc` about a subset of a program, which spec §8.1
+        // is explicit produces wrong answers, not just slower ones. Its own `try`/`finally` (matching
+        // the file-granularity one just below) so a thrown `EngineError` still disposes the handle
+        // before propagating to the `catch` below that turns it into an `engine-failed` event.
+        if (engine.capabilities.granularity === 'project') {
+          try {
+            const projectStats = { cacheHit: false }
+            for await (const diagnostic of runProjectAssignment(
+              engine,
+              assignment,
+              handle,
+              version,
+              {
+                rootDir: options.rootDir,
+                useCache,
+                configHash,
+                entries,
+                election,
+                resolver,
+                statIndex,
+                projectResultStore,
+                readSource,
+                signal,
+              },
+              projectStats,
+            )) {
+              if (!isVisible(diagnostic)) continue
+              collected.push(diagnostic)
+              yield { type: 'diagnostic', diagnostic }
+            }
+            // All-or-nothing, matching the cache entry itself: either every assigned file was
+            // covered by one aggregate hit, or none were (a miss re-checks the whole program, not a
+            // subset of it).
+            if (projectStats.cacheHit) filesFromCache += assignment.files.length
+          } finally {
+            await handle.dispose()
+          }
+          continue
+        }
 
         try {
           const pending: InventoryFile[] = []
@@ -287,6 +334,123 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       },
     },
   }
+}
+
+type ProjectAssignmentContext = {
+  rootDir: string
+  useCache: boolean
+  configHash: string
+  entries: readonly RuleEntry[]
+  election: ElectionResult
+  resolver: RuleSetResolver
+  statIndex: StatIndex
+  projectResultStore: ProjectResultStore
+  readSource: (file: string) => Promise<string>
+  signal: AbortSignal
+}
+
+/**
+ * Runs one `'project'`-granularity assignment (spec §8.1: `tsc`, `knip` today) — the counterpart to
+ * the per-file `pending`/batch loop in `streamCheck` above, which stays exactly as it was for `'file'`
+ * engines. A project engine type-checks (or otherwise whole-program-analyses) a *program*, not a list
+ * of files, so asking it about a subset gives wrong answers, not just faster ones (§8.1) — everything
+ * here follows from that one constraint:
+ *
+ * - **One cache entry, not one per file.** `deriveProjectResultKey` folds every assigned file's own
+ *   content hash into a single aggregate hash; a hit or miss is all-or-nothing for the whole
+ *   assignment, mirrored by `ProjectResultStore`'s own `results/project/<engineId>/<hash>.json`
+ *   layout (spec §9) rather than `ResultStore`'s per-file sharded one.
+ * - **One `run()` call, not a batch loop.** `assignment.files` still matters — it is what the
+ *   aggregate hash is built from, and it is what gets scanned for stale inline suppressions below —
+ *   but it is never chunked or turned into explicit CLI file arguments the way the file-granularity
+ *   loop does: a project engine decides its own file set from its own project configuration (a
+ *   tsconfig's `include`/`files`), which is why `Engine.run`'s `batch` parameter is close to
+ *   vestigial for a project engine (see `@misaon/slop-gate-engine-tsc`'s own `run()` for the concrete
+ *   case: it ignores `batch.files` entirely and passes no file arguments to `tsc -p` at all).
+ * - **Every assigned file still gets scanned for suppressions**, matching the file-granularity loop's
+ *   own "no `fileRaws.length === 0` shortcut" rule (see that loop's comment): a stale
+ *   `sgate-disable-next-line` on a file the engine now reports nothing for is exactly the case
+ *   `config.unused-suppression` exists to catch, project engines included.
+ * - **A raw diagnostic for a file outside `assignment.files` is kept, not dropped** — e.g. a project
+ *   engine reporting against its own config file (`tsconfig.json` itself, for a malformed-option
+ *   diagnostic) or a file the tsconfig's `include` matches that slop-gate's own inventory does not.
+ *   Second-guessing the engine's own program scope by discarding those would be exactly the silent
+ *   wrongness spec §18/§22 warns against; grouping by whatever `raw.file` the engine actually reports
+ *   costs nothing extra here since there is already no fixed per-file batch to reconcile against.
+ *
+ * `stats` is a small out-parameter (mutated, not returned) rather than a second return channel,
+ * matching how the rest of `streamCheck` already tracks `filesFromCache`/`enginesRun` as plain outer
+ * variables — an async generator's own return value is awkward to read from a `for await` consumer,
+ * and a project assignment has exactly one hit/miss decision to report, not per-diagnostic ones.
+ *
+ * @yields Every diagnostic for this assignment — a cache hit's full stored array, or a cache miss's
+ * freshly normalized one — for the caller to filter by `isVisible` and collect/stream itself.
+ */
+async function* runProjectAssignment(
+  engine: Engine,
+  assignment: EngineAssignment,
+  handle: EngineConfigHandle,
+  version: string,
+  ctx: ProjectAssignmentContext,
+  stats: { cacheHit: boolean },
+): AsyncGenerator<Diagnostic> {
+  const files = await Promise.all(
+    assignment.files.map(async (file) => ({ path: file.path, hash: await ctx.statIndex.hashOf(ctx.rootDir, file) })),
+  )
+  const components: ProjectResultKeyInput = {
+    engineId: engine.id,
+    engineVersion: version,
+    engineRulesetHash: handle.rulesetHash,
+    configHash: ctx.configHash,
+    files,
+  }
+  const key = deriveProjectResultKey(components)
+
+  const cached = ctx.useCache ? await ctx.projectResultStore.get(engine.id, key) : null
+  if (cached !== null) {
+    stats.cacheHit = true
+    yield* cached
+    return
+  }
+  stats.cacheHit = false
+
+  const raws: RawDiagnostic[] = []
+  for await (const raw of engine.run(
+    { files: assignment.files },
+    handle,
+    { rootDir: ctx.rootDir, tmpDir: join(ctx.rootDir, '.slop-gate', 'tmp') },
+    ctx.signal,
+  )) {
+    raws.push(raw)
+  }
+
+  // Pre-seeded with every assigned file (so a clean one is still scanned for suppressions), then
+  // widened to any other file the engine actually reported against — see the module doc comment.
+  const byFile = new Map<string, RawDiagnostic[]>(assignment.files.map((file) => [file.path, []]))
+  for (const raw of raws) {
+    const existing = byFile.get(raw.file)
+    if (existing) existing.push(raw)
+    else byFile.set(raw.file, [raw])
+  }
+
+  const normalized: Diagnostic[] = []
+  for (const [path, fileRaws] of byFile) {
+    const source = await ctx.readSource(path)
+    normalized.push(
+      ...normalizeDiagnostics({
+        engine: engine.id,
+        raws: fileRaws,
+        entries: ctx.entries,
+        owners: ctx.election.owners,
+        sourceOf: () => source,
+        levelOf: (concept) => ctx.resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
+        suppressionScanFiles: [path],
+      }),
+    )
+  }
+
+  if (ctx.useCache) await ctx.projectResultStore.set(engine.id, key, normalized, components)
+  yield* normalized
 }
 
 type ConfigDiagnosticInput = {
