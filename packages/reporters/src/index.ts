@@ -71,3 +71,10 @@ export {
   SEVERITY_ORDER,
   SEVERITY_STYLE,
 } from './severity.ts'
+
+// --- `sgate rules` governance commands: one pretty + one json renderer per command, each
+// versioned like `JSON_REPORT_VERSION` above.
+export type { RulesReporterContext } from './rules/context.ts'
+export { renderRulesListJson, renderRulesListPretty, RULES_LIST_JSON_VERSION } from './rules/list.ts'
+export { renderRulesWhyJson, renderRulesWhyPretty, RULES_WHY_JSON_VERSION } from './rules/why.ts'
+export { renderRulesConflictsJson, renderRulesConflictsPretty, RULES_CONFLICTS_JSON_VERSION } from './rules/conflicts.ts'
