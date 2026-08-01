@@ -28,40 +28,18 @@ export type RuleExclusion = {
 export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
   'vitest/valid-expect': {
     reason:
-      "An oxlint bug rather than a judgement call, and the only exclusion here whose root cause is " +
-      "quotable from a type declaration. Measured on this repository the moment framework detection " +
-      "made the vitest scope electable: 27 findings, 27 false positives, every one the identical " +
-      "message \"Expect takes at most 1 argument\" on `expect(value, message)` — which is vitest's own " +
-      "documented two-argument form, declared as `<T>(actual: T, message?: string): Assertion<T>` in " +
-      "`@vitest/expect` 3.2.7's `ExpectStatic`. oxlint's vitest plugin is applying *jest's* arity rule " +
-      "to vitest, so the rule is wrong about the very framework it is named after. Scoped to the " +
-      "vitest side deliberately: `jest/valid-expect` is correct, because jest genuinely has no such " +
-      "overload, and in a vitest repository the `test-framework` profile disables it anyway.",
-  },
-  'jest/no-conditional-expect': {
-    reason:
-      "Measured on this repository: 8 findings, 8 false positives, all the same table-driven shape — " +
-      "`if (entry.fixKind === 'none') expect(a).toEqual([]) else expect(b).toBeGreaterThan(0)` in the " +
-      "registry's invariant tests, where *every* branch asserts. The defect this rule exists for is an " +
-      "assertion that may never run (the `try { } catch { expect() }` shape), and a total if/else over " +
-      "a loop variable structurally cannot be that: there is no path through it that asserts nothing. " +
-      "Excluded for both scopes because the two plugins implement identical semantics here, so the " +
-      "measurement transfers.",
-  },
-  'vitest/no-conditional-expect': {
-    reason: "Same measurement and same reasoning as jest/no-conditional-expect above; identical rule, two plugins.",
-  },
-  'jest/require-to-throw-message': {
-    reason:
-      "Measured on this repository: 4 findings, 4 false positives, across three files, all the same " +
-      "idiom — `await expect(loadConfig(dir)).rejects.toThrow()`, asserting *that* something rejects " +
-      "where the test's own title already says what and why. Demanding a message string there adds a " +
-      "second, weaker copy of the test name inside the assertion. A style preference oxlint files " +
-      "under `correctness`, and the category is not the arbiter of whether a finding belongs in " +
-      "`recommended` — the same argument recorded for no-underscore-dangle below.",
-  },
-  'vitest/require-to-throw-message': {
-    reason: "Same measurement and same reasoning as jest/require-to-throw-message above; identical rule, two plugins.",
+      "A narrow oxlint defect, reproduced directly against 1.76.0 and stated in terms of the `code` " +
+      "field actually observed rather than the plugin scope it was found under. `vitest/valid-expect` " +
+      "reports \"Expect takes at most 1 argument\" whenever `expect`'s second argument is anything " +
+      "other than a *string literal*: `expect(x, 'msg')` is accepted, `expect(x, key(x))` is not. Both " +
+      "are legal — vitest declares `<T>(actual: T, message?: string): Assertion<T>` " +
+      "(`@vitest/expect` 3.2.7, `dist/index.d.ts:165-166`), and a computed string is still a string. " +
+      "Measured on this repository: 27 diagnostics, all `code: \"vitest(valid-expect)\"`, all the " +
+      "computed-argument form, 27/27 false positives. `jest/valid-expect` is deliberately NOT excluded " +
+      "— it reports the same message on the same code, and there it is correct, because jest's " +
+      "`expect` genuinely takes one argument. Verified by running each rule alone: over this " +
+      "repository jest reports 37 and vitest 27, and the 10 it does not report are exactly the " +
+      "string-literal calls the vitest rule correctly allows.",
   },
   'import/no-unassigned-import': {
     reason:

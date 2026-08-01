@@ -1145,23 +1145,23 @@ elect an owner and therefore run, against the commit before this change):
 
 | Repository | Before | After |
 |---|---|---|
-| slop-gate itself, and any vitest-only repository | 152 | **162** |
-| a jest-only repository | 152 | **163** |
+| slop-gate itself, and any vitest-only repository | 152 | **164** |
+| a jest-only repository | 152 | **165** |
 | both, or neither, installed | 152 | 153 |
 
-And the honest other half: **on this repository those ten concepts produce zero findings.** Running the
-old binary and the new one over byte-identical source gives 53 diagnostics each. They are vitest
-test-hygiene rules — no focused tests, no disabled tests, valid titles — and this codebase does not
-violate them. The mechanism is what makes them shippable at all, since without it they double-report;
-whether they earn their place is a question only a repository that does commit a stray `.only` can
-answer.
+Twelve concepts gained, none lost, and on this repository they produce **twelve findings** — eight
+`vitest/no-conditional-expect` and four `vitest/require-to-throw-message`, taking `sgate check` from 53
+diagnostics to 65. Four of the eight are a guarded `if (cond) { expect(...) }` with no `else`, which is
+precisely the vacuous pass that rule exists to catch, so this is coverage doing its job rather than
+noise to be tuned away.
 
-Three rules went the other way during the same measurement and are now excluded outright, because
-their problem is not the framework: `vitest/valid-expect` (27/27 false positives — it reports
-"Expect takes at most 1 argument" on `expect(value, message)`, which is vitest's own documented
-signature, so oxlint is applying *jest's* arity rule to vitest), `no-conditional-expect` (8/8, all a
-total `if`/`else` where every branch asserts) and `require-to-throw-message` (4/4). Measuring a
-category *out* is the same mechanism working; it is why the number above is ten rather than thirteen.
+One rule went the other way and is excluded outright, because its problem is the engine rather than the
+framework: **`vitest/valid-expect`**, 27/27 false positives. The defect is narrow and worth stating
+exactly, because a looser version of this claim was wrong: the rule accepts `expect(x, 'literal')` and
+rejects `expect(x, key(x))`, though vitest declares `message?: string` and a computed string is still a
+string. `jest/valid-expect` is deliberately *not* excluded — it reports the same message on the same
+code and is correct there, since jest's `expect` really does take one argument. Measuring a rule *out*
+is the same mechanism working.
 
 ### 23.3 Why there are no conflicts to resolve
 

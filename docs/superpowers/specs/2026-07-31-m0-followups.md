@@ -472,43 +472,67 @@ not suppressed.
 The mechanism itself is spec §23 and needs no summary here. What follows is what building it turned
 up that the design did not predict, plus the measurements a future reader should not have to redo.
 
-**`recommended` moved, and the number is smaller than the concept count suggests.** Concepts that
-elect an owner under `extends: ['recommended']`, against the commit before this change: **152 → 162**
-on this repository and on any vitest-only one, **152 → 163** jest-only, 152 → 153 where both or
-neither are installed. But running the old binary and the new one over byte-identical source produces
-**53 diagnostics each** — the ten newly-elected concepts find nothing here. They are vitest
-test-hygiene rules and this codebase does not commit a stray `.only`. The mechanism is what makes them
-shippable at all (without it they double-report), and whether they earn their place needs a repository
-that actually violates one. Do not cite the 152 → 162 figure as a finding-count improvement; it is a
-coverage figure and the finding-count delta was zero.
+**`recommended` moved.** Concepts that elect an owner under `extends: ['recommended']`, against the
+commit before this change: **152 → 164** on this repository and on any vitest-only one, **152 → 165**
+jest-only, 152 → 153 where both or neither are installed. Twelve gained, none lost. Do not cite that as
+a finding-count improvement on its own; it is a
+coverage figure. The finding-count delta is separate and also real: `sgate check` on this repository
+goes from 53 diagnostics to 65, all twelve new ones from the two rules whose exclusions were retracted
+(see below).
 
-**Three rules were measured *out* while measuring the rest in.** `no-conditional-expect` (8/8 false
-positives) and `require-to-throw-message` (4/4) are excluded for both scopes on ordinary accuracy
-grounds; each records its measurement on its own entry in `registry/exclusions.ts`. The third is not
-an accuracy judgement at all but an upstream defect, written out in full below because it should be
-reported and the evidence should not have to be re-gathered to do it.
+**One rule was measured out, and two exclusions were retracted after review caught the reasoning.**
+The retraction is the more useful record, so it is first.
 
-### `oxlint`'s `vitest/valid-expect` applies jest's arity rule to vitest — worth filing with oxc
+### A misattribution, and the method rule that would have caught it
 
-**Not yet reported upstream** (the user's call to make, not this document's). Everything needed to
-file it:
+The first version of this work excluded three rules and described `vitest/valid-expect` as an oxlint
+bug that "applies jest's arity rule to vitest". **That claim was wrong**, and it was nearly filed
+against oxc on that basis. It was caught by someone reproducing it from scratch on a minimal fixture,
+getting zero findings, and continuing to dig.
 
-- **Symptom.** oxlint 1.76.0 reports `Expect takes at most 1 argument` on `expect(value, message)`.
-- **Measured.** 27 findings on this repository the moment framework detection made the vitest scope
-  electable, and **27 of 27 are false positives** — every one the identical message on that call
-  shape, across 8 files (`packages/core/src/registry/entries.test.ts`,
-  `entries.generated.test.ts`, `config/presets.test.ts`, `reporters/src/pretty.test.ts` and three
-  more under `reporters/src/rules/`).
-- **Why it is wrong.** The two-argument form is vitest's own documented API: `@vitest/expect` 3.2.7
-  declares `interface ExpectStatic { <T>(actual: T, message?: string): Assertion<T>; ... }`
-  (`dist/index.d.ts:165-166`), where the second argument is the custom assertion message. The rule
-  is applying **jest's** arity limit inside the **vitest** plugin, so it is wrong about the very
-  framework it is named after.
-- **Scope of the fix here.** `vitest/valid-expect` is excluded; `jest/valid-expect` is deliberately
-  **not**, because jest genuinely has no such overload and the rule is correct there. In a vitest
-  repository the `test-framework` profile disables the jest-scope copy anyway, so neither fires.
-- **What to withdraw when upstream fixes it.** The `vitest/valid-expect` entry in
-  `registry/exclusions.ts`, and nothing else. Re-measure before withdrawing it.
+What went wrong is worth naming because it is a repeatable mistake: **the measurement inferred the rule
+from the plugin scope the concept id was in, instead of reading the `code` field on the diagnostic.**
+The findings really were `code: "vitest(valid-expect)"` — but that could only be established by
+checking, and the *explanation* attached to them ("it is jest's rule leaking") was invented to fit and
+was false. On a minimal `expect(1, "msg")` the vitest rule reports nothing and the jest rule reports
+one, which is the opposite of what the story predicted.
+
+**Rule for this document: a claim that an engine misbehaves must quote the `code`/rule id actually
+observed, name the engine version, and say which fixture reproduced it.** Nothing weaker is reportable
+upstream, and an unreportable claim sitting in a backlog is worse than no claim — someone eventually
+sends it.
+
+Two exclusions were retracted on re-examination under the same suspicion, and both were mine:
+
+- **`no-conditional-expect` (both scopes) — retracted.** Recorded as "8/8 false positives, all a total
+  `if`/`else` where every branch asserts". Only four of the eight are that shape. The other four are
+  `if (entry.concepts.length > 1) { expect(...) }` — a guarded conditional with no `else`, which can
+  pass while asserting nothing, which is exactly the defect the rule exists for. 4/8 does not clear the
+  bar.
+- **`require-to-throw-message` (both scopes) — retracted.** Recorded as a style preference. All four
+  sites are a bare `await expect(...).rejects.toThrow()`, and the rule's actual rationale is that such
+  an assertion passes on *any* error, including an unrelated one — a real weakness in those tests. Four
+  findings on one repository that the author found noisy is not a measurement.
+
+Both are now in `recommended` and both fire: the twelve findings this change adds to `sgate check` on
+this repository are those two rules.
+
+### `oxlint` 1.76.0: `vitest/valid-expect` rejects a computed second argument
+
+The one exclusion that survived, restated to the standard above. Reproduced directly, oxlint 1.76.0:
+
+- `expect(1, "msg").toBe(1)` — `--vitest-plugin -D vitest/valid-expect` reports **0**;
+  `--jest-plugin -D jest/valid-expect` reports **1**, `code: "jest(valid-expect)"`.
+- `expect(2, key(2)).toBe(2)` — the vitest rule **does** report, `code: "vitest(valid-expect)"`.
+
+So the vitest rule handles the documented two-argument form, and fails only when the second argument is
+not a string *literal*. vitest declares `<T>(actual: T, message?: string): Assertion<T>`
+(`@vitest/expect` 3.2.7, `dist/index.d.ts:165-166`); a computed string satisfies it. Over this
+repository, running each rule alone: `jest(valid-expect)` 37, `vitest(valid-expect)` 27 — and the ten
+jest-only ones are exactly the string-literal calls vitest correctly allows.
+
+Reportable to oxc as written, and **still not reported** — the user's call, not this document's.
+`jest/valid-expect` must not be included in any such report: it is correct.
 
 **The dual-firing set is "rules both plugins implement", not "the whole scope", and the difference is
 one concept.** The first implementation disabled every concept in the absent scope, which also turned
