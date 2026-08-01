@@ -1,4 +1,5 @@
 import { isConceptId, SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
+import type { FrameworkEvidence, FrameworkId, InapplicableFramework } from '../frameworks/types.ts'
 import type { IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
 import type { EngineId, RuleEntry, RuleRef } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
@@ -22,6 +23,28 @@ export type ConceptWhy = {
   suppressed: readonly SuppressionRecord[]
   ineligible: readonly IneligibleCandidate[]
   uncovered: boolean
+  /**
+   * Framework profiles that turned *this* concept off, with the evidence behind each (spec §23.4).
+   * `enablement.baseProvenance` already carries a `framework` step naming the profile; this is what
+   * lets the renderer go from "off, because nestjs" to "off, because `@nestjs/core` is declared in
+   * `package.json`" — the difference between a dead end and something the reader can act on.
+   */
+  frameworks: readonly FrameworkReason[]
+  /**
+   * Profiles that were detected but stood down for want of a parameter. Not scoped to this concept —
+   * a blocked profile has no adjustments to scope by, which is exactly the point: the user is seeing
+   * the status-quo finding and deserves to be told which profile would have removed it and why it
+   * could not.
+   */
+  inapplicableFrameworks: readonly InapplicableFramework[]
+}
+
+/** One framework's reason for disabling one concept, joined to the evidence that detected it. */
+export type FrameworkReason = {
+  id: FrameworkId
+  summary: string
+  reason: string
+  evidence: readonly FrameworkEvidence[]
 }
 
 /**
@@ -34,8 +57,19 @@ export type ConceptWhy = {
  * second opinion here.
  */
 export function explainConcept(concept: string, resolved: ResolvedRun): ConceptWhy {
-  const { resolver, election, entries } = resolved
+  const { resolver, election, entries, frameworks } = resolved
   return {
+    frameworks: frameworks.applied.flatMap((application) =>
+      application.adjustments
+        .filter((adjustment) => adjustment.kind === 'disable-concept' && adjustment.concept === concept)
+        .map((adjustment) => ({
+          id: application.id,
+          summary: application.summary,
+          reason: adjustment.reason,
+          evidence: application.evidence,
+        })),
+    ),
+    inapplicableFrameworks: frameworks.inapplicable,
     concept,
     isKnownConcept: isConceptId(concept),
     servicedBySlopGate: SLOP_GATE_SERVICED_CONCEPTS.has(concept),

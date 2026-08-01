@@ -15,6 +15,8 @@ const explanation = (over: Partial<ConceptWhy> = {}): ConceptWhy => ({
   suppressed: [],
   ineligible: [],
   uncovered: false,
+  frameworks: [],
+  inapplicableFrameworks: [],
   ...over,
 })
 
@@ -199,4 +201,60 @@ test('json output is versioned and carries the full explanation', () => {
   const parsed = JSON.parse(output) as { version: number; concept: string }
   expect(parsed.version).toBe(RULES_WHY_JSON_VERSION)
   expect(parsed.concept).toBe(result.concept)
+})
+
+test('names the framework, the evidence file and the reason when a profile turned a concept off', () => {
+  const output = flat(
+    capture(
+      explanation({
+        concept: 'suspicious.no-extraneous-class',
+        enablement: {
+          enabled: false,
+          level: 'off',
+          baseProvenance: [
+            { layer: 'preset', source: 'recommended', setting: 'warn' },
+            { layer: 'framework', source: 'nestjs', setting: 'off' },
+          ],
+          overrides: [],
+        },
+        frameworks: [
+          {
+            id: 'nestjs',
+            summary: 'NestJS \u2014 decorator-driven dependency injection',
+            reason: 'NestJS requires an empty class body.',
+            evidence: [
+              { kind: 'manifest-dependency', file: 'package.json', workspace: '', name: '@nestjs/core', field: 'dependencies' },
+            ],
+          },
+        ],
+      }),
+    ),
+  )
+
+  expect(output).toContain('framework nestjs -> off')
+  expect(output).toContain('detected via `@nestjs/core` in package.json (dependencies)')
+  expect(output).toContain('NestJS requires an empty class body.')
+  expect(output).toContain('framework `nestjs` turned it off')
+})
+
+test('says which detected profile stood down, and why, rather than staying silent', () => {
+  const output = flat(
+    capture(
+      explanation({
+        concept: 'dead-code.unused-file',
+        inapplicableFrameworks: [
+          {
+            id: 'mikro-orm',
+            summary: 'MikroORM \u2014 migrations are loaded by the ORM, never imported',
+            evidence: [],
+            blocked: '`migrations.path` in mikro-orm.config.ts is not a plain string literal',
+          },
+        ],
+      }),
+    ),
+  )
+
+  expect(output).toContain('Frameworks detected but not applied')
+  expect(output).toContain('mikro-orm')
+  expect(output).toContain('not a plain string literal')
 })
