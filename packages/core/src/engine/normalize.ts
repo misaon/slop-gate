@@ -1,7 +1,7 @@
 import type { RuleLevel } from '../config/types.ts'
 import { fingerprint } from '../diagnostics/fingerprint.ts'
 import { createLineIndex, type LineIndex } from '../diagnostics/position.ts'
-import type { Diagnostic, Severity } from '../diagnostics/types.ts'
+import type { Diagnostic, Fix, Severity } from '../diagnostics/types.ts'
 import { isOwned } from '../registry/ownership.ts'
 import { ruleRefKey, type EngineId, type RuleEntry, type RuleRef } from '../registry/types.ts'
 import { applySuppressions } from '../suppressions/apply.ts'
@@ -215,7 +215,7 @@ function judgedBy(directive: SuppressionDirective, engine: EngineId, owners: Rea
  * An empty `edits` array is dropped too — a fix that changes nothing is not a fix, and letting one
  * through would have the fix loop count a file as changed and re-run every engine over it forever.
  */
-function fixOf(entry: RuleEntry, raw: RawDiagnostic): { fix?: Diagnostic['fix'] } {
+function fixOf(entry: RuleEntry, raw: RawDiagnostic): { fix: Fix } | Record<string, never> {
   if (raw.fix === undefined || entry.fixKind === 'none' || raw.fix.edits.length === 0) return {}
   return {
     fix: {

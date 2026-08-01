@@ -157,6 +157,7 @@ export type {
   EngineRuleSelection,
   FileBatch,
   RawDiagnostic,
+  RawFix,
   RawSeverity,
   RunContext,
 } from './engine/types.ts'
@@ -167,6 +168,23 @@ export { applySuppressions, type ApplySuppressionsResult } from './suppressions/
 
 export { buildPlan, type EngineAssignment, type PlanInput } from './planner/plan.ts'
 export { runCheck, streamCheck, type CheckEvent, type CheckOptions, type CheckResult } from './run/check.ts'
+
+// --- `sgate fix` (spec §11) ----------------------------------------------------------------------
+export {
+  DEFAULT_MAX_PASSES,
+  runFix,
+  type FixOptions,
+  type FixRefusal,
+  type FixResult,
+  type FixedFile,
+} from './run/fix.ts'
+export { FIX_TIER_RANK, type ArbitrationResult, type CandidateEdit, type DropReason, type DroppedEdit, type FixTier } from './fix/types.ts'
+export { arbitrateEdits, rangesConflict } from './fix/arbitrate.ts'
+export { applyEdits, decodeUtf8, encodeUtf8 } from './fix/apply.ts'
+export { unifiedDiff } from './fix/diff.ts'
+export { createOscillationLedger, type Oscillation, type OscillationLedger } from './fix/oscillation.ts'
+export { inspectWorktree, type InspectWorktreeOptions, type WorktreeState } from './fix/worktree.ts'
+export { writeFileAtomic, type WriteFileAtomicOptions } from './cache/atomic-write.ts'
 export { resolveRun, type ResolveRunOptions, type ResolvedRun } from './run/resolve-run.ts'
 
 export { LEVEL_STRENGTH } from './config/types.ts'
