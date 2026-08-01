@@ -180,13 +180,62 @@ gets for free from a human reading the code.**
 - **oxlint's `--rules` output spells two scopes with underscores** (`jsx_a11y`, `react_perf`) while
   the diagnostic `code` field hyphenates them. A future registry entry for those scopes must use the
   hyphenated form, which is what the parser accepts.
-- **`config.unused-suppression` is in the catalogue and every preset but has no producer.**
-  `check.ts`'s `configDiagnostics` only ever emits `config.dead-override` and `config.rule-overlap`
-  — nothing implements "a suppression comment matches no diagnostic", the behaviour the concept's
-  own description promises. Same shape as `SlopGateConfig.workspaces`/`engines` above: it
-  type-checks, a user can even set its severity, and it does nothing. Noticed while auditing every
-  `config.*` diagnostic's trigger condition for the arbitration fix (see the five-fixes report);
-  not touched here.
+- ~~**`config.unused-suppression` is in the catalogue and every preset but has no producer.**~~
+  **Resolved** by the inline-suppressions work (see "Found implementing inline suppressions" below
+  and `.superpowers/inline-suppressions-report.md`): `packages/core/src/suppressions/` now parses
+  `sgate-disable-*` directives and `engine/normalize.ts` emits `config.unused-suppression` for one
+  that matches nothing. The original note, for context: `check.ts`'s `configDiagnostics` only ever
+  emitted `config.dead-override` and `config.rule-overlap` — nothing implemented "a suppression
+  comment matches no diagnostic", the behaviour the concept's own description promised. Noticed
+  while auditing every `config.*` diagnostic's trigger condition for the arbitration fix (see the
+  five-fixes report); not touched there.
+
+## Found implementing inline suppressions
+
+Full detail, directive grammar and cache verification in `.superpowers/inline-suppressions-report.md`.
+Three things worth carrying forward from that session specifically.
+
+- **Found and fixed: a zero-finding file never got a chance to be scanned for suppressions.**
+  `run/check.ts` had a `fileRaws.length === 0` fast path that wrote `[]` to the cache and moved on
+  without ever reading the file's source — a deliberate optimisation ("normalization only touches the
+  source when there is a finding to position") that predates this feature and was correct until now.
+  It is exactly wrong for inline suppressions: a file with a *stale* `sgate-disable-*` comment (the
+  code that used to need it was fixed, the comment was not removed) is, by definition, a file with
+  zero raw findings — the modal case `config.unused-suppression` exists to catch. Fixed by always
+  reading the file and calling `normalizeDiagnostics` with the new `suppressionScanFiles` option, even
+  when `raws` is empty. Covered by
+  `packages/core/src/run/check.test.ts`'s `'a zero-finding file is still scanned for a stale
+  suppression on a cold run'` and the equivalent `engine/normalize.test.ts` case — both would fail
+  without the fix (verified by reverting it locally before writing this up).
+
+- **Deliberately not solved: unused-suppression is judged per `(engine, file)` normalize call, not
+  per file across every engine that touches it.** `normalizeDiagnostics` is called once per engine
+  per file (see `run/check.ts`), and a bare directive (no target — "suppress everything here") or a
+  directive targeting a concept a *different* engine owns can only be judged correctly by whichever
+  call actually sees the matching diagnostic. Today this is a non-issue: the CLI registers exactly one
+  file-granularity engine (`createOxlintEngine()`), so every file is normalized exactly once, and the
+  question never arises. It becomes a real bug the moment a second file-granularity engine is wired up
+  for a language oxlint already covers — two separate `normalizeDiagnostics` calls over the same file
+  would independently, and potentially inconsistently, decide whether a bare or cross-engine directive
+  is unused. Documented in `engine/normalize.ts` at the suppression-handling block. A correct
+  multi-engine fix needs unused-suppression detection to move to a point that sees every engine's
+  contribution to a file before judging, which does not exist today (see "Restructure before M2, not
+  after" above — this is the same class of problem, one level down).
+
+- **Pre-existing, not introduced here, but newly load-bearing: a *preset's own content* changing does
+  not invalidate the cache.** `check.ts`'s `configHash = hashJson({ config: options.config, entries
+  })` hashes the user's raw, unexpanded config object (`{ extends: ['recommended'] }`) and the
+  registry — never `PRESETS` itself. Verified directly: with a scratch repo on `extends:
+  ['recommended']` and a stale cache, temporarily changing `presets.ts`'s
+  `'config.unused-suppression'` from `'warn'` to `'error'` and rebuilding still served the cached
+  `'warn'` severity, 100% of files from cache, with no config or source change on the user's side —
+  i.e. upgrading slop-gate itself does not bust old caches for anything whose level comes from a
+  preset, not just the two new suppression concepts. A *user's own* `config.rules` edit invalidates
+  correctly today (`options.config` literally differs, verified in `run/check.test.ts`) — this gap is
+  specifically about the preset lookup table changing out from under an unchanged config file. Out of
+  scope for this feature (it is not specific to suppressions and touches every preset-derived
+  concept), but real, and worth an M1/M2 line item: either hash the *resolved* base ruleset instead of
+  the raw config, or document that a version upgrade requires `--no-cache` once.
 
 ## Accepted as is
 
@@ -222,3 +271,19 @@ of intent for no gain.
 code. That is a good result, but it means M0's "reports real findings" acceptance bullet is
 demonstrated only by the committed e2e fixture, never by self-checking. Worth knowing when judging
 whether the gate has teeth.
+
+**Update, inline-suppressions session:** this is no longer literally true, and the reason why is
+itself informative. Self-checking after that work landed surfaced ~40 `config.unused-suppression` /
+`config.suppression-missing-reason` warnings — all of them from `packages/core/src/suppressions/*`
+and `engine/normalize.test.ts` fixture strings that contain the literal directive text as *test data*,
+not as real suppression comments. That is precisely the documented, accepted cost of whole-line token
+scanning (§6.3): the tool cannot tell a real comment from a string literal or another test's fixture
+containing the same characters, and a parser test suite for exactly this feature is the single most
+adversarial input that trade-off could ever be asked to survive. Left as is rather than obscured
+(e.g. by string-concatenating the token apart in fixtures) — the noise is real, expected, harmless
+(warn-level, does not fail `test`/`typecheck`/`build`, and `sgate check` is still not part of CI), and
+hiding it would just be hiding the evidence that the documented trade-off is real. Two *unrelated*
+genuine findings the same self-check surfaced (a shadowed `source` binding across nine new test
+cases in `normalize.test.ts`, and a needlessly-renewed-per-run `isVisible` closure in `check.ts` —
+both instances of concepts already in the registry) were real defects in the new code and were fixed,
+not suppressed.
