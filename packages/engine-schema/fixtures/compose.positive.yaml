@@ -1,0 +1,20 @@
+# Every marked line is a defect the Compose specification catches. The two typos are the cases worth
+# having: Compose ignores a key it does not recognise, so `imge` is not an error at deploy time — it
+# is an image that never gets set.
+services:
+  web:
+    imge: nginx # SGATE_HIT
+    ports: 8080 # SGATE_HIT
+    healthcheck:
+      tst: ["CMD", "true"] # SGATE_HIT
+
+  api:
+    image: node:22
+    depends_on:
+      cache:
+        condition: service_ok # SGATE_HIT
+
+  cache:
+    image: redis:7
+
+netwrks: {} # SGATE_HIT

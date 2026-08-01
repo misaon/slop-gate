@@ -20,6 +20,15 @@ import type { PresetName, RuleMap } from './types.ts'
 const recommended: RuleMap = {
   'correctness.parse-error': 'error',
   ...GENERATED_RECOMMENDED_RULES,
+  // The `schema` engine's three concepts (`registry/entries.manual.ts`). Listed here for the same
+  // reason `correctness.parse-error` is — no generator can produce them — but at `error` on the
+  // strength of the measurement rather than by analogy: 826 YAML files across four unrelated
+  // repositories, six findings, zero false positives. They are the only engine-owned entries in this
+  // file's manual list to reach `recommended`, and the only ones whose measurement contained no
+  // judgement call at all.
+  'config.malformed-document': 'error',
+  'config.duplicate-mapping-key': 'error',
+  'config.compose-schema': 'error',
   'config.rule-overlap': 'info',
   'config.dead-override': 'warn',
   'config.unused-suppression': 'warn',

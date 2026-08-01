@@ -1,0 +1,63 @@
+# A Compose file that must stay clean. Every construct here is one the specification permits and a
+# naive validator gets wrong: `x-` extension fields at two levels, an anchor reused by alias, both the
+# short and long forms of `ports`, `environment` as a mapping in one service and a sequence in
+# another, and the long `depends_on` form with a condition. Drawn from the shapes that appear in
+# docker/awesome-compose, all 39 files of which validate clean against this schema.
+name: reference-stack
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+
+services:
+  web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - target: 443
+        published: "443"
+        protocol: tcp
+    environment:
+      NODE_ENV: production
+      TZ: UTC
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *default-logging
+    x-team: platform
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT=1
+    command: ["node", "worker.js"]
+    environment:
+      - QUEUE_URL=redis://cache:6379
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  db:
+    image: postgres:16
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+
+volumes:
+  db-data:
+
+networks:
+  default:
+    name: reference-net

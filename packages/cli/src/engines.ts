@@ -2,6 +2,7 @@ import type { Engine } from '@misaon/slop-gate-core'
 import { createAstGrepEngine } from '@misaon/slop-gate-engine-astgrep'
 import { createKnipEngine } from '@misaon/slop-gate-engine-knip'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
+import { createSchemaEngine } from '@misaon/slop-gate-engine-schema'
 import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
 
 /**
@@ -25,6 +26,11 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * binary resolved from this monorepo's own install, see `resolveAstGrepBinary`) and
  * file-granularity, so its whole input arrives per call in the `FileBatch`.
  *
+ * `schema` needs no binding either, and for a third reason on top of those two: it runs in-process.
+ * There is no binary to resolve and nothing to spawn — it is `ajv` and `yaml` over a vendored copy of
+ * the Compose specification. It is also the first engine registered here whose concepts are in
+ * `recommended`, so unlike every other entry below it does real work on a default `sgate check`.
+ *
  * Registering an engine here does not, on its own, make `sgate check` invoke it: arbitration only
  * assigns work if some enabled concept resolves to it, and none of `types.type-error` (`tsc`), the
  * ten `dead-code.*`/`deps.*` concepts knip owns, or the five `slop.*` concepts ast-grep owns is part
@@ -38,5 +44,6 @@ export function defaultEngines(rootDir: string, configFile?: string): Engine[] {
     createTscEngine({ rootDir }),
     createKnipEngine({ ...(configFile === undefined ? {} : { configFile }) }),
     createAstGrepEngine(),
+    createSchemaEngine(),
   ]
 }

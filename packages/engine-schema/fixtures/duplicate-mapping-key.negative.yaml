@@ -1,0 +1,37 @@
+# Every shape here reads like a duplicate key and is not one. Each would start firing the moment
+# somebody replaced the parser's own mapping-scoped check with a text scan for repeated key names.
+
+# The same key name in two different mappings.
+primary:
+  name: alpha
+  port: 1
+secondary:
+  name: alpha
+  port: 1
+
+# A merge key overriding an inherited entry. `tier` appears on both sides and resolves to `paid`;
+# that is the whole purpose of a merge, not a redeclaration.
+defaults: &defaults
+  size: small
+  tier: free
+override:
+  <<: *defaults
+  tier: paid
+
+# Repeated *values* in a sequence, and a sequence of mappings that each use the same keys.
+tags:
+  - alpha
+  - alpha
+endpoints:
+  - name: a
+    url: https://example.test/a
+  - name: b
+    url: https://example.test/b
+
+# A quoted key whose text contains what looks like another key.
+"host: nested": literal
+---
+# The same key again, in a separate document.
+name: alpha
+---
+name: alpha

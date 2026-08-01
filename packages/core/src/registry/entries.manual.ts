@@ -403,6 +403,97 @@ const ASTGREP_RULE_ENTRIES = [
 ] as const satisfies readonly RuleEntry[]
 
 /**
+ * The `schema` engine (`packages/engine-schema`) — JSON Schema and YAML structural validation, and
+ * the first engine here that is not a wrapper around somebody else's binary.
+ *
+ * **`tier: 2`** (JavaScript/WebAssembly), which is honest: `ajv` and `yaml` are both JavaScript.
+ * Inert in practice, because after the concept split below no other engine contests any of these.
+ *
+ * **All three are in `recommended`, and all three are `error`** — the only entries in this file that
+ * are, and the reason is the measurement rather than confidence in the idea. Measured over **826 YAML
+ * files from four unrelated repositories** (docker/awesome-compose, kubernetes/examples,
+ * actions/starter-workflows, prometheus/prometheus): **six findings in total, zero false positives**.
+ * Every one was a `duplicate-mapping-key`, and every one was read in context and confirmed genuine —
+ * two of them discard a *different* value (prometheus's own `section_key_dup.bad.yml`, a deliberately
+ * invalid fixture, and a Kubernetes secret declaring `type` twice), the rest are redundant
+ * re-declarations. That is the inverse of the knip and ast-grep measurements in this same file, and it
+ * is why these reach `recommended` where those did not: there is no judgement call in a duplicate key.
+ *
+ * **The concepts are `config.*`, not `correctness.*`, and that is not cosmetic.** `electOwners` elects
+ * one owner per concept for the **whole repository**, not per language. A `schema` entry claiming
+ * `correctness.parse-error` or `correctness.no-duplicate-object-key` would lose to oxlint's tier-0
+ * entry in every repository that contains any TypeScript — which is every repository slop-gate targets
+ * — and YAML would go silently unchecked while the run reported a `config.rule-overlap` for an overlap
+ * that does not exist, since the two engines cover disjoint files. Verified directly against
+ * `electOwners`. The M0 follow-ups record the underlying limitation; these entries route around it.
+ *
+ * `fixKind: 'none'` throughout. A schema knows a value is wrong, never what the author meant, and
+ * `ports: 8080` has at least two plausible repairs in a file that governs how something deploys.
+ */
+const SCHEMA_RULE_ENTRIES = [
+  {
+    engine: 'schema',
+    // 0 findings over all 826 files of the corpus — no false positives, and no true positives either.
+    // Stated plainly because it is the honest read: published repositories do not contain YAML that
+    // fails to parse, since nothing they run would work if they did. It earns `recommended` on cost
+    // and consequence rather than on hit rate — the check is free (the file is already being parsed
+    // for the other two rules) and the finding is never a judgement call.
+    engineRuleId: 'malformed-document',
+    concepts: ['config.malformed-document'],
+    tier: 2,
+    priority: 100,
+    severityDefault: 'error',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['yaml', 'github-workflow'],
+    docsUrl: 'https://yaml.org/spec/1.2.2/',
+    since: '0.1.0',
+  },
+  {
+    engine: 'schema',
+    // The measurement that carries this whole engine: 6/6 true positives, 0 false positives, over 826
+    // files from four unrelated repositories. Two discard a different value outright; the other four
+    // are redundant re-declarations, which are still defects — the file states an intention twice and
+    // a reader cannot tell which one the system honours without knowing YAML's merge order.
+    engineRuleId: 'duplicate-mapping-key',
+    concepts: ['config.duplicate-mapping-key'],
+    tier: 2,
+    priority: 100,
+    severityDefault: 'error',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['yaml', 'github-workflow'],
+    docsUrl: 'https://yaml.org/spec/1.2.2/#nodes',
+    since: '0.1.0',
+  },
+  {
+    engine: 'schema',
+    // Measured from both ends. False positives: the binding pattern matched exactly 39 files across
+    // the 826-file corpus, every one a genuine Compose file, and all 39 validated clean — 0/39. True
+    // positives: of ten deliberately seeded defects, nine are caught and each collapses to exactly one
+    // finding pointing at the offending token (see `validate.ts` on why collapsing is necessary at
+    // all). The tenth, `restart: sometimes`, is **not** caught, and the gap is upstream rather than
+    // here — the specification types `restart` as a bare string with no enum, so an invalid policy is
+    // not a schema violation. Recorded so nobody reads a clean run as proof the value was checked.
+    engineRuleId: 'compose-spec',
+    concepts: ['config.compose-schema'],
+    tier: 2,
+    priority: 100,
+    severityDefault: 'error',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    // Not `github-workflow`: a workflow is never a Compose file, and `bindSchema` keys off the
+    // basename, so this rule can only ever fire on a file named like one.
+    languages: ['yaml'],
+    docsUrl: 'https://github.com/compose-spec/compose-spec/blob/main/spec.md',
+    since: '0.1.0',
+  },
+] as const satisfies readonly RuleEntry[]
+
+/**
  * Entries the registry generator (packages/core/scripts/generate-registry.ts) cannot produce,
  * because neither one is a real row in `oxlint --rules --format json` — merged with
  * `GENERATED_RULE_ENTRIES` into `RULE_ENTRIES` below. Kept hand-written deliberately; see each
@@ -492,4 +583,5 @@ export const MANUAL_RULE_ENTRIES = [
   },
   ...KNIP_RULE_ENTRIES,
   ...ASTGREP_RULE_ENTRIES,
+  ...SCHEMA_RULE_ENTRIES,
 ] as const satisfies readonly RuleEntry[]
