@@ -634,3 +634,41 @@ test('a fix a rule the registry calls unfixable offers is never applied', async 
   expect(await read('src/a.ts')).toBe('a\n')
   expect(result.initial).toEqual({ findings: 1, withFix: { safe: 0, suggested: 0, unsafe: 0 } })
 })
+
+test('writes go through writeFileAtomic, leaving no scratch file behind', async () => {
+  await writeFile(join(dir, 'src/a.ts'), 'a\n')
+
+  await runFix(base({ engines: [alwaysFixes()] }))
+
+  // `writeFileAtomic` writes `<target>.<uuid>.tmp` and renames. A leftover means either the rename
+  // path was skipped for a plain `writeFile`, or a failure dropped the scratch file in the user's
+  // source tree — both worth catching here rather than in a bug report.
+  const { readdir } = await import('node:fs/promises')
+  expect((await readdir(join(dir, 'src'))).filter((name) => name.endsWith('.tmp'))).toEqual([])
+  expect(await read('src/a.ts')).toBe('Z\n')
+})
+
+test('no file outside the reported set is modified', async () => {
+  await writeFile(join(dir, 'src/a.ts'), 'a\n')
+  await writeFile(join(dir, 'src/untouched.ts'), 'a\n')
+
+  const result = await runFix(
+    base({
+      engines: [reactiveEngine({ onRun: (_source, path) => (path === 'src/a.ts' ? [fixAt('r', 0, 1, 'Z', path)] : []) })],
+    }),
+  )
+
+  expect(result.files.map((f) => f.file)).toEqual(['src/a.ts'])
+  expect(await read('src/untouched.ts')).toBe('a\n')
+})
+
+test('the summary counts every applied edit, so a reported file always has at least one', async () => {
+  await writeFile(join(dir, 'src/a.ts'), 'a\n')
+
+  const result = await runFix(base({ engines: [alwaysFixes()] }))
+
+  expect(result.files.every((file) => file.edits > 0)).toBe(true)
+  expect(result.rules.reduce((sum, rule) => sum + rule.count, 0)).toBe(
+    result.files.reduce((sum, file) => sum + file.edits, 0),
+  )
+})
