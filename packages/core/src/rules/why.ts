@@ -1,5 +1,12 @@
 import { isConceptId, SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
-import type { FrameworkEvidence, FrameworkId, InapplicableFramework } from '../frameworks/types.ts'
+import type { RuleLevel } from '../config/types.ts'
+import type {
+  EnabledLevel,
+  FrameworkEvidence,
+  FrameworkId,
+  FrameworkMeasurement,
+  InapplicableFramework,
+} from '../frameworks/types.ts'
 import type { ConceptOwnership, DisplacedOwner, IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
 import type { EngineId, RuleEntry } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
@@ -35,12 +42,24 @@ export type ConceptWhy = {
   displaced: readonly DisplacedOwner[]
   uncovered: boolean
   /**
-   * Framework profiles that turned *this* concept off, with the evidence behind each (spec §23.4).
-   * `enablement.baseProvenance` already carries a `framework` step naming the profile; this is what
-   * lets the renderer go from "off, because nestjs" to "off, because `@nestjs/core` is declared in
-   * `package.json`" — the difference between a dead end and something the reader can act on.
+   * Framework profiles with something to say about *this* concept, with the evidence behind each
+   * (spec §23.4). `enablement.baseProvenance` already carries a `framework` step naming the profile;
+   * this is what lets the renderer go from "off, because nestjs" to "off, because `@nestjs/core` is
+   * declared in `package.json`" — the difference between a dead end and something the reader can act
+   * on.
+   *
+   * Includes profiles that turned the concept *on*, and one whose setting lost the join to a louder
+   * or quieter profile still appears here with the level it asked for: the reader comparing this
+   * list against the provenance above is exactly how the precedence rule becomes checkable rather
+   * than merely stated.
    */
   frameworks: readonly FrameworkReason[]
+  /**
+   * Additions refused for want of a measurement (`refuseEnable`). Empty for every shipped profile,
+   * and surfaced anyway for the same reason `ignoredOverrideOptions` is: a profile that claims to
+   * cover a concept and silently does not is the one failure a reader has no other way to see.
+   */
+  rejectedFrameworkAdditions: readonly RejectedFrameworkAddition[]
   /**
    * Profiles that were detected but stood down for want of a parameter. Not scoped to this concept —
    * a blocked profile has no adjustments to scope by, which is exactly the point: the user is seeing
@@ -50,12 +69,23 @@ export type ConceptWhy = {
   inapplicableFrameworks: readonly InapplicableFramework[]
 }
 
-/** One framework's reason for disabling one concept, joined to the evidence that detected it. */
+/** One framework's reason for its setting on one concept, joined to the evidence that detected it. */
 type FrameworkReason = {
   id: FrameworkId
   summary: string
   reason: string
+  /** `off` for a subtraction, otherwise the level this profile asked for. */
+  setting: RuleLevel
+  /** The count that earned an addition (`FrameworkMeasurement`). Absent for a subtraction. */
+  measured?: FrameworkMeasurement
   evidence: readonly FrameworkEvidence[]
+}
+
+/** One addition that did not clear `refuseEnable`'s bar, and the profile that asked for it. */
+type RejectedFrameworkAddition = {
+  id: FrameworkId
+  level: EnabledLevel
+  refusal: string
 }
 
 /**
@@ -71,14 +101,24 @@ export function explainConcept(concept: string, resolved: ResolvedRun): ConceptW
   const { resolver, election, entries, frameworks } = resolved
   return {
     frameworks: frameworks.applied.flatMap((application) =>
-      application.adjustments
-        .filter((adjustment) => adjustment.kind === 'disable-concept' && adjustment.concept === concept)
-        .map((adjustment) => ({
-          id: application.id,
-          summary: application.summary,
-          reason: adjustment.reason,
-          evidence: application.evidence,
-        })),
+      application.adjustments.flatMap((adjustment) => {
+        if (adjustment.kind === 'engine-setting' || adjustment.concept !== concept) return []
+        return [
+          {
+            id: application.id,
+            summary: application.summary,
+            reason: adjustment.reason,
+            setting: adjustment.kind === 'disable-concept' ? ('off' as const) : adjustment.level,
+            ...(adjustment.kind === 'enable-concept' ? { measured: adjustment.measured } : {}),
+            evidence: application.evidence,
+          },
+        ]
+      }),
+    ),
+    rejectedFrameworkAdditions: frameworks.applied.flatMap((application) =>
+      application.rejected
+        .filter((rejection) => rejection.concept === concept)
+        .map((rejection) => ({ id: application.id, level: rejection.level, refusal: rejection.refusal })),
     ),
     inapplicableFrameworks: frameworks.inapplicable,
     concept,

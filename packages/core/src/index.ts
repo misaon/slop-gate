@@ -124,10 +124,12 @@ export {
 } from './frameworks/detect.ts'
 export { extractStringLiteral } from './frameworks/literal.ts'
 export { FRAMEWORK_PROFILES, dualFiringConcepts } from './frameworks/profiles.ts'
+export { refuseEnable } from './frameworks/warrant.ts'
 export type {
   AnyFrameworkProfile,
   DependencyField,
   DetectionContext,
+  EnabledLevel,
   EngineAdjustments,
   EngineSetting,
   FrameworkAdjustment,
@@ -135,10 +137,12 @@ export type {
   FrameworkDetection,
   FrameworkEvidence,
   FrameworkId,
+  FrameworkMeasurement,
   FrameworkProfile,
   InapplicableFramework,
   Manifest,
   ManifestDependency,
+  RejectedAdjustment,
 } from './frameworks/types.ts'
 
 export {

@@ -1949,3 +1949,135 @@ question answered: the work is expression masking and shell selection, not scala
 
 One further constraint for whoever picks it up: `.github/workflows/*.yml` is language
 `github-workflow`, which actionlint owns, so this needs an arbitration story before it needs code.
+
+## Found making framework profiles additive (spec §23.2, §23.3, §23.5)
+
+The mechanism is spec §23 and needs no summary here. What follows is what building it turned up, what
+was measured, and — first, because it is the thing most likely to be repeated — a claim in the task
+brief that turned out to be false.
+
+### The write-up this change was told to start from does not exist
+
+The brief said an earlier session had scoped this change and named what it needs — "an
+`enable-concept` adjustment kind, level-merge semantics, and a precedence rule so a user's explicit
+`off` still beats a profile" — and to find that write-up in this document rather than re-derive it.
+
+**There is no such write-up.** `grep -rn 'enable-concept\|enableConcept\|additive' docs packages`
+returns one hit across the whole repository, and it is decision D8 in the design spec, about the
+`slop.*` ruleset being cheap to grow. The only prior art is §23.2's *refusal* ("a profile may only
+subtract") and §23.3's argument for why that refusal was safe. The three named ingredients are a
+reasonable guess at what the change needs — two of them survived contact — but they were a
+specification handed down as a memory, and a session that had trusted it would have spent its first
+hour looking for a document and its second inventing one to have found.
+
+Worth recording because the failure is cheap to repeat and expensive to notice: **a brief that cites
+a prior decision by location is a claim to be checked, not a premise.**
+
+### The precedence rule, and the one clause that had to be argued for
+
+**Your config beats every profile; among profiles `off` beats everything and otherwise the strictest
+wins.** No profile ranking, no `refines` edge, no total order over profiles — three earlier drafts had
+all of those and every one of them needed a paragraph to explain.
+
+The clause that took the work is `off` absorbing. The obvious alternative — the strictest wins,
+full stop — reads more consistently and is wrong: `nestjs` disables `no-extraneous-class` because the
+rule asks for code that would not compile, and a second profile wanting it at `error` cannot make that
+false. `off` absorbing is the design's asymmetry expressed as an algebraic property (an absorbing
+element) rather than as a policy check, which is why it costs no explanation.
+
+The interesting consequence is what it does to the case that motivated the whole change. "Next.js
+inherits React's rules and overrides where it deviates" needs no inheritance mechanism at all under
+this rule: a Next profile that wants a concept React left alone simply says so, and one that wants a
+concept louder than React set it wins the join. The only thing it *cannot* do is revive something the
+React profile turned off — and that is correct rather than a limitation, because Next code is React
+code, so a rule that is wrong about React is wrong here too. A profile set that hits that wall has a
+wrong subtraction in it, and the wall is the right place to find out.
+
+### Enabling and raising are one operation, and the honest split is elsewhere
+
+The brief asked whether "additive" is one thing or two, on the grounds that turning on a concept the
+preset omitted and changing the level of one it already sets carry different risks.
+
+They do, but **a profile author cannot tell which one they are doing.** The same `enable-concept` at
+`warn` is an enable under `extends: ['slop']` and a raise under `extends: ['recommended']`; the
+profile never sees the user's `extends`. Splitting the *kind* on a distinction invisible at the point
+of authorship would have produced two constructors picked by guesswork.
+
+What the author does control is the level, and there the discontinuity is real and mechanical:
+`resolveExitCode` fails a run on a single `error` with no opt-in anywhere, while a `warn` costs
+nothing unless the user passed `--max-warnings`. So the two additive operations are `enable-at-warn`
+and `enable-at-error`, and the warrant keys off the level. That is the same question the brief asked,
+answered against a property of the system instead of against an intuition about it.
+
+One consequence worth stating on its own, because it is the half of "additive" that is genuinely a
+second thing: **a level is a floor, never a ceiling.** `materialize` drops a framework layer's setting
+that would lower what an earlier layer already holds, so an author writing `'x': 'warn'` to mean "make
+sure this is on" cannot silently downgrade a preset holding it at `error`. Without that rule
+`enable-concept` is a subtraction wearing the vocabulary of an addition, and invisible in the
+provenance because the step that did the damage looks like the step that did the work.
+
+### Measured: what this would do on a real 145k-line Next.js monorepo
+
+From a preserved `sgate check` measurement of a three-app Next.js monorepo (6,180 diagnostics, 8
+engines, 2,168 files scanned, `error: 127 / warn: 6,053`). Numbers below are from that JSON, not from
+a run performed here.
+
+**The additive direction has a real but small effect there, and the honest headline is that the
+subtractive direction has a much larger one.**
+
+| Direction | Concept | Findings | What a React/Next profile would do |
+|---|---|---|---|
+| addition (raise) | `suspicious.no-unstable-nested-components` | 35, all `warn`, 15 files across 3 workspaces | raise to `error` → repository error count 127 → 162 |
+| subtraction | `suspicious.react-in-jsx-scope` | **5,386, 87.1% of every finding in the repository**, 547 `.tsx` files | disable → 6,180 findings → 794 |
+
+`react-in-jsx-scope` is obsolete under the React 17 automatic JSX transform, which Next has used by
+default since Next 11. Every one of those 5,386 is false. That is not this change's mechanism — it is
+§23's original subtractive one — and it is stated here because the ratio is the finding: **anyone
+sizing a React/Next profile by its additive rules is sizing the smaller half by a factor of 150.**
+
+Two caveats that would make the additive number wrong, both real:
+
+- **The 35 have not been classified.** 35 is a finding count from the JSON; nobody has looked at them
+  to say how many are true. `no-unstable-nested-components` has an `allowAsProps` option precisely
+  because render props legitimately trip it, so the false-positive count is plausibly non-zero — in
+  which case the `error` bar refuses the raise and the honest level is `warn`, which changes nothing
+  about the repository's exit code. **The Next.js profile must classify them before it ships that
+  raise**; this change deliberately ships no profile that would.
+- **The measurement is from an older build** (`version: 2`, 8 engines, `enabledConcepts: 341`, and no
+  framework field in the JSON at all). Concept ids and preset membership may have moved since. It is
+  good enough to establish that the shapes exist in real code and roughly at what scale; it is not
+  good enough to quote as a delta against today's `recommended`.
+
+### Verified end to end, with a profile that was then deleted
+
+No shipped profile adds anything, so unit tests alone could not show the mechanism reaching an engine.
+A throwaway `demo-react` profile was added, built, run through the real CLI against a four-line JSX
+fixture, and reverted. It established the three paths that matter:
+
+- **raise**: `preset recommended -> warn`, `framework demo-react -> error`, and `sgate check` then
+  reports the finding as an error — **taking the fixture's exit code from 0 to 1**, which is the whole
+  reason the `error` bar exists;
+- **enable**: `perf.no-array-index-key`, which no preset enables, went from silent to reporting at
+  `warn` with its measurement rendered beside it;
+- **refusal**: the same concept at `error` on a 3-false-of-40 measurement was refused, and
+  `sgate rules why` printed which number was short.
+
+The fixture also reproduced the corpus finding above in miniature: three of its six findings were
+`react-in-jsx-scope`, on four lines of ordinary modern React.
+
+### Left for later, deliberately
+
+- **No profile is path-scoped, and Next.js is the case that will want it.** `enable-concept` is
+  repository-wide, exactly as `disable-concept` already was. Next's real deviations from React are
+  mostly conditional on location — server components under `app/**` cannot use hooks, `page.tsx` and
+  `route.ts` have signature conventions, `pages/**` and `app/**` follow different rules — and none of
+  that is expressible today. §6.2's `overrides` is the right seam and is still not wired to detection.
+  **A Next.js profile built without it will be coarser than the framework it describes.**
+- **The `rejected` channel has no non-test producer.** Every shipped profile clears the bar, so
+  `FrameworkApplication.rejected` is always empty in production and its rendering is exercised only by
+  tests. That is the intended steady state, not a gap — but it does mean the first real refusal will
+  be the first time the output is seen by anyone who did not write it.
+- **`RULES_WHY_JSON_VERSION` was not bumped.** The change is additive to the JSON (`setting` and
+  `measured` on framework entries, plus `rejectedFrameworkAdditions`), and with no shipped profile
+  adding anything the emitted document is byte-identical today. The first profile that adds will
+  change what consumers see without changing the version, which is the moment to bump it.

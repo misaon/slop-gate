@@ -1,4 +1,5 @@
 import type { ConceptId } from '../concepts/catalogue.ts'
+import type { RuleLevel } from '../config/types.ts'
 import type { FileInventory } from '../discovery/types.ts'
 import type { EngineId } from '../registry/types.ts'
 
@@ -23,14 +24,50 @@ export type FrameworkEvidence =
   | { readonly kind: 'path-present'; readonly file: string }
   | { readonly kind: 'config-literal'; readonly file: string; readonly property: string; readonly value: string }
 
+/** The levels an addition may name. `off` is absent on purpose: `disable-concept` is how to say it. */
+export type EnabledLevel = Exclude<RuleLevel, 'off'>
+
 /**
- * A framework's consequence for one of the two consumers. Both shapes are **set contributions** — a
- * concept removed, or values added to a named list — and there is deliberately no shape that assigns
- * a value to a key. That is what makes merging a sorted union and framework conflicts inexpressible
- * rather than resolvable; see spec §23.3, and read it before adding a third variant.
+ * The count behind an `enable-concept`, required by the type because a profile that turns a rule
+ * *on* is asking to produce findings on code that passed yesterday, and "it seemed right" is not a
+ * reason to do that to somebody's build. Spec §23.5's bar for a subtraction is a measured
+ * false-positive count; this is the same bar pointed the other way, and `refuseEnable` is where the
+ * arithmetic lives.
+ */
+export type FrameworkMeasurement = {
+  /** Where the count came from, named so a reader can go and disagree with it. */
+  readonly repository: string
+  /** Findings the concept produced there. Zero measures nothing — see `refuseEnable`. */
+  readonly findings: number
+  /** How many of those were wrong. An addition at `error` requires this to be zero. */
+  readonly falsePositives: number
+}
+
+/**
+ * A framework's consequence for one of the two consumers.
+ *
+ * `disable-concept` and `engine-setting` are **set contributions** — a concept removed, or values
+ * added to a named list — and neither can express a conflict (spec §23.3). `enable-concept` can:
+ * two profiles may name the same concept at different levels, and a union has no meaning for a
+ * scalar. It is admitted anyway, because a profile that can only subtract cannot say the one thing
+ * a framework most often has to say, and it is made safe by two properties rather than by a
+ * precedence table:
+ *
+ * - the merge is still a join, just over the level chain rather than the powerset — `off` absorbs,
+ *   and otherwise the strictest wins, which is commutative, associative and idempotent exactly as
+ *   the union was (`frameworkRuleLayers`);
+ * - the level is a *floor*, never a ceiling: the cascade drops an addition that would lower what an
+ *   earlier layer already set (`materialize`), so this variant cannot subtract by accident.
  */
 export type FrameworkAdjustment =
   | { readonly kind: 'disable-concept'; readonly concept: ConceptId; readonly reason: string }
+  | {
+      readonly kind: 'enable-concept'
+      readonly concept: ConceptId
+      readonly level: EnabledLevel
+      readonly reason: string
+      readonly measured: FrameworkMeasurement
+    }
   | {
       readonly kind: 'engine-setting'
       readonly engine: EngineId
@@ -88,11 +125,26 @@ export type AnyFrameworkProfile = {
   evaluate(context: DetectionContext): Promise<FrameworkApplication | InapplicableFramework | null>
 }
 
+/**
+ * An addition this profile asked for and did not get, with the sentence `refuseEnable` refused it
+ * with. Recorded rather than dropped for the reason every other near-miss in this codebase is
+ * (`ignoredOverrideOptions`, `displaced`, `ineligible`): a profile author whose measurement does not
+ * clear the bar has to be told which number was short, and a reader looking at a concept the profile
+ * claims to cover has to be able to see that it does not.
+ */
+export type RejectedAdjustment = {
+  readonly concept: ConceptId
+  readonly level: EnabledLevel
+  readonly refusal: string
+}
+
 export type FrameworkApplication = {
   readonly id: FrameworkId
   readonly summary: string
   readonly evidence: readonly FrameworkEvidence[]
   readonly adjustments: readonly FrameworkAdjustment[]
+  /** Sorted by concept. Empty for every shipped profile — `profiles.test.ts` pins that. */
+  readonly rejected: readonly RejectedAdjustment[]
 }
 
 export type InapplicableFramework = {
