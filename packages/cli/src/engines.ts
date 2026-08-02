@@ -50,7 +50,7 @@ export function defaultEngines(rootDir: string, configFile?: string): Engine[] {
   return [
     createOxlintEngine(),
     createTscEngine({ rootDir }),
-    createKnipEngine({ ...(configFile === undefined ? {} : { configFile }) }),
+    createKnipEngine(configFile === undefined ? {} : { configFile }),
     createAstGrepEngine(),
     createSchemaEngine(),
     createActionlintEngine(),
