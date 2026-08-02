@@ -42,6 +42,9 @@ const write = async (relativePath: string, content: string): Promise<void> => {
 
 const everything = (): Map<string, 'warn'> => new Map(KNIP_SURFACED_ISSUE_TYPES.map((type) => [type, 'warn' as const]))
 
+const summarize = (found: readonly RawDiagnostic[]): string[] =>
+  found.map((d) => `${d.engineRuleId} ${d.file} ${d.message}`).sort()
+
 /**
  * The shape the whole adapter exists for, reduced to its smallest reproducible form: a repository
  * with a nested `docs/package.json` and **no workspace declaration anywhere** — no `workspaces` key,
@@ -113,20 +116,17 @@ test(
     )
     await informed.dispose()
 
-    const describe = (found: readonly RawDiagnostic[]): string[] =>
-      found.map((d) => `${d.engineRuleId} ${d.file} ${d.message}`).sort()
-
     // Blind: knip sees one package rooted at the repository root. `docs/package.json` is not a
     // manifest it knows about, so `docs-only-dep` is never even a candidate for being unused.
-    expect(describe(withoutNestedManifest)).not.toContainEqual(expect.stringContaining('docs-only-dep'))
-    expect(describe(withoutNestedManifest).some((line) => line.startsWith('devDependencies'))).toBe(false)
+    expect(summarize(withoutNestedManifest)).not.toContainEqual(expect.stringContaining('docs-only-dep'))
+    expect(summarize(withoutNestedManifest).some((line) => line.startsWith('devDependencies'))).toBe(false)
 
     // Informed: `docs` is its own workspace, its manifest is read, and its genuinely-unused
     // devDependency surfaces. This is the finding a bare `knip` run on this repository cannot produce.
-    expect(describe(withNestedManifest)).toContainEqual(
+    expect(summarize(withNestedManifest)).toContainEqual(
       'devDependencies docs/package.json Unused devDependency `docs-only-dep`.',
     )
-    expect(describe(withNestedManifest)).not.toEqual(describe(withoutNestedManifest))
+    expect(summarize(withNestedManifest)).not.toEqual(summarize(withoutNestedManifest))
   },
   TIMEOUT,
 )
@@ -160,9 +160,7 @@ test(
     const declared = await collect(engine.run({ files }, declaredHandle, context, AbortSignal.timeout(TIMEOUT)))
     await declaredHandle.dispose()
 
-    const key = (found: readonly RawDiagnostic[]): string[] =>
-      found.map((d) => `${d.engineRuleId} ${d.file} ${d.message}`).sort()
-    expect(key(synthesized)).toEqual(key(declared))
+    expect(summarize(synthesized)).toEqual(summarize(declared))
   },
   TIMEOUT,
 )
@@ -346,17 +344,15 @@ const withAndWithout = async (
 ): Promise<{ before: string[]; after: string[]; adjustments: EngineAdjustments }> => {
   const engine = createKnipEngine()
   const files = paths.map((path) => file(path))
-  const describe = (found: readonly RawDiagnostic[]): string[] =>
-    found.map((d) => `${d.engineRuleId} ${d.file} ${d.message}`).sort()
 
   const bare = await engine.materializeConfig(everything(), context)
-  const before = describe(await collect(engine.run({ files }, bare, context, AbortSignal.timeout(TIMEOUT))))
+  const before = summarize(await collect(engine.run({ files }, bare, context, AbortSignal.timeout(TIMEOUT))))
   await bare.dispose()
 
   const adjustments = await knipAdjustments(paths)
   const aware: RunContext = { ...context, adjustments }
   const handle = await engine.materializeConfig(everything(), aware)
-  const after = describe(await collect(engine.run({ files }, handle, aware, AbortSignal.timeout(TIMEOUT))))
+  const after = summarize(await collect(engine.run({ files }, handle, aware, AbortSignal.timeout(TIMEOUT))))
   await handle.dispose()
 
   return { before, after, adjustments }
