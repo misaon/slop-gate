@@ -168,7 +168,10 @@ function describeOwnership(ownership: readonly ConceptOwnership[]): string {
 function verdict(explanation: ConceptWhy): string {
   if (explanation.servicedBySlopGate) return 'Emitted by slop-gate itself, not by any engine rule.'
   if (!explanation.enablement.enabled) {
-    const framework = explanation.frameworks.at(-1)
+    // Filtered to the profiles that actually asked for `off`. A profile that asked for a *level* and
+    // was overruled by the user's own `off` is in this list too, and attributing the silence to it
+    // would name the one party that wanted the opposite.
+    const framework = explanation.frameworks.filter((entry) => entry.setting === 'off').at(-1)
     return framework === undefined
       ? 'Produces no findings: not enabled by any layer.'
       : `Produces no findings: framework \`${framework.id}\` turned it off.`
@@ -220,9 +223,43 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
   if (explanation.frameworks.length > 0) {
     const lines: string[] = []
     for (const framework of explanation.frameworks) {
-      lines.push(`  ${paint('bold', 'Framework')}: ${framework.id} — ${framework.summary}`)
+      const verb = framework.setting === 'off' ? 'turns this off' : `asks for \`${framework.setting}\``
+      lines.push(`  ${paint('bold', 'Framework')}: ${framework.id} ${verb} — ${framework.summary}`)
       for (const evidence of framework.evidence) lines.push(`      detected via ${evidenceText(evidence)}`)
       for (const line of wrapText(framework.reason, Math.max(1, width - 6))) lines.push(`      ${line}`)
+      // The count is the whole warrant for an addition (spec §23.5), so it is rendered next to the
+      // reason rather than hidden behind `--format json`: a profile that turns a rule *on* is asking
+      // to produce findings on code that passed yesterday, and the reader is owed the number.
+      if (framework.measured !== undefined) {
+        const { findings, falsePositives, repository } = framework.measured
+        lines.push(`      ${paint('dim', `measured on ${repository}: ${findings} findings, ${falsePositives} false`)}`)
+      }
+    }
+    // The precedence rule in the one line the reader actually needs: not the whole model, only the
+    // clause that decided *this* concept. Printed only when a profile asked for something the
+    // cascade did not grant, which is the sole case where the model is not self-evident from the
+    // provenance table directly above.
+    const overruled = explanation.frameworks.filter(
+      (framework) => framework.setting !== explanation.enablement.level,
+    )
+    if (overruled.length > 0) {
+      const settled = explanation.enablement.baseProvenance.at(-1)
+      const by = settled === undefined ? 'your configuration' : `${LAYER_LABEL[settled.layer]} \`${settled.source}\``
+      lines.push(
+        `      ${paint('dim', `A profile is a default: ${by} set \`${explanation.enablement.level}\` and beats ${overruled.map((framework) => `\`${framework.id}\``).join(', ')}.`)}`,
+      )
+    }
+    writeUnit(lines)
+  }
+
+  // Never non-empty for a shipped profile, so this costs the common rendering nothing — see
+  // `ConceptWhy.rejectedFrameworkAdditions` for why it is surfaced at all.
+  if (explanation.rejectedFrameworkAdditions.length > 0) {
+    const lines = [`  ${paint('dim', 'Framework additions refused for want of a measurement')}`]
+    for (const rejection of explanation.rejectedFrameworkAdditions) {
+      const prefix = `    ${rejection.id} wanted \`${rejection.level}\` — `
+      const [first, ...rest] = wrapText(rejection.refusal, Math.max(1, width - displayWidth(prefix)))
+      lines.push(`${prefix}${first}`, ...rest.map((line) => `${' '.repeat(displayWidth(prefix))}${line}`))
     }
     writeUnit(lines)
   }

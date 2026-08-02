@@ -48,8 +48,13 @@ export type ResolveInput = {
   /**
    * Spec §23.2, layer 3 of §6.2's cascade: above the presets, because correcting a preset that is
    * wrong for *this* repository is the point, and below the user's own `rules`, because a human who
-   * writes `'suspicious.no-extraneous-class': 'error'` in a NestJS repository means it. Every layer
-   * here may only set `off` — the framework layer subtracts, `extends` is what adds.
+   * writes `'suspicious.no-extraneous-class': 'error'` in a NestJS repository means it.
+   *
+   * These layers may set `off`, or a level *stronger* than the cascade already holds — never a
+   * weaker one; `materialize` drops that case. So a profile can turn a concept off, turn one on, or
+   * say it matters more here than in general, and it can still never quietly cost coverage or beat
+   * a person. That last clause is the whole precedence rule and it has not changed: **your config
+   * beats every profile.**
    */
   frameworks?: readonly FrameworkRuleLayer[]
 }
@@ -202,6 +207,22 @@ function materialize(
       const key = rawKey as RuleKey
       const { level, options } = splitRuleSetting(setting)
       const existing = rules.get(key)
+
+      // **A framework profile states a floor, never a ceiling** — the second half of what keeps
+      // `enable-concept` from being able to subtract (the first is `joinLevels`). A profile author
+      // writing `'x': 'warn'` means "make sure this is on"; under plain last-wins that would
+      // silently downgrade a preset holding it at `error`, which is a coverage loss dressed up as an
+      // addition and impossible to spot in the provenance.
+      //
+      // `off` is exempt rather than merely weakest: a subtraction is the framework layer's original
+      // and best-warranted power, and it applies against whatever the presets said.
+      //
+      // Skipped entirely rather than applied-and-ignored, so the provenance stays a record of what
+      // actually decided the level instead of listing a step that did nothing.
+      const inertRaise =
+        layer === 'framework' && level !== 'off' && LEVEL_STRENGTH[level] <= LEVEL_STRENGTH[existing?.level ?? 'off']
+      if (inertRaise) continue
+
       // **Level and options are two facts, each last-wins independently, and options replace rather
       // than merge.** Three decisions, none of which should fall out of implementation order:
       //

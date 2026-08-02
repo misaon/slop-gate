@@ -17,6 +17,7 @@ const explanation = (over: Partial<ConceptWhy> = {}): ConceptWhy => ({
   ineligible: [],
   uncovered: false,
   frameworks: [],
+  rejectedFrameworkAdditions: [],
   inapplicableFrameworks: [],
   ...over,
 })
@@ -283,6 +284,7 @@ test('names the framework, the evidence file and the reason when a profile turne
         frameworks: [
           {
             id: 'nestjs',
+            setting: 'off',
             summary: 'NestJS \u2014 decorator-driven dependency injection',
             reason: 'NestJS requires an empty class body.',
             evidence: [
@@ -298,6 +300,105 @@ test('names the framework, the evidence file and the reason when a profile turne
   expect(output).toContain('detected via `@nestjs/core` in package.json (dependencies)')
   expect(output).toContain('NestJS requires an empty class body.')
   expect(output).toContain('framework `nestjs` turned it off')
+})
+
+const NEXT_EVIDENCE = [
+  { kind: 'manifest-dependency', file: 'apps/app-console/package.json', workspace: 'apps/app-console', name: 'next', field: 'dependencies' },
+] as const
+
+const nextRaise = {
+  id: 'nestjs' as const,
+  setting: 'error' as const,
+  summary: 'A framework that raises a concept the preset already had on',
+  reason: 'A component redefined every render remounts and loses its state, which is a bug here rather than a style.',
+  measured: { repository: 'a 145k-line Next.js monorepo', findings: 35, falsePositives: 0 },
+  evidence: NEXT_EVIDENCE,
+}
+
+/**
+ * The additive half of spec \u00a723.2, rendered. Two things have to be legible at a glance and neither
+ * was needed while profiles could only subtract: which direction the profile pushed, and the count
+ * that entitled it to.
+ */
+test('a profile that turns a concept on says so, and shows the measurement that earned it', () => {
+  const output = flat(
+    capture(
+      explanation({
+        concept: 'suspicious.no-unstable-nested-components',
+        enablement: {
+          enabled: true,
+          level: 'error',
+          options: [],
+          optionsFrom: undefined,
+          baseProvenance: [
+            { layer: 'preset', source: 'recommended', setting: 'warn' },
+            { layer: 'framework', source: 'nestjs', setting: 'error' },
+          ],
+          overrides: [],
+        },
+        frameworks: [nextRaise],
+      }),
+    ),
+  )
+
+  expect(output).toContain('enabled at `error` by framework `nestjs`')
+  expect(output).toContain('preset recommended -> warn')
+  expect(output).toContain('framework nestjs -> error')
+  expect(output).toContain('Framework: nestjs asks for `error`')
+  expect(output).toContain('measured on a 145k-line Next.js monorepo: 35 findings, 0 false')
+  // No overruling happened, so the precedence line stays out of the way entirely.
+  expect(output).not.toContain('A profile is a default')
+})
+
+/**
+ * The property the task called non-negotiable, as the reader sees it. The provenance table shows the
+ * profile asking and the config answering; the one added line names the winner, so nobody has to
+ * infer a precedence rule from the order of two rows.
+ */
+test('a user`s own `off` beats a profile enabling the concept, and the output says which won', () => {
+  const output = flat(
+    capture(
+      explanation({
+        concept: 'suspicious.no-unstable-nested-components',
+        enablement: {
+          enabled: false,
+          level: 'off',
+          options: [],
+          optionsFrom: undefined,
+          baseProvenance: [
+            { layer: 'framework', source: 'nestjs', setting: 'error' },
+            { layer: 'root-config', source: 'slop-gate.config.ts', setting: 'off' },
+          ],
+          overrides: [],
+        },
+        frameworks: [nextRaise],
+      }),
+    ),
+  )
+
+  expect(output).toContain('framework `nestjs` enabled this at `error`, but root config `slop-gate.config.ts` turned it off')
+  expect(output).toContain('A profile is a default: root config `slop-gate.config.ts` set `off` and beats `nestjs`.')
+  // The profile wanted this concept *on*, so attributing the silence to it would name the one party
+  // that argued against it.
+  expect(output).not.toContain('framework `nestjs` turned it off')
+  expect(output).toContain('Produces no findings: not enabled by any layer.')
+})
+
+test('an addition refused for want of a measurement names the number that was short', () => {
+  const output = flat(
+    capture(
+      explanation({
+        concept: 'suspicious.no-unstable-nested-components',
+        enablement: { enabled: false, level: 'off', options: [], optionsFrom: undefined, baseProvenance: [], overrides: [] },
+        rejectedFrameworkAdditions: [
+          { id: 'nestjs', level: 'error', refusal: 'an addition at `error` fails a build on its own, so it needs a clean measurement' },
+        ],
+      }),
+    ),
+  )
+
+  expect(output).toContain('Framework additions refused for want of a measurement')
+  expect(output).toContain('nestjs wanted `error` \u2014 an addition at `error` fails a build on its own')
 })
 
 test('says which detected profile stood down, and why, rather than staying silent', () => {

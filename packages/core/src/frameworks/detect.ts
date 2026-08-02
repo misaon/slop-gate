@@ -8,14 +8,17 @@ import type {
   AnyFrameworkProfile,
   DependencyField,
   DetectionContext,
+  FrameworkAdjustment,
   FrameworkApplication,
   FrameworkDetection,
   FrameworkEvidence,
   FrameworkProfile,
   InapplicableFramework,
   Manifest,
+  RejectedAdjustment,
 } from './types.ts'
 import { isApplied } from './types.ts'
+import { refuseEnable } from './warrant.ts'
 
 const MANIFEST = 'package.json'
 
@@ -33,6 +36,13 @@ export const EMPTY_DETECTION: FrameworkDetection = { applied: [], inapplicable: 
  * Erases a profile's parameter type so profiles of different shapes share one list, and is the seam
  * that keeps `consequences` a pure, separately-testable function of the parameters rather than
  * something fused into the I/O of `detect`.
+ *
+ * It is also where `refuseEnable` runs, because this is the first point at which an adjustment and
+ * the evidence behind it are both in hand. An addition that does not clear the bar is dropped rather
+ * than thrown on: the shipped profile set is closed and `profiles.test.ts` already pins that none of
+ * them is ever refused, so a throw here could only ever reach a user through a parameterised
+ * `consequences` — and crashing somebody's run over our own measurement is the loudest possible
+ * response to the quietest possible problem.
  */
 export function defineProfile<P>(profile: FrameworkProfile<P>): AnyFrameworkProfile {
   return {
@@ -44,12 +54,19 @@ export function defineProfile<P>(profile: FrameworkProfile<P>): AnyFrameworkProf
       if ('blocked' in outcome) {
         return { id: profile.id, summary: profile.summary, evidence: outcome.evidence, blocked: outcome.blocked }
       }
-      return {
-        id: profile.id,
-        summary: profile.summary,
-        evidence: outcome.evidence,
-        adjustments: profile.consequences(outcome.parameters),
+
+      const adjustments: FrameworkAdjustment[] = []
+      const rejected: RejectedAdjustment[] = []
+      for (const adjustment of profile.consequences(outcome.parameters)) {
+        const refusal = adjustment.kind === 'enable-concept' ? refuseEnable(adjustment, outcome.evidence) : null
+        if (refusal === null) adjustments.push(adjustment)
+        else if (adjustment.kind === 'enable-concept') {
+          rejected.push({ concept: adjustment.concept, level: adjustment.level, refusal })
+        }
       }
+      rejected.sort((a, b) => compareStrings(a.concept, b.concept))
+
+      return { id: profile.id, summary: profile.summary, evidence: outcome.evidence, adjustments, rejected }
     },
   }
 }

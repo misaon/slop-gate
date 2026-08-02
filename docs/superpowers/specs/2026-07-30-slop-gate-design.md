@@ -1839,29 +1839,43 @@ type FrameworkProfile = {
 
 type FrameworkAdjustment =
   | { kind: 'disable-concept'; concept: ConceptId; reason: string }
+  | { kind: 'enable-concept'; concept: ConceptId; level: EnabledLevel; reason: string; measured: FrameworkMeasurement }
   | { kind: 'engine-setting'; engine: EngineId; key: string; values: readonly string[]; reason: string }
 ```
 
-Two adjustment kinds, one per consumer. Both carry a `reason` written for a human, because both end up
-in `sgate rules why` (§23.4).
+Three adjustment kinds across two consumers. All carry a `reason` written for a human, because all end
+up in `sgate rules why` (§23.4).
 
-**Consumer 1 — the ruleset.** `disable-concept` enters the §6.2 cascade as its own layer, above the
-presets and below the user's own `rules`. Above the presets because correcting a preset that is wrong
-for *this* repository is the entire point; below the user because **a human who writes
-`'suspicious.no-extraneous-class': 'error'` in a NestJS repository means it**. The framework layer
-never wins an argument with a person.
+**Consumer 1 — the ruleset.** `disable-concept` and `enable-concept` enter the §6.2 cascade as their
+own layer, above the presets and below the user's own `rules`. Above the presets because correcting a
+preset that is wrong for *this* repository is the entire point; below the user because **a human who
+writes `'suspicious.no-extraneous-class': 'error'` in a NestJS repository means it**. The framework
+layer never wins an argument with a person.
 
-**A profile may only subtract.** It can turn a concept off. It cannot turn one on, and it cannot change
-a level. Three reasons, in descending order of importance:
+**The precedence rule, in one sentence: your config beats every profile; among profiles `off` beats
+everything and otherwise the strictest wins.** Nothing else arbitrates, there is no profile ranking,
+and no outcome depends on the order profiles ran in.
 
-1. **It makes the layer safe by construction.** The worst a wrong profile can do is lose coverage a
-   user can restore in one config line. If profiles could enable rules, a wrong profile would invent
-   findings in someone's CI, triggered by a dependency they added for unrelated reasons.
-2. **It keeps the merge order-free.** Every adjustment is a set contribution in a single direction, so
-   two profiles' outputs merge as a union (§23.3).
-3. **`extends` is already the mechanism for adding.** §6.1's domain packs (`react`, `vue`, `node`) are
-   opted into by name. "Installing a package changed which rules run" belongs nowhere, and least of all
-   in the layer whose job is to make the tool quieter.
+**A profile may add, but the two directions are not symmetric, and the asymmetry is structural rather
+than advisory.** Three properties hold it in place:
+
+1. **`off` absorbs.** A subtraction beats any addition, from any profile, in either order. A profile
+   subtracts because a rule is *wrong* about this framework's code, and no second profile asking for
+   it louder can make it right. So the worst a wrong addition can do is lose to a subtraction, while
+   the worst a wrong subtraction can do is what it always could: cost coverage a user restores in one
+   line.
+2. **A level is a floor, never a ceiling.** The cascade drops a framework layer's setting that would
+   *lower* what an earlier layer already holds (`materialize`). Without this, an author writing
+   `'x': 'warn'` to mean "make sure this is on" would silently downgrade a preset holding it at
+   `error` — a coverage loss wearing the vocabulary of an addition. `off` is exempt, because that is
+   the layer's original and best-warranted power.
+3. **An addition must carry a measurement, and the bar scales with the level** (§23.5). The type has
+   no shape for an unmeasured addition, and `refuseEnable` is the arithmetic.
+
+`extends` remains the mechanism a *user* adds with, and it is still the right one for a taste: §6.1's
+domain packs are opted into by name. What `enable-concept` exists for is the case `extends` cannot
+reach — a rule that is right *because of* what the repository already declares, where making the user
+name it means the tool knew and did not say.
 
 **Consumer 2 — engine configuration.** `engine-setting` is delivered to adapters on `RunContext`, which
 gains one field carrying the adjustments for that engine only. `key` is an engine-specific string core
@@ -1937,31 +1951,41 @@ string. `jest/valid-expect` is deliberately *not* excluded — it reports the sa
 code and is correct there, since jest's `expect` really does take one argument. Measuring a rule *out*
 is the same mechanism working.
 
-### 23.3 Why there are no conflicts to resolve
+### 23.3 Why there are still no conflicts to resolve
 
 The loudest failure mode this whole product exists to prevent is rules that overwrite each other —
 §5.3 answers it for arbitration by making double-reporting *structurally impossible* rather than
-merely unlikely, enforcing ownership twice instead of trusting one check. **This section takes the same
-move one step earlier: rather than resolving framework conflicts, the adjustment vocabulary makes them
-inexpressible.**
+merely unlikely. **This section used to take the same move one step earlier: rather than resolving
+framework conflicts, the adjustment vocabulary made them inexpressible.** `enable-concept` gave that
+up, and it is worth being exact about what was given up and what was kept, because the two are easy to
+confuse.
 
-Every `FrameworkAdjustment` is a set contribution — a concept removed, or patterns/names added to a
-list. There is no shape that assigns a value to a key. So the merge of every profile's output is a
-sorted set union, which is commutative, associative and idempotent; the result does not depend on
-detection order, profile order, or how many profiles said the same thing.
+**What was given up: inexpressibility.** `disable-concept` and `engine-setting` are set contributions
+— a concept removed, or patterns/names added to a list — and neither can express a disagreement. A
+level is a scalar. Two profiles *can* now name one concept at two levels, and a union has no meaning
+for that.
 
-Union is not merely deterministic here, it is *semantically* safe, and that is a property of the
-vocabulary rather than luck. Every key it can name holds a list of patterns or package names, and a
-pattern that matches nothing costs nothing: two profiles contributing `docs/.vitepress/config.*` and
-`site/.vitepress/config.*` produce a knip config that looks in both places and finds one. Contrast the
-shape deliberately not offered — `{ key: 'entry', value: 'docs' }` — where the second writer wins,
-the winner depends on evaluation order, and explaining the outcome requires a precedence table.
+**What was kept: the algebra.** The merge did not stop being a join, it changed lattice. Where the
+union joined over a powerset, `joinLevels` joins over the level chain with `off` as its absorbing
+element: **`off` from any profile wins; otherwise the strictest wins.** Commutative, associative and
+idempotent exactly as the union was, so the result still does not depend on detection order, profile
+order, or how many profiles said the same thing. There is no precedence table, no profile ranking, and
+nothing for a reader to memorise — which was always the property that mattered. Inexpressibility was
+how it was achieved, not the point of it.
 
-**If a future consequence genuinely needs a scalar, it does not get one here.** That requirement is a
-signal the consequence belongs in a preset or in the engine adapter's own logic. Should a real case
-ever prove otherwise, §5.3 is the pattern to copy — a total order, a single elected owner, and a
-recorded loser with a reason — but it is deliberately not built in advance. A precedence mechanism with
-no conflict to resolve is a precedence mechanism nobody has tested against a real disagreement.
+`off` absorbing is not a coin-flip about direction. It is the design's asymmetry made algebraic: a
+subtraction says a rule is *wrong* here, and no second profile wanting it louder can make it right.
+And the layer that carries the join is emitted per profile with **only** the settings that won, so no
+layer ever hands the last-wins cascade a value a later layer must undo. The join decides; the cascade
+transports.
+
+The remaining scalar shape is still refused, for the reason it always was: **`{ key: 'entry', value:
+'docs' }` does not get built.** Every engine-setting key holds a list, a pattern that matches nothing
+costs nothing, and two profiles contributing `docs/.vitepress/config.*` and `site/.vitepress/config.*`
+produce a knip config that looks in both places and finds one. A consequence that genuinely needs a
+last-writer-wins scalar belongs in a preset or in the engine adapter's own logic. The difference
+between that and a rule level is that a level is *ordered* — which is the entire reason one of them
+can have a join and the other cannot.
 
 ### 23.4 Explainability, the lockfile, and the cache
 
@@ -1997,6 +2021,28 @@ ruleset drift, and `--frozen-rules` must fail on it.
   detects on a declared dependency or a config file that exists. A framework whose presence cannot be
   established that way does not get a profile — because a false positive here *removes* coverage
   silently, which is the failure mode hardest to notice and hardest to attribute.
+- **Additions whose measurement does not clear the level's bar.** The bar for a subtraction is the
+  one below: a measured false-positive count. An addition's is higher, because the two fail in
+  opposite directions and the costs are not comparable — a wrong subtraction loses one rule's
+  coverage, restorable in a line, while a wrong addition produces findings on code that passed
+  yesterday because somebody installed a package. `refuseEnable` encodes it, and the type has no
+  shape for an unmeasured addition at all:
+
+  | Requirement | Why that number |
+  |---|---|
+  | at least one piece of detection evidence | `test-framework` applies on *absence*, which §23.2 licenses only because it disables; a rule switched on because a repository failed to mention something is the one detection shape with no safe failure direction |
+  | at least one measured finding | zero findings measured nothing, and a profile whose addition never fires should not exist |
+  | a majority of findings correct | the `no-conditional-expect` retraction judged 4-wrong-of-8 not enough to take a rule *out*, so it cannot be enough to put one *in* |
+  | **at `error`: no false positive at all** | the only derived number here. `resolveExitCode` fails a run on a single `error` with no opt-in anywhere, where a `warn` costs nothing unless the user asked for `--max-warnings` — so `error` is exactly the level at which installing a package can stop a build, and the bar is the one `slop.narrative-comment` and `slop.stub-implementation` cleared before entering `recommended` |
+
+  **Enabling a concept the preset omitted and raising one it already set are deliberately *not*
+  separated.** They are one operation on the layer, and a profile author cannot tell which one they
+  are performing — it depends on the user's `extends`, which the profile never sees. What the author
+  does control is the level, and that is where the real discontinuity is: `error` fails a build and
+  `warn` does not. So the two additive operations this section governs are `enable-at-warn` and
+  `enable-at-error`, and the warrant keys off the level rather than off a distinction nobody at the
+  keyboard can observe.
+
 - **Profiles whose *effect* is unmeasured**, with one explicitly narrower warrant that is worth
   stating precisely, because the distinction is easy to collapse and the rule is easy to hollow out.
 
@@ -2009,7 +2055,7 @@ ruleset drift, and `--frozen-rules` must fail on it.
 
   That warrant is available only when the construct is *demonstrably the same one*, and it is not a
   general licence to reason from resemblance. The asymmetry is what makes it acceptable here, and it
-  is the same asymmetry behind "a profile may only subtract": shipping `angular` wrongly costs one
+  is the same asymmetry behind the addition bar above: shipping `angular` wrongly costs one
   rule's coverage on Angular repositories, restorable in a single config line, while omitting it
   leaves a rule in `recommended` — the *default* — that there is concrete mechanical reason to expect
   fires 100% falsely on every Angular repository that contains an NgModule. A profile that cannot
@@ -2020,8 +2066,9 @@ ruleset drift, and `--frozen-rules` must fail on it.
   knows why.
 - **Framework versions.** No profile branches on NestJS 9 versus 11. No measured case needs it, and
   the version is already in the evidence for whoever finds one that does.
-- **Adding rules, choosing engines, or writing a user's config for them.** §23.2 covers the first;
-  the other two are `extends` and `engines` respectively, and both are things a user says out loud.
+- **Choosing engines, or writing a user's config for them.** Those are `extends` and `engines`
+  respectively, and both are things a user says out loud. Adding *rules* is no longer on this list —
+  see `enable-concept` in §23.2 and its bar above.
 - **A `sgate frameworks` command.** Detection surfaces through `rules why`, where the question is
   already being asked. A standalone listing is easy to add later and answers nothing yet.
 
