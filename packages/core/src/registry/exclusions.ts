@@ -39,15 +39,29 @@ export type RuleExclusion = {
  * **2. Check an exclusion's own words against the engine's option schema before trusting it.** An
  * exclusion that describes a shape — "sorting an array just derived from a spread" — may be naming
  * an option the engine already offers, in which case the rule is promotable and nobody noticed.
- * `oxlint -c <config with {"__probe":1}>` prints the accepted field names for any rule.
+ * `oxlint -c <config with {"__probe":1}>` prints the accepted field names for *most* rules, but read
+ * the caution at the end of this comment before trusting a silent answer.
  *
- * That sweep has been done once, across every oxlint entry in `RULE_EXCLUSIONS`, and **no exclusion
- * here survives only because of its default configuration.** Recorded per entry below so it is not
- * repeated: `unicorn/no-array-sort` (95 → 50), `unicorn/no-array-reverse` (4 → 4),
- * `no-underscore-dangle` (135,767 → 5,255) and `import/no-unassigned-import` (3,000 → 1,662) each
- * have a relevant-sounding option and none is rescued by it; `vitest/valid-expect` and
- * `no-implied-eval` take no options at all. The one rule the sweep *did* rescue was never in this
- * table — `eqeqeq`, promoted in `config/rule-options.ts`.
+ * That sweep has been done once, across every oxlint entry in `RULE_EXCLUSIONS`. **Five of the six
+ * are not rescued and the sixth is an open question, not a promotion.** Recorded per entry below so
+ * it is not repeated:
+ *
+ * - `unicorn/no-array-sort` (95 → 50), `unicorn/no-array-reverse` (4 → 4), `no-underscore-dangle`
+ *   (135,767 → 5,255) and `import/no-unassigned-import` (3,000 → 1,662) each have a
+ *   relevant-sounding option; none is rescued by it.
+ * - `no-implied-eval` takes none — oxlint says so in as many words (*this rule does not accept
+ *   configuration options*) — and never fires anyway, which is its actual exclusion.
+ * - **`vitest/valid-expect` is the live one**, and the reason it is not simply promoted here is a
+ *   split measurement worth reading before anyone acts on it. See its entry.
+ *
+ * The one rule the sweep did rescue outright was never in this table — `eqeqeq`, promoted in
+ * `config/rule-options.ts`.
+ *
+ * A caution the sixth case earns: **`oxlint -c` with a probe key does not reliably tell you whether
+ * a rule has options.** `eqeqeq`, `no-empty-object-type` and `no-implied-eval` reject an unknown key
+ * by name; `vitest/valid-expect` and `ban-ts-comment` accept one in silence while still honouring
+ * their real options. Silence means "unknown", not "no options" — check the upstream rule's
+ * documented option names too, or a rule with a live option reads as having none.
  */
 
 /**
@@ -274,7 +288,27 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "— it reports the same message on the same code, and there it is correct, because jest's " +
       "`expect` genuinely takes one argument. Verified by running each rule alone: over this " +
       "repository jest reports 37 and vitest 27, and the 10 it does not report are exactly the " +
-      "string-literal calls the vitest rule correctly allows.",
+      "string-literal calls the vitest rule correctly allows.\n\n" +
+      "**The option sweep found a live candidate here and deliberately stopped short of promoting " +
+      "it, because the measurement splits.** The rule accepts `maxArgs`, and `maxArgs: 2` is not a " +
+      "workaround but the literally correct statement of vitest's signature — the one this reason " +
+      "already quotes, `<T>(actual: T, message?: string)`. It removes exactly the defect described " +
+      "above and nothing else: verified against a fixture carrying every other thing the rule " +
+      "checks, `expect` with no matcher, `expect()` with no argument and an un-awaited async " +
+      "matcher all still fire, and `expect(1, 2, 3)` is still caught as genuinely too many.\n\n" +
+      "Then the numbers diverge. **On this repository: 48 findings on defaults, 0 with " +
+      "`maxArgs: 2`** (up from the 27 above; the repository grew, the ratio did not). **On the " +
+      "32,035-file third-party corpus: 18 either way** — the option changes nothing, because nobody " +
+      "else passes a computed second argument to `expect`. So the false-positive class it removes is " +
+      "close to a slop-gate house idiom, and a promotion cannot rest on 'it fixes our repository'.\n\n" +
+      "What the promotion needs, and what this sweep did not do: audit those 18 corpus findings " +
+      "(nest 10, hono 4, vue core 2, prettier 2) to establish the rule has defect content on code " +
+      "that is not ours. If they are real, this comes out of the table and goes into " +
+      "`config/rule-options.ts` with `['error', { maxArgs: 2 }]`. Note the extra care that needs: " +
+      "the rule is `correctness`-category, so removing the exclusion puts it into " +
+      "`GENERATED_RECOMMENDED_RULES` at its *default* configuration and the optioned table has to " +
+      "override it afterwards — which means a later deletion of that row silently restores the 48. " +
+      "`eqeqeq` has no such trap, because nothing else puts it in `recommended`.",
   },
   'import/no-unassigned-import': {
     reason:

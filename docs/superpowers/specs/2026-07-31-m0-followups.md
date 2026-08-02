@@ -1575,6 +1575,30 @@ that an `['off', { … }]` value still disables the rule — that test is the wh
 six has it today. Worth doing before the adapter count grows again; two parallel maps that must stay
 in sync is exactly the shape that rots.
 
+### `vitest/valid-expect` is one audit away from being promotable
+
+The option sweep (`registry/exclusions.ts`) found exactly one exclusion that a configuration might
+dissolve, and left it as a question because the measurement splits in a way a single number hides.
+
+`maxArgs: 2` is the correct statement of vitest's `expect(actual, message?)` signature — the one that
+rule's own exclusion text already quotes — and it removes precisely the false-positive class the
+exclusion is about while preserving every other check the rule makes (verified against a fixture:
+missing matcher, empty `expect()`, un-awaited async matcher and a genuinely three-argument call all
+still fire). On this repository it takes the rule from **48 findings to 0**. On the 32,035-file
+third-party corpus it takes it from **18 to 18** — inert, because nobody outside this codebase passes
+a computed second argument to `expect`.
+
+So the work is: audit those 18 (nest 10, hono 4, vue core 2, prettier 2). If the rule has defect
+content on code that is not ours, it comes out of `RULE_EXCLUSIONS` and into
+`OPTIONED_RECOMMENDED_RULES` as `['error', { maxArgs: 2 }]`. If they are all noise, the exclusion
+stays and its reason gets the corpus number it currently lacks. Either way the entry improves.
+
+One structural trap to handle if it is promoted: the rule is `correctness`-category, so deleting the
+exclusion puts it into `GENERATED_RECOMMENDED_RULES` at its **default** configuration, with the
+optioned table overriding it afterwards. A later deletion of that row would then silently restore the
+48 findings rather than merely dropping the rule. `presets.test.ts` guards the row, but the failure
+mode is worse than `eqeqeq`'s and deserves a comment where the exclusion used to be.
+
 ### Options on an engine rule id key do nothing, and nothing says so
 
 `RuleMap` accepts `'oxlint/eqeqeq'` as a key (spec §6.1). `buildPlan` never reads engine-rule keys —
