@@ -57,6 +57,7 @@ export {
   splitRuleSetting,
   type EngineOptions,
   type EngineRuleKey,
+  type GeneratedPolicy,
   type OverrideBlock,
   type PresetName,
   type RuleKey,
@@ -85,6 +86,7 @@ export {
 } from './config/resolve.ts'
 
 export type { FileInventory, InventoryFile } from './discovery/types.ts'
+export { isGeneratedPath } from './discovery/generated.ts'
 export { detectLanguage } from './discovery/language.ts'
 export {
   buildWorkspaceGraph,

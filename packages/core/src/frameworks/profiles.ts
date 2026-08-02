@@ -3,7 +3,11 @@ import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { defineProfile, findDependency, findFiles, relativeToWorkspace } from './detect.ts'
 import { extractStringLiteral } from './literal.ts'
+import { resolveJsx, TSCONFIG, type JsxTransform } from './tsconfig.ts'
 import type { AnyFrameworkProfile, FrameworkAdjustment } from './types.ts'
+
+/** Orders two `[file, …]` pairs, so an evidence list never depends on `Map` insertion order. */
+const byFile = (a: readonly [string, unknown], b: readonly [string, unknown]): number => compareStrings(a[0], b[0])
 
 /**
  * Extensions every knip `entry` contribution below is written against. knip's own default entry
@@ -256,6 +260,120 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
     }),
 })
 
+/**
+ * `react/react-in-jsx-scope` requires `React` to be in scope wherever JSX appears. React 17's
+ * automatic JSX transform (2020) removed that requirement, and `compilerOptions.jsx` states which
+ * transform a project uses outright — so this is a compiler option contradicting a lint rule, not a
+ * heuristic. Measured on a 145k-line React monorepo: **5,386 findings, 100% false**, 87% of
+ * everything the run reported.
+ *
+ * The three-way classification is the measurement rather than the documentation. Running tsc 5.9.3
+ * over a `.tsx` module using JSX with no `React` import, once per `jsx` value:
+ *
+ * - `react` → **`error TS2874: This JSX tag requires 'React' to be in scope`**. The rule is right
+ *   here, and tsc says the same thing at `error` through `types.type-error`.
+ * - `react-jsx`, `react-jsxdev` → **no error**. The rule cannot be right here.
+ * - `preserve`, `react-native` → **no error either**, because TypeScript emits the JSX untouched and
+ *   never looks for a factory. That silence is not evidence of the automatic runtime: Babel, SWC or
+ *   Metro decides, and nothing readable offline says which. Both are therefore treated as *no
+ *   evidence in either direction* — the rule stays on, and it is the only coverage those projects
+ *   get, since tsc offers none. This is the profile's biggest deliberate gap: a Next.js repository
+ *   left on Next's own `"jsx": "preserve"` default gets nothing from it.
+ *
+ * **Every question here is about the *resolved* value, never the declared one** (`tsconfig.ts`). In a
+ * monorepo the leaf config usually says almost nothing — that is the point of the file. On the
+ * measured repository only 4 of 19 configs set `jsx` at all, and none of the four belonged to one of
+ * the three Next.js apps holding most of the `.tsx`; those reach it through `"extends":
+ * "../../tsconfig.app.json"`, two levels up. A config that is silent is *not* a dissenter, and a
+ * config that inherits `react` from a base *is* one even though it says nothing itself.
+ *
+ * **Disagreement stands the profile down.** `disable-concept` is repository-global — the adjustment
+ * vocabulary has no file-scoped shape and §23.3 is the reason it does not — so one package on the
+ * classic transform cannot be excluded from a repository-wide "off". Standing down restores the
+ * status quo the user can already see, and `sgate rules why` names the two files that disagree,
+ * which is a one-line fix in their own tsconfig. Applying anyway would silently drop the rule in the
+ * one place it is load-bearing.
+ *
+ * **So does a chain that cannot be followed**, for the same reason one level removed: an ancestor
+ * that could not be read may be the one setting `"jsx": "react"`, and the difference between "no
+ * ancestor sets it" and "I could not see whether an ancestor sets it" is exactly the difference
+ * between applying safely and applying blind.
+ *
+ * **`disable-concept` because oxlint offers nothing narrower.** Confirmed against 1.76.0: the rule
+ * takes no options at all (*this rule does not accept configuration options*, and the bundled
+ * `configuration_schema.json` resolves it to `RuleNoConfig`); `settings.react.runtime` and
+ * `settings.react.jsxRuntime` are accepted by the parser and change nothing; and a sibling
+ * `tsconfig.json` reading `"jsx": "react-jsx"` does not silence it, with or without `--tsconfig`.
+ * An `engine-setting` adjustment would have no key to write.
+ *
+ * There is no sibling to disable alongside it: `react/jsx-uses-react`, which the automatic transform
+ * obsoletes in the same stroke, is **not in the registry** because oxlint does not implement it —
+ * `oxlint --rules --format json` lists 64 rules in the `react` scope and that is not one of them.
+ */
+const reactJsxTransform = defineProfile<void>({
+  id: 'react-jsx-transform',
+  summary: 'React — TypeScript is configured for the automatic JSX runtime',
+  async detect(context) {
+    const configs = findFiles(context, (path) => TSCONFIG.test(path))
+    const resolved = await Promise.all(
+      configs.map(async (file) => ({ file: file.path, jsx: await resolveJsx(file.path, context.readText) })),
+    )
+
+    // Deduplicated on the *declaring* file, not the resolving one: three apps inheriting one
+    // `tsconfig.app.json` are one fact about the repository, not three.
+    const declaring = new Map<string, { value: string; transform: JsxTransform }>()
+    for (const entry of resolved) {
+      if (entry.jsx.kind !== 'set') continue
+      declaring.set(entry.jsx.declaredIn, { value: entry.jsx.value, transform: entry.jsx.transform })
+    }
+
+    const automatic = [...declaring].filter(([, jsx]) => jsx.transform === 'automatic').sort(byFile)
+    if (automatic.length === 0) return null
+
+    const evidence = automatic.map(([file, jsx]) => ({
+      kind: 'config-literal' as const,
+      file,
+      property: 'compilerOptions.jsx',
+      value: jsx.value,
+    }))
+
+    const classic = [...declaring].filter(([, jsx]) => jsx.transform === 'classic').sort(byFile)
+    if (classic.length > 0) {
+      return {
+        evidence,
+        blocked:
+          `${classic[0]![0]} sets \`"jsx": "react"\` while ${automatic[0]![0]} sets ` +
+          `\`"jsx": "${automatic[0]![1].value}"\`, and the rule can only be turned off for the whole ` +
+          'repository, so turning it off would drop it where the classic transform still needs it',
+      }
+    }
+
+    // A config whose `extends` chain broke resolves to no value, and that is not the same as one
+    // that resolves to nothing: an ancestor this could not read may set `"jsx": "react"`, and
+    // applying past it would drop the rule exactly where it is load-bearing without saying so.
+    const unknown = resolved.filter((entry) => entry.jsx.kind === 'unknown').sort((a, b) => compareStrings(a.file, b.file))
+    if (unknown.length > 0) {
+      const first = unknown[0]!
+      return {
+        evidence,
+        blocked:
+          `${(first.jsx as { reason: string }).reason}, so whether that project uses the classic ` +
+          'transform cannot be determined without following the chain',
+      }
+    }
+
+    return { evidence, parameters: undefined }
+  },
+  consequences: () => [
+    {
+      kind: 'disable-concept',
+      concept: 'suspicious.react-in-jsx-scope' as ConceptId,
+      reason:
+        "React 17's automatic JSX transform compiles JSX to `react/jsx-runtime` calls, so importing React is unnecessary and its absence is correct.",
+    },
+  ],
+})
+
 const TEST_SCOPES = ['jest', 'vitest'] as const
 
 /**
@@ -309,6 +427,7 @@ export const FRAMEWORK_PROFILES: readonly AnyFrameworkProfile[] = [
   mikroOrm,
   nestjs,
   nestjsExpress,
+  reactJsxTransform,
   testFramework,
   vitepress,
 ]

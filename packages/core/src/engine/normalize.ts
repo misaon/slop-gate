@@ -1,7 +1,8 @@
-import type { RuleLevel } from '../config/types.ts'
+import type { GeneratedPolicy, RuleLevel } from '../config/types.ts'
 import { fingerprint } from '../diagnostics/fingerprint.ts'
 import { createLineIndex, type LineIndex } from '../diagnostics/position.ts'
 import type { Diagnostic, Fix, Severity } from '../diagnostics/types.ts'
+import { isGeneratedPath } from '../discovery/generated.ts'
 import { detectLanguage } from '../discovery/language.ts'
 import { isOwned, owningEngines, type OwnerMap } from '../registry/ownership.ts'
 import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
@@ -26,6 +27,12 @@ export type NormalizeInput = {
    * any raw diagnostics this run.
    */
   suppressionScanFiles?: readonly string[]
+  /**
+   * `'skip'` (the default) marks every finding in a machine-written file suppressed. Threaded in
+   * rather than read from config here because this function takes no config — `run/check.ts` passes
+   * the resolved value, and a caller that wants the raw truth passes `'check'`.
+   */
+  generated?: GeneratedPolicy
 }
 
 export const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Severity>> = {
@@ -39,6 +46,7 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
     input.entries.filter((entry) => entry.engine === input.engine).map((entry) => [entry.engineRuleId, entry]),
   )
 
+  const skipGenerated = (input.generated ?? 'skip') === 'skip'
   const lineIndexes = new Map<string, LineIndex>()
   const sources = new Map<string, string>()
   const occurrences = new Map<string, number>()
@@ -100,6 +108,14 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
       ...fixOf(entry, raw),
       docsUrl: raw.docsUrl ?? entry.docsUrl,
       fingerprint: fingerprint({ concept, file: raw.file, source, range: raw.range, occurrenceIndex }),
+      // Suppressed rather than skipped, so the finding still reaches the per-file cache entry and a
+      // later `--show-suppressed` can surface it. Marked here rather than filtered in `run/check.ts`
+      // because this is where the file is already known, exactly as `detectLanguage` above is.
+      // `applySuppressions` below may overwrite this with `by: 'inline'` if a human also silenced the
+      // line, which is the better of the two explanations and so the right one to keep.
+      ...(skipGenerated && isGeneratedPath(raw.file)
+        ? { suppressed: { by: 'generated' as const, reason: 'the file is generated, so the fix would not survive' } }
+        : {}),
     })
   }
 

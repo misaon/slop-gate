@@ -74,6 +74,33 @@ const run = (raws: readonly RawDiagnostic[], levels: Record<string, string> = {}
     levelOf: (concept) => levels[concept] as never,
   })
 
+test('marks a finding in a generated file suppressed rather than dropping it', () => {
+  const [only] = run([
+    raw({ engineRuleId: 'no-debugger', message: 'debugger', file: 'src/client/client.gen.ts' }),
+  ])
+
+  expect(only?.file).toBe('src/client/client.gen.ts')
+  expect(only?.suppressed).toEqual({ by: 'generated', reason: expect.stringContaining('generated') })
+})
+
+test('leaves a finding in a hand-written declaration file visible', () => {
+  const [only] = run([raw({ engineRuleId: 'no-debugger', message: 'debugger', file: 'src/types/nextAuth.d.ts' })])
+  expect(only?.suppressed).toBeUndefined()
+})
+
+test('keeps generated findings visible when the caller asks for them', () => {
+  const [only] = normalizeDiagnostics({
+    engine: 'oxlint',
+    raws: [raw({ engineRuleId: 'no-debugger', message: 'debugger', file: 'src/client/client.gen.ts' })],
+    entries,
+    owners,
+    sourceOf: () => source,
+    levelOf: () => undefined,
+    generated: 'check',
+  })
+  expect(only?.suppressed).toBeUndefined()
+})
+
 test('emits exactly one diagnostic per raw finding', () => {
   const result = run([raw({ engineRuleId: 'no-unused-vars', message: "'unused' is defined but never used" })])
   expect(result).toHaveLength(1)

@@ -108,6 +108,12 @@ const recommended: RuleMap = {
   // one inside a directory the config explicitly excluded**. `buildIgnore` now forwards them; the
   // count went 28 -> 7.
   //
+  // **`dead-code.unused-file` went back out again**, and the entry in `registry/exclusions.ts` has
+  // the measurement: a 145k-line React monorepo produced 105 findings, of which at least 98 are a
+  // file loaded by a convention no import graph can see — and by *six unrelated* conventions, which
+  // is the part that matters. The re-measurement above was taken on a fixture built from the very
+  // cases the profiles fix; it could not have found this.
+  //
   // **The other five stay out, and each for a reason that survived the re-measurement:**
   // `deps.unused-dependency` (1/1 false here — `oxlint`, which `engine-oxlint` reaches through
   // `require.resolve`, invisible to any import graph) and `deps.unused-dev-dependency` (1/1 false —
@@ -118,7 +124,6 @@ const recommended: RuleMap = {
   // measurement — fixture-only evidence that they fire at all, which is how `no-implied-eval` got
   // into a registry it could never contribute to. Promoting a rule nobody has watched work is the
   // mistake this file exists to prevent.
-  'dead-code.unused-file': 'warn',
   'dead-code.unused-export': 'warn',
   'dead-code.unused-exported-type': 'warn',
   'deps.unlisted-dependency': 'warn',
