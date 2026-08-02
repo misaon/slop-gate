@@ -1,0 +1,34 @@
+/* A well-formed stylesheet no shipped rule may report on. */
+@import url("reset.css");
+
+:root {
+  --page-gap: 1rem;
+  --page-fg: hsl(0deg 0% 10%);
+}
+
+@media screen and (min-width: 40rem) {
+  .page {
+    display: grid;
+    grid-template-areas: "nav main" "nav aside";
+    gap: var(--page-gap);
+  }
+}
+
+.page__title {
+  color: var(--page-fg);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.page__title:hover::after {
+  content: "";
+  background: linear-gradient(to right, hsl(0deg 0% 0%), hsl(0deg 0% 100%));
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+li:nth-child(2n + 1) {
+  border-color: currentcolor;
+}

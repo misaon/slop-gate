@@ -786,6 +786,289 @@ export const HAND_WRITTEN_CONCEPTS = [
       'A `services.<id>.credentials.password` given a literal instead of a `secrets.*` reference, so ' +
       'the password is in version control and in every fork of the repository.',
   },
+  // Stylesheet concepts, owned by the `biome-css` engine (`packages/engine-biome-css`). One concept
+  // per Biome CSS rule, for the reason the workflow block above gives: each is a separate check over
+  // a separate part of CSS, and a single `style.css` concept would make turning off the hex-colour
+  // preference also turn off unknown-property detection.
+  //
+  // `css-` prefixed inside existing groups rather than a group of their own, because the group axis
+  // is "what kind of problem is this", not "which language" — an unknown CSS property and an unknown
+  // JS global are the same kind of problem. The prefix is what keeps ownership legible when a second
+  // stylesheet engine eventually arrives.
+  //
+  // **The four `style.css-*` and `complexity.css-*` concepts at the end are house style, not
+  // defects**, and are deliberately absent from `recommended`. Over 1729 production stylesheets they
+  // produced 11,525 of the engine's 12,125 findings and none of its ~27 true defects. Shipping them
+  // on by default would have meant a first run reporting eleven thousand findings with no defect
+  // content, which is how a linter loses a user permanently. They keep full entries so anyone who
+  // *wants* the house style can enable it by concept.
+  {
+    id: 'correctness.css-unknown-property',
+    group: 'correctness',
+    title: 'Unknown CSS property',
+    description:
+      'A property name no browser implements, so the declaration is dropped at parse time and the ' +
+      'style silently never applies. The measured case is a typo in a vendor prefix — VS Code ships ' +
+      '`-mox-box-sizing` in two files — which is invisible precisely because the correct spelling ' +
+      'usually sits on the next line and masks it.',
+  },
+  {
+    id: 'correctness.css-unknown-type-selector',
+    group: 'correctness',
+    title: 'Unknown element in a selector',
+    description:
+      'A type selector naming an element that does not exist, so the rule matches nothing. Usually a ' +
+      'missing `.` or `#`: pdf.js writes `.annotationEditorLayer freeTextEditor` where every other ' +
+      'reference in the same file is `.freeTextEditor`.',
+  },
+  {
+    id: 'correctness.css-unknown-pseudo-class',
+    group: 'correctness',
+    title: 'Unknown pseudo-class',
+    description:
+      'A `:pseudo` no browser implements. One invalid item invalidates the whole selector list in CSS, ' +
+      'so the rule it belongs to stops matching entirely rather than degrading.',
+  },
+  {
+    id: 'correctness.css-unknown-pseudo-element',
+    group: 'correctness',
+    title: 'Unknown pseudo-element',
+    description: 'A `::pseudo` no browser implements, invalidating the selector it appears in.',
+  },
+  {
+    id: 'correctness.css-invalid-gradient-direction',
+    group: 'correctness',
+    title: 'Invalid gradient direction',
+    description:
+      'A `linear-gradient()` whose first argument is a bare keyword like `top` rather than `to top` or ' +
+      'an angle. The whole gradient is invalid, so the background falls back to nothing.',
+  },
+  {
+    id: 'correctness.css-import-position',
+    group: 'correctness',
+    title: '@import after a style rule',
+    description:
+      'CSS requires `@import` before any style rule. One placed later is ignored outright, so a ' +
+      'stylesheet the author believes is loaded is simply absent.',
+  },
+  {
+    id: 'correctness.css-missing-var-function',
+    group: 'correctness',
+    title: 'Custom property used without var()',
+    description:
+      'A declaration whose value names `--custom-property` directly instead of `var(--custom-property)`. ' +
+      'It parses, so nothing complains, and the value is never substituted.',
+  },
+  {
+    id: 'correctness.css-unmatchable-selector',
+    group: 'correctness',
+    title: 'Selector that can never match',
+    description:
+      'An `An+B` expression with no solution — `:nth-child(0)`, `:nth-child(0n+0)` — so the rule is ' +
+      'dead. Written by hand it is almost always an off-by-one from the 1-based indexing `nth-child` uses.',
+  },
+  {
+    id: 'correctness.css-shorthand-override',
+    group: 'correctness',
+    title: 'Shorthand overrides an earlier longhand',
+    description:
+      'A shorthand property declared after a longhand it subsumes — `flex-wrap: wrap` then ' +
+      '`flex-flow: column nowrap` — silently resetting the longhand to the shorthand\'s value or its ' +
+      'initial value. The highest-precision rule this engine ships: six findings across 1729 ' +
+      'production stylesheets, six real dead declarations.',
+  },
+  {
+    id: 'correctness.css-duplicate-property',
+    group: 'correctness',
+    title: 'Property declared twice in one block',
+    description:
+      'The same property declared twice in the same block, so the first is dead. **Repeating a ' +
+      'property deliberately is a real technique** — `background: <solid>` then ' +
+      '`background: <gradient>` is how a fallback is written for a browser that cannot parse the ' +
+      'second — and Biome does not distinguish the two. Measured over 1729 production stylesheets: ' +
+      'Biome produced 44 findings, of which 13 came from files it could not parse and the adapter ' +
+      'therefore discards; of the 31 that survive, **15 are real** (6 identical values, 9 dead ' +
+      'overrides) and 16 are not (14 deliberate fallbacks, 1 CSS Modules `composes`, 1 `color-mix()` ' +
+      'fallback). Kept because the 15 are genuine and the noise is recognisable on sight. Note also ' +
+      'that Biome reports only the **first** duplicated property in a block, so a finding here can ' +
+      'mean more than one.',
+  },
+  {
+    id: 'correctness.css-duplicate-custom-property',
+    group: 'correctness',
+    title: 'Custom property declared twice',
+    description:
+      'The same `--custom-property` declared twice in one block. Unlike a duplicated ordinary ' +
+      'property this has no fallback reading — a custom property holds an arbitrary token stream and ' +
+      'is never rejected for being unparseable — so the earlier declaration is unconditionally dead.',
+  },
+  {
+    id: 'correctness.css-duplicate-import',
+    group: 'correctness',
+    title: 'Same file imported twice',
+    description: 'Two `@import` rules naming the same URL. The second is redundant work at load time.',
+  },
+  {
+    id: 'correctness.css-duplicate-font-name',
+    group: 'correctness',
+    title: 'Font repeated in a font stack',
+    description:
+      'A `font-family` listing the same family twice. The repeat can never be reached, and it usually ' +
+      'means the intended fallback was lost in an edit.',
+  },
+  {
+    id: 'correctness.css-duplicate-keyframe-selector',
+    group: 'correctness',
+    title: 'Keyframe selector declared twice',
+    description:
+      'Two blocks for the same keyframe offset in one `@keyframes` — `from` twice, or `0%` and `from`. ' +
+      'The later block wins and the earlier one is silently discarded mid-animation.',
+  },
+  {
+    id: 'correctness.css-important-in-keyframe',
+    group: 'correctness',
+    title: '!important inside a keyframe',
+    description:
+      'A declaration inside a `@keyframes` block marked `!important`. The specification says it is ' +
+      'ignored, so the property simply does not animate — the opposite of what the author asked for.',
+  },
+  {
+    id: 'correctness.css-deprecated-media-type',
+    group: 'correctness',
+    title: 'Deprecated media type',
+    description:
+      'A media type removed from Media Queries Level 4 — `tty`, `tv`, `projection` and the rest. ' +
+      'Everything except `all`, `screen` and `print` now never matches, so the block is dead.',
+  },
+  {
+    id: 'correctness.css-irregular-whitespace',
+    group: 'correctness',
+    title: 'Irregular whitespace in a stylesheet',
+    description:
+      'A non-breaking space, en space or similar invisible character where an ordinary space was ' +
+      'meant. In CSS this is not cosmetic: inside a selector or between a property and its value it ' +
+      'is a parse error, and the declaration or rule is discarded with nothing on screen to explain why.',
+  },
+  {
+    id: 'correctness.css-unknown-at-rule',
+    group: 'correctness',
+    title: 'Unknown at-rule',
+    description:
+      'An `@rule` CSS does not define. Genuine when the stylesheet really is CSS — and **not genuine ' +
+      'when a preprocessor is in the chain**: `@extend` (PostCSS) and `@tailwind` (Tailwind v3) are ' +
+      'both valid input to their own build. Measured 26/26 not-genuine on a corpus containing two ' +
+      'preprocessed projects, which is a statement about the corpus rather than about the rule.',
+  },
+  {
+    id: 'correctness.css-unknown-function',
+    group: 'correctness',
+    title: 'Unknown CSS function',
+    description:
+      'A `fn()` in a value that CSS does not define, so the declaration is dropped. Same preprocessor ' +
+      'caveat as `correctness.css-unknown-at-rule`: Mantine\'s `alpha()` is compiled away by ' +
+      '`postcss-preset-mantine` and never reaches a browser.',
+  },
+  {
+    id: 'a11y.css-generic-font-name',
+    group: 'a11y',
+    title: 'Font stack has no generic fallback',
+    description:
+      'A `font-family` that never reaches `serif`, `sans-serif`, `monospace` or another generic ' +
+      'family, so a reader whose system lacks every named font gets the browser default rather than ' +
+      'the intended shape. Correct in principle and mostly wrong in practice on real code: 15 of 16 ' +
+      'findings over 1729 stylesheets were **icon fonts** (`codicon`, `PrismTreeview`), where adding a ' +
+      'generic fallback would render arbitrary letters instead of icons. Not in `recommended` for that ' +
+      'reason.',
+  },
+  {
+    id: 'duplication.css-duplicate-selector',
+    group: 'duplication',
+    title: 'Selector list repeated in a file',
+    description:
+      'The same selector list declared twice in one stylesheet. Sometimes redundancy; more often ' +
+      'deliberate, because grouping declarations by concern (a "sidebar" section, a colour section) ' +
+      'means revisiting selectors. 178 findings over 1729 stylesheets, none of the sampled ones a ' +
+      'defect. Not in `recommended`.',
+  },
+  {
+    id: 'duplication.css-empty-block',
+    group: 'duplication',
+    title: 'Empty declaration block',
+    description:
+      'A rule with no declarations. It costs nothing at run time and is frequently intentional — ' +
+      'highlight.js ships `.hljs-property {}` in 176 theme files as a documented placeholder, which ' +
+      'was 176 of the 181 findings measured. Outside that one convention the rule is near-silent: five ' +
+      'findings in the other 1553 files. Not in `recommended`.',
+  },
+  {
+    id: 'style.css-hex-color',
+    group: 'style',
+    title: 'Hex colour notation',
+    description:
+      'A colour written as `#rgb`/`#rrggbb` rather than `hsl()`, `oklch()` or another model. Pure ' +
+      'house style with no defect content: 5815 findings over 1729 production stylesheets, zero of ' +
+      'them a bug. Available by concept for a project that has adopted a colour-model convention and ' +
+      'wants it enforced.',
+  },
+  {
+    id: 'style.css-descending-specificity',
+    group: 'style',
+    title: 'Selector ordered after a more specific one',
+    description:
+      'A selector appearing after one with higher specificity that could match the same element, so ' +
+      'source order does not decide the outcome. Ordinary correct CSS trips it constantly — 2206 ' +
+      'findings across 25% of all files measured, in 8 of 10 repositories — because grouping by ' +
+      'component rather than by specificity is how stylesheets are actually written. Available by ' +
+      'concept for a codebase that has committed to specificity ordering.',
+  },
+  {
+    id: 'style.css-baseline',
+    group: 'style',
+    title: 'CSS feature outside the chosen Baseline',
+    description:
+      'A property, selector or function that is not yet Baseline "widely available". Whether that ' +
+      'matters is entirely a property of the project\'s browser targets, which slop-gate does not ' +
+      'know: on the corpus this flagged `light-dark()` 813 times, `::selection` 385 and `user-select` ' +
+      '259, in an editor that ships its own Chromium. Available by concept for a project whose support ' +
+      'floor really is Baseline.',
+  },
+  {
+    id: 'complexity.css-important',
+    group: 'complexity',
+    title: '!important declaration',
+    description:
+      'A declaration marked `!important`. Overused it makes a cascade unreasonable about; used ' +
+      'deliberately it is how a theming layer wins against a component library, which is why VS Code ' +
+      'alone accounts for 1071 of the 1502 findings measured. A judgement about a codebase\'s ' +
+      'conventions rather than a defect, so it is available by concept and not in `recommended`.',
+  },
+  {
+    id: 'config.css-not-analysed',
+    group: 'config',
+    title: 'Stylesheet could not be analysed',
+    description:
+      'A `.css` file the CSS engine could not parse, so none of its rules ran on it. Deliberately ' +
+      'distinct from `correctness.parse-error`, which means the file is broken: every one of the 125 ' +
+      'parse errors measured across 1729 production stylesheets came from a `.css` file that is not ' +
+      'plain CSS at all — PostCSS `$variables` and `%placeholder` selectors, browser-specific ' +
+      'directives — all of which compile and ship. Calling those broken would be wrong every time. ' +
+      'Reported anyway, one finding per file rather than per error, because the alternative is a ' +
+      'repository whose stylesheets were never read coming back clean.',
+  },
+  {
+    id: 'config.foreign-suppression',
+    group: 'config',
+    title: 'Foreign suppression comment',
+    description:
+      'A file carries a suppression comment written for the underlying engine rather than for ' +
+      'slop-gate — a `biome-ignore` in a stylesheet. slop-gate owns the rules (D2) and `init` replaces ' +
+      'the repository\'s own Biome configuration, so a comment left behind by that migration keeps ' +
+      'silencing findings with **nothing anywhere in the engine\'s output to say it happened**: the ' +
+      'diagnostic is simply absent and the summary counts it as clean. Reported because a silent gap ' +
+      'must not be representable, on the same principle as an unavailable engine. Use ' +
+      'a `sgate-disable`-family directive instead, which slop-gate can see, attribute and report as ' +
+      'unused when it stops matching.',
+  },
 ] as const satisfies readonly ConceptDefinition[]
 
 /**

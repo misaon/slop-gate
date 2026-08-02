@@ -1,0 +1,6 @@
+:root {
+  --gap: 1px;
+}
+.a {
+  padding: --gap; /* HIT */
+}

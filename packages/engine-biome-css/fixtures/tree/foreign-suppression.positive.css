@@ -1,0 +1,8 @@
+/* A suppression written for biome, not for slop-gate — exactly what `sgate init` leaves
+   behind when it replaces a repository`s own biome configuration. Biome reports nothing at
+   all for this file: no diagnostic, no counter, no trace. The adapter reports the comment. */
+.a {
+  display: flex;
+  /* biome-ignore lint/suspicious/noDuplicateProperties: predates slop-gate */ /* HIT */
+  display: flex;
+}

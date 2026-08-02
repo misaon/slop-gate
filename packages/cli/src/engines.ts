@@ -1,6 +1,7 @@
 import type { Engine } from '@misaon/slop-gate-core'
 import { createActionlintEngine } from '@misaon/slop-gate-engine-actionlint'
 import { createAstGrepEngine } from '@misaon/slop-gate-engine-astgrep'
+import { createBiomeCssEngine } from '@misaon/slop-gate-engine-biome-css'
 import { createKnipEngine } from '@misaon/slop-gate-engine-knip'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { createSchemaEngine } from '@misaon/slop-gate-engine-schema'
@@ -39,6 +40,15 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * is deliberately not the same fact as an engine that was never registered at all (see
  * `IneligibilityReason`).
  *
+ * `biome-css` needs no binding, for the same two reasons as `astgrep`: it is bundled (`@biomejs/biome`
+ * is an ordinary dependency of its adapter, with eight platform optional dependencies, so there is
+ * nothing optional about it and no `availability()`) and file-granularity. It is the second entry
+ * here whose concepts are in `recommended`, and the quietest thing in this list by design — seventeen
+ * rules of which thirteen produced no finding at all across 1729 production stylesheets. A repository
+ * with no `.css` files never reaches it, since every one of its entries is `languages: ['css']`; a
+ * repository whose stylesheets are all SCSS also gets nothing, because Biome cannot lint SCSS and this
+ * engine does not pretend otherwise.
+ *
  * Registering an engine here does not, on its own, make `sgate check` invoke it: arbitration only
  * assigns work if some enabled concept resolves to it, and none of `types.type-error` (`tsc`), the
  * ten `dead-code.*`/`deps.*` concepts knip owns, or the five `slop.*` concepts ast-grep owns is part
@@ -54,5 +64,6 @@ export function defaultEngines(rootDir: string, configFile?: string): Engine[] {
     createAstGrepEngine(),
     createSchemaEngine(),
     createActionlintEngine(),
+    createBiomeCssEngine(),
   ]
 }

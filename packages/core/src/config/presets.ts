@@ -60,6 +60,49 @@ const recommended: RuleMap = {
   'config.workflow-permissions': 'warn',
   'config.workflow-shell': 'warn',
   'security.workflow-hardcoded-credential': 'warn',
+  // The seventeen CSS concepts the `biome-css` engine owns, out of the twenty-six it has; the other
+  // nine are in `MANUAL_RULE_EXCLUSIONS`, and `entries.test.ts` asserts none of them reaches this map.
+  //
+  // **This set is deliberately quiet, and that is the design rather than an accident to fix later.**
+  // Thirteen of the seventeen produced zero findings across 1729 production stylesheets from ten
+  // repositories; the other four produced 21 findings between them. On a typical repository this
+  // engine reports nothing. What was excluded is what would have made it loud: four house-style rules
+  // that account for 11,525 of the 12,125 findings measured and none of the ~23 real defects.
+  //
+  // `warn` uniformly, matching actionlint's first-release policy — `error` is the bar the `schema`
+  // engine clears on 826 files, and the best-measured rule here has six findings behind it.
+  //
+  // Costing a repository with no stylesheets nothing is structural, not careful: every entry is
+  // `languages: ['css']`, so arbitration never elects one where the inventory has no CSS. Note the
+  // deliberate absence of `scss` — Biome cannot lint it at all (see `BIOME_CSS_RULE_ENTRIES`), and a
+  // repository whose stylesheets are all SCSS gets no coverage here and no false impression of it.
+  'correctness.css-deprecated-media-type': 'warn',
+  'correctness.css-duplicate-custom-property': 'warn',
+  'correctness.css-duplicate-font-name': 'warn',
+  'correctness.css-duplicate-import': 'warn',
+  'correctness.css-duplicate-keyframe-selector': 'warn',
+  'correctness.css-duplicate-property': 'warn',
+  'correctness.css-import-position': 'warn',
+  'correctness.css-important-in-keyframe': 'warn',
+  'correctness.css-invalid-gradient-direction': 'warn',
+  'correctness.css-irregular-whitespace': 'warn',
+  'correctness.css-missing-var-function': 'warn',
+  'correctness.css-shorthand-override': 'warn',
+  'correctness.css-unknown-property': 'warn',
+  'correctness.css-unknown-pseudo-class': 'warn',
+  'correctness.css-unknown-pseudo-element': 'warn',
+  'correctness.css-unknown-type-selector': 'warn',
+  'correctness.css-unmatchable-selector': 'warn',
+  // Neither of the next two is a Biome rule; both are the adapter reporting on its own coverage, and
+  // both are here because the failure they guard is silence rather than noise. A stylesheet biome
+  // cannot parse, and a stylesheet carrying a suppression written for biome rather than for us, are
+  // each a file whose clean result means nothing — the same shape as an engine that is not installed.
+  'config.css-not-analysed': 'warn',
+  // The adapter's own report that a stylesheet carries a `biome-ignore` comment
+  // it cannot see through. In `recommended` for the reason `config.unused-suppression` is: a
+  // suppression slop-gate did not write and cannot account for is a coverage gap, and the failure
+  // mode it guards is silence rather than noise.
+  'config.foreign-suppression': 'warn',
 }
 
 const strict: RuleMap = {

@@ -1,0 +1,13 @@
+/* The correction. The first pass through the corpus classified six findings as biome
+   reporting a duplicate across a nested `@container` boundary, and called it an upstream bug.
+   It is not: biome handles nesting correctly, and this file proves it by producing nothing.
+   Those six came from stylesheets biome could not parse, where recovery had flattened the
+   nesting — a class the adapter now discards wholesale. Kept as a negative fixture so the
+   corrected claim stays checked rather than remembered. */
+.a {
+  max-width: 100%;
+
+  @container app (width < 40rem) {
+    max-width: 20rem;
+  }
+}
