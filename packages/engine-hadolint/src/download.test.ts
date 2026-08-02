@@ -43,8 +43,10 @@ test('a verified download lands executable at the version-scoped path', async ()
   expect(result.path).toBe(join(hadolintCacheDir({ platform: 'linux', env: {}, homeDir: home }), 'hadolint'))
   await expect(readFile(result.path, 'utf8')).resolves.toContain('echo hadolint')
   // The npm hadolint wrapper's second defect is writing 0644 and never chmodding, so every Unix spawn
-  // fails EACCES. Asserted rather than assumed.
-  expect((await stat(result.path)).mode & 0o111).not.toBe(0)
+  // fails EACCES. Asserted rather than assumed — but only where the assertion means something:
+  // Windows has no execute bit, so `mode & 0o111` is always 0 there and the check would fail on a
+  // correct install.
+  if (process.platform !== 'win32') expect((await stat(result.path)).mode & 0o111).not.toBe(0)
 })
 
 test('a digest mismatch throws and writes nothing at all', async () => {

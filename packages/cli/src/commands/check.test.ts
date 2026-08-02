@@ -260,10 +260,16 @@ test('--require-engines on a fully equipped machine still exits clean', async ()
   await mkdir(join(dir, 'node_modules'), { recursive: true })
   await symlink(typescriptDir, join(dir, 'node_modules', 'typescript'), 'junction')
 
+  // hadolint is the same shape as actionlint and needs the same construction: scoped to
+  // `dockerfile`, so the fixture never elects it, but `--require-engines` still counts it absent.
   const stub = join(dir, 'actionlint-stub')
+  const hadolintStub = join(dir, 'hadolint-stub')
   await writeFile(stub, '')
+  await writeFile(hadolintStub, '')
   const previous = process.env['SLOP_GATE_ACTIONLINT_PATH']
+  const previousHadolint = process.env['SLOP_GATE_HADOLINT_PATH']
   process.env['SLOP_GATE_ACTIONLINT_PATH'] = stub
+  process.env['SLOP_GATE_HADOLINT_PATH'] = hadolintStub
   try {
     const output = await runCheckCapturingStdout({ 'require-engines': true })
 
@@ -276,6 +282,8 @@ test('--require-engines on a fully equipped machine still exits clean', async ()
   } finally {
     if (previous === undefined) delete process.env['SLOP_GATE_ACTIONLINT_PATH']
     else process.env['SLOP_GATE_ACTIONLINT_PATH'] = previous
+    if (previousHadolint === undefined) delete process.env['SLOP_GATE_HADOLINT_PATH']
+    else process.env['SLOP_GATE_HADOLINT_PATH'] = previousHadolint
   }
 })
 
