@@ -10,6 +10,7 @@ const subCommands = {
   engines: () => import('./commands/engines.ts').then((module) => module.engines),
   fix: () => import('./commands/fix.ts').then((module) => module.fix),
   init: () => import('./commands/init.ts').then((module) => module.init),
+  mcp: () => import('./commands/mcp/index.ts').then((module) => module.mcp),
   rules: () => import('./commands/rules/index.ts').then((module) => module.rules),
 }
 

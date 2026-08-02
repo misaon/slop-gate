@@ -66,7 +66,7 @@ const capture = (events: readonly CheckEvent[], contextOver: Partial<ReporterCon
   return output
 }
 
-const done = (diagnostics: readonly Diagnostic[], over: Partial<CheckResult> = {}): CheckEvent => ({
+const done = (diagnostics: readonly Diagnostic[], over: Partial<CheckResult> = {}): Extract<CheckEvent, { type: 'done' }> => ({
   type: 'done',
   result: result({
     diagnostics: [...diagnostics],

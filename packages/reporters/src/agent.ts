@@ -445,7 +445,7 @@ function document(
   const total = groups.reduce((sum, group) => sum + group.findings.length, 0)
   const shownCount = groups.reduce((sum, group) => sum + group.findings.filter((finding) => shown.has(finding)).length, 0)
   const omitted = total - shownCount
-  const gaps = result.unavailableEngines.filter(isGap)
+  const gaps = result.unavailableEngines.filter(isCoverageGap)
 
   const lines: string[] = [`slop-gate agent report v${AGENT_REPORT_VERSION}`]
 
@@ -498,8 +498,13 @@ function document(
  * one means its absence changed no ownership at all — nothing went unchecked, nothing was downgraded.
  * Calling that INCOMPLETE would be crying wolf, and a report that says INCOMPLETE when nothing is
  * missing teaches its reader to skip the word on the run where something is.
+ *
+ * Exported because `sgate mcp` has to answer the same question in a second place — whether a tool
+ * result may call itself complete — and a second copy of this one-liner is a second place for the
+ * distinction to drift. One definition; the MCP layer's own tests then pin that its answer and this
+ * reporter's agree on the same run.
  */
-const isGap = (engine: UnavailableEngine): boolean => engine.displaced.length > 0
+export const isCoverageGap = (engine: UnavailableEngine): boolean => engine.displaced.length > 0
 
 /**
  * An engine that is registered but not installed here, under the same `INCOMPLETE:` prefix an engine
@@ -514,7 +519,7 @@ const isGap = (engine: UnavailableEngine): boolean => engine.displaced.length > 
  */
 function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
   const lines: string[] = []
-  for (const engine of engines.filter(isGap)) {
+  for (const engine of engines.filter(isCoverageGap)) {
     lines.push(
       `INCOMPLETE: engine \`${engine.engine}\` is registered but not installed here — ${engine.reason}. ` +
         'Nothing it would have reported appears below; do not read a clean section as clean.' +
@@ -532,7 +537,7 @@ function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
       )
     }
   }
-  for (const engine of engines.filter((candidate) => !isGap(candidate))) {
+  for (const engine of engines.filter((candidate) => !isCoverageGap(candidate))) {
     lines.push(
       `note: engine \`${engine.engine}\` is not installed here — ${engine.reason}. ` +
         'It would have owned nothing in this run, so no coverage was lost.',

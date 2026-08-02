@@ -51,6 +51,7 @@ export { renderCodeFrame } from './code-frame.ts'
 export {
   AGENT_REPORT_VERSION,
   createAgentReporter,
+  isCoverageGap,
   summariseAgentGroups,
   type AgentGroupSummary,
   type AgentReporterOptions,
