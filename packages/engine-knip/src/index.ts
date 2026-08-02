@@ -97,9 +97,11 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
-      return materializeKnipConfig(selection, context, {
-        ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
-      })
+      return materializeKnipConfig(
+        selection,
+        context,
+        options.configFile === undefined ? {} : { configFile: options.configFile },
+      )
     },
 
     run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {

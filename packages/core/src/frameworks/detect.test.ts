@@ -242,6 +242,13 @@ test('two sites in one workspace both contribute, and the union is sorted', asyn
 
 // --- test-framework ---------------------------------------------------------------------------
 
+const ruleIdsInScope = (scope: string): Set<string> =>
+  new Set(
+    RULE_ENTRIES.filter((entry) => entry.engineRuleId.startsWith(`${scope}/`)).map((entry) =>
+      entry.engineRuleId.slice(scope.length + 1),
+    ),
+  )
+
 const disabledConcepts = (detection: FrameworkDetection): readonly string[] =>
   Object.keys(frameworkRuleLayers(detection).find((layer) => layer.source === 'test-framework')?.rules ?? {})
 
@@ -252,13 +259,7 @@ const disabledConcepts = (detection: FrameworkDetection): readonly string[] =>
  * loss on every vitest repository. Pinned here so a wider definition cannot creep back in.
  */
 test('the dual-firing set contains only rules both plugins implement', () => {
-  const values = (scope: string): Set<string> =>
-    new Set(
-      RULE_ENTRIES.filter((entry) => entry.engineRuleId.startsWith(`${scope}/`)).map((entry) =>
-        entry.engineRuleId.slice(scope.length + 1),
-      ),
-    )
-  const jestOnly = [...values('jest')].filter((value) => !values('vitest').has(value))
+  const jestOnly = [...ruleIdsInScope('jest')].filter((value) => !ruleIdsInScope('vitest').has(value))
   expect(jestOnly.length).toBeGreaterThan(0)
 
   const disabled = new Set(dualFiringConcepts('jest', 'vitest'))
@@ -333,7 +334,7 @@ test('the same repository detects identically regardless of manifest key order',
   })
 
   expect(forward).toEqual(reversed)
-  expect(forward.applied.map((a) => a.id)).toEqual([...forward.applied.map((a) => a.id)].sort())
+  expect(forward.applied.map((a) => a.id)).toEqual(forward.applied.map((a) => a.id).sort())
 })
 
 test('detection reads no manifest the inventory did not list', async () => {

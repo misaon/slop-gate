@@ -43,10 +43,10 @@ test('every engine is listed in the preference order', () => {
 })
 
 test('an entry that declares a fix also declares what the fix touches', () => {
-  for (const entry of RULE_ENTRIES) {
-    if (entry.fixKind === 'none') expect(entry.fixTouches, ruleRefKey(entry)).toEqual([])
-    else expect(entry.fixTouches.length, ruleRefKey(entry)).toBeGreaterThan(0)
-  }
+  const offenders = RULE_ENTRIES.filter((e) =>
+    e.fixKind === 'none' ? e.fixTouches.length > 0 : e.fixTouches.length === 0,
+  )
+  expect(offenders.map(ruleRefKey)).toEqual([])
 })
 
 test('no rule entry claims a formatting concept', () => {
@@ -58,12 +58,9 @@ test('no rule entry claims a formatting concept', () => {
 })
 
 test('every rule covering more than one concept can attribute a finding to one of them', () => {
-  for (const entry of WIDENED_ENTRIES) {
-    if (entry.concepts.length > 1) {
-      expect(entry.classify, ruleRefKey(entry)).toBeDefined()
-      expect(entry.classify!.length, ruleRefKey(entry)).toBeGreaterThan(0)
-    }
-  }
+  const multiConcept = WIDENED_ENTRIES.filter((e) => e.concepts.length > 1)
+  expect(multiConcept.length, 'no multi-concept entry is left for this test to assert against').toBeGreaterThan(0)
+  expect(multiConcept.filter((e) => (e.classify?.length ?? 0) === 0).map(ruleRefKey)).toEqual([])
 })
 
 test('every classify target is one of the concepts the rule claims', () => {

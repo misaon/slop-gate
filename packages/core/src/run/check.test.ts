@@ -304,6 +304,14 @@ test('an override can enable a concept the base config never mentions, scoped to
   expect(secondFiles).not.toContain('src/a.ts')
 })
 
+const ruleFinding = (engineRuleId: string): RawDiagnostic => ({
+  engineRuleId,
+  message: 'x',
+  severity: 'warning',
+  file: 'src/a.ts',
+  range: { start: 0, end: 1 },
+})
+
 test('an engine that provides a capability lets a capability-requiring rule be elected over one that needs nothing', async () => {
   const entries: RuleEntry[] = [
     {
@@ -335,21 +343,14 @@ test('an engine that provides a capability lets a capability-requiring rule be e
       since: '0.1.0',
     },
   ]
-  const finding = (engineRuleId: string): RawDiagnostic => ({
-    engineRuleId,
-    message: 'x',
-    severity: 'warning',
-    file: 'src/a.ts',
-    range: { start: 0, end: 1 },
-  })
 
   const result = await runCheck({
     ...baseOptions(),
     config: { rules: { 'slop.as-any-cast': 'warn' } } as never,
     entries,
     engines: [
-      stubEngine({ id: 'tsgolint', provides: ['types'], findings: [finding('typed-rule')] }),
-      stubEngine({ id: 'astgrep', findings: [finding('untyped-rule')] }),
+      stubEngine({ id: 'tsgolint', provides: ['types'], findings: [ruleFinding('typed-rule')] }),
+      stubEngine({ id: 'astgrep', findings: [ruleFinding('untyped-rule')] }),
     ],
   })
 
