@@ -23,6 +23,31 @@ export type RuleExclusion = {
  * twenty-four jest/vitest dual-firing rules (now the `test-framework` profile, whose reason text this
  * file used to carry verbatim as the unblocking condition). What stays here is the other kind: a rule
  * that is wrong regardless of what the repository is built with.
+ *
+ * ---
+ *
+ * **Two things anyone measuring an oxlint rule needs before they start, both learned the expensive
+ * way (see the `feat/rule-options` work and its follow-ups).**
+ *
+ * **1. Count `"code": "<rule>"`, never `"message"`.** `--format json` puts oxlint's own `TS(…)` parse
+ * diagnostics in the same `diagnostics` array as rule findings, and they are emitted whatever the
+ * `rules` map says. Over any corpus containing deliberately-malformed input — prettier's
+ * `tests/format` is 1,171 unparseable files on its own — counting messages reports the same inflated
+ * total for every configuration you try, which reads exactly like a rule whose options do nothing.
+ * Measured concretely: `eqeqeq` with `smart` counted 1249 by message and **84** by code.
+ *
+ * **2. Check an exclusion's own words against the engine's option schema before trusting it.** An
+ * exclusion that describes a shape — "sorting an array just derived from a spread" — may be naming
+ * an option the engine already offers, in which case the rule is promotable and nobody noticed.
+ * `oxlint -c <config with {"__probe":1}>` prints the accepted field names for any rule.
+ *
+ * That sweep has been done once, across every oxlint entry in `RULE_EXCLUSIONS`, and **no exclusion
+ * here survives only because of its default configuration.** Recorded per entry below so it is not
+ * repeated: `unicorn/no-array-sort` (95 → 50), `unicorn/no-array-reverse` (4 → 4),
+ * `no-underscore-dangle` (135,767 → 5,255) and `import/no-unassigned-import` (3,000 → 1,662) each
+ * have a relevant-sounding option and none is rescued by it; `vitest/valid-expect` and
+ * `no-implied-eval` take no options at all. The one rule the sweep *did* rescue was never in this
+ * table — `eqeqeq`, promoted in `config/rule-options.ts`.
  */
 
 /**
@@ -259,7 +284,17 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "`import 'dotenv/config'`, `import './custom.css'` (a VitePress theme), and `import '@/tracing'` " +
       "(app startup instrumentation), plus this repo's own CLI entry shim (`import '../dist/main.js'`). " +
       "These are the textbook use case side-effect imports exist for, not an accidentally-unused " +
-      "import — 5/5 (100%) false positives across two independently-chosen, unrelated codebases.",
+      "import — 5/5 (100%) false positives across two independently-chosen, unrelated codebases.\n\n" +
+      "Swept for a rescuing option. It has exactly one, `allow`, taking globs — and the sweep is why " +
+      "this entry now carries a third-party number it never had: **3,000 findings over the " +
+      "32,035-file corpus**, against the 5 this reason was originally written from. A generous " +
+      "generic allowlist (`**/*.css`, `**/*.scss`, `**/*.less`, `**/*.sass`, `reflect-metadata`, " +
+      "`dotenv/config`, `**/polyfills*`) brings that to **1,662**, which is still two orders of " +
+      "magnitude past anything in `recommended`. The residue is what an allowlist cannot generalise " +
+      "over — application-local startup imports like `@/tracing` and this repository's own " +
+      "`packages/cli/bin/sgate.js` shim, which are legitimate and unguessable. Same shape as " +
+      "`biome-css/useBaseline`: the option exists, and the value it would need is a fact about the " +
+      "project that slop-gate does not know.",
   },
   'unicorn/no-array-sort': {
     reason:
@@ -287,7 +322,11 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
     reason:
       "Same measurement and same reasoning as unicorn/no-array-sort immediately above (the two rules " +
       "share a rationale in oxlint itself): all 3 occurrences on this repository reverse an array " +
-      "just produced by a spread, with nothing else aliasing it.",
+      "just produced by a spread, with nothing else aliasing it.\n\n" +
+      "Swept for an option that would rescue it, like its sibling. It has one — " +
+      "`allowExpressionStatement` — and it changes nothing here: 4 findings on this repository with " +
+      "it and 4 without. Notably it does **not** have `allowAfterSpread`, which is the option that " +
+      "would have been relevant, so this rule has less recourse than the one above rather than more.",
   },
   'no-underscore-dangle': {
     reason:
@@ -301,7 +340,16 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "not the arbiter of whether it belongs in `recommended` — whether a finding represents " +
       "something a competent developer would actually want to change is, and a trailing underscore " +
       "adopted on purpose to dodge shadowing an outer binding does not. A quality gate that argues " +
-      "with a codebase's own naming convention on every run teaches its user to ignore it.",
+      "with a codebase's own naming convention on every run teaches its user to ignore it.\n\n" +
+      "**Swept for a rescuing option and it is the strongest exclusion in this table, not the " +
+      "weakest.** It has ten (`allow`, `allowAfterThis`, `allowFunctionParams`, " +
+      "`allowInObjectDestructuring`, and so on), and turning on every one that could plausibly apply " +
+      "takes it from **135,767 findings to 5,255** over the 32,035-file third-party corpus — a 96% " +
+      "reduction that still leaves more findings than every rule in `recommended` produces combined. " +
+      "The default figure is the largest of any rule ever measured for this registry. None of the " +
+      "options addresses the case this exclusion is actually about either: `allow` is an exact-name " +
+      "list, so exempting a *trailing* underscore adopted to dodge a shadowed import means naming " +
+      "each identifier, which is a per-repository decision and not a preset's to make.",
   },
   'no-implied-eval': {
     reason:

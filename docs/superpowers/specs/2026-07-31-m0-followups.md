@@ -1560,10 +1560,20 @@ tuple keeps those comparisons compiling and makes them wrong the day a rule they
 `['off', …]` value is not `'off'`, so a disabled rule reads as enabled. The type error that would have
 caught it does not fire, because the comparison is against a string literal, not an exhaustive switch.
 
-Doing it properly means one atomic change: widen the value, update the six adapters to
-`splitRuleSetting`-style destructuring, and add a test per adapter that an `off`-with-options value
-still disables. Worth doing before the adapter count grows again. Two parallel maps that must stay in
-sync is exactly the shape that rots.
+**Read that failure carefully before starting, because it decides the shape of the work.** It is a
+silent inversion of *enablement*, not a wrong option: every rule in an affected engine flips state,
+`materializeConfig` writes a config nobody asked for, and there is nothing in the output to see it
+by — no error, no warning, just a different set of findings. That is the worst failure mode this
+codebase has, and it is exactly the one a gradual migration produces, because during the migration
+some adapters read the new shape and some still compare against `'off'`.
+
+**So this is one atomic change, not a per-adapter rollout.** In a single commit: widen the value to
+`RuleLevel | readonly [RuleLevel, ...RuleOptions]`, replace every `=== 'off'` / `!== 'off'`
+comparison in all six adapters with `splitRuleSetting`-style destructuring, delete
+`RunContext.ruleOptions` and `EngineAssignment.ruleOptions`, and add one test per adapter asserting
+that an `['off', { … }]` value still disables the rule — that test is the whole point and none of the
+six has it today. Worth doing before the adapter count grows again; two parallel maps that must stay
+in sync is exactly the shape that rots.
 
 ### Options on an engine rule id key do nothing, and nothing says so
 
@@ -1609,4 +1619,8 @@ A second, sharper trap from the same work, recorded because it silently multipli
 **oxlint's JSON output mixes rule diagnostics with `TS(…)` parse diagnostics.** Counting `"message"`
 occurrences rather than `"code": "<rule>"` reported 1249 `eqeqeq` findings where there were 84 — the
 difference being prettier's deliberately-malformed `tests/format` corpus, which oxlint fails to parse
-and reports on regardless of which rules are enabled.
+and reports on regardless of which rules are enabled. The failure is worse than a wrong number: the
+parse diagnostics are identical across configurations, so every option you try reports roughly the
+same total and the rule reads as one whose options do nothing. Both this and the "check the
+exclusion's own words against the option schema" lesson are now in the header of
+`registry/exclusions.ts`, which is where someone about to measure a rule is actually looking.
