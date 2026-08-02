@@ -119,6 +119,14 @@ const recommended: RuleMap = {
   // `error`, alone in this group, and categorically rather than on a count: every other concept here
   // asks "is this still needed?", which is a judgement. An import specifier that resolves to nothing
   // is not — the module cannot load and the code cannot run.
+  //
+  // **Known duplicate, kept deliberately.** On a TypeScript project this now double-reports with
+  // `types.type-error`: a missing `./does-not-exist.js` is both this concept and TS2307, on the same
+  // line, from two engines. Arbitration cannot merge them — they are two concepts, not two rules
+  // contesting one — so the user genuinely sees it twice. It stays because tsc's half is conditional
+  // in two ways this is not: it needs a `tsconfig.json` to exist at all, and it covers only `.ts`.
+  // A JavaScript project, or a TypeScript one whose root has no project file, would otherwise get no
+  // report of an import that cannot resolve. One duplicated line is the cheaper failure.
   'deps.unresolved-import': 'error',
   // The `schema` engine's own concept. Its other two rules need no entry here: they claim
   // `correctness.parse-error` (listed above) and `correctness.no-duplicate-object-key` (already in

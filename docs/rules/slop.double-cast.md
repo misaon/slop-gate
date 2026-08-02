@@ -38,9 +38,17 @@ contradicts. oxlint reports nothing for it, because no `any` appears in the sour
 | slop-gate, 163 JS/TS files | 2 | Both genuine: `RegExpExecArray` asserted to a fixed-length tuple of non-optional strings |
 | 3,366 third-party files (~45 MB) | 65 | Concentrated in 7 files across 2 packages — 62 in `zod`, whose subject matter is type-level construction |
 
-That distribution is why it is in the opt-in `slop` preset and not in `recommended`: on ordinary
-application code it is low-volume and points at something real; in a type-level library it is a
-wall, and the author of one will not have opted in.
+That distribution is the whole of the case for and against it, and it is now in `recommended` as well
+as in `slop`: on ordinary application code it is low-volume and points at something real, which is the
+common case and the one a default preset is set for. In a type-level library it is a wall — 62 of the
+65 third-party findings are `zod` alone — so a codebase whose subject matter is type-level
+construction should turn it off in one line:
+
+```ts
+export default defineConfig({ extends: ['recommended'], rules: { 'slop.double-cast': 'off' } })
+```
+
+It reports at `warn`, which does not fail a run.
 
 ## Escapes
 
