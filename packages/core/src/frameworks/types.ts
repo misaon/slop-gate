@@ -62,7 +62,7 @@ export type DetectionContext = {
 }
 
 /** What `detect` hands `consequences`: the parameters, plus the evidence that produced them. */
-export type Detected<P> = { readonly evidence: readonly FrameworkEvidence[]; readonly parameters: P }
+type Detected<P> = { readonly evidence: readonly FrameworkEvidence[]; readonly parameters: P }
 
 /**
  * `null` means "this framework is not here", which is recorded nowhere — a repository without NestJS
@@ -70,7 +70,7 @@ export type Detected<P> = { readonly evidence: readonly FrameworkEvidence[]; rea
  * resolved", which *is* recorded, because the user sees the status-quo false positive and deserves to
  * be told why the profile that would have fixed it stood down (spec §23.1).
  */
-export type DetectOutcome<P> = Detected<P> | { readonly blocked: string; readonly evidence: readonly FrameworkEvidence[] } | null
+type DetectOutcome<P> = Detected<P> | { readonly blocked: string; readonly evidence: readonly FrameworkEvidence[] } | null
 
 export type FrameworkProfile<P> = {
   readonly id: FrameworkId

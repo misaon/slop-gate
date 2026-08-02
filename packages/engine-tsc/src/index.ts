@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { access, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import {
@@ -53,6 +53,16 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
   const invocation: TscInvocation =
     options.binaryPath === undefined ? resolveTscBinary(options.rootDir) : { command: options.binaryPath, prefixArgs: [] }
 
+  /**
+   * Whether `typescript` was actually resolved from the analysed project, as opposed to
+   * `resolveScriptBin` giving up and handing back its bare-`tsc`-on-`PATH` fallback. The two are
+   * distinguishable exactly: a resolved script is always `{ command: process.execPath, prefixArgs:
+   * [scriptPath] }`, and the fallback is always `{ command: 'tsc', prefixArgs: [] }`. An explicit
+   * `binaryPath` is the test escape hatch and is trusted as given — it has the fallback's *shape*
+   * without being one.
+   */
+  const resolvedFromProject = options.binaryPath !== undefined || invocation.prefixArgs.length > 0
+
   return {
     id: 'tsc',
 
@@ -65,6 +75,63 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       // `tsc` is merely registered, regardless of whether tsgolint's own wiring can run it yet).
       provides: [],
       fixes: false,
+    },
+
+    /**
+     * Declared for a *bundled* engine, which the doc on `Engine.availability` says is normally noise
+     * — the exception is earned, and `types.type-error` being in `recommended` is what earns it.
+     * `typescript` is present by construction; the **project** is not. `run()` invokes `tsc -p
+     * <tsconfigPath>` with no discovery and no fallback, so a repository whose packages each carry
+     * their own tsconfig and whose root carries none — this repository, and the ordinary shape of a
+     * pnpm/turbo monorepo — makes tsc exit with `TS5058: The specified path does not exist`. Before
+     * this probe existed that surfaced as an `EngineError` and exit code 3: a default preset turning
+     * every `sgate check` on a package-based monorepo into a hard failure on the first run.
+     *
+     * A missing project is a *coverage gap*, which is the distinction `EngineAvailability` exists to
+     * draw — the same shape as actionlint not being installed. Nothing typechecked, and the run says
+     * so out loud instead of either failing or, worse, reporting a clean result it did not earn.
+     *
+     * Within the filesystem-only budget the contract sets: one `access`, no spawn. It deliberately
+     * does not go looking for a tsconfig elsewhere — guessing which of a monorepo's tsconfigs is
+     * *the* project is how you silently typecheck a quarter of a repository and call it covered.
+     * `tsconfigPath` is the way to say which one, and the gap's `install` field names it.
+     *
+     * **Two preconditions, not one**, and the second was missing on the first attempt: running `tsc`
+     * needs a project *and* a `typescript` to check it with. When `resolveTscBinary` cannot resolve
+     * the project's own copy it falls back to a bare `tsc` on `PATH`, and that gamble is not one this
+     * engine should make — spec §13.1 requires the repository's own TypeScript version specifically,
+     * because a type error that does not match what the developer's editor and build already report
+     * costs the tool its credibility. A different global version can report exactly that.
+     *
+     * Leaving the gamble in was also a real, platform-split defect rather than a theoretical one, and
+     * it is how this was found: the fallback happens to work on POSIX, where a global `tsc` is an
+     * extensionless shebang script the kernel will run, and **cannot ever work on Windows**, where
+     * `execFile` without a shell will not execute `tsc.cmd` by bare name. So a project with a
+     * tsconfig and no installed `typescript` typechecked fine on macOS and Linux and died with
+     * `spawn tsc ENOENT` on Windows — an `EngineError`, which `resolveExitCode` maps to exit 3,
+     * failing the whole run. Reported as a gap, it is one message and a clean exit on every platform.
+     */
+    async availability() {
+      if (!resolvedFromProject) {
+        return {
+          available: false as const,
+          reason:
+            'no `typescript` is installed in this project, and slop-gate deliberately will not fall back to a ' +
+            'global one — a type error has to match what your own build reports',
+          install: 'npm install -D typescript',
+        }
+      }
+
+      try {
+        await access(tsconfigPath)
+        return { available: true as const }
+      } catch {
+        return {
+          available: false as const,
+          reason: `no tsconfig.json at ${tsconfigPath}, so nothing here declares what "the project" is and nothing was typechecked`,
+          install: 'a root tsconfig.json, or a tsconfigPath naming the project to check',
+        }
+      }
     },
 
     async version() {

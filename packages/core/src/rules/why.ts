@@ -51,7 +51,7 @@ export type ConceptWhy = {
 }
 
 /** One framework's reason for disabling one concept, joined to the evidence that detected it. */
-export type FrameworkReason = {
+type FrameworkReason = {
   id: FrameworkId
   summary: string
   reason: string

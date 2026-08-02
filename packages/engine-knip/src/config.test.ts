@@ -125,3 +125,27 @@ test('mergeWorkspacesIntoConfig adds the synthesized map to an already-materiali
   expect(merged.include).toEqual(['files'])
   await handle.dispose()
 })
+
+test("materializeConfig passes the user's own ignore patterns through to knip", async () => {
+  const handle = await materializeKnipConfig(new Map([['files', 'warn']]), context, {
+    configFile: 'slop-gate.config.ts',
+    ignore: ['fixtures/**', 'packages/*/fixtures/**'],
+  })
+
+  expect(await readConfig(handle.path)).toMatchObject({
+    ignore: ['.slop-gate/**', 'fixtures/**', 'packages/*/fixtures/**', 'slop-gate.config.ts'],
+  })
+  await handle.dispose()
+})
+
+test('user ignore patterns are deduplicated and sorted, so an equivalent config hashes the same', async () => {
+  const a = await materializeKnipConfig(new Map([['files', 'warn']]), context, {
+    ignore: ['b/**', 'a/**', 'b/**'],
+  })
+  const b = await materializeKnipConfig(new Map([['files', 'warn']]), context, { ignore: ['a/**', 'b/**'] })
+
+  expect(a.rulesetHash).toBe(b.rulesetHash)
+  expect(await readConfig(a.path)).toMatchObject({ ignore: ['.slop-gate/**', 'a/**', 'b/**'] })
+  await a.dispose()
+  await b.dispose()
+})

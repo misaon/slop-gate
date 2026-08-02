@@ -46,6 +46,17 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'sgate-mcp-e2e-'))
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture' }))
   await writeFile(join(dir, 'spread.ts'), 'export const v = { ...{ a: 1 } }\n')
+  // Pinned rather than inherited, and the reason is that these tests are about the MCP tool's own
+  // output shape, not about what `recommended` happens to contain this month. Two of its concepts
+  // cannot be satisfied by a bare temp directory at all: `types.type-error` needs a tsconfig and an
+  // installed `typescript`, and `dead-code.unused-file` calls every file here unreachable because
+  // there is no entry point. Left inherited, both turned "a clean run says clean" red the first time
+  // the preset grew — a test asserting the preset's size through a hole in the fixture. Everything
+  // these tests actually drive (oxlint findings, the actionlint gap, schema) is untouched.
+  await writeFile(
+    join(dir, 'slop-gate.config.ts'),
+    "export default { extends: ['recommended'], rules: { 'types.type-error': 'off', 'dead-code.unused-file': 'off' } }\n",
+  )
   client = await open({ pin: REVISION })
 })
 

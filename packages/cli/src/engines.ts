@@ -50,17 +50,28 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * engine does not pretend otherwise.
  *
  * Registering an engine here does not, on its own, make `sgate check` invoke it: arbitration only
- * assigns work if some enabled concept resolves to it, and none of `types.type-error` (`tsc`), the
- * ten `dead-code.*`/`deps.*` concepts knip owns, or the five `slop.*` concepts ast-grep owns is part
- * of the `recommended` preset — see the comments on those decisions in
- * `packages/core/src/config/presets.ts` and `packages/core/src/registry/entries.manual.ts`. Three of
- * ast-grep's five reach a user through `extends: ['slop']`; the rest are opted into by concept.
+ * assigns work if some enabled concept resolves to it. As of the strict-by-default change, six of
+ * the seven engines are reached by `recommended` on an ordinary TypeScript repository — `tsc` via
+ * `types.type-error`, ast-grep via four of its six `slop.*` concepts, and knip via five of its ten,
+ * alongside oxlint, `schema` and `biome-css`. actionlint is the exception, and structurally so:
+ * every one of its entries is `languages: ['github-workflow']`, so a repository with no workflows
+ * never reaches it. The remaining held-out concepts — knip's other five, ast-grep's
+ * `slop.swallowed-error` and `slop.emoji-in-code` — are opted into by concept, each with the
+ * measurement that kept it out recorded in `packages/core/src/config/presets.ts` and
+ * `packages/core/src/registry/entries.manual.ts`.
+ *
+ * Two of these engines can be registered and still unable to run, which is a *coverage gap* rather
+ * than an error: actionlint when its binary is absent, and `tsc` when the root has no
+ * `tsconfig.json` for `tsc -p` to point at. Both report it out loud.
  */
-export function defaultEngines(rootDir: string, configFile?: string): Engine[] {
+export function defaultEngines(rootDir: string, configFile?: string, ignore?: readonly string[]): Engine[] {
   return [
     createOxlintEngine(),
     createTscEngine({ rootDir }),
-    createKnipEngine(configFile === undefined ? {} : { configFile }),
+    createKnipEngine({
+      ...(configFile === undefined ? {} : { configFile }),
+      ...(ignore === undefined ? {} : { ignore }),
+    }),
     createAstGrepEngine(),
     createSchemaEngine(),
     createActionlintEngine(),

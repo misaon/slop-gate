@@ -279,9 +279,9 @@ test('a run with no findings and a missing engine is never reported as clean', (
   const output = capture([done([], { unavailableEngines: [absentEngine()] })])
 
   expect(output).toContain(
-    'INCOMPLETE: engine `astgrep` is registered but not installed here — `ast-grep` was not found on PATH. ' +
+    'INCOMPLETE: engine `astgrep` is registered but could not run here — `ast-grep` was not found on PATH. ' +
       'Nothing it would have reported appears below; do not read a clean section as clean. ' +
-      'Install it with `brew install ast-grep`.',
+      'Resolve it with `brew install ast-grep`.',
   )
   expect(output).toContain('  unchecked: slop.stub-implementation — no other engine here covers it.')
   expect(output).toContain(
@@ -291,7 +291,7 @@ test('a run with no findings and a missing engine is never reported as clean', (
     'coverage: 1 engine could not run (see INCOMPLETE above), so this is not a clean result. ' +
       'No findings from what did run, and nothing was omitted.',
   )
-  expect(output).toContain('1. Install `astgrep` (`brew install ast-grep`) and re-run — 2 concept(s) went unchecked or to a lower-ranked rule.')
+  expect(output).toContain('1. Make `astgrep` runnable here (`brew install ast-grep`) and re-run — 2 concept(s) went unchecked or to a lower-ranked rule.')
   expect(output).not.toContain('Nothing to do.')
 })
 
@@ -310,11 +310,11 @@ test('an absent engine with no install command still declares the gap', () => {
   const output = capture([done([], { unavailableEngines: [withoutInstall] })])
 
   expect(output).toContain(
-    'INCOMPLETE: engine `astgrep` is registered but not installed here — `ast-grep` was not found on PATH. ' +
+    'INCOMPLETE: engine `astgrep` is registered but could not run here — `ast-grep` was not found on PATH. ' +
       'Nothing it would have reported appears below; do not read a clean section as clean.\n',
   )
-  expect(output).not.toContain('Install it with')
-  expect(output).toContain('1. Install `astgrep` and re-run — 2 concept(s) went unchecked or to a lower-ranked rule.')
+  expect(output).not.toContain('Resolve it with')
+  expect(output).toContain('1. Make `astgrep` runnable here and re-run — 2 concept(s) went unchecked or to a lower-ranked rule.')
 })
 
 test('an absent engine that would have owned nothing is a note, not a gap', () => {
@@ -325,7 +325,7 @@ test('an absent engine that would have owned nothing is a note, not a gap', () =
 
   expect(output).not.toContain('INCOMPLETE')
   expect(output).toContain(
-    'note: engine `astgrep` is not installed here — `ast-grep` was not found on PATH. It would have owned ' +
+    'note: engine `astgrep` could not run here — `ast-grep` was not found on PATH. It would have owned ' +
       'nothing in this run, so no coverage was lost.',
   )
   expect(coverageLine(output)).toBe('coverage: no findings. Nothing was omitted.')
@@ -337,7 +337,7 @@ test('a budget too small for any finding still cannot drop the gap', () => {
     maxTokens: 200,
   })
 
-  expect(output).toContain('INCOMPLETE: engine `astgrep` is registered but not installed here')
+  expect(output).toContain('INCOMPLETE: engine `astgrep` is registered but could not run here')
   expect(coverageLine(output)).toContain('1 engine could not run (see INCOMPLETE above)')
 })
 

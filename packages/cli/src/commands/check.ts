@@ -93,7 +93,7 @@ export const check = defineCommand({
         rootDir,
         config: loaded.config,
         ...(loaded.kind === 'loaded' ? { configFile: loaded.configFile } : {}),
-        engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined),
+        engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined, loaded.config.ignore),
         useCache: args.cache,
         signal: controller.signal,
       })) {

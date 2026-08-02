@@ -1,6 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { parseArgs } from 'citty'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { EXIT_CODES } from '../exit-codes.ts'
@@ -120,7 +121,12 @@ test('accepts the agent format and reports its coverage even on a clean reposito
   const output = await runCheckCapturingStdout({ format: 'agent' })
 
   expect(output).toContain('slop-gate agent report v1')
-  expect(output).toContain('coverage: no findings. Nothing was omitted.')
+  // Not "no findings. Nothing was omitted." — this fixture is a bare temp directory with no
+  // `tsconfig.json`, and `types.type-error` is in `recommended`, so `tsc` is a genuine coverage gap
+  // here. The agent report saying so is the point of the format: a clean section that is clean only
+  // because an engine could not run must never read as clean.
+  expect(output).toContain('coverage: 1 engine could not run (see INCOMPLETE above)')
+  expect(output).toContain('unchecked: types.type-error')
 })
 
 test('--max-tokens reaches the agent reporter and bounds what it prints', async () => {
@@ -129,7 +135,10 @@ test('--max-tokens reaches the agent reporter and bounds what it prints', async 
   const unbounded = await runCheckCapturingStdout({ format: 'agent' })
   const bounded = await runCheckCapturingStdout({ format: 'agent', 'max-tokens': '200' })
 
-  expect(unbounded).toContain('coverage: 2 of 2 findings shown, 0 omitted (no --max-tokens set).')
+  // Deliberately not a hard-coded finding count: this test is about `--max-tokens` bounding the
+  // report, and coupling it to how many findings `recommended` happens to produce made it fail every
+  // time the preset grew. What must hold is that the unbounded run omits nothing.
+  expect(unbounded).toContain('findings shown, 0 omitted (no --max-tokens set).')
   expect(bounded).toContain('(--max-tokens 200)')
   expect(bounded).toContain('omitted')
 })
@@ -202,12 +211,30 @@ test('--require-engines on a fully equipped machine still exits clean', async ()
   // nothing downloaded. The file is never executed: `actionlint` is scoped to `github-workflow` and
   // the fixture directory contains no workflow, so arbitration never elects it and `run` is never
   // reached.
+  // **The tsc half of the same premise, and it takes two things, not one.** `tsc` is unavailable
+  // without a project *and* without a `typescript` of the project's own — this fixture is a bare
+  // temp directory under `os.tmpdir()`, which has neither. Supplying only the tsconfig is what shipped
+  // first, and it passed on macOS and Linux for the wrong reason: `resolveTscBinary` fell through to a
+  // bare `tsc` on `PATH`, which a POSIX CI runner happens to have and Windows cannot execute by bare
+  // name. Both halves are therefore constructed here, and the linked `typescript` is the workspace's
+  // own — a junction rather than a symlink so it needs no elevation on Windows.
+  await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { noEmit: true }, include: ['*.ts'] }))
+  const typescriptDir = dirname(createRequire(import.meta.url).resolve('typescript/package.json'))
+  await mkdir(join(dir, 'node_modules'), { recursive: true })
+  await symlink(typescriptDir, join(dir, 'node_modules', 'typescript'), 'junction')
+
   const stub = join(dir, 'actionlint-stub')
   await writeFile(stub, '')
   const previous = process.env['SLOP_GATE_ACTIONLINT_PATH']
   process.env['SLOP_GATE_ACTIONLINT_PATH'] = stub
   try {
-    await runCheckCapturingStdout({ 'require-engines': true })
+    const output = await runCheckCapturingStdout({ 'require-engines': true })
+
+    // Asserted before the exit code, and deliberately: `expected 3 to be +0` is the least
+    // informative thing this run knows, and it has now sent two people hunting through two
+    // different engines. Both banners name the engine, so a regression fails with the engine in
+    // the message instead of a bare number.
+    expect(output).not.toMatch(/COVERAGE GAP|ENGINE FAILED/)
     expect(process.exitCode).toBe(EXIT_CODES.clean)
   } finally {
     if (previous === undefined) delete process.env['SLOP_GATE_ACTIONLINT_PATH']

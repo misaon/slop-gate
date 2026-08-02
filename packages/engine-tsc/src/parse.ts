@@ -98,6 +98,7 @@ export async function* parseTscOutput(stdout: string, rootDir: string): AsyncGen
     const locatedMatch = LOCATED.exec(rawLine)
     if (locatedMatch) {
       flush()
+      // sgate-disable-next-line slop.double-cast -- LOCATED's six capture groups are all unconditional, so a match always carries six strings; RegExpExecArray types them `string | undefined` and TypeScript has no way to express "this pattern cannot miss".
       const [, file, line, column, severityWord, code, message] = locatedMatch as unknown as [
         string,
         string,
@@ -122,6 +123,7 @@ export async function* parseTscOutput(stdout: string, rootDir: string): AsyncGen
     const globalMatch = GLOBAL.exec(rawLine)
     if (globalMatch) {
       flush()
+      // sgate-disable-next-line slop.double-cast -- as above: GLOBAL's three groups are all unconditional, so the tuple is exact and only its type is imprecise.
       const [, severityWord, code, message] = globalMatch as unknown as [string, string, string, string]
       current = { kind: 'global', code, severity: SEVERITIES[severityWord] ?? 'error', messageLines: [message] }
       continue
