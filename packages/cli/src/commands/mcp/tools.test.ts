@@ -270,6 +270,27 @@ test('a rootDir outside the root is refused before any engine runs', async () =>
   expect(result.isError).toBe(true)
 })
 
+// --- cancellation --------------------------------------------------------------------------------
+
+test('a cancelled request stops the run rather than finishing it and discarding the answer', async () => {
+  // `notifications/cancelled` aborts `ctx.mcpReq.signal`, which is forwarded to `runCheck` and
+  // `runFix`. Driven with an already-aborted signal because that is the deterministic form of the
+  // question — racing a real cancellation against a 100ms check on a two-file fixture would test the
+  // scheduler. What it pins is that the signal is *connected*: without the forwarding, this runs
+  // every engine to completion and returns a full result.
+  await writeFile(join(dir, 'spread.ts'), 'export const v = { ...{ a: 1 } }\n')
+
+  for (const [name, call] of [
+    ['check', () => callCheck({}, { ...context, signal: AbortSignal.abort() })],
+    ['propose_fixes', () => callPropose({}, { ...context, signal: AbortSignal.abort() })],
+  ] as const) {
+    // Thrown rather than returned: the SDK turns an exception out of a handler into an `isError`
+    // result and leaves the connection open, verified directly against the transport, so there is
+    // nothing for this layer to add by catching it.
+    await expect(call(), name).rejects.toThrow(/abort/i)
+  }
+})
+
 // --- configuration failure -----------------------------------------------------------------------
 
 test('a broken config is a tool error carrying the reason, not a silent empty result', async () => {
