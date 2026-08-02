@@ -1,0 +1,2 @@
+FROM debian:12-slim
+RUN curl -fsSL https://example.com/install.sh | sh

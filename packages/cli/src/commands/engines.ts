@@ -1,9 +1,10 @@
 import { defineCommand } from 'citty'
 import { ActionlintInstallError, installActionlint } from '@misaon/slop-gate-engine-actionlint'
 import { AdvisoryInstallError, installAdvisorySnapshot } from '@misaon/slop-gate-engine-deps-security'
+import { HadolintInstallError, installHadolint } from '@misaon/slop-gate-engine-hadolint'
 import { EXIT_CODES } from '../exit-codes.ts'
 
-const INSTALLABLE = ['actionlint', 'advisories'] as const
+const INSTALLABLE = ['actionlint', 'advisories', 'hadolint'] as const
 
 /**
  * The only command that downloads anything, and the reason it exists as a command at all.
@@ -34,17 +35,20 @@ export const engines = defineCommand({
       async run({ args }) {
         const target = String(args.engine)
         if (!INSTALLABLE.includes(target as (typeof INSTALLABLE)[number])) {
-          process.stderr.write(`Unknown optional engine \`${target}\`. Today there are two: ${INSTALLABLE.join(', ')}.\n`)
+          process.stderr.write(`Unknown optional engine \`${target}\`. Available: ${INSTALLABLE.join(', ')}.\n`)
           process.exitCode = EXIT_CODES.config
           return
         }
 
         try {
-          process.stdout.write(target === 'actionlint' ? await runActionlintInstall() : await runAdvisoryInstall())
+          process.stdout.write(await runInstall(target))
         } catch (error) {
           // An install error is a configuration problem, not a findings count — a checksum mismatch in
           // particular must not be reportable as "the check found something".
-          const known = error instanceof ActionlintInstallError || error instanceof AdvisoryInstallError
+          const known =
+            error instanceof ActionlintInstallError ||
+            error instanceof AdvisoryInstallError ||
+            error instanceof HadolintInstallError
           process.stderr.write(`${known ? error.message : String(error)}\n`)
           process.exitCode = EXIT_CODES.config
         }
@@ -53,11 +57,29 @@ export const engines = defineCommand({
   },
 })
 
+async function runInstall(target: string): Promise<string> {
+  if (target === 'actionlint') return runActionlintInstall()
+  if (target === 'hadolint') return runHadolintInstall()
+  return runAdvisoryInstall()
+}
+
 async function runActionlintInstall(): Promise<string> {
   const result = await installActionlint()
   return result.cached
     ? `actionlint ${result.version} is already installed at ${result.path}\n`
     : `actionlint ${result.version} verified and installed at ${result.path}\n`
+}
+
+/**
+ * hadolint publishes the executable itself rather than an archive, so unlike actionlint's install
+ * there is nothing to unpack here — and, for the same reason, Windows x86_64 is supported. The one
+ * platform that resolves to nothing is Windows arm64, which upstream does not build.
+ */
+async function runHadolintInstall(): Promise<string> {
+  const result = await installHadolint()
+  return result.cached
+    ? `hadolint ${result.version} is already installed at ${result.path}\n`
+    : `hadolint ${result.version} verified and installed at ${result.path}\n`
 }
 
 /**

@@ -1,0 +1,3 @@
+FROM debian:12-slim
+RUN echo "no USER instruction anywhere; hadolint reports nothing"
+ENTRYPOINT ["/app/start.sh"]

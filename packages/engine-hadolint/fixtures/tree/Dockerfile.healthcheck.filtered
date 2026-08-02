@@ -1,0 +1,3 @@
+FROM debian:12-slim
+HEALTHCHECK --interval=30s CMD curl -f http://localhost/ || exit 1
+ENTRYPOINT ["/app/start.sh"]

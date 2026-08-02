@@ -290,6 +290,27 @@ const recommended: RuleMap = {
   'config.workflow-permissions': 'warn',
   'config.workflow-shell': 'warn',
   'security.workflow-hardcoded-credential': 'warn',
+  // The five Dockerfile concepts the `hadolint` engine owns. Out of roughly seventy rules upstream
+  // ships, which is the whole story of this engine: over 275 real Dockerfiles from 32 repositories
+  // hadolint measured **25% precision**, with thirteen rules producing 552 findings (68% of its
+  // output) and **zero** true positives. Those thirteen are in `MANUAL_RULE_EXCLUSIONS`, and
+  // `entries.test.ts` asserts none of them reaches this map.
+  //
+  // `warn` uniformly, on the per-entry measurement in `registry/entries.manual.ts`: the six shipped
+  // rules produced **150 true positives**, and three of them (`DL3007` 18/18, `DL3029` 10/10,
+  // `DL3042` 8/8) had no false positives at all. hadolint's own severity is deliberately not mapped —
+  // `DL3020` is `error` upstream and measured zero true positives, while `DL4006` is `warning` and
+  // measured 78, so its tiers do not track defect density.
+  //
+  // Costing a repository with no Dockerfiles nothing is structural, exactly as for the workflow
+  // concepts above: every entry is scoped to `languages: ['dockerfile']`. On a machine with no
+  // hadolint they become a reported coverage gap rather than a silent absence.
+  'config.dockerfile-base-image-mutable-tag': 'warn',
+  'config.dockerfile-base-image-untagged': 'warn',
+  'config.dockerfile-entrypoint-form': 'warn',
+  'config.dockerfile-package-cache': 'warn',
+  'config.dockerfile-pipefail': 'warn',
+  'config.dockerfile-platform': 'warn',
   // The seventeen CSS concepts the `biome-css` engine owns, out of the twenty-six it has; the other
   // nine are in `MANUAL_RULE_EXCLUSIONS`, and `entries.test.ts` asserts none of them reaches this map.
   //

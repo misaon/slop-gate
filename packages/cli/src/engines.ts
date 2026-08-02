@@ -3,6 +3,7 @@ import { createActionlintEngine } from '@misaon/slop-gate-engine-actionlint'
 import { createAstGrepEngine } from '@misaon/slop-gate-engine-astgrep'
 import { createBiomeCssEngine } from '@misaon/slop-gate-engine-biome-css'
 import { createDepsSecurityEngine } from '@misaon/slop-gate-engine-deps-security'
+import { createHadolintEngine } from '@misaon/slop-gate-engine-hadolint'
 import { createKnipEngine } from '@misaon/slop-gate-engine-knip'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { createSchemaEngine } from '@misaon/slop-gate-engine-schema'
@@ -70,10 +71,10 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * that discipline — measured on a tree with 34 real advisories, `npm audit --offline` exits 0, writes
  * nothing to stderr, and reports none of them.
  *
- * Three of these engines can be registered and still unable to run, which is a *coverage gap* rather
- * than an error: actionlint when its binary is absent, `tsc` when the root has no `tsconfig.json` for
- * `tsc -p` to point at, and `deps-security` when no advisory snapshot has been installed. All three
- * report it out loud.
+ * Four of these engines can be registered and still unable to run, which is a *coverage gap* rather
+ * than an error: actionlint and hadolint when their binaries are absent, `tsc` when the root has no
+ * `tsconfig.json` for `tsc -p` to point at, and `deps-security` when no advisory snapshot has been
+ * installed. All four report it out loud.
  */
 export function defaultEngines(rootDir: string, configFile?: string, ignore?: readonly string[]): Engine[] {
   return [
@@ -88,5 +89,6 @@ export function defaultEngines(rootDir: string, configFile?: string, ignore?: re
     createActionlintEngine(),
     createBiomeCssEngine(),
     createDepsSecurityEngine(),
+    createHadolintEngine(),
   ]
 }

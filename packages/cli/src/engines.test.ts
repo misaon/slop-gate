@@ -12,17 +12,18 @@ test('registers exactly the engines a real check run uses', () => {
     'actionlint',
     'biome-css',
     'deps-security',
+    'hadolint',
   ])
 })
 
 test('only the engines that can genuinely be unable to run declare availability', () => {
   // `Engine.availability` says to omit it entirely for a bundled engine: anything `npm install` puts
   // there is present by construction, and an implementation that always returns `available: true`
-  // is noise. Three engines here can legitimately be unable to run, for three different reasons, and
+  // is noise. Four engines here can legitimately be unable to run, for three different reasons, and
   // all are coverage gaps rather than errors:
   //
-  // - **actionlint** is downloaded or found on PATH rather than installed with slop-gate, so its
-  //   *binary* may be missing.
+  // - **actionlint** and **hadolint** are downloaded or found on PATH rather than installed with
+  //   slop-gate, so their *binaries* may be missing.
   // - **tsc** ships with us, but `tsc -p` needs a project and does no discovery, so on a monorepo
   //   whose root has no `tsconfig.json` there is nothing to typecheck. Since `types.type-error` is
   //   in `recommended`, without this probe that shape failed the run outright (exit 3) instead of
@@ -37,7 +38,7 @@ test('only the engines that can genuinely be unable to run declare availability'
   const declaring = defaultEngines(process.cwd())
     .filter((engine) => engine.availability !== undefined)
     .map((engine) => engine.id)
-  expect(declaring).toEqual(['tsc', 'actionlint', 'deps-security'])
+  expect(declaring).toEqual(['tsc', 'actionlint', 'deps-security', 'hadolint'])
 })
 
 test('returns a fresh engine instance each call, not a shared singleton', () => {
@@ -61,6 +62,7 @@ test('binds each engine to the given rootDir, not a fixed default', () => {
     'actionlint',
     'biome-css',
     'deps-security',
+    'hadolint',
   ])
 })
 
