@@ -128,6 +128,56 @@ const recommended: RuleMap = {
   // A JavaScript project, or a TypeScript one whose root has no project file, would otherwise get no
   // report of an import that cannot resolve. One duplicated line is the cheaper failure.
   'deps.unresolved-import': 'error',
+  // Four oxlint rules promoted **individually**, from three categories none of which is promotable
+  // whole. Measured over 21,777 third-party files from 12 repositories (nest, hono, got, trpc, vue
+  // core, date-fns, typeorm, fastify, axios, prettier, metabase, vscode), then audited by reading
+  // real occurrences in context rather than by counting:
+  //
+  // | category    | rules | findings | why not wholesale                                            |
+  // |-------------|-------|----------|--------------------------------------------------------------|
+  // | nursery     |    10 |  121,066 | 119,932 are `no-undef`, wrong on TS by construction; upstream calls the tier unfinished |
+  // | restriction |    95 |  501,955 | language-feature bans by definition — top entries ban `async`/`await` (44,303) and optional chaining (34,663) |
+  // | style       |   270 |  430,646 | house style; the category oxlint itself describes as "more idiomatic", not "wrong" |
+  // | pedantic    |   104 |   56,096 | genuinely mixed — `eqeqeq` and `jsdoc/*` sit in the same tier |
+  // | perf        |    14 |    9,866 | 70% is four `react-perf` JSX rules on inline props, a judgement call |
+  //
+  // A category's name is not evidence, and neither is its size. These four earned it one at a time:
+  'pedantic.prefer-ts-expect-error': 'warn',
+  // 79 findings, ~75 true. `@ts-ignore` silences an error *and keeps silencing nothing* once the
+  // underlying error is fixed; `@ts-expect-error` fails loudly when it becomes unnecessary. The four
+  // false positives are one pattern in tRPC — a suppression whose own comment says the error does not
+  // reproduce in every environment, where `@ts-expect-error` would break the build that lacks it.
+  //
+  // Deliberately promoted while `typescript/ban-ts-comment` (126 findings) is not, and they look like
+  // near-duplicates. They are not: ban-ts-comment's default already permits a described suppression,
+  // so 86 of its 90 audited findings are "this `@ts-expect-error` has no description" — a
+  // documentation nit that fires even when the rationale sits on the line above. Its remaining useful
+  // content, catching `@ts-ignore`, is exactly what this rule catches without the nit.
+  'restriction.no-import-type-side-effects': 'warn',
+  // 100 findings, ~13 of 14 audited true, and the one rule here that catches something a careful
+  // developer still would not see. Under single-file transpilation — esbuild, swc, Babel, which is
+  // now the default toolchain — `import { type X } from 'y'` is not fully erased the way `import type
+  // { X } from 'y'` is, so an import that looks type-only leaves a real runtime import of `y` behind.
+  // The rewrite is mechanical and safe. Concentrated (86 of 100 in VS Code, largely one subsystem),
+  // which is disclosed because it would otherwise read as a commoner defect than it is.
+  'perf.no-accumulating-spread': 'warn',
+  // 44 findings across 21,777 files — the lowest volume of anything considered, which is most of the
+  // argument: about half are genuine O(n²) accumulation on data that scales (typeorm reduces that
+  // reinvent `.flat()`, metabase's array-to-map builders, and Vue's server renderer attribute merge,
+  // which runs on every render), and the rest are the same shape on collections that happen to be
+  // small. The fix is always mechanical, and 44 findings is not a review burden.
+  //
+  // Its sibling `oxc/no-map-spread` (226) is deliberately absent: `{...item, x}` inside `.map()` is
+  // O(n), the same complexity as the map itself, so that rule names a constant factor as if it were a
+  // blowup. Same category, same author, opposite verdict — which is why this list is four rules and
+  // not a category.
+  'restriction.no-non-null-asserted-nullish-coalescing': 'warn',
+  // **1 finding in 21,777 files**, and it is real: `a! ?? b!`, which asserts a value cannot be null
+  // and in the same breath handles it being null. Included because a rule that contradicts itself is
+  // never a false positive and this one costs nothing to carry — but recorded honestly as
+  // near-inert, not as a win. It is the counter-example to judging a rule by its finding count in
+  // either direction.
+  //
   // The `schema` engine's own concept. Its other two rules need no entry here: they claim
   // `correctness.parse-error` (listed above) and `correctness.no-duplicate-object-key` (already in
   // `GENERATED_RECOMMENDED_RULES` at `error`), which they now co-own with oxlint per language.
