@@ -1,0 +1,2 @@
+FROM --platform=linux/amd64 debian:12-slim AS build
+RUN echo hi

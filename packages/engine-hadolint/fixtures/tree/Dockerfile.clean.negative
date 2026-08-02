@@ -1,0 +1,4 @@
+FROM debian:12-slim
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN echo hello | cat
+ENTRYPOINT ["/app/start.sh"]

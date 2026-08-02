@@ -409,4 +409,117 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "the bare `eslint`-scope rule specifically — `typescript/no-implied-eval` is a separate, " +
       "type-aware rule (excluded from `recommended` on that basis alone regardless of this entry).",
   },
+  // ---------------------------------------------------------------------------------------------
+  // hadolint. Thirteen rules producing **552 of its 816 findings (68%) with zero true positives**,
+  // measured over 275 Dockerfiles from 32 repositories. They are grouped rather than argued
+  // individually where the argument is the same, but each carries its own count so nobody has to
+  // re-measure to reopen one. The two that need their own reasoning — DL3066 and DL3064 — are last.
+  // ---------------------------------------------------------------------------------------------
+  'hadolint/DL3008': {
+    reason:
+      '**132 findings, zero true positives** — the largest single class in the Dockerfile corpus. ' +
+      '"Pin versions in apt get install" asks for `apt-get install pkg=1.2.3`, which Debian and Ubuntu ' +
+      'actively defeat: their archives keep only the current version of a package, so a pinned version ' +
+      'stops resolving the moment a security update lands and the build breaks. That is why not one of ' +
+      'the 84 files that trigger it complies. `DL3018` (apk, 49) and `DL3013` (pip, 10) are excluded on ' +
+      'the identical argument, and `DL3062` (go, 7) is kept out of `recommended` for the weaker version ' +
+      'of it. What would bring it back: scoping to a base image whose distribution offers a stable ' +
+      'version-pinned archive, which is a §23 framework-awareness question rather than a rule fix.',
+  },
+  'hadolint/DL3018': {
+    reason:
+      '**49 findings, zero true positives.** The apk half of `DL3008` above — same argument, same ' +
+      'outcome: Alpine\'s repositories do not retain old package versions either.',
+  },
+  'hadolint/DL3013': {
+    reason: '**10 findings, zero true positives.** The pip half of `DL3008` above.',
+  },
+  'hadolint/DL3059': {
+    reason:
+      '**84 findings, zero true positives.** "Multiple consecutive `RUN` instructions. Consider ' +
+      'consolidation." A layer-count preference that BuildKit made obsolete: separate `RUN` steps are ' +
+      'frequently deliberate, because each is cached independently and consolidating them means one ' +
+      'changed dependency re-runs the whole chain. Nothing about a consecutive `RUN` is incorrect.',
+  },
+  'hadolint/DL3020': {
+    reason:
+      '**51 findings, zero true positives**, and `error` severity, which is most of why hadolint\'s own ' +
+      'severity cannot be mapped onto ours. "Use COPY instead of ADD for files and folders" is a ' +
+      'clarity preference: for a local file `ADD` behaves exactly as `COPY` except that it ' +
+      'auto-extracts tar archives, and none of the 51 was a tarball. Worth noting the rule is otherwise ' +
+      'well built — it correctly stays silent on `ADD <url>`, which is a legitimate use.',
+  },
+  'hadolint/DL3015': {
+    reason:
+      '**45 findings, zero true positives.** `--no-install-recommends` is an image-size optimisation, ' +
+      'and omitting it is sometimes required — several corpus images depend on a recommended package ' +
+      'arriving implicitly. Not a defect in any of the 45.',
+  },
+  'hadolint/DL3003': {
+    reason:
+      '**39 findings, zero true positives.** "Use WORKDIR to switch to a directory", fired on ' +
+      '`RUN cd x && …`. A `cd` inside a single `RUN` is scoped to that one shell invocation and is ' +
+      'correct; `WORKDIR` changes the directory for every later instruction, which is a different ' +
+      'thing and often not what was wanted.',
+  },
+  'hadolint/DL3009': {
+    reason:
+      '**24 findings, zero true positives.** "Delete the apt lists after installing." An image-size ' +
+      'optimisation, and routinely pointless in a build stage that a later multi-stage `COPY` discards ' +
+      'wholesale. Contrast `DL3042`, which ships: that one is a single flag on the same command.',
+  },
+  'hadolint/DL3019': {
+    reason: '**10 findings, zero true positives.** The apk `--no-cache` counterpart of `DL3009` above.',
+  },
+  'hadolint/DL3045': {
+    reason:
+      '**20 findings, zero true positives.** "`COPY` to a relative destination without `WORKDIR` set." ' +
+      'Docker defines the default working directory as `/`, so the copy lands where the author ' +
+      'intended and the image is correct. Implicit, not wrong.',
+  },
+  'hadolint/DL4001': {
+    reason:
+      '**12 findings, zero true positives**, from 3 files. "Either use Wget or Curl but not both." A ' +
+      'consistency preference with no failure behind it; the corpus cases use each where it is the ' +
+      'better fit, most often `wget -qO-` for a key and `curl -fsSL` for a script.',
+  },
+  'hadolint/DL3047': {
+    reason:
+      '**7 findings, zero true positives.** `wget` without `--progress`, an output-noise preference.',
+  },
+  'hadolint/DL3066': {
+    reason:
+      '**69 findings, zero true positives, and the rule fires on the correct fix.** ' +
+      '"Non-numeric user-id may not be resolvable by host system" fired on `USER nobody`, `USER node`, ' +
+      '`USER appuser`, `USER airflow`, `USER trino:trino` — running as a named non-root user is the ' +
+      'practice every container hardening guide asks for, and this is the rule that complains about ' +
+      'it. The underlying concern is real but narrow: Kubernetes `runAsNonRoot` needs a numeric UID to ' +
+      'verify the user is not root before the image runs. It does not apply to `nobody`, which is ' +
+      'present in every base image in the corpus.\n\n' +
+      '**Recorded at length because this rule is re-derivable from its name and will be re-proposed.** ' +
+      'The Dockerfile engine was prioritised on the expectation that hadolint would catch a container ' +
+      'running as root. It cannot: **a Dockerfile with no `USER` instruction at all produces zero ' +
+      'hadolint findings**, because `DL3002` only fires on an explicit `USER root`. So hadolint is ' +
+      'silent when a container runs as root and complains when it does not. Anyone re-enabling this ' +
+      'should read that sentence twice. The genuine gap — "this image never drops privileges" — is not ' +
+      'covered by any rule hadolint has, and would need an ast-grep rule or a check of our own.',
+  },
+  'hadolint/DL3064': {
+    reason:
+      '**7 of 25 true, and excluded *because* it is a security rule rather than despite it.** 28% is ' +
+      'the best precision among the excluded rules here, and it is still the wrong trade: a security ' +
+      'finding that is wrong three times in four teaches people to dismiss the category, which is worse ' +
+      'than a rule that never fires.\n\n' +
+      'The mechanism is substring matching on the *variable name*. It is right about ' +
+      '`ENV PGPASSWORD=password`, `ENV MINIO_ROOT_PASSWORD="clickhouse"` and ' +
+      '`ENV AWS_SECRET_ACCESS_KEY=$…`, where `ENV` really does persist the value into the image layer. ' +
+      'It is wrong about `ENV TIKTOKEN_CACHE_DIR=/code/.tiktoken_cache` (matched on "TOKEN"), ' +
+      '`ENV MINIO_ACCESS_KEY_FILE=access_key` (a filename), `ARG USERNAME=github`, ' +
+      '`ENV MYSQL_DATABASE="testdata"`, `ENV GOPRIVATE=…`, and about bare `ARG SENTRY_AUTH_TOKEN` ' +
+      'declarations that carry no value and therefore bake nothing.\n\n' +
+      '**The condition that brings it back**: matching on the assigned *value* rather than the name — ' +
+      'firing on `ENV X=<literal that looks like a credential>` and staying silent on a value-less ' +
+      '`ARG` and on any name-only match. That is a different rule from the one upstream ships, so it ' +
+      'would arrive as an ast-grep pattern rather than as this exclusion being deleted.',
+  },
 }

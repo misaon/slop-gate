@@ -1738,3 +1738,214 @@ the safer design by omission.
 
 Not our bug and not our fix, but it is the single most useful artefact this work produced for anyone
 outside this repository, and the reproduction is three commands.
+
+---
+
+## Found measuring hadolint and shellcheck (the two Haskell binaries)
+
+Both were measured together because they were expected to share a distribution profile. They do not,
+and three claims recorded earlier in this document were wrong. Corrections first, because this is
+where the next person will look them up.
+
+### Three corrections to the distribution findings above
+
+- **The musl gap is zizmor's alone.** The bullet above says "hadolint and zizmor ship no Windows arm64
+  build, and zizmor ships no musl Linux build at all". The Windows-arm64 half is right for both. The
+  musl half is not: hadolint's release workflow builds its Linux binaries **inside an `alpine:3.24`
+  container**, under a job named "Create Release for Linux (static)". **Alpine runs hadolint.**
+- **hadolint's checksum layout changed in v2.15.0.** v2.14.0 published a per-asset `<name>.sha256`
+  beside each binary; v2.15.0 and later publish a single `checksums.sha256` covering all five. Both
+  are upstream's own digests, but a transcription aimed at the old layout finds nothing.
+- **shellcheck publishes no checksums file and no build attestations.** The claim that shellcheck
+  "inherits hadolint's distribution profile wholesale" is wrong on the axis that matters most.
+  Verified by enumerating every release asset of v0.11.0 and querying the attestations API (404). It
+  inherits **zizmor's** integrity profile: any lazy download must carry digests we compute and commit
+  ourselves.
+
+Also worth not rediscovering: **hadolint ships raw binaries, not archives.** No tar, no zip — which
+means no extractor is needed at all, and **Windows x86_64 is reachable**, the inverse of actionlint,
+whose Windows assets are `.zip` and therefore out of reach of `node:zlib`. `hadolint-macos-arm64` is
+102 MB unstripped against 23 MB for x86_64. shellcheck ships `.tar.gz` and `.tar.xz` per platform
+(Node has no xz decoder, so `.tar.gz`), its Linux binaries are statically linked, and its Windows
+build is a single x86_64 `.zip`.
+
+### npm `shellcheck@4.1.0` is what our own security engine exists to catch
+
+`gunar/shellcheck`, MIT, 27 versions, independently versioned from shellcheck itself. It resolves
+`latest` from the GitHub API at run time, **verifies no checksum** (no `sha256`, `createHash` or
+`integrity` anywhere in its `build/`), and depends on `decompress@4.2.1`, which carries two
+**unpatched** Zip Slip advisories — GHSA-h39j-r5qq-r9mm and GHSA-mp2f-45pm-3cg9 — used on the path
+that extracts the Windows `.zip`. Same verdict as `github-actionlint`: it works, and it does not
+belong in the execution path of every CI run. It is also an accidental demonstration of the
+`deps-security` engine's value, arrived at while investigating something else.
+
+### hadolint measured: 25% precision, and the value is in five rules
+
+**275 Dockerfiles from 32 repositories** at pinned default-branch HEADs (kubernetes, grafana, airflow,
+ClickHouse, elasticsearch, istio, cilium, n8n, immich, langfuse, posthog, supabase and others).
+**893 findings; 217 of 275 files — 79% — produce at least one.** Excluding the 77 that come from
+hadolint's embedded ShellCheck, its own **816 DL findings are 204 true and 612 false: 25% precision.**
+
+The aggregate is not what decides it. Five rules carry nearly all the value and are among the
+best-precision rules in this registry:
+
+| rule | findings | true | what it catches |
+|---|---|---|---|
+| `DL3007` | 18 | **18** | `:latest` base image |
+| `DL3029` | 10 | **10** | `--platform` hardcoded in `FROM` |
+| `DL3042` | 8 | **8** | `pip install` without `--no-cache-dir` |
+| `DL4006` | 94 | **78** | pipe in `RUN` without `-o pipefail` |
+| `DL3006` | 20 | **15** | untagged base image |
+
+Thirteen rules produce **552 findings — 68% of everything hadolint says — with zero true positives**:
+`DL3008` apt version pinning (132), `DL3059` consecutive `RUN` (84), `DL3066` non-numeric UID (69),
+`DL3020` `ADD` over `COPY` (51), `DL3018` apk pinning (49), `DL3015` `--no-install-recommends` (45),
+`DL3003` `cd` versus `WORKDIR` (39), `DL3009` apt lists (24), `DL3045` relative `COPY` destination
+(20), `DL4001` wget-or-curl (12), `DL3019` apk `--no-cache` (10), `DL3013` pip pinning (10),
+`DL3047` wget progress (7).
+
+### hadolint cannot detect a missing `USER`, and DL3066 punishes the fix
+
+This was the reason Dockerfiles were ranked highly in the first place, and it is false. **A Dockerfile
+with no `USER` instruction at all produces zero hadolint findings.** `DL3002` is "Last USER should not
+be root" — it fires only on an explicit `USER root`, never on absence.
+
+Worse, the rule that does exist runs the wrong way. **`DL3066` — "Non-numeric user-id may not be
+resolvable by host system" — fired 69 times, on `USER nobody`, `USER node`, `USER appuser`,
+`USER airflow`, `USER trino:trino`.** Every one of those is the recommended practice. A tool that
+says nothing when a container runs as root and complains when it does not is worse than silent on
+this axis. Recorded because "hadolint catches missing `USER`" is re-derivable from the rule name and
+will be re-proposed.
+
+### `DL3064` is a substring matcher, and a security rule is the worst place for that
+
+7 of 25. It is right about `ENV PGPASSWORD=password`, `ENV MINIO_ROOT_PASSWORD="clickhouse"` and
+`ENV AWS_SECRET_ACCESS_KEY=$…` — `ENV` really does persist into the image layer. It is wrong about
+`ENV TIKTOKEN_CACHE_DIR=/code/.tiktoken_cache` (matched on "TOKEN"), `ENV MINIO_ACCESS_KEY_FILE=access_key`
+(a filename), `ARG USERNAME=github`, `ENV MYSQL_DATABASE="testdata"`, `ENV GOPRIVATE=…`, and about
+bare `ARG SENTRY_AUTH_TOKEN` declarations that carry no value and bake nothing.
+
+Excluded despite 28% being the best precision among the excluded rules, because **a security finding
+people learn to dismiss is worse than one that never fires**. What would bring it back: matching on
+the *assigned value* rather than the variable name — a rule that fires on `ENV X=<literal that looks
+like a credential>` and stays silent on `ARG X` with no value and on any name-only match.
+
+### hadolint's shell-in-`RUN` belongs to nobody, on two independent grounds
+
+hadolint statically links the ShellCheck library and emits `SC` codes for shell inside `RUN` — 77 of
+893 findings. Unlike actionlint's `-shellcheck`, this is deterministic: it is compiled in, so it
+cannot vary with what Homebrew installed. That removes the objection that disabled actionlint's
+integration, so the findings were evaluated on their own merits and still do not ship.
+
+**The error tier is empty.** Subjecting them to the same severity gate as standalone shellcheck:
+
+| tier | count |
+|---|---|
+| error | **0** |
+| warning | 37 |
+| info | 38 |
+| style | 2 |
+
+The largest warning-tier code is `SC2046` (20), the same word-splitting family that measured **0 of
+92** standalone. The genuinely precise remainder is the `SC3xxx` POSIX-portability family — `SC3010`
+`[[ ]]` (5), `SC3037` `echo` flags (3), `SC3043` `local` (3), `SC3014` `==` (2) — sound because a
+Dockerfile `RUN` really is `/bin/sh` unless `SHELL` says otherwise. Sixteen findings, from a tier that
+does not ship wholesale.
+
+**The positions are unusable for this finding class.** `column` is **1 in all 893 corpus findings**,
+there is no `endLine`/`endColumn` in hadolint's JSON at all, and shell findings are attributed to the
+`RUN` instruction head rather than the offending line. Verified minimally:
+
+```dockerfile
+2  RUN echo one \
+5   && [[ -f /x ]] \      # the defect
+```
+```json
+{"code":"SC3010","column":1,"line":2,"message":"In POSIX sh, [[ ]] is undefined."}
+```
+
+On the 40-to-60-line `RUN` blocks where shell defects actually live, the diagnostic lands tens of
+lines away. Either ground alone disqualifies them.
+
+**The same limitation is harmless for the DL rules**, which is why this is not an indictment of
+hadolint: `DL3007` on a `FROM` and `DL4006` on a `RUN` are instruction-level findings by nature, so an
+instruction-head position is the correct one. Only embedded shell needs finer granularity than
+hadolint can express.
+
+### shellcheck deferred: the severity gradient, and the gate that stopped it
+
+**546 shell scripts from 25 repositories.** 2852 findings, 322 files (59%) with at least one, 102
+distinct codes. **257 true, 2595 false — 9% precision at default severity.** But it stratifies almost
+perfectly along shellcheck's *own* severity:
+
+| tier | findings | true | precision |
+|---|---|---|---|
+| error | 86 | 80 | **93%** |
+| warning | 916 | 145 | 16% |
+| info | 1612 | 32 | 2% |
+| style | 238 | 0 | 0% |
+
+**Generalisable result: the engine's own severity was a better predictor of precision than per-rule
+intuition was.** Worth trying first on the next tool that ships one, before hand-ranking a catalogue.
+`SC2086` alone is 1005 findings (35%) and sits at `info`. `SC2207` is 409 findings from **25 distinct
+source lines** — `COMPREPLY=($(compgen -f "${cur}"))`, the canonical bash-completion idiom, repeats
+**244 times**. `SC1091` (143) is "could not follow the sourced file", an analysis artefact with no
+defect behind it.
+
+**The gate it failed.** Across **43 JS/TS repositories** (tree API, `node_modules` and `vendor`
+excluded):
+
+| | median | mean | max |
+|---|---|---|---|
+| `.sh`/`.bash` files | **1** | 28 | 504 |
+| workflow `run:` steps | **57** | 99 | 381 |
+
+**33% (14/43) have zero `.sh` files; 51% have one or fewer. No repository has zero `run:` steps.**
+With the shippable ruleset hitting 10% of shell files (57/546), the median target repository yields
+about **0.1 findings**. A `.sh`-scoped shellcheck engine would let slop-gate claim shell coverage
+while missing essentially all the shell its users write — a covered-looking blind spot, which is worse
+than the honest coverage gap of not having the engine. The distribution is bimodal and large monorepos
+are well served (medusa 504, kibana 319, grafana 100, vscode 68), so this is a decision about *where
+to point the engine*, not about shellcheck's quality.
+
+### The deferred design: shellcheck scoped to workflow `run:` blocks
+
+This was first deferred on the difficulty of mapping folded scalars back to byte offsets, with §10.1
+fingerprints depending on those positions. **That reasoning was overweighted, and the number says so.**
+Across the 4,178 `run:` steps in 924 workflow files, parsed with this repository's own `yaml` 2.9.0
+(0 unparseable):
+
+| scalar form | steps | share |
+|---|---|---|
+| plain (single-line) | 2396 | 57.35% |
+| literal `\|` | 1742 | 41.69% |
+| double-quoted | 19 | 0.45% |
+| single-quoted | 15 | 0.36% |
+| **folded `>`** | **6** | **0.14%** |
+
+Plain and literal together are **99.04%**, and **no plain scalar spans more than one line**. Folded is
+1 step in 700 — it joins lines, which breaks multi-line shell, so almost nobody writes it for `run:`.
+The blocker named in the deferral is a rounding error, and folded and quoted scalars are a **reported
+coverage gap**, a pattern this project already has machinery for.
+
+Offset mapping for the tractable 99% is per-line arithmetic, and it was proven rather than assumed —
+a working proof of concept mapped shellcheck findings from extracted shell back to source lines and
+columns on real workflows from vue, excalidraw and n8n:
+
+    literal block, header at source line 49
+      SC2086 shell L1 -> source L50 C16   # `echo ${{ github.event.number }} > ./temp/...`
+      SC2016 shell L3 -> source L68 C20   # n8n, three lines into the block
+
+For a literal block: body starts on the header line + 1, the stripped indent is the column of the
+first non-space on that line, and source line = firstBodyLine + shellLine - 1. Plain scalars are the
+degenerate one-line case.
+
+**The real cost is elsewhere, and the proof of concept is what found it. `${{ }}` expressions appear
+in 569 of 4,178 `run:` steps — 13.6%** — and shellcheck reports `SC2086`, `SC2296` and `SC1083` on
+every one, because `${{` is not shell. The runner substitutes those before any shell sees them. An
+extractor must mask each expression with an **equal-length placeholder** so offsets stay exact, and a
+`shell:`/`defaults.run.shell` key must become a synthesized shebang. That is the afternoon-versus-week
+question answered: the work is expression masking and shell selection, not scalar geometry.
+
+One further constraint for whoever picks it up: `.github/workflows/*.yml` is language
+`github-workflow`, which actionlint owns, so this needs an arbitration story before it needs code.

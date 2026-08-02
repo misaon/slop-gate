@@ -1474,6 +1474,144 @@ const BIOME_CSS_RULE_ENTRIES = [
  * `GENERATED_RULE_ENTRIES` into `RULE_ENTRIES` below. Kept hand-written deliberately; see each
  * entry's own comment for why it exists at all.
  */
+const HADOLINT_DOCS = 'https://github.com/hadolint/hadolint/wiki'
+
+/**
+ * The `hadolint` engine (`packages/engine-hadolint`) — Dockerfiles, and the second optional engine.
+ *
+ * **Six rules of roughly seventy, and the ratio is the measurement, not modesty.** 275 Dockerfiles
+ * from 32 actively-maintained repositories at pinned default-branch HEADs produced **893 findings;
+ * 217 of the 275 files — 79% — produce at least one**. Of the 816 that are hadolint's own (the other
+ * 77 come from its statically linked ShellCheck and are dropped; see `engine-hadolint/src/rules.ts`),
+ * **204 are true positives and 612 are false: 25% precision.** Thirteen rules account for 552 findings
+ * with **zero** true positives and are excluded as data in `exclusions.ts`.
+ *
+ * The five entries below carry 150 of those 204, and three of them are among the highest-precision
+ * rules in this registry. Per-rule figures are on each entry.
+ *
+ * **`fixKind: 'none'` throughout.** hadolint emits no fix data in any output format, and none of these
+ * has a single mechanical repair — which tag to pin to and where `pipefail` belongs are decisions
+ * about intent.
+ */
+const HADOLINT_RULE_ENTRIES = [
+  {
+    engine: 'hadolint',
+    // 20 findings, 15 true. The five misses are `FROM` lines whose image name is assembled from an
+    // `ARG` (`FROM builder-${DEVICE}`), which hadolint cannot resolve and so reports as untagged. The
+    // 15 are genuine: `FROM fedora`, `FROM alpine`, `FROM redhat/ubi8`. Checked specifically for the
+    // failure mode this rule is assumed to have — firing on a multi-stage alias — and it does not:
+    // **0 of 20** referenced a stage alias defined in the same file.
+    engineRuleId: 'DL3006',
+    concepts: ['config.dockerfile-base-image-untagged'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['dockerfile'],
+    docsUrl: `${HADOLINT_DOCS}/DL3006`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'hadolint',
+    // 18 findings, **18 true** — no false positives at all. `FROM …:latest` is unambiguous: either the
+    // tag is there or it is not, and there is no interpolation case to get wrong the way `DL3006` has.
+    // Includes `gcr.io/distroless/cc-debian13:latest` and `minio/minio:latest`.
+    engineRuleId: 'DL3007',
+    concepts: ['config.dockerfile-base-image-mutable-tag'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['dockerfile'],
+    docsUrl: `${HADOLINT_DOCS}/DL3007`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'hadolint',
+    // 23 findings, 12 true **as hadolint reports it** — and 12 of 12 as this adapter ships it. The
+    // other 11 are `HEALTHCHECK … CMD`, for which hadolint emits the identical message and for which
+    // the advice is wrong: nothing signals a health probe. Because the message is identical, the carve
+    // out cannot be a pattern over the text and is instead a predicate over the instruction the
+    // finding points at — `SOURCE_EXCLUSIONS` in `engine-hadolint/src/rules.ts`, the one place where
+    // hadolint's instruction-head positions are an advantage. Without that exclusion this rule would
+    // not have shipped.
+    engineRuleId: 'DL3025',
+    concepts: ['config.dockerfile-entrypoint-form'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['dockerfile'],
+    docsUrl: `${HADOLINT_DOCS}/DL3025`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'hadolint',
+    // 10 findings, **10 true**. A literal `--platform=` in `FROM` defeats a multi-arch build silently:
+    // the image builds for the named architecture whatever was requested.
+    engineRuleId: 'DL3029',
+    concepts: ['config.dockerfile-platform'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['dockerfile'],
+    docsUrl: `${HADOLINT_DOCS}/DL3029`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'hadolint',
+    // 8 findings, **8 true**. Kept while the apt (`DL3009`) and apk (`DL3019`) cache rules are excluded
+    // at zero true positives, and the difference is real rather than arbitrary: `--no-cache-dir` is one
+    // flag on the same command with no legitimate reason to omit it, whereas the apt rule demands a
+    // separate `rm -rf /var/lib/apt/lists/*` whose absence is routine in a build stage that is later
+    // discarded by a multi-stage copy.
+    engineRuleId: 'DL3042',
+    concepts: ['config.dockerfile-package-cache'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['dockerfile'],
+    docsUrl: `${HADOLINT_DOCS}/DL3042`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'hadolint',
+    // 94 findings, 78 true — the largest single source of true positives in this engine. `curl … | sh`
+    // without `pipefail` succeeds when the download fails, and the image ships without whatever was
+    // being installed.
+    //
+    // **The 16 misses are a framework-awareness case (§23), not a defect in the rule.** Every one is in
+    // an image whose base is alpine or busybox, where the shell is `ash` and the remedy hadolint names
+    // is not straightforwardly available — its own message concedes this and suggests setting `SHELL`
+    // to `/bin/ash` or disabling the check. The right resolution is for a detected alpine base to
+    // adjust this rule, which is what §23 profiles are for; recorded that way deliberately rather than
+    // giving the rule a permanent asterisk in its precision figure.
+    engineRuleId: 'DL4006',
+    concepts: ['config.dockerfile-pipefail'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['dockerfile'],
+    docsUrl: `${HADOLINT_DOCS}/DL4006`,
+    since: '0.1.0',
+  },
+] as const satisfies readonly RuleEntry[]
+
 export const MANUAL_RULE_ENTRIES = [
   {
     engine: 'oxlint',
@@ -1562,4 +1700,5 @@ export const MANUAL_RULE_ENTRIES = [
   ...ACTIONLINT_RULE_ENTRIES,
   ...BIOME_CSS_RULE_ENTRIES,
   ...DEPS_SECURITY_RULE_ENTRIES,
+  ...HADOLINT_RULE_ENTRIES,
 ] as const satisfies readonly RuleEntry[]

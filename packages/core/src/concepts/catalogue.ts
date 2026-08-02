@@ -1118,6 +1118,78 @@ export const HAND_WRITTEN_CONCEPTS = [
       'a `sgate-disable`-family directive instead, which slop-gate can see, attribute and report as ' +
       'unused when it stops matching.',
   },
+  // The Dockerfile concepts, owned by `hadolint` (see spec §13.7). Five of them, against roughly
+  // seventy rules upstream ships: over 275 real Dockerfiles hadolint measured 25% precision, with 68%
+  // of its output coming from thirteen rules that produced **zero** true positives. Two absences are
+  // worth stating here because they are the ones a reader will look for. There is no
+  // `security.dockerfile-root-user` concept, because **hadolint cannot detect a missing `USER`** — a
+  // Dockerfile with no `USER` instruction is silent, and `DL3002` fires only on an explicit
+  // `USER root`. And there is no concept for secrets in `ARG`/`ENV`, because the rule that would carry
+  // it (`DL3064`) is a substring matcher that scored 7 of 25; see `MANUAL_RULE_EXCLUSIONS`.
+  // Two concepts rather than one, and the split is forced rather than stylistic. Untagged and
+  // `:latest` are the same defect in spirit, but arbitration elects exactly one owner per
+  // (concept, language) — so mapping both `DL3006` and `DL3007` onto a single concept made the
+  // registry suppress one of them outright and emit a `config.rule-overlap` about its own two rules.
+  // Caught end-to-end, not in review: `DL3007`, which measured 18 of 18, was the one being dropped.
+  {
+    id: 'config.dockerfile-base-image-untagged',
+    group: 'config',
+    title: 'Base image has no tag',
+    description:
+      'A `FROM` with no tag at all, which Docker resolves as `:latest`. The same Dockerfile builds a ' +
+      'different image tomorrow, so a build that succeeded once is not reproducible. Measured 15 of 20 ' +
+      'true across 275 real Dockerfiles — the five misses are `FROM` lines whose image name is ' +
+      'assembled from an `ARG`, which hadolint cannot resolve.',
+  },
+  {
+    id: 'config.dockerfile-base-image-mutable-tag',
+    group: 'config',
+    title: 'Base image is pinned to a moving tag',
+    description:
+      'A `FROM` naming `:latest` explicitly. Same non-reproducibility as an untagged image, separated ' +
+      'because the two are separate hadolint rules and a concept can have only one owning rule per ' +
+      'language. Measured **18 of 18** true across 275 real Dockerfiles — no false positives at all, ' +
+      'because unlike the untagged case there is no interpolation to misread.',
+  },
+  {
+    id: 'config.dockerfile-entrypoint-form',
+    group: 'config',
+    title: 'Entrypoint uses shell form',
+    description:
+      'A `CMD` or `ENTRYPOINT` written as a bare string rather than a JSON array. Shell form wraps the ' +
+      'process in `/bin/sh -c`, which does not forward `SIGTERM`, so the container is killed on stop ' +
+      'rather than shut down and in-flight work is lost. Deliberately **not** reported for ' +
+      '`HEALTHCHECK … CMD`, where shell form is normal and nothing signals the probe.',
+  },
+  {
+    id: 'config.dockerfile-pipefail',
+    group: 'config',
+    title: 'Pipeline in RUN can fail silently',
+    description:
+      'A `RUN` containing a pipe, without `SHELL` having set `-o pipefail`. The exit status of a ' +
+      'pipeline is the status of its *last* command, so `curl … | bash` succeeds when the download ' +
+      'fails and the image ships missing whatever was being installed. The largest measured source of ' +
+      'true positives in the Dockerfile engine: 78 of 94 across 275 files.',
+  },
+  {
+    id: 'config.dockerfile-platform',
+    group: 'config',
+    title: 'FROM hardcodes a platform',
+    description:
+      'A `--platform=` flag written as a literal in `FROM` rather than left to the builder or taken ' +
+      'from `$BUILDPLATFORM`. The image then builds for that one architecture whatever it was asked ' +
+      'for, which turns a multi-arch build into a silently wrong single-arch one.',
+  },
+  {
+    id: 'config.dockerfile-package-cache',
+    group: 'config',
+    title: 'Package manager cache left in the layer',
+    description:
+      'A `pip install` without `--no-cache-dir`. The download cache is written into the image layer, ' +
+      'where nothing will ever read it. Unlike the apt and apk cache rules — which measured zero true ' +
+      'positives and are excluded — this one is a single flag with no maintenance cost and no ' +
+      'legitimate reason to omit it in an image.',
+  },
 ] as const satisfies readonly ConceptDefinition[]
 
 /**

@@ -954,7 +954,7 @@ dependencies.
 | GitHub Actions correctness | **actionlint** | lazy | Go binary. Implemented — see §13.5 |
 | GitHub Actions security | **zizmor** | lazy | Rust binary |
 | Config files | **JSON Schema** / SchemaStore | bundled | docker-compose implemented — see §13.4. tsconfig, package.json, renovate still open (JSON needs a position-preserving parser) |
-| Dockerfile | **hadolint** | lazy | Plus ast-grep rules |
+| Dockerfile | **hadolint** | lazy | Haskell binary. Implemented — see §13.8 |
 | Dependency vulnerabilities and malware | **deps-security** (in-process) | bundled, **data lazy** | Reads the lockfile against a local OSV snapshot. Implemented — see §13.7. Never touches the network at check time |
 | Framework templates, niche plugins | **eslint** (shrinking escape hatch) | peer | Only concepts no faster engine owns |
 
@@ -1449,6 +1449,57 @@ silence — a gap that fires when coverage is complete is how a gap line stops b
   archive that yields none is far likelier to mean the layout changed than that npm has no advisories.
 
 ---
+
+### 13.8 `hadolint`: Dockerfiles, and the engine whose measurement removed its own premise
+
+**Implemented (M2, ninth engine, second optional one).** `@misaon/slop-gate-engine-hadolint` shells out
+to hadolint 2.15.1 with `-f json --no-color -c <ephemeral>`, reusing actionlint's availability-gated
+machinery wholesale — `SLOP_GATE_HADOLINT_PATH`, then `PATH`, then a version-scoped cache populated
+only by `sgate engines install hadolint`.
+
+**Six rules of roughly seventy, and the ratio is the result.** 275 Dockerfiles from 32
+actively-maintained repositories at pinned default-branch HEADs produced **893 findings, and 217 of the
+275 files — 79% — produce at least one**. Of the 816 that are hadolint's own, **204 are true positives
+and 612 are false: 25% precision.** Thirteen rules account for **552 findings (68%) with zero true
+positives** and are excluded as data in `registry/exclusions.ts` with their counts. What ships —
+`DL3006`, `DL3007`, `DL3025`, `DL3029`, `DL3042`, `DL4006` — carries 150 of the 204, and three of them
+(`DL3007` 18/18, `DL3029` 10/10, `DL3042` 8/8) had no false positives at all.
+
+**The engine was prioritised on a premise the measurement destroyed.** Dockerfiles were ranked highly
+because hadolint was expected to catch containers running as root. It cannot: **a Dockerfile with no
+`USER` instruction produces zero hadolint findings**, since `DL3002` fires only on an explicit
+`USER root`. And the rule that does exist runs backwards — **`DL3066` fired 69 times on `USER nobody`,
+`USER node`, `USER appuser`**, complaining about exactly the practice that fixes the problem. The
+engine still ships, on the strength of what it measured rather than what it was expected to do, and
+the real gap — "this image never drops privileges" — remains uncovered by any engine.
+
+**`DL3064` is excluded although it is a security rule, and because it is one.** 7 of 25: right about
+`ENV PGPASSWORD=password`, wrong about `ENV TIKTOKEN_CACHE_DIR` (it substring-matches "TOKEN"). A
+security finding wrong three times in four teaches people to dismiss the category.
+
+**Two mechanisms worth not rediscovering.** hadolint's positions are line-level and instruction-scoped:
+`column` is **1 in all 893 corpus findings**, there is no end position in its JSON, and a finding is
+attributed to the instruction head. That is correct for these six rules, which are instruction-level by
+nature, and it is why the adapter drops hadolint's statically linked ShellCheck output — those 77 `SC`
+findings have an **empty error tier** and point tens of lines away from the shell they describe. And
+`DL3006`/`DL3007` needed **separate concepts**: mapping both onto one made arbitration elect a single
+owner and silently suppress `DL3007`, the 18/18 rule — caught end-to-end rather than in review.
+
+**hadolint's distribution is easier than actionlint's, not harder.** Upstream ships raw binaries rather
+than archives, so there is no extractor at all and **Windows x86_64 is supported** where actionlint's
+`.zip` assets block it; the only gap is Windows arm64. Digests are upstream's own, transcribed from
+`checksums.sha256` — a file whose layout changed in v2.15.0 from the per-asset `.sha256` of v2.14.0.
+Linux builds are static, produced in an `alpine:3.24` container, so **Alpine is covered** (the M0
+follow-ups previously grouped hadolint with zizmor as lacking a musl build; corrected there).
+
+**shellcheck was measured alongside this and deliberately not shipped.** It scored 93% precision on its
+`error` tier against 9% overall — the engine's own severity turned out to predict precision better than
+per-rule intuition did — but across 43 JS/TS repositories the median has **1 `.sh` file** and 33% have
+none, against a median of **57 workflow `run:` steps** and no repository with zero. A `.sh`-scoped
+engine would let slop-gate claim shell coverage while missing essentially all the shell its users
+write. The deferred design — extraction from workflow `run:` blocks, where the folded scalars that
+looked prohibitive turn out to be **0.14% of 4,178 steps** and the real cost is masking the `${{ }}`
+expressions in 13.6% of them — is costed in the M0 follow-ups.
 
 ## 14. The slop ruleset
 
