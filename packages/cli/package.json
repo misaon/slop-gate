@@ -35,6 +35,11 @@
     "@misaon/slop-gate-engine-schema": "workspace:*",
     "@misaon/slop-gate-engine-tsc": "workspace:*",
     "@misaon/slop-gate-reporters": "workspace:*",
-    "citty": "^0.2.0"
+    "@modelcontextprotocol/server": "^2.0.0",
+    "citty": "^0.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0"
   }
 }

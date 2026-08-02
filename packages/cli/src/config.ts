@@ -10,9 +10,17 @@ export const DEFAULT_CONFIG: SlopGateConfig = { extends: ['recommended'] }
 export type CliConfig =
   | { kind: 'loaded'; config: SlopGateConfig; configFile: string }
   | { kind: 'default'; config: SlopGateConfig }
-  /** A config file exists but failed to load or parse — the `ConfigError`'s message has already
-   *  been written to stderr; the caller's only job is to set the config exit code and stop. */
-  | { kind: 'error' }
+  /**
+   * A config file exists but failed to load or parse. The `ConfigError`'s message has already been
+   * written to stderr, so a CLI command's only job is to set the config exit code and stop.
+   *
+   * `message` carries the same text for a caller with somewhere else to put it. `sgate mcp` has to
+   * hand the reason back to the client in the tool result — an agent told only "configuration
+   * failed, look at the server's log" cannot act, and the whole point of a tool execution error is
+   * that the model can correct it. stderr still gets the write, because for a stdio server that is
+   * the operator's channel and it is the only place a human running the server will look.
+   */
+  | { kind: 'error'; message: string }
 
 /**
  * Loads `slop-gate.config.ts` (or falls back to `defaultConfig`) the same way for every command
@@ -21,16 +29,16 @@ export type CliConfig =
  * report about this CLI's own inconsistency rather than about the user's config.
  */
 export async function loadCliConfig(rootDir: string, defaultConfig: SlopGateConfig): Promise<CliConfig> {
-  let configError = false
+  let configError: string | undefined
   const loaded = await loadConfig(rootDir).catch((error: unknown) => {
     if (error instanceof ConfigError) {
       process.stderr.write(`${error.message}\n`)
-      configError = true
+      configError = error.message
       return undefined
     }
     throw error
   })
-  if (configError) return { kind: 'error' }
+  if (configError !== undefined) return { kind: 'error', message: configError }
   if (loaded === null || loaded === undefined) return { kind: 'default', config: defaultConfig }
   // `loadConfig` resolves an absolute path (it walks up from `rootDir` to find the file).
   // `configFile` lands verbatim in every `config.*` diagnostic's `file` field, and paths are

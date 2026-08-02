@@ -1438,3 +1438,106 @@ by authored fixtures rather than by more measurement:
 The rule this suggests: a corpus measures how often a rule is *wrong*; it cannot establish that a
 rule *works*, and a zero on a corpus is not evidence of anything until an authored case has fired.
 Both halves are needed and they answer different questions, which is why they are never summed.
+
+---
+
+## Found building `sgate mcp` (spec §12.1)
+
+### `baseline_status` names a feature that does not exist
+
+§12.1 listed `baseline_status` among the tools. There is nothing to report the status of: no `sgate
+baseline` command, no `.slop-gate/baseline.json` reader or writer, no fingerprint store. The only
+trace of §12.2 in the codebase is the `'baseline'` member of `Diagnostic.suppressed.by`, reserving
+room in a union.
+
+The tool is trivial once the baseline lands — fingerprints are already computed on every diagnostic
+(§10.1) and the `agent` report already groups by concept — so this is a note for whoever builds
+§12.2, not a backlog item of its own: **add the MCP tool in the same change, or §12.1 keeps
+promising it.**
+
+### HTTP, and the threat model it needs before it ships
+
+Deferred deliberately, not for want of time. What it would have to carry, none of which stdio needs:
+
+- **Bind loopback by default**, and make a non-loopback bind an explicit, argued flag. A quality gate
+  that will analyse a directory and return its source in code frames is a file-read primitive.
+- **`Origin` and `Host` validation.** A browser on the same machine can reach a loopback port; DNS
+  rebinding turns "local only" into "any web page the user visits". The SDK ships
+  `validateOriginHeader`, `validateHostHeader`, `localhostAllowedHostnames` and
+  `localhostAllowedOrigins` for exactly this, so the work is wiring and testing, not invention.
+- **Authorization.** The 2026-07-28 revision hardened it and the SDK exposes `requireBearerAuth` and
+  the protected-resource metadata helpers. An unauthenticated local port is a decision, and it should
+  be written down as one.
+- **`rootDir` confinement stops being enough.** Over stdio the client launched the process and chose
+  its cwd; over HTTP the caller did neither, so the boundary has to come from configuration.
+
+Until that is written and tested, `sgate mcp` is stdio and §15's `--http` is a promise. `packages/cli`
+would need `@modelcontextprotocol/node` (hono) or `@modelcontextprotocol/express` for the transport.
+
+### `ruleset.uncovered` counts concepts an absent engine owns, whether or not they applied
+
+Not introduced here, but this is where it bites. `electOwners` pushes a concept to `uncovered` when no
+candidate is *capable*, and `isCapable` filters out engines whose `availability()` failed — before the
+language question is ever asked. The language-mismatch exemption (`elect.ts`, "if some candidate is
+otherwise fully capable and only fails on language, the repository simply doesn't contain that
+language — not a coverage gap") therefore only protects concepts whose engine is *installed*.
+
+Measured: a fixture with no workflow files and no actionlint reports thirteen `config.workflow-*`
+concepts as uncovered, while `unavailableEngines` correctly reports actionlint as having cost the run
+nothing. Two fields describing the same absence, disagreeing.
+
+The `agent` reporter already sidesteps it — `coverage:` counts engine gaps only, and prints
+`uncovered:` as a separate notice — and `sgate mcp` follows suit rather than inventing a second rule
+(§12.1). But the reporter does print, on the same run, `uncovered: 13 enabled concept(s) … so nothing
+checked them` and `coverage: no findings. Nothing was omitted.` Both are defensible readings of
+different fields; together they are confusing.
+
+The fix belongs in `elect.ts`: apply the language-mismatch exemption before capability, or record on
+each uncovered concept *why* it is uncovered so a reporter can tell "no engine exists for this" from
+"the engine exists and is not installed, and there was nothing here for it anyway".
+
+### The client SDK's default is the 2025 handshake, which our tests nearly hid
+
+`@modelcontextprotocol/client` 2.0's `versionNegotiation.mode` defaults to `'legacy'`. A v2 client
+constructed with no options opens with `initialize`, and `serveStdio` serves it — correct backward
+compatibility, and a way for a whole e2e suite to pass without the stateless path being exercised
+once. `packages/cli/src/commands/mcp/e2e.test.ts` pins `{ pin: '2026-07-28' }`, which has no fallback,
+so the connect is itself the assertion.
+
+Two smaller facts from the same source, both surprises worth writing down:
+
+- **`StdioClientTransport` scrubs the child's environment.** With no `env`, it passes
+  `getDefaultEnvironment()` — a safe-list, not `process.env` — so an override like
+  `SLOP_GATE_ACTIONLINT_PATH` never reaches the server. Any future e2e test that needs to force an
+  engine absent must pass `env` explicitly. This is why the coverage-gap tests drive the handlers
+  directly instead.
+- **`'auto'` on stdio spawns a second process** to probe with `server/discover`, then starts the
+  caller's transport once the era is known. Harmless here, but it means a probing host pays two
+  process starts, and `sgate mcp` is on the path twice.
+
+### Shutdown on stdin EOF is a drain, not a proof
+
+The stdio binding makes closing stdin the shutdown signal, and the SDK's `StdioServerTransport` does
+not act on it — it listens for `data` and `error` only — so `commands/mcp/index.ts` owns the exit.
+Closing the transport when stdin ends throws away in-flight work, which `in-flight.ts` fixes by
+waiting for the handlers. But the SDK serialises and writes the response *after* the handler resolves,
+so waiting for handlers alone still loses it: measured, `printf '…' | sgate mcp` exited 0 having
+written nothing.
+
+The current fix is one `setImmediate` between the last handler and the close, which drains the
+microtask queue the response is written from. It is correct for every case tested and it is a drain
+rather than a guarantee: a handler whose response path crossed a macrotask boundary would still be
+cut off. The exact version counts responses on the way out — wrap the transport's `send`, or hand
+`StdioServerTransport` a counting `Writable` — and closes when requests-in equals responses-out.
+Worth doing if anything ever writes to the wire outside a tool result (progress notifications,
+`subscriptions/listen`), which would break the one-response-per-request assumption that makes counting
+easy in the first place.
+
+### `renderFixSummary` never prints `skipped.aboveTier`
+
+`FixResult.skipped` has four members and `packages/cli/src/commands/fix.ts` prints three: `overlap`,
+`outOfRange` and `outsideInventory`. `aboveTier` — edits that existed but were above the tier the run
+was willing to apply — is dropped. It is the one a user is most likely to want, because it is the
+answer to "why did `sgate fix` change nothing when `check` said these were fixable". The MCP
+`propose_fixes` tool returns all four. Trivial to fix in the CLI; noted rather than done, because it
+changes output every `fix` test asserts on.
