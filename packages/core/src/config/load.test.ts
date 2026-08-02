@@ -86,7 +86,7 @@ test('reports a syntax error with the real parse diagnostic, not a misleading on
 
 test('leaves no scratch file behind when the config cannot be parsed', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { rules: `)
-  await expect(loadConfig(dir)).rejects.toThrow()
+  await expect(loadConfig(dir)).rejects.toThrow(/could not be parsed/)
 
   const { readdir } = await import('node:fs/promises')
   expect((await readdir(dir)).filter((f) => f.endsWith('.sgate.mjs'))).toEqual([])

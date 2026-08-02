@@ -109,7 +109,7 @@ test('dispose removes the materialised config', async () => {
   const handle = await materializeKnipConfig(new Map([['files', 'warn']]), context, {})
   await expect(stat(handle.path)).resolves.toBeDefined()
   await handle.dispose()
-  await expect(stat(handle.path)).rejects.toThrow()
+  await expect(stat(handle.path)).rejects.toThrow(/^ENOENT/)
 })
 
 test('mergeWorkspacesIntoConfig adds the synthesized map to an already-materialised config in place', async () => {

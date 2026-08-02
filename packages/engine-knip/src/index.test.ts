@@ -314,9 +314,9 @@ test(
     )
 
     // knip caches only with an explicit `--cache`; confirm it left nothing behind under the default.
-    await expect(stat(join(dir, 'node_modules', '.cache', 'knip'))).rejects.toThrow()
+    await expect(stat(join(dir, 'node_modules', '.cache', 'knip'))).rejects.toThrow(/^ENOENT/)
     await handle.dispose()
-    await expect(stat(handle.path)).rejects.toThrow()
+    await expect(stat(handle.path)).rejects.toThrow(/^ENOENT/)
   },
   TIMEOUT,
 )
