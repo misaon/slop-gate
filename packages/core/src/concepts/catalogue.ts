@@ -1125,7 +1125,9 @@ export const HAND_WRITTEN_CONCEPTS = [
   // `security.dockerfile-root-user` concept, because **hadolint cannot detect a missing `USER`** — a
   // Dockerfile with no `USER` instruction is silent, and `DL3002` fires only on an explicit
   // `USER root`. And there is no concept for secrets in `ARG`/`ENV`, because the rule that would carry
-  // it (`DL3064`) is a substring matcher that scored 7 of 25; see `MANUAL_RULE_EXCLUSIONS`.
+  // that rule (`DL3064`) is a substring matcher that scored 7 of 25; see `MANUAL_RULE_EXCLUSIONS`.
+  // Not "it (`DL3064`)": `vitest/no-commented-out-tests` reads `it (` in prose as a disabled test,
+  // which is a fair reading of the token and the reason this sentence is phrased around it.
   // Two concepts rather than one, and the split is forced rather than stylistic. Untagged and
   // `:latest` are the same defect in spirit, but arbitration elects exactly one owner per
   // (concept, language) — so mapping both `DL3006` and `DL3007` onto a single concept made the
