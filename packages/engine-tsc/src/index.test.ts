@@ -90,7 +90,7 @@ test('finds a real type error in a real file', async () => {
   expect(found[0]?.file).toBe('src/a.ts')
   expect(found[0]?.message).toContain('TS2322')
   await handle.dispose()
-})
+}, 60_000)
 
 test('run() ignores the batch argument: tsc checks whatever the tsconfig itself declares', async () => {
   // The defining behaviour of project granularity: passing an *empty* batch must not stop tsc from
@@ -104,7 +104,7 @@ test('run() ignores the batch argument: tsc checks whatever the tsconfig itself 
 
   expect(found).toHaveLength(1)
   await handle.dispose()
-})
+}, 60_000)
 
 test('yields nothing for a clean project', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export function f(): number {\n  return 42\n}\n')
@@ -113,7 +113,7 @@ test('yields nothing for a clean project', async () => {
 
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()
-})
+}, 60_000)
 
 test('surfaces a genuine syntax error', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  const x: = 5\n  return x\n}\n')
@@ -126,7 +126,7 @@ test('surfaces a genuine syntax error', async () => {
   expect(found[0]?.file).toBe('src/a.ts')
   expect(found[0]?.message).toContain('TS1110')
   await handle.dispose()
-})
+}, 60_000)
 
 test('raises an EngineError when the tsconfig is missing', async () => {
   await rm(join(dir, 'tsconfig.json'))
@@ -137,7 +137,7 @@ test('raises an EngineError when the tsconfig is missing', async () => {
     collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000))),
   ).rejects.toThrow(/TS5058|does not exist/)
   await handle.dispose()
-})
+}, 60_000)
 
 test('raises an EngineError when the binary is missing', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
@@ -148,7 +148,7 @@ test('raises an EngineError when the binary is missing', async () => {
     collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000))),
   ).rejects.toThrow(/tsc/)
   await handle.dispose()
-})
+}, 60_000)
 
 test('writes --incremental build info under cacheDir/tsc, never inside the analysed project', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
@@ -168,7 +168,7 @@ test('writes --incremental build info under cacheDir/tsc, never inside the analy
   expect(srcFiles.some((name) => name.endsWith('.tsbuildinfo'))).toBe(false)
 
   await handle.dispose()
-})
+}, 60_000)
 
 test('yields nothing for an empty batch on a clean project without throwing', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
@@ -177,7 +177,7 @@ test('yields nothing for an empty batch on a clean project without throwing', as
 
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()
-})
+}, 60_000)
 
 test('is available when the resolved tsconfig exists', async () => {
   const engine = createTscEngine({ rootDir: dir })

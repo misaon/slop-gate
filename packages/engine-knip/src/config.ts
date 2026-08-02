@@ -168,10 +168,10 @@ export async function materializeKnipConfig(
  * And the user's own `ignore` globs, which a **file**-granularity engine never has to be told: core
  * filters the inventory and hands oxlint the surviving list. A project-granularity engine derives its
  * own file set from its own config, so it never sees that filtering — measured on this repository,
- * where a config ignoring `fixtures/**` and `packages/star/fixtures/**` still produced 19
- * `dead-code.unused-file` findings, every one inside a directory the user had explicitly excluded and
- * every one therefore a false positive slop-gate itself manufactured. That was the single largest
- * false-positive class knip had here, and it was never knip's fault.
+ * whose config ignores both of its fixture trees and which still produced 19 `dead-code.unused-file`
+ * findings, every one inside a directory the user had explicitly excluded and every one therefore a
+ * false positive slop-gate itself manufactured. That was the single largest false-positive class knip
+ * had here, and it was never knip's fault.
  *
  * Sorted and deduplicated so two configs that mean the same thing hash the same, and so `rulesetHash`
  * (and the result cache behind it) does not turn over when a user merely reorders their `ignore` list.
