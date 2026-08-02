@@ -26,7 +26,10 @@ const repository = (files: Record<string, string>, workspaces: Record<string, st
 } => ({
   inventory: {
     root: '/repo',
+    // `node_modules` is readable but never inventoried (`discovery/sources.ts`, `ALWAYS_SKIPPED`),
+    // which is the whole distinction an `extends` into a published base config turns on.
     files: Object.keys(files)
+      .filter((path) => !path.split('/').includes('node_modules'))
       .sort()
       .map((path) => inventoryFile(path, workspaces[path] ?? '')),
     languages: new Set(['ts']),
@@ -320,6 +323,92 @@ test('says nothing about a transform TypeScript hands to another tool', async ()
 test('says nothing when no tsconfig configures jsx at all', async () => {
   const detection = await detect({ 'tsconfig.json': tsconfig(null), 'package.json': manifest({ react: '^19.0.0' }) })
   expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+})
+
+/**
+ * The measured monorepo, reduced to its tsconfig graph: 19 config files, 4 of which set `jsx`, and
+ * the three apps holding most of the `.tsx` set nothing and reach the value two levels up. A silent
+ * config is not a dissenter, and this is the case that says so.
+ */
+test('applies when the apps inherit the transform two levels up and set nothing themselves', async () => {
+  const detection = await detect({
+    'tsconfig.base.json': JSON.stringify({ compilerOptions: { strict: true } }),
+    'tsconfig.app.json': JSON.stringify({
+      extends: './tsconfig.base.json',
+      compilerOptions: { jsx: 'react-jsx' },
+    }),
+    'apps/acquisition/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.app.json' }),
+    'apps/client-zone/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.app.json' }),
+    'apps/console/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.app.json' }),
+    'packages/ui/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.app.json' }),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')?.evidence).toEqual([
+    { kind: 'config-literal', file: 'tsconfig.app.json', property: 'compilerOptions.jsx', value: 'react-jsx' },
+  ])
+})
+
+test('counts a config that inherits the classic transform as a dissenter', async () => {
+  const detection = await detect({
+    'tsconfig.app.json': JSON.stringify({ compilerOptions: { jsx: 'react-jsx' } }),
+    'legacy/base.json': JSON.stringify({ compilerOptions: { jsx: 'react' } }),
+    'legacy/tsconfig.json': JSON.stringify({ extends: './base.json' }),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+  expect(detection.inapplicable).toContainEqual(
+    expect.objectContaining({ id: 'react-jsx-transform', blocked: expect.stringContaining('legacy/base.json') }),
+  )
+})
+
+test('lets a leaf override a classic base that is not itself a project here', async () => {
+  const detection = await detect({
+    'apps/web/tsconfig.json': JSON.stringify({
+      extends: '@acme/tsconfig',
+      compilerOptions: { jsx: 'react-jsx' },
+    }),
+    'node_modules/@acme/tsconfig/tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react' } }),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')?.evidence).toEqual([
+    { kind: 'config-literal', file: 'apps/web/tsconfig.json', property: 'compilerOptions.jsx', value: 'react-jsx' },
+  ])
+})
+
+/**
+ * A committed `tsconfig.base.json` declaring the classic transform is a dissenter even when every
+ * leaf overrides it, because it is a config file in its own right and `tsc -p tsconfig.base.json`
+ * would use it. Distinguishing "a base nobody compiles" from "a project" needs the reverse extends
+ * graph and is still ambiguous at the end of it, so this stays on the safe side and says which file
+ * it is unhappy about.
+ */
+test('treats a committed classic base as a dissenter even when every leaf overrides it', async () => {
+  const detection = await detect({
+    'tsconfig.base.json': JSON.stringify({ compilerOptions: { jsx: 'react' } }),
+    'apps/web/tsconfig.json': JSON.stringify({
+      extends: '../../tsconfig.base.json',
+      compilerOptions: { jsx: 'react-jsx' },
+    }),
+  })
+
+  expect(detection.inapplicable).toContainEqual(
+    expect.objectContaining({ id: 'react-jsx-transform', blocked: expect.stringContaining('tsconfig.base.json') }),
+  )
+})
+
+test('stands down when an extends chain cannot be followed at all', async () => {
+  const detection = await detect({
+    'tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react-jsx' } }),
+    'apps/native/tsconfig.json': JSON.stringify({ extends: '@tsconfig/react-native/tsconfig.json' }),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+  expect(detection.inapplicable).toContainEqual(
+    expect.objectContaining({
+      id: 'react-jsx-transform',
+      blocked: expect.stringContaining('@tsconfig/react-native'),
+    }),
+  )
 })
 
 // --- test-framework ---------------------------------------------------------------------------

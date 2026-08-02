@@ -1,5 +1,36 @@
 import { expect, test } from 'vitest'
-import { extractStringLiteral } from './literal.ts'
+import { extractStringList, extractStringLiteral } from './literal.ts'
+
+test('reads a lone string as a one-element list', () => {
+  expect(extractStringList('{ "extends": "./base.json" }', ['extends'])).toEqual({
+    kind: 'values',
+    values: ['./base.json'],
+  })
+})
+
+test('reads the TypeScript 5.0 array form in source order', () => {
+  const source = '{ "extends": ["./a.json", "@tsconfig/node20/tsconfig.json"] }'
+  expect(extractStringList(source, ['extends'])).toEqual({
+    kind: 'values',
+    values: ['./a.json', '@tsconfig/node20/tsconfig.json'],
+  })
+})
+
+test('reads an empty array as an empty list rather than a failure', () => {
+  expect(extractStringList('{ "extends": [] }', ['extends'])).toEqual({ kind: 'values', values: [] })
+})
+
+test('distinguishes an absent key from one it cannot read', () => {
+  expect(extractStringList('{ "compilerOptions": {} }', ['extends'])).toEqual({ kind: 'absent' })
+  expect(extractStringList('{ "extends": BASE }', ['extends'])).toEqual({ kind: 'unreadable' })
+  expect(extractStringList('{ "extends": ["./a.json", BASE] }', ['extends'])).toEqual({ kind: 'unreadable' })
+})
+
+test('does not read an extends that only appears inside a comment', () => {
+  expect(extractStringList('{\n  // "extends": "./old.json"\n  "compilerOptions": {}\n}', ['extends'])).toEqual({
+    kind: 'absent',
+  })
+})
 
 test('reads a nested string literal', () => {
   const source = `export default { migrations: { path: './src/migrations' } }`

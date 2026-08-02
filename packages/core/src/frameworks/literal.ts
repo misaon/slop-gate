@@ -116,6 +116,74 @@ function braceInterior(masked: string, open: number, end: number): { start: numb
   return null
 }
 
+/** The literal string starting at `open`, or `null` when that is not a plain quoted literal. */
+function readQuoted(source: string, masked: string, open: number, end: number): string | null {
+  const quote = masked[open]
+  if (quote !== "'" && quote !== '"') return null
+  const close = masked.indexOf(quote, open + 1)
+  if (close === -1 || close >= end) return null
+  const literal = source.slice(open + 1, close)
+  return literal.includes('\\') ? null : literal
+}
+
+/**
+ * Three outcomes rather than `string[] | null`, because the caller has to tell "the key is not
+ * there" from "the key is there and I cannot read it". For `tsconfig.json#extends` those mean
+ * opposite things: absent is a chain that ends, unreadable is a chain that might still hide a
+ * `"jsx": "react"` — see `tsconfig.ts`, which stands the profile down for the second and not the
+ * first.
+ */
+export type StringListResult =
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'values'; readonly values: readonly string[] }
+  | { readonly kind: 'unreadable' }
+
+/**
+ * `extractStringLiteral`'s sibling for a property that is **either one string or an array of
+ * them** — the shape `tsconfig.json#extends` has had since TypeScript 5.0. Same masking pass, same
+ * refusal to compute: an element that is not a plain quoted literal makes the whole list
+ * `unreadable` rather than a shorter list, because a partial answer here would silently drop a
+ * config file from the chain.
+ */
+export function extractStringList(source: string, propertyPath: readonly string[]): StringListResult {
+  if (propertyPath.length === 0) return { kind: 'absent' }
+  const masked = maskSource(source)
+
+  let span = { start: 0, end: masked.length }
+  for (const [index, key] of propertyPath.entries()) {
+    const colon = findKeyColon(source, masked, key, span.start, span.end)
+    if (colon === -1) return { kind: 'absent' }
+    const value = skipSpace(masked, colon + 1, span.end)
+
+    if (index < propertyPath.length - 1) {
+      if (masked[value] !== '{') return { kind: 'unreadable' }
+      const interior = braceInterior(masked, value, span.end)
+      if (interior === null) return { kind: 'unreadable' }
+      span = interior
+      continue
+    }
+
+    if (masked[value] !== '[') {
+      const single = readQuoted(source, masked, value, span.end)
+      return single === null ? { kind: 'unreadable' } : { kind: 'values', values: [single] }
+    }
+
+    const close = masked.indexOf(']', value + 1)
+    if (close === -1 || close >= span.end) return { kind: 'unreadable' }
+    const values: string[] = []
+    let cursor = skipSpace(masked, value + 1, close)
+    while (cursor < close) {
+      const element = readQuoted(source, masked, cursor, close)
+      if (element === null) return { kind: 'unreadable' }
+      cursor = skipSpace(masked, masked.indexOf(masked[cursor]!, cursor + 1) + 1, close)
+      if (masked[cursor] === ',') cursor = skipSpace(masked, cursor + 1, close)
+      values.push(element)
+    }
+    return { kind: 'values', values }
+  }
+  return { kind: 'absent' }
+}
+
 /**
  * The `literal` probe's whole implementation (spec §23.1): the value of a **string literal** at a
  * dotted property path in a framework's own config file, read **without executing it**. Importing
