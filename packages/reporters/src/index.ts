@@ -48,7 +48,13 @@ export function createReporter(name: ReporterName, context: ReporterContext): Re
 }
 
 export { renderCodeFrame } from './code-frame.ts'
-export { AGENT_REPORT_VERSION, createAgentReporter, type AgentReporterOptions } from './agent.ts'
+export {
+  AGENT_REPORT_VERSION,
+  createAgentReporter,
+  summariseAgentGroups,
+  type AgentGroupSummary,
+  type AgentReporterOptions,
+} from './agent.ts'
 export { JSON_REPORT_VERSION } from './json.ts'
 export { createPrettyReporter } from './pretty.ts'
 export {

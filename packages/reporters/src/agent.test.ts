@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { CheckEvent, CheckResult, Diagnostic, UnavailableEngine } from '@misaon/slop-gate-core'
-import { AGENT_REPORT_VERSION, createAgentReporter } from './agent.ts'
+import { AGENT_REPORT_VERSION, createAgentReporter, summariseAgentGroups } from './agent.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
 
@@ -501,4 +501,75 @@ test('reports no timing or cache figures, which would differ between two runs of
   expect(output).toContain('scope: 3 files scanned, 3 analysed')
   expect(output).not.toContain('42')
   expect(output).not.toContain('cached')
+})
+
+// --- `summariseAgentGroups`: the same grouping, without the prose ---------------------------------
+
+test('the summary lists the same concepts, in the same order and on the same side of the split, as the report', () => {
+  // The point of exporting this at all. A caller that renders the report *and* the summary — the MCP
+  // `check` tool does both — must not be able to show a concept as `automated` in one and
+  // `judgement` in the other, so both read one grouping rather than two agreeing implementations.
+  const diagnostics = [
+    diagnostic({ concept: 'correctness.no-useless-spread', ruleId: 'oxlint/unicorn/no-useless-spread' }),
+    diagnostic({ concept: 'config.unused-suppression', ruleId: 'slop-gate/config.unused-suppression', severity: 'warn', file: 'src/b.ts' }),
+    diagnostic({ concept: 'config.unused-suppression', ruleId: 'slop-gate/config.unused-suppression', severity: 'warn', file: 'src/c.ts' }),
+  ]
+  const event = done(diagnostics)
+  const output = capture([event])
+  const summaries = summariseAgentGroups(event.result)
+
+  const headings = output
+    .split('\n')
+    .filter((line) => line.startsWith('### '))
+    .map((line) => line.slice(4).split(' — ')[0])
+  expect(summaries.map((group) => group.concept)).toEqual(headings)
+
+  expect(summaries).toEqual([
+    {
+      concept: 'correctness.no-useless-spread',
+      section: 'automated',
+      tier: 'unsafe',
+      severity: 'error',
+      findings: 1,
+      files: 1,
+      ruleIds: ['oxlint/unicorn/no-useless-spread'],
+      docsUrl: 'https://example.test/no-debugger',
+    },
+    {
+      concept: 'config.unused-suppression',
+      section: 'judgement',
+      tier: null,
+      severity: 'warn',
+      findings: 2,
+      files: 2,
+      ruleIds: ['slop-gate/config.unused-suppression'],
+      docsUrl: 'https://example.test/no-debugger',
+    },
+  ])
+})
+
+test('the summary states true counts even for a concept the budget dropped every finding of', () => {
+  // The structural half of "a group header is never dropped". A caller that bounds the prose still
+  // gets the complete inventory here, so a truncated report and its summary can never disagree about
+  // how much was found.
+  const many = repeat(40, (index) => ({ file: `src/${index}.ts`, fingerprint: `f${index}` }))
+  const event = done(many)
+
+  expect(capture([event], { maxTokens: 700 })).toContain('showing ')
+  expect(summariseAgentGroups(event.result)[0]?.findings).toBe(40)
+})
+
+test('the summary reads the run\'s own registry entries, the same seam the reporter does', () => {
+  const event = done([diagnostic({ ruleId: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' })])
+
+  expect(summariseAgentGroups(event.result)[0]?.section).toBe('automated')
+  expect(summariseAgentGroups(event.result, { entries: [] })[0]?.section).toBe('judgement')
+})
+
+test('the summary is plain JSON — no Map or Set survives into it', () => {
+  const event = done([diagnostic()])
+  const [group] = summariseAgentGroups(event.result)
+
+  expect(group).toBeDefined()
+  expect(JSON.parse(JSON.stringify(group))).toEqual(group)
 })

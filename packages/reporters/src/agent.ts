@@ -60,6 +60,43 @@ export type AgentReporterOptions = {
 
 type Section = 'automated' | 'judgement'
 
+/**
+ * One concept's row of the report, without a word of prose — the same grouping, split and ordering
+ * the document below is built from, in a shape that survives `JSON.stringify`.
+ *
+ * Exported for a caller that has to present both at once. `sgate mcp`'s `check` tool returns the
+ * rendered report as its text and this as its structured content, and the two must not be able to
+ * disagree: a concept shown under `## automated` in the prose and reported as `judgement` in the
+ * structure would be worse than either alone. Sharing `collectGroups` is what makes that
+ * unrepresentable rather than merely unlikely.
+ *
+ * `findings` is the *true* count, never the shown one — the structural half of "a group header is
+ * never dropped", so a caller that bounded the prose still gets the complete inventory here.
+ */
+export type AgentGroupSummary = {
+  readonly concept: string
+  readonly section: Section
+  readonly tier: FixKind | null
+  readonly severity: Severity
+  readonly findings: number
+  readonly files: number
+  readonly ruleIds: readonly string[]
+  readonly docsUrl: string | null
+}
+
+export function summariseAgentGroups(result: CheckResult, options: AgentReporterOptions = {}): AgentGroupSummary[] {
+  return collectGroups(result, options.entries ?? RULE_ENTRIES).map((group) => ({
+    concept: group.concept,
+    section: group.section,
+    tier: group.tier,
+    severity: group.primarySeverity,
+    findings: group.diagnostics.length,
+    files: group.files.size,
+    ruleIds: group.ruleIds,
+    docsUrl: group.docsUrl,
+  }))
+}
+
 type Finding = {
   readonly diagnostic: Diagnostic
   /** The finding's rendered block, complete and self-contained, so admitting it is a set membership
@@ -68,8 +105,15 @@ type Finding = {
   readonly tokens: number
 }
 
-type Group = {
+/**
+ * Everything about a concept's group that is decided by the diagnostics and the registry alone.
+ * Split out from `Group` so the summary above and the document below are the same arithmetic:
+ * computing it needs no `ReporterContext`, no source file and no rendering, which is what lets a
+ * caller that only wants the shape avoid paying for prose it will throw away.
+ */
+type GroupCore = {
   readonly concept: string
+  readonly diagnostics: readonly Diagnostic[]
   readonly section: Section
   readonly tier: FixKind | null
   readonly fixTouches: readonly string[]
@@ -85,8 +129,9 @@ type Group = {
    *  a rule with a fixed message and is where most of the repetition in a large report lives. */
   readonly message: string | null
   readonly help: string | null
-  readonly findings: readonly Finding[]
 }
+
+type Group = GroupCore & { readonly findings: readonly Finding[] }
 
 /**
  * The `agent` reporter — spec §12's "differentiator".
@@ -175,12 +220,23 @@ function rotation(groups: readonly Group[]): Finding[] {
 }
 
 function buildGroups(result: CheckResult, context: ReporterContext, entries: readonly RuleEntry[]): Group[] {
-  const byRuleId = new Map(entries.map((entry) => [ruleRefKey(entry), entry]))
   const sources = new Map<string, string | null>()
   const readSource = (file: string): string | null => {
     if (!sources.has(file)) sources.set(file, context.readSource(file))
     return sources.get(file) ?? null
   }
+
+  return collectGroups(result, entries).map((group) => ({
+    ...group,
+    findings: group.diagnostics.map((diagnostic) => {
+      const text = renderFinding(diagnostic, { hoistedMessage: group.message, readSource })
+      return { diagnostic, text, tokens: estimateTokens(text) }
+    }),
+  }))
+}
+
+function collectGroups(result: CheckResult, entries: readonly RuleEntry[]): GroupCore[] {
+  const byRuleId = new Map(entries.map((entry) => [ruleRefKey(entry), entry]))
 
   const collected = new Map<string, Diagnostic[]>()
   for (const diagnostic of result.diagnostics) {
@@ -189,7 +245,7 @@ function buildGroups(result: CheckResult, context: ReporterContext, entries: rea
     else collected.set(diagnostic.concept, [diagnostic])
   }
 
-  const groups: Group[] = []
+  const groups: GroupCore[] = []
   for (const [concept, diagnostics] of collected) {
     const ruleIds = [...new Set(diagnostics.map((diagnostic) => diagnostic.ruleId))].sort(compareStrings)
     const rules = ruleIds.map((ruleId) => byRuleId.get(ruleId))
@@ -203,13 +259,10 @@ function buildGroups(result: CheckResult, context: ReporterContext, entries: rea
     const uniformHelp = helps.size === 1 && !helps.has('')
 
     const hoistedMessage = messages.size === 1 ? diagnostics[0]!.message : null
-    const findings = diagnostics.map((diagnostic) => {
-      const text = renderFinding(diagnostic, { hoistedMessage, readSource })
-      return { diagnostic, text, tokens: estimateTokens(text) }
-    })
 
     groups.push({
       concept,
+      diagnostics,
       section: tier === null ? 'judgement' : 'automated',
       tier,
       fixTouches: [...new Set(rules.flatMap((rule) => rule?.fixTouches ?? []))].sort(compareStrings),
@@ -221,7 +274,6 @@ function buildGroups(result: CheckResult, context: ReporterContext, entries: rea
       why: curatedDescription(concept),
       message: hoistedMessage,
       help: uniformHelp ? (diagnostics[0]!.help ?? null) : null,
-      findings,
     })
   }
 
@@ -257,12 +309,12 @@ function groupTier(rules: readonly (RuleEntry | undefined)[]): FixKind | null {
  * first, then biggest batch first (the most leverage per decision), then the concept id so the order
  * is total.
  */
-function compareGroups(a: Group, b: Group): number {
+function compareGroups(a: GroupCore, b: GroupCore): number {
   const section = (a.section === 'automated' ? 0 : 1) - (b.section === 'automated' ? 0 : 1)
   if (section !== 0) return section
   const severity = SEVERITY_ORDER.indexOf(a.primarySeverity) - SEVERITY_ORDER.indexOf(b.primarySeverity)
   if (severity !== 0) return severity
-  return b.findings.length - a.findings.length || compareStrings(a.concept, b.concept)
+  return b.diagnostics.length - a.diagnostics.length || compareStrings(a.concept, b.concept)
 }
 
 function curatedDescription(concept: string): string | null {
