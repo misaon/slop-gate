@@ -32,6 +32,18 @@ import { buildMcpServer } from './server.ts'
 export const mcp = defineCommand({
   meta: { name: 'mcp', description: 'Serve slop-gate over the Model Context Protocol (stdio)' },
   async run() {
+    // The one place this command is confusing: run by hand, it reads JSON-RPC from a terminal and
+    // looks hung. stderr is free for logging under the stdio binding and a client is told not to
+    // read it as failure, so saying so costs nothing and is never seen by a real host — a client
+    // launches this as a subprocess with a pipe, where `isTTY` is undefined.
+    if (process.stdin.isTTY === true) {
+      process.stderr.write(
+        'sgate mcp speaks the Model Context Protocol on stdin/stdout — it is meant to be launched by an MCP client, not run by hand.\n' +
+          'Configure your client to run: sgate mcp (with this repository as its working directory).\n' +
+          'Waiting for JSON-RPC on stdin; Ctrl-D to exit.\n',
+      )
+    }
+
     const inFlight = createInFlight()
     const handle = serveStdio(
       () => buildMcpServer({ serverRoot: process.cwd(), version: readCliVersion(), track: inFlight.track }),

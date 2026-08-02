@@ -171,6 +171,27 @@ test('a bad argument is rejected by the declared input schema rather than reachi
   expect((result.content as Array<{ text: string }>)[0]?.text).toContain('validation')
 }, 60_000)
 
+test('the server writes nothing to stderr on a normal run', async () => {
+  // stderr is the operator's channel and the client is told not to read it as failure, so noise
+  // there is not fatal — but a host that logs it gets a line per launch for nothing. This also
+  // covers the interactive hint's guard: it is written only when stdin is a TTY, and under a client
+  // it never is, so anything arriving here means that branch fired when it should not have.
+  const piped = new Client({ name: 'stderr-probe', version: '0.0.0' }, { versionNegotiation: { mode: { pin: REVISION } } })
+  const transport = new StdioClientTransport({ command: process.execPath, args: [CLI, 'mcp'], cwd: dir, stderr: 'pipe' })
+  let logged = ''
+  await piped.connect(transport)
+  transport.stderr?.on('data', (chunk: Uint8Array) => (logged += new TextDecoder().decode(chunk)))
+
+  try {
+    await piped.listTools()
+    await piped.callTool({ name: 'explain_concept', arguments: { concept: 'correctness.no-debugger' } })
+  } finally {
+    await piped.close()
+  }
+
+  expect(logged).toBe('')
+}, 60_000)
+
 test('an unknown tool is a protocol error, not a tool result', async () => {
   // The spec's own split: a request the model cannot correct by adjusting arguments is a JSON-RPC
   // error, and only an actionable failure is an `isError` result.
