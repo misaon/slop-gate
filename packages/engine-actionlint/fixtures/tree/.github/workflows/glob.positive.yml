@@ -1,0 +1,11 @@
+on:
+  push:
+    branches:
+      - 'release/[' # HIT
+    paths:
+      - '**.ts'
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi

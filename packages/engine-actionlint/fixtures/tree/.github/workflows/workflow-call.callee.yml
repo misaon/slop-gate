@@ -1,0 +1,11 @@
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ inputs.target }}"

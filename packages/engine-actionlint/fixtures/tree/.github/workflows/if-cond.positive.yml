@@ -1,0 +1,9 @@
+on: push
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo always
+        if: (${{ success() }} || ${{ failure() }}) # HIT
+      - run: echo never
+        if: false # HIT

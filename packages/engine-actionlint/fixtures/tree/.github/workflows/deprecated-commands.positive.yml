@@ -1,0 +1,8 @@
+on: push
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "::set-output name=version::1.0.0" # HIT
+      - run: echo "::save-state name=cache-hit::true" # HIT
+      - run: echo "::add-matcher::.github/rust-matcher.json"

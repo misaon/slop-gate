@@ -1,0 +1,8 @@
+on: push
+permissions:
+  contents: reed # HIT
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi

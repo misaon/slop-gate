@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import { isConceptId } from '../concepts/catalogue.ts'
+import { PRESETS } from '../config/presets.ts'
+import { MANUAL_RULE_EXCLUSIONS } from './exclusions.ts'
 import { LANGUAGES } from '../languages.ts'
 import { electOwners } from './elect.ts'
 import { RULE_ENTRIES } from './entries.ts'
@@ -101,4 +103,37 @@ test('the shipped registry contains a real overlap and resolves it to oxlint', (
 test('no two entries share an engine and rule id', () => {
   const keys = WIDENED_ENTRIES.map(ruleRefKey)
   expect(keys).toEqual([...new Set(keys)])
+})
+
+test('every manually excluded rule exists, and none of its concepts reaches `recommended`', () => {
+  // What makes `MANUAL_RULE_EXCLUSIONS` data rather than prose. A hand-written engine's rules enter
+  // `recommended` only by being listed in `config/presets.ts`, so nothing applies that table the way
+  // the oxlint generator applies `RULE_EXCLUSIONS` — without this, a written reason and the preset
+  // could disagree and neither would notice. That is already true of the two `slop.*` exclusions,
+  // whose reasons live in a comment.
+  const recommended = PRESETS.recommended
+  for (const [key, exclusion] of Object.entries(MANUAL_RULE_EXCLUSIONS)) {
+    const entry = WIDENED_ENTRIES.find((candidate) => ruleRefKey(candidate) === key)
+    expect(entry, `${key} is excluded but has no registry entry`).toBeDefined()
+    expect(exclusion.reason.length, `${key} needs a real reason`).toBeGreaterThan(80)
+    for (const concept of entry!.concepts) {
+      expect(recommended[concept], `${key} is excluded but ${concept} is in \`recommended\``).toBeUndefined()
+    }
+  }
+})
+
+test('actionlint claims neither parse errors nor duplicate keys, which stay with the schema engine', () => {
+  // The reversal the corpus measurement forced, asserted so it cannot be undone by accident. Zero
+  // findings of either kind across 403 real workflow files, and the M0 follow-ups record that
+  // actionlint reports an unresolved YAML alias at `line: 0, column: 0` where the schema engine gives
+  // the exact token — so this is the concept ownership that was *not* transferred.
+  const owned = WIDENED_ENTRIES.filter((entry) => entry.engine === 'actionlint').flatMap((entry) => entry.concepts)
+  expect(owned).not.toContain('correctness.parse-error')
+  expect(owned).not.toContain('correctness.no-duplicate-object-key')
+
+  const schema = WIDENED_ENTRIES.filter(
+    (entry) => entry.engine === 'schema' && entry.languages.includes('github-workflow'),
+  ).flatMap((entry) => entry.concepts)
+  expect(schema).toContain('correctness.parse-error')
+  expect(schema).toContain('correctness.no-duplicate-object-key')
 })

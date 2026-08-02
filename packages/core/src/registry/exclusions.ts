@@ -25,6 +25,91 @@ export type RuleExclusion = {
  * that is wrong regardless of what the repository is built with.
  */
 
+/**
+ * The same idea for engines whose entries are hand-written rather than generated, keyed by
+ * `ruleRefKey` (`<engine>/<engineRuleId>`) because those ids are not unique across engines the way
+ * oxlint's are within it.
+ *
+ * It has to be a second table rather than more rows in `RULE_EXCLUSIONS`: that one is consumed only
+ * by the oxlint registry generator, keyed by bare rule id, and an `actionlint` row there would either
+ * be ignored or — worse, for a name like `id` or `matrix` — silently exclude an oxlint rule that
+ * happens to share it.
+ *
+ * Unlike `RULE_EXCLUSIONS`, which the generator applies, this table is *checked* rather than applied:
+ * a manual engine's rules reach `recommended` only by being listed in `config/presets.ts`, so the
+ * exclusion is enforced by `entries.test.ts` asserting that no concept named here appears in that
+ * preset. That keeps the reason and the effect from drifting apart — which is exactly what happened
+ * to the two `slop.*` exclusions, whose reasons live in a comment in `presets.ts` with nothing
+ * checking them. Backfilling those (and knip's) into this table is a follow-up.
+ */
+export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
+  'actionlint/runner-label': {
+    reason:
+      'The largest single finding class in the whole corpus measurement and the least useful: **308 of ' +
+      '447 findings (69%), zero true positives**, across 7 of 17 repositories. Every one is a runner ' +
+      'label that is legitimate and that actionlint has no way to know about — depot.dev (`depot-*`, 9 ' +
+      'distinct labels), namespace.so (`namespace-profile-*`), grafana\'s and vercel\'s own larger and ' +
+      'self-hosted runners, and 18 findings for `ubuntu-26.04`/`ubuntu-26.04-arm`, which are *real ' +
+      'GitHub-hosted runners* that actionlint 1.7.12 predates. cpython\'s own committed ' +
+      '`.github/actionlint.yaml` declares those two with a comment citing the upstream pull request ' +
+      'that adds them, which is the affected project reaching the same conclusion independently.\n\n' +
+      'actionlint\'s answer is `self-hosted-runner.labels` in `.github/actionlint.yaml`. That is not ' +
+      'available to us: spec §13 is explicit that users never see or maintain engine-native config ' +
+      'files, and reading theirs would only half-solve it anyway — honouring each repository\'s own ' +
+      'config removes 191 of the 308 and leaves 117 in the five repositories that ship no config.\n\n' +
+      '**The rule itself works** — an authored `runs-on: ubuntu-lastest` is caught, proved by fixture ' +
+      '— so the problem is the allowlist, not the check. Revisit when slop-gate has a first-class way ' +
+      'to declare a repository\'s own runner labels in `slop-gate.config.ts`, which this adapter would ' +
+      'then translate into its ephemeral actionlint config. At that point the rule catches a real ' +
+      'class of typo that nothing else does.',
+  },
+  'actionlint/action': {
+    reason:
+      'Two independent reasons, and the second is the disqualifying one.\n\n' +
+      '**It is nondeterministic.** Across ten identical runs over the same 403 files, this rule — and ' +
+      'only this rule — produced a different set of findings each time (442–447 findings per run; 441 ' +
+      'stable, 6 not, all of them `could not parse action metadata`). The mechanism is exact: ' +
+      '`LocalActionsCache.FindMetadata` (`action_metadata.go:255-281`) reports a metadata parse failure ' +
+      'only on the *uncached* lookup and writes `nil` on failure, so whichever reference reaches a ' +
+      'broken local action first reports it and every later one silently gets a cache hit. actionlint ' +
+      'lints files concurrently (`linter.go:347`, an `errgroup` sharing one cache) **and iterates a ' +
+      'workflow\'s jobs over `Jobs map[string]*Job`, whose order Go randomises** — so this is unstable ' +
+      'even for a single file in a single process: ten runs over one file put the same finding on line ' +
+      '99, 71, 316 and 359. Per-file invocation does not fix it. Position-based fingerprints (§10.1) ' +
+      'would therefore thrash on every run, taking the cache and the baseline with them.\n\n' +
+      '**And it is imprecise.** 10 findings, 1 true positive (a Docker action whose `runs.image` names ' +
+      'a file not called `Dockerfile`). The other 9 are all `could not parse action metadata in "…": ' +
+      'unexpected key "type" for definition of input "…"` — a `type:` key under a composite action\'s ' +
+      '`inputs`, which is genuinely not in GitHub\'s action metadata schema and which GitHub genuinely ' +
+      'ignores at run time: the actions concerned are bun\'s `setup-bun` and oxc\'s, used by nearly ' +
+      'every workflow in those repositories. Correct-but-inert, and the message overstates it — the ' +
+      'real consequence is that actionlint then stops checking that action\'s inputs at all.\n\n' +
+      'Excluded as a whole rule rather than by message pattern: the nondeterminism argues against the ' +
+      'rule, not against one of its messages, and the one true positive is not worth an unstable ' +
+      'fingerprint.',
+  },
+  'actionlint/syntax-check': {
+    reason:
+      '9 findings, 2 true positives, 7 false — and all 7 are the same failure mode, which is the reason ' +
+      'to exclude rather than the count. actionlint validates workflows against a schema compiled into ' +
+      'the binary, so **every GitHub Actions feature that ships after a release reads as an unexpected ' +
+      'key until the next one**. The 7 are exactly that: 5 for parallel/background steps ' +
+      '(`background: true` and `wait:`, [shipped 2026-06-25](https://github.blog/changelog/2026-06-25-actions-steps-can-now-be-run-in-parallel/)) ' +
+      'and 2 for `concurrency.queue: max` ([shipped 2026-05-07](https://github.blog/changelog/2026-05-07-github-actions-concurrency-groups-now-allow-larger-queues/)). ' +
+      'Both were confirmed against GitHub\'s own changelog rather than inferred.\n\n' +
+      'This recurs by construction, and because we pin the binary the staleness is **our** choice on ' +
+      'the user\'s behalf: someone whose `PATH` already holds a newer actionlint gets fewer false ' +
+      'positives than someone we downloaded for. That is an argument for tracking upstream releases ' +
+      'actively (recorded in the M0 follow-ups), and against putting a rule whose false-positive rate ' +
+      'is a function of our own release cadence into `recommended`.\n\n' +
+      'The 2 true positives — `secrets:` nested under `workflow_dispatch`, where only `workflow_call` ' +
+      'takes it, and a YAML sequence passed to an action input that must be a string — are real but do ' +
+      'not carry the rule. Separately: this entry claims only `config.workflow-syntax`. actionlint ' +
+      'reports YAML parse errors and duplicate keys under the same `kind`, and the adapter drops both ' +
+      'classes because the `schema` engine owns them for `github-workflow`.',
+  },
+}
+
 export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
   'vitest/valid-expect': {
     reason:

@@ -189,9 +189,59 @@ test('--require-engines is off unless asked for, and reaches the command through
 })
 
 test('--require-engines on a fully equipped machine still exits clean', async () => {
-  // The direction that is cheap to get wrong: nothing in `defaultEngines` declares `availability`
-  // today, so this asserts the flag adds no failure of its own when nothing is missing. The failing
-  // direction is `exit-codes.test.ts`'s, which can supply an absent engine directly.
-  await runCheckCapturingStdout({ 'require-engines': true })
-  expect(process.exitCode).toBe(EXIT_CODES.clean)
+  // The direction that is cheap to get wrong: the flag must add no failure of its own when nothing
+  // is missing. The failing direction is `exit-codes.test.ts`'s, which can supply an absent engine
+  // directly, and the companion test below, which drives the real resolver.
+  //
+  // **The premise is constructed, not assumed.** This test used to be written as "no engine in
+  // `defaultEngines` declares `availability`, so nothing can be missing", and that stopped being
+  // true the moment actionlint was registered — after which it passed on a developer machine with
+  // actionlint installed and failed on every CI runner without it, which is a test asserting the
+  // state of a laptop. `SLOP_GATE_ACTIONLINT_PATH` is what the adapter's own resolver reads first,
+  // so pointing it at a file that exists makes the engine available through the real code path with
+  // nothing downloaded. The file is never executed: `actionlint` is scoped to `github-workflow` and
+  // the fixture directory contains no workflow, so arbitration never elects it and `run` is never
+  // reached.
+  const stub = join(dir, 'actionlint-stub')
+  await writeFile(stub, '')
+  const previous = process.env['SLOP_GATE_ACTIONLINT_PATH']
+  process.env['SLOP_GATE_ACTIONLINT_PATH'] = stub
+  try {
+    await runCheckCapturingStdout({ 'require-engines': true })
+    expect(process.exitCode).toBe(EXIT_CODES.clean)
+  } finally {
+    if (previous === undefined) delete process.env['SLOP_GATE_ACTIONLINT_PATH']
+    else process.env['SLOP_GATE_ACTIONLINT_PATH'] = previous
+  }
+})
+
+test('--require-engines on a machine missing an optional engine exits 3 and names it', async () => {
+  // The other half, and the one CI is uniquely good at: every runner is a clean machine with no
+  // actionlint on it, so this is the only place the absent-binary path meets a genuinely absent
+  // binary rather than an injected stub. Constructed here too, so it holds on a developer machine
+  // that does have actionlint installed.
+  // Absence is forced through `SLOP_GATE_ACTIONLINT_PATH` naming a file that does not exist —
+  // documented to resolve to nothing rather than fall through to `PATH`, so a typo in an override
+  // can never silently run a different binary. Emptying `PATH` instead would have worked here too,
+  // and is what `engine-actionlint`'s own availability test does, but this test drives the *whole*
+  // engine set through the real `check.run`, and taking `PATH` away from oxlint, tsc and knip on the
+  // way to making a point about actionlint is a way to fail on one runner and not another.
+  const saved = process.env['SLOP_GATE_ACTIONLINT_PATH']
+  let written = ''
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    written += chunk
+    return true
+  })
+  try {
+    process.env['SLOP_GATE_ACTIONLINT_PATH'] = join(dir, 'nothing-here', 'actionlint')
+
+    await runCheckCapturingStdout({ 'require-engines': true })
+    expect(process.exitCode).toBe(EXIT_CODES.engine)
+    expect(written).toContain('--require-engines: `actionlint` is not installed')
+    expect(written).toContain('sgate engines install actionlint')
+  } finally {
+    stderr.mockRestore()
+    if (saved === undefined) delete process.env['SLOP_GATE_ACTIONLINT_PATH']
+    else process.env['SLOP_GATE_ACTIONLINT_PATH'] = saved
+  }
 })

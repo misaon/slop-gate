@@ -1,0 +1,11 @@
+on: push
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        exclude:
+          - os: solaris-latest # HIT
+    steps:
+      - run: echo hi

@@ -35,6 +35,9 @@ importers:
       '@misaon/slop-gate-core':
         specifier: workspace:*
         version: link:../core
+      '@misaon/slop-gate-engine-actionlint':
+        specifier: workspace:*
+        version: link:../engine-actionlint
       '@misaon/slop-gate-engine-astgrep':
         specifier: workspace:*
         version: link:../engine-astgrep
@@ -75,6 +78,12 @@ importers:
       '@types/picomatch':
         specifier: ^4.0.3
         version: 4.0.3
+
+  packages/engine-actionlint:
+    dependencies:
+      '@misaon/slop-gate-core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/engine-astgrep:
     dependencies:

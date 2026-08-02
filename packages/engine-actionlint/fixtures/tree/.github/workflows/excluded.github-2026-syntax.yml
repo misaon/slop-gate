@@ -1,0 +1,20 @@
+# Valid GitHub Actions syntax that actionlint 1.7.12 predates: parallel/background steps (shipped
+# 2026-06-25) and concurrency queueing (shipped 2026-05-07). Both are reported as schema violations,
+# which is why `syntax-check` is excluded from `recommended` — the failure mode recurs every time
+# GitHub ships something, and because we pin the binary the staleness is our choice, not the user's.
+on: push
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+  queue: max # HIT
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the toolchain install
+        id: install
+        run: sleep 1
+        background: true # HIT
+      - name: Wait for the toolchain # HIT
+        wait: install
+      - run: echo hi

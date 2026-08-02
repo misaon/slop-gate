@@ -1,0 +1,17 @@
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: echo "version=1" >> "$GITHUB_OUTPUT"
+  publish:
+    runs-on: ubuntu-latest
+    needs: [build]
+    env:
+      target: ${{ matrix.goos }} # HIT
+    if: needs.build.outputs.version_changed == 'true' # HIT
+    steps:
+      - run: echo ${{ fromJSON('["a",]') }} # HIT
