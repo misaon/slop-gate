@@ -65,13 +65,33 @@ test('every rule the adapter can report has a registry entry, and vice versa', (
   expect([...registered].sort(compareStrings)).toEqual([...ACTIONLINT_RULE_IDS].sort(compareStrings))
 })
 
-test('availability is filesystem-only: it never executes the binary it finds', async () => {
-  // The contract `Engine.availability` states at length, proved rather than trusted. The "binary" is
-  // a script that records having been run; availability must leave no trace, and `version()` — which
-  // is allowed to spawn — must leave one, or the first half of the assertion would pass vacuously
-  // against a script that never worked.
+test('availability is filesystem-only: it reports on a file that cannot be executed at all', async () => {
+  // The cross-platform half of the contract `Engine.availability` states at length. The "binary" is
+  // a plain, unspawnable file — 0644 and extensionless, so `execFile` fails EACCES on Unix and
+  // ENOENT on Windows — and the two assertions are what make each other meaningful: `availability()`
+  // succeeds on exactly the path that `version()` cannot even start. A probe that spawned would have
+  // failed the same way `version()` does.
+  const notExecutable = join(workspace, 'actionlint')
+  await writeFile(notExecutable, 'this is not a program\n', { mode: 0o644 })
+
+  const engine = createActionlintEngine({ binaryPath: notExecutable })
+  expect(await engine.availability?.()).toEqual({ available: true })
+  // `EACCES` on Unix, `ENOENT` on Windows — the point is that it cannot start, not which errno says so.
+  await expect(engine.version()).rejects.toThrow(/EACCES|ENOENT/)
+})
+
+test.skipIf(process.platform === 'win32')('availability is filesystem-only: it never executes the binary it finds', async () => {
+  // The stronger half, and the reason it is not cross-platform: it needs a spawnable stub that
+  // records having been run, and on Windows there is no portable way to author one — an
+  // extensionless shell script is not executable there (`spawn … ENOENT`, which is exactly how this
+  // failed on the first CI run), and Node refuses to `execFile` a `.cmd` without `shell: true`,
+  // which the adapter does not use. What Windows gets instead is the test above, which is a real
+  // assertion rather than a skip.
+  //
+  // `version()` is the control: it is allowed to spawn and must leave the marker, or "availability
+  // left no trace" would pass vacuously against a script that never ran in the first place.
   const marker = join(workspace, 'was-executed')
-  const script = join(workspace, 'actionlint')
+  const script = join(workspace, 'stub-actionlint')
   await writeFile(script, `#!/bin/sh\necho ran >> ${JSON.stringify(marker)}\necho "1.7.12"\n`, { mode: 0o755 })
 
   const engine = createActionlintEngine({ binaryPath: script })
@@ -110,7 +130,10 @@ test('an absent binary is a reported coverage gap naming the command that fixes 
 })
 
 test('the materialised config is a real file, and it is what suppresses the repository’s own', async () => {
-  const engine = createActionlintEngine({ binaryPath: '/bin/true' })
+  // The path is never resolved, let alone executed: `materializeConfig` writes a config and records
+  // the selection, and only `run` and `version` need a binary. A POSIX placeholder like `/bin/true`
+  // would read as an assumption this test does not actually make.
+  const engine = createActionlintEngine({ binaryPath: join(workspace, 'never-executed') })
   const handle = await engine.materializeConfig(new Map([['events', 'warn' as const]]), context)
   expect(handle.path.startsWith(context.tmpDir)).toBe(true)
   expect(await readFile(handle.path, 'utf8')).toContain('self-hosted-runner')

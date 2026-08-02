@@ -1305,6 +1305,33 @@ asserts every key names a real entry and that none of its concepts reaches `reco
 `slop.emoji-in-code`, whose reasons are currently prose in a comment in `config/presets.ts` with
 nothing checking that the prose and the preset agree. knip's are in the same position.
 
+### The first optional engine made one existing test assert the state of a laptop
+
+`--require-engines on a fully equipped machine still exits clean` (`cli/src/commands/check.test.ts`)
+was written when nothing in `defaultEngines` declared `availability`, so "fully equipped" was true by
+construction and the test said so in a comment. Registering actionlint quietly turned that comment
+into an assumption about the machine: it passed on a developer laptop with actionlint installed and
+failed on **all six CI runners**, which are clean machines. The premise is now *constructed* —
+`SLOP_GATE_ACTIONLINT_PATH` pointed at an empty file, which the adapter's own resolver honours, with
+nothing downloaded and nothing executed (the engine is scoped to `github-workflow`, and the fixture
+directory has no workflow, so arbitration never elects it).
+
+The failure was worth having, and installing actionlint in CI would have been the wrong fix twice
+over: a test needing a 6 MB download is a test nobody runs locally either, and **CI without
+actionlint is the only place the real absent-binary path is exercised at all**. So the companion
+assertion was added rather than the workaround — a genuinely unequipped machine exits 3 and names
+both the engine and `sgate engines install actionlint` on stderr.
+
+The general shape to watch for, now that engines can be absent: **an environment-dependent test that
+still passes both ways.** This one only surfaced because it asserts an exit code. A test that counted
+findings would have gone green on both machines and meant different things on each. The audit found
+no other case in this package — `pnpm test` with actionlint hidden (`PATH` and cache emptied)
+reproduces CI exactly: same 47 skips, nothing else changes — but two pre-existing
+`expect(...).toBeGreaterThan(0)` assertions in `cli/src/commands/rules/list.test.ts` are satisfied by
+different *content* depending on availability (`engine-unavailable` versus `language-mismatch` as the
+ineligibility reason). Neither claim is false; both are insensitive, which is the class to look at
+first when the next optional engine lands.
+
 ### Smaller things, all measured
 
 - **`column` and `end_column` are in different units.** `column` is a 1-based byte offset into the

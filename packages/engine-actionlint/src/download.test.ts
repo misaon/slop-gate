@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -51,7 +51,7 @@ test('extracts the named entry and ignores every other one', () => {
   expect(extractTarGzEntry(archive, 'nothing-by-this-name')).toBeUndefined()
 })
 
-test('a verified download lands executable in the version-scoped cache', async () => {
+test('a verified download lands intact in the version-scoped cache', async () => {
   const cache = join(workspace, 'cache-ok')
   const result = await installActionlint({
     platform: 'linux',
@@ -61,18 +61,37 @@ test('a verified download lands executable in the version-scoped cache', async (
     checksums: { [LINUX_ASSET]: digest },
   })
 
-  const expectedPath = join(cache, 'actionlint', ACTIONLINT_VERSION, 'actionlint')
+  const directory = join(cache, 'actionlint', ACTIONLINT_VERSION)
+  const expectedPath = join(directory, 'actionlint')
   expect(result).toEqual({ path: expectedPath, version: ACTIONLINT_VERSION, cached: false })
-  expect(await readFile(expectedPath, 'utf8')).toBe(PAYLOAD)
-  // Executable, which `install.js` in the npm `hadolint` wrapper famously is not — the M0 follow-ups
-  // record that exact defect (a 0644 binary and a spawn that fails EACCES) as a reason not to depend
-  // on these wrappers, so it is asserted here rather than assumed.
-  expect((await stat(expectedPath)).mode & 0o111).not.toBe(0)
-  // Nothing is left behind from the staged write.
-  expect(await run('sh', ['-c', `ls ${JSON.stringify(join(cache, 'actionlint', ACTIONLINT_VERSION))}`])).toHaveProperty(
-    'stdout',
-    'actionlint\n',
+  // The digest of what landed, not just its text: this is the assertion that says the bytes executed
+  // later are the bytes that were verified, and it is the same statement on every platform.
+  expect(createHash('sha256').update(await readFile(expectedPath)).digest('hex')).toBe(
+    createHash('sha256').update(PAYLOAD).digest('hex'),
   )
+  // Nothing left behind from the staged write. `readdir` rather than shelling out to `ls`, which
+  // does not exist on a Windows runner.
+  expect(await readdir(directory)).toEqual(['actionlint'])
+})
+
+test.skipIf(process.platform === 'win32')('the installed binary is executable', async () => {
+  // Split out and skipped on Windows because the *behaviour* is platform-specific rather than the
+  // test being lazy: NTFS has no POSIX execute bit, so `mode & 0o111` is always 0 there and `chmod`
+  // is a no-op — an assertion that can only ever fail. Everything portable about the install is
+  // asserted in the test above, on every platform.
+  //
+  // Worth asserting at all because it is a defect that has actually shipped: the npm `hadolint`
+  // wrapper writes its downloaded binary with `writeFile` and never chmods it, so on any Unix the
+  // file lands 0644 and every spawn fails EACCES (M0 follow-ups, distribution findings).
+  const cache = join(workspace, 'cache-mode')
+  await installActionlint({
+    platform: 'linux',
+    arch: 'x64',
+    env: { SLOP_GATE_CACHE_DIR: cache },
+    fetch: respond(archive),
+    checksums: { [LINUX_ASSET]: digest },
+  })
+  expect((await stat(join(cache, 'actionlint', ACTIONLINT_VERSION, 'actionlint'))).mode & 0o111).not.toBe(0)
 })
 
 test('the shipped digest table is what a real install is compared against', async () => {
