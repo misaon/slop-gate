@@ -1,0 +1,12 @@
+/* noDuplicateProperties, measured false-positive mode: a deliberate fallback for a browser
+   that cannot parse the second value. 14 of the 31 findings the adapter reports looked like this.
+   Two blocks, not one, because biome reports only the first duplicated property in a block. */
+.a {
+  background: hsl(210deg 50% 50%);
+  background: linear-gradient(to right, hsl(210deg 50% 50%), transparent); /* HIT */
+}
+
+.b {
+  width: max-content;
+  width: -moz-max-content; /* HIT */
+}

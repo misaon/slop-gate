@@ -1,0 +1,4 @@
+.a {
+  color: red;
+}
+@import url("b.css"); /* HIT */

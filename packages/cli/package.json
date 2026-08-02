@@ -29,6 +29,7 @@
     "@misaon/slop-gate-core": "workspace:*",
     "@misaon/slop-gate-engine-actionlint": "workspace:*",
     "@misaon/slop-gate-engine-astgrep": "workspace:*",
+    "@misaon/slop-gate-engine-biome-css": "workspace:*",
     "@misaon/slop-gate-engine-knip": "workspace:*",
     "@misaon/slop-gate-engine-oxlint": "workspace:*",
     "@misaon/slop-gate-engine-schema": "workspace:*",

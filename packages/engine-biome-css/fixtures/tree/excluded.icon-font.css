@@ -1,0 +1,6 @@
+/* useGenericFontNames: 15 of its 16 corpus findings were icon fonts, where adding a
+   generic fallback renders letters instead of glyphs. */
+.codicon::before {
+  font-family: codicon; /* HIT */
+  content: "\ea01";
+}

@@ -108,6 +108,131 @@ export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       'reports YAML parse errors and duplicate keys under the same `kind`, and the adapter drops both ' +
       'classes because the `schema` engine owns them for `github-workflow`.',
   },
+
+  // `biome-css` (packages/engine-biome-css). Nine of its twenty-seven registry entries, and they
+  // divide into three kinds that this file deliberately does not blur together: house style that was
+  // never a defect, a right rule defeated by the wrong context, and a right rule whose precision is
+  // simply too low. The measurement behind all of them is the same 1729-file corpus documented on
+  // `BIOME_CSS_RULE_ENTRIES` in entries.manual.ts.
+  'biome-css/noHexColors': {
+    reason:
+      '**House style, not a defect — the largest single class in the whole measurement.** 5815 ' +
+      'findings across 376 of 1729 production stylesheets, and not one of them a bug: the rule\'s ' +
+      'entire content is a preference for `hsl()`/`oklch()` over `#rrggbb`. It fires in 9 of 10 ' +
+      'corpus repositories at 0.7 to 103 findings per thousand lines, so there is no repository shape ' +
+      'that escapes it.\n\n' +
+      'Together with the three entries below this is 11,525 of the engine\'s 12,125 findings and ' +
+      'zero of its ~27 real defects. A first `sgate check` on a CSS codebase emitting eleven thousand ' +
+      'findings with no defect content does not teach a user that their stylesheets are untidy; it ' +
+      'teaches them that this tool is noise, permanently, and takes the eighteen rules that *are* ' +
+      'defects down with it.\n\n' +
+      '**Not a verdict on the rule.** A project that has adopted a colour-model convention and wants ' +
+      'it enforced enables `style.css-hex-color` and gets exactly this. That is what the full entry ' +
+      'in entries.manual.ts is for. What is being rejected is only the claim that it belongs in a ' +
+      'default quality gate.',
+  },
+  'biome-css/noDescendingSpecificity': {
+    reason:
+      '2206 findings in 435 files — **a quarter of every stylesheet measured** — in 8 of 10 ' +
+      'repositories at 2 to 19 per thousand lines. Twelve were read across eight repositories and ' +
+      'every one was ordinary, correct CSS: `li, dt` in django\'s admin, `.timelist a:active` in its ' +
+      'widgets, `ul.messagelist li` in its responsive sheet.\n\n' +
+      'The rule asks that selectors appear in non-descending specificity order so that source order ' +
+      'decides the cascade. Real stylesheets are grouped by component, and that is not a defect — it ' +
+      'is how they are maintainable. Same class as `noHexColors`: available by concept for a codebase ' +
+      'that has genuinely committed to specificity ordering, out of `recommended` for everyone else.\n\n' +
+      '**The sample was twelve, not 2206**, and the decision does not rest on the difference: at ten ' +
+      'findings per thousand lines the rule is excluded whether its true-positive rate is 0% or 2%. ' +
+      'Read the count as the reason, not the sample as precision.',
+  },
+  'biome-css/useBaseline': {
+    reason:
+      '2002 findings in 467 files. **What this rule reports is a property of the project\'s browser ' +
+      'targets, which slop-gate does not know** — so on any given repository it is either entirely ' +
+      'right or entirely irrelevant, and nothing in the run can tell which. The corpus makes the ' +
+      'point: 307 findings against Visual Studio Code, an application that ships its own Chromium.\n\n' +
+      'By volume: `light-dark()` 813, `::selection` 385, `user-select` 259, `mask-image` 132. Those ' +
+      'are intentional modern CSS, and `::selection` and `user-select` are universally supported in ' +
+      'practice whatever Baseline\'s 30-month window says.\n\n' +
+      'Revisit if slop-gate ever grows a first-class way to declare a repository\'s browser support ' +
+      'floor — a browserslist-shaped input the adapter could translate into this rule\'s own options. ' +
+      'At that point it becomes a genuine correctness check rather than a policy nobody configured.',
+  },
+  'biome-css/noImportantStyles': {
+    reason:
+      '1502 findings in 323 files, 1071 of them Visual Studio Code alone. `!important` overused makes ' +
+      'a cascade impossible to reason about; used deliberately it is how a theming layer wins against ' +
+      'a component library it does not control, which is exactly what a 1071-finding editor is doing. ' +
+      'Distinguishing the two needs to know the codebase\'s conventions, and a linter that does not ' +
+      'is just counting a keyword.\n\n' +
+      'The fourth of the four house-style rules, excluded on the same argument, available by concept ' +
+      'as `complexity.css-important` for a team that has decided it wants no `!important` at all.',
+  },
+
+  // Right rule, wrong context. Neither of the next two is excluded on its own merits — both are
+  // correct checks defeated by a preprocessor standing between the `.css` file and the browser — so
+  // the reason is written as the condition that would put them back, not as a judgement. §23
+  // framework awareness is where this properly belongs.
+  'biome-css/noUnknownAtRules': {
+    reason:
+      '**Revisit trigger, not a verdict.** 26 findings, 0 true positives — and the rule is right in ' +
+      'every one of them about what plain CSS defines. 25 are `@extend` (zulip, compiled by PostCSS) ' +
+      'and 1 is `@tailwind` (Tailwind v3). Both are valid input to their own build step and never ' +
+      'reach a browser as written, so this measures a corpus containing two preprocessed projects, ' +
+      'not a check that is wrong.\n\n' +
+      '**The condition that puts it back in `recommended`: a framework profile that detects a CSS ' +
+      'preprocessor and stands the rule down there.** The signals are concrete and already ' +
+      'inventory-visible — a `postcss.config.*`, a `postcss`/`postcss-preset-*` dependency, a ' +
+      '`tailwindcss` dependency, or `@extend`/`@tailwind`/`@apply` in the file itself. In a repository ' +
+      'that genuinely ships plain CSS this rule catches a misspelled at-rule, which nothing else does, ' +
+      'and CSS silently discards.\n\n' +
+      'Note what would go wrong if this were recorded as "inaccurate rule" instead: a future reader ' +
+      'comparing it against `noUnknownUnit` — which is genuinely, reproducibly wrong about `1x` — ' +
+      'would have no way to tell the two apart, and would either fix neither or delete both.',
+  },
+  'biome-css/noUnknownFunction': {
+    reason:
+      '**Revisit trigger, on the identical condition as `noUnknownAtRules` above.** 3 findings, 0 ' +
+      'true positives, all three the same function in one file: Mantine\'s `alpha()`, provided by ' +
+      '`postcss-preset-mantine` and compiled away before a browser sees it. The rule is correct that ' +
+      'CSS defines no `alpha()`.\n\n' +
+      'Stands down under the same preprocessor detection, and returns to `recommended` with it. On a ' +
+      'plain-CSS repository an unknown function means the whole declaration is dropped at parse time, ' +
+      'which is a real and completely invisible failure.',
+  },
+
+  // Right rule, precision too low — measured on its own merits, unlike the two above.
+  'biome-css/useGenericFontNames': {
+    reason:
+      '16 findings, 1 true positive. **15 are icon fonts** — `codicon` in Visual Studio Code, ' +
+      '`PrismTreeview` in Prism — and for those the rule\'s remediation is actively harmful: adding ' +
+      '`sans-serif` after `codicon` means a reader missing the icon font sees arbitrary letters where ' +
+      'icons should be, instead of the browser default they would have got anyway.\n\n' +
+      'The single true positive (`font-family: courier` in pdf.js\'s debugger overlay) is the rule ' +
+      'working exactly as documented, which is why the entry stays available by concept. It is the ' +
+      'ratio that keeps it out of `recommended`, and the ratio is not obviously fixable: Biome cannot ' +
+      'tell an icon font from a text font, and neither can we.',
+  },
+  'biome-css/noDuplicateSelectors': {
+    reason:
+      '178 findings in 78 files; ten were read across five repositories and none was a defect. ' +
+      'Declaring a selector twice in one stylesheet is what grouping declarations by concern looks ' +
+      'like — django\'s admin re-opens `#content-related` under a `/* SIDEBAR */` heading, ' +
+      'highlight.js groups `.hljs-selector-tag` with the other selectors of its colour. The rule ' +
+      'cannot distinguish that from genuine redundancy, and the idiomatic case is far commoner.\n\n' +
+      'Also `nursery` upstream, which is Biome\'s own statement that it is not ready to be a default.',
+  },
+  'biome-css/noEmptyBlock': {
+    reason:
+      '181 findings — and **176 of them are one repository\'s documented convention**: highlight.js ' +
+      'ships `.hljs-property {}` in 176 base16 theme files as a deliberate placeholder marking a token ' +
+      'class the theme leaves unstyled. Outside that convention the rule is nearly silent: 5 findings ' +
+      'in the other 1553 files.\n\n' +
+      'Excluded not because it is noisy in general — it is not — but because an empty declaration ' +
+      'block costs nothing at run time and removing one is never a fix for anything. It is tidiness ' +
+      'with a plausible intentional reading, which is the definition of opt-in here. The single-repo ' +
+      'concentration is disclosed because it would otherwise look like a much noisier rule than it is.',
+  },
 }
 
 export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {

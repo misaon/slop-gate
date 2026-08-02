@@ -1358,3 +1358,83 @@ first when the next optional engine lands.
   classes the adapter drops, but it was not confirmed that the `schema` engine reports it, and
   dropping a finding on the assumption that someone else covers it is the mistake this whole section
   exists to avoid. Cheap to check and then decide.
+
+## Found building the `biome-css` engine (spec §13.6)
+
+### Stylesheets are only half covered, and SCSS has no answer in Biome
+
+**`biome-css` covers `css`. It cannot cover `scss` or `less`, and nothing else in the toolchain does
+either.** This is a hole in the file set the tool was commissioned for ("TypeScript, YAML, JavaScript,
+CSS, SCSS, HTML, Vue, React, Tailwind, Dockerfile, docker-compose, GitHub CI/CD"), so it is recorded
+here rather than left to be discovered by a user.
+
+Biome 2.5.6 does not lint SCSS *at all*. It does not lint it badly — it does not open the file:
+`biome lint x.scss` prints `Checked 0 files` and lists the path under "these paths were provided but
+ignored". Same for `.sass` and `.less`. Upstream's own
+[language support table](https://biomejs.dev/internals/language-support/) marks SCSS ⌛ parsing,
+⌛ formatting, **🚫 linting** — linting is not listed as in progress, only parsing and formatting are.
+SCSS is on the [2026 roadmap](https://biomejs.dev/blog/roadmap-2026/) as the most-requested feature
+with work started, and that work is on the parser.
+
+The size of the gap, from the same ten repositories the CSS measurement used: **119 `.scss` files and
+176 `.less` files** that this engine cannot see. One repository considered for the corpus and dropped,
+`jellyfin/jellyfin-web`, has **111 `.scss` files and zero `.css`** — a real production web application
+for which `biome-css` provides no coverage whatsoever. `scss` and `less` are already `LanguageId`s and
+the discovery layer already classifies both, so the inventory sees these files; no engine claims them.
+
+**The candidate is `stylelint`**, which does cover SCSS and Less, is npm-native (the same distribution
+shape as oxlint and Biome, so no download or platform matrix), and is the tool most projects with SCSS
+already run. **It has not been evaluated** — no corpus, no per-rule counts, no view on how much of its
+rule set overlaps what `biome-css` already owns for plain CSS, and no measurement of what it costs: it
+is JavaScript, where every other file-granularity engine here is a native binary. Nothing above should
+be read as a recommendation, only as the obvious place to start.
+
+Until then the honest statement is that stylesheet coverage is CSS-only, and the engine is built so
+that this cannot be mistaken for coverage: it declares `languages: ['css']` and nothing else, so
+arbitration never assigns it an SCSS file and never produces a clean result for one it did not read.
+
+### Deferred deliberately
+
+- **A CSS-preprocessor framework profile (§23) would return two rules to `recommended`.**
+  `noUnknownAtRules` and `noUnknownFunction` are excluded as revisit triggers rather than verdicts —
+  both are correct about plain CSS and are defeated by PostCSS, Tailwind v3 or Mantine compiling the
+  construct away. The detection signals are concrete and already inventory-visible: a
+  `postcss.config.*`, a `postcss`/`postcss-preset-*`/`tailwindcss` dependency, or
+  `@extend`/`@tailwind`/`@apply` in the file itself. On a repository that genuinely ships plain CSS
+  both rules catch something nothing else does and CSS discards silently.
+- **`useBaseline` needs a browser-support floor slop-gate does not have.** It produced 2002 findings
+  on the corpus, including 307 against Visual Studio Code, which ships its own Chromium. It is either
+  entirely right or entirely irrelevant per repository and nothing in the run can tell which. A
+  browserslist-shaped input in `slop-gate.config.ts`, translated by the adapter into the rule's own
+  options, would turn a policy nobody configured into a genuine correctness check.
+- **`noInvalidGridAreas` is excluded on an upstream defect, not on accuracy.** Fed Biome's own
+  documented invalid example it reports nothing whenever the declaration sits on its own indented
+  line — four formattings tried, the two conventional ones silent, with `--profile-rules` confirming
+  the rule executed each time. Worth re-testing on each Biome upgrade; the fixture to do it with is
+  already written.
+- **`noUnknownUnit` should be reported upstream.** `x` is a standard CSS resolution unit (the `dppx`
+  alias, CSS Values and Units 4) and Biome 2.5.6 rejects it. Two findings on the corpus, both valid.
+- **Biome reports only the first duplicated property per block.** Verified with two independent
+  duplicate pairs in one block producing one finding. `noDuplicateProperties` counts are therefore a
+  floor, and a user who fixes the reported pair may get a new finding in the same block on the next
+  run. Not worth working around; worth knowing.
+- **`--reporter=json` prints an instability warning to stderr on every run** ("the output might
+  change between patches/minor releases"). The adapter pins `@biomejs/biome` exactly for this reason,
+  but a minor upgrade needs the parser re-checked, not just the tests re-run.
+
+### A near-miss worth keeping, and the method that caught it
+
+Two claims made from the corpus measurement were wrong, in opposite directions, and both were caught
+by authored fixtures rather than by more measurement:
+
+- Six `noDuplicateProperties` findings were classified as Biome reporting across a nested
+  `@container` boundary, and written up as an upstream nesting defect. The fixture refused to
+  reproduce it: Biome handles CSS nesting correctly. All six were in zulip stylesheets that fail to
+  parse, where recovery had flattened the nesting — a class the adapter now discards wholesale.
+- `noInvalidGridAreas` was in the shipped set on a scratch measurement that showed it firing. Its
+  fixture showed it cannot fire on conventionally formatted CSS. Zero findings on 1729 files is
+  consistent with "rare defect" and with "cannot fire", and **only a fixture separates those two**.
+
+The rule this suggests: a corpus measures how often a rule is *wrong*; it cannot establish that a
+rule *works*, and a zero on a corpus is not evidence of anything until an authored case has fired.
+Both halves are needed and they answer different questions, which is why they are never summed.

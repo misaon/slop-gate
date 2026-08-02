@@ -1,0 +1,9 @@
+/* noDuplicateProperties, measured false-positive mode 2, and an upstream defect: the two
+   declarations are in different blocks, so neither overrides the other. 6 of 44. */
+.a {
+  max-width: 100%;
+
+  @container app (width < 40rem) {
+    max-width: 20rem; /* HIT */
+  }
+}

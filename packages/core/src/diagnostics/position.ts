@@ -15,6 +15,20 @@ export type LineIndex = {
    * a malformed or unexpected engine report is not a reason to crash the whole run.
    */
   offsetAt(position: { line: number; column: number }): number
+  /**
+   * The same conversion as `offsetAt`, for an engine whose columns count **Unicode codepoints**
+   * rather than UTF-16 code units. Biome is the first such source (see
+   * `@misaon/slop-gate-engine-biome-css`'s `parse.ts`); `tsc` and every LSP-shaped tool are not.
+   *
+   * A separate entry point rather than a flag on `offsetAt`, because the two units are
+   * indistinguishable on every input that does not contain an astral character — the whole BMP
+   * agrees — so a single function taking a unit argument would be silently correct in every test
+   * anybody thought to write and wrong on the one file with an emoji in a `content:` string. Passing
+   * codepoint columns to `offsetAt` is not a rounding error either: it lands N bytes early for N
+   * astral characters earlier on the line, and the diagnostic then points into the middle of a
+   * neighbouring token.
+   */
+  offsetAtCodepointColumn(position: { line: number; column: number }): number
   lineRangeOf(range: ByteRange): ByteRange
   sliceBytes(range: ByteRange): string
   /**
@@ -66,6 +80,18 @@ export function createLineIndex(source: string): LineIndex {
       // for every multi-byte character before the target column without walking the file byte by byte.
       const lineText = decoder.decode(bytes.subarray(lineStart, lineEnd))
       const prefix = lineText.slice(0, Math.max(0, position.column - 1))
+      return lineStart + encoder.encode(prefix).length
+    },
+    offsetAtCodepointColumn(position) {
+      const index = Math.max(0, Math.min(position.line - 1, lineStarts.length - 1))
+      const lineStart = lineStarts[index]!
+      const nextLineStart = lineStarts[index + 1]
+      const lineEnd = nextLineStart === undefined ? bytes.length : nextLineStart - 1
+      const lineText = decoder.decode(bytes.subarray(lineStart, lineEnd))
+      // `[...lineText]` iterates codepoints, so an astral character contributes one element here
+      // where `lineText.slice` above would have counted its two surrogates separately. Same
+      // clamping as `offsetAt`: `slice` on an over-long count simply yields the whole line.
+      const prefix = [...lineText].slice(0, Math.max(0, position.column - 1)).join('')
       return lineStart + encoder.encode(prefix).length
     },
     lineRangeOf(range) {

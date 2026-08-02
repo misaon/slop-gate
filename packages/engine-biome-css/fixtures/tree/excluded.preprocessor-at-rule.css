@@ -1,0 +1,5 @@
+/* noUnknownAtRules: 25 of 26 corpus findings were `@extend`, compiled away by PostCSS.
+   The rule is right about plain CSS and wrong about this file. */
+.a {
+  @extend .b; /* HIT */
+}

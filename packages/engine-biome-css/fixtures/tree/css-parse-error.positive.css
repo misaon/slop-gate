@@ -1,0 +1,4 @@
+/* A `.css` file written for PostCSS, exactly like zulip's. Valid input to its own build. */
+%dark-theme { /* HIT */
+  color-scheme: dark;
+}

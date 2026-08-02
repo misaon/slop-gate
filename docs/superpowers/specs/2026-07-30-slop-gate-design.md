@@ -64,7 +64,7 @@ on top of that substrate.
 | D7 | Three-tier fixes: `safe` (default), `suggested`, `unsafe`. Each declared per rule in the registry and covered by tests. | Trust is the scarce resource. One bad rewrite in someone else's repo ends the project. |
 | D8 | Aggregation and governance are built first; the `slop.*` ruleset grows incrementally on top. | The substrate is the hard, irreversible part. Rules are additive and cheap once the substrate is right. |
 | D9 | `engine-eslint` exists as a deliberately shrinking escape hatch. | oxlint cannot lint framework templates yet (roadmap: late 2026). ESLint runs only for concepts no faster engine owns; as oxlint grows, the registry re-elects owners and ESLint's scope shrinks to nothing without users touching their config. |
-| D10 | Biome is enabled **scoped to CSS/SCSS only**. | Biome's CSS rules fill a real gap. Its JS/TS rules would massively overlap oxlint — concept ownership makes the narrow scoping explicit and enforced rather than a convention. |
+| D10 | Biome is enabled **scoped to CSS only**. | Biome's CSS rules fill a real gap. Its JS/TS rules would massively overlap oxlint — concept ownership makes the narrow scoping explicit and enforced rather than a convention. Originally written "CSS/SCSS"; narrowed on measurement, because Biome 2.5.6 does not lint SCSS at all (§13.6). |
 | D11 | License MIT. | Maximum adoption. qlty's BSL is a differentiator we can use against it. |
 
 ---
@@ -80,7 +80,7 @@ Recorded with dates so a future session can tell what has gone stale.
 | **oxlint JS plugins** | ESLint v9-compatible API, **alpha** since 2026-03-11. `@oxlint/plugins` provides `definePlugin`/`defineRule`. | Usable but gated behind a capability probe with graceful degradation. Not the primary vehicle for slop rules. |
 | **oxfmt** | Beta 2026-02-24, 100% of Prettier's JS/TS conformance tests. Supports JS/JSX/TS/TSX, JSON/JSONC/JSON5, YAML, TOML, HTML, Angular, Vue, Svelte, CSS/SCSS/Less, Markdown/MDX, GraphQL, Handlebars. Import sorting and Tailwind class sorting included. | Exclusive owner of every `formatting.*` concept across ~20 file types. Removes the need for Prettier entirely. |
 | **TypeScript** | **7.0 GA 2026-07-08**, Go-native, 8–12× faster. **No stable programmatic API**; planned for 7.1 (~Oct 2026). No separate `tsgo` binary in stable — the native build *is* `tsc`. | Type errors come from shelling out to `tsc` and parsing text output. Revisit when 7.1 lands. |
-| **Biome** | v2.5 (June 2026), 500+ rules, cross-file analysis, own type inference without tsc. | CSS/SCSS only (D10). |
+| **Biome** | v2.5.6, 511 rules, cross-file analysis, own type inference without tsc. **SCSS: parsing and formatting in progress, linting 🚫 — verified, `biome lint x.scss` ignores the file.** | CSS only (D10, narrowed by measurement). |
 | **knip** | Current, first-class monorepo/workspace support. | Owner of `dead-code.unused-file`, `dead-code.unused-export`, `deps.*`. Whole-program, cannot be cached per file. |
 | **ast-grep** | Rust, tree-sitter based, YAML rule files, multi-language. | Engine for declarative structural and slop rules, including languages no JS parser covers. |
 | **MCP** | Spec revision **2026-07-28**: stateless protocol core (no `initialize` handshake, no protocol-level session), extensions framework, Tasks extension, cacheable list results. | `sgate mcp` targets the stateless core — a natural fit for a CLI that holds no session state. |
@@ -816,7 +816,7 @@ dependencies.
 | Type errors | **tsc** (TS 7 eventually; TS 5.9.3 measured) | peer | Shell out and parse; `--incremental`. Uses the repo's own TypeScript version |
 | Formatting, ~20 file types | **oxfmt** | bundled | Exclusive owner of `formatting.*`, incl. import and Tailwind class sorting |
 | Dead code, dependency hygiene | **knip** | bundled | Pure JS. Project granularity. Shelled out to today, not run in a worker — see §13.2 |
-| CSS/SCSS semantics | **Biome, scoped to CSS** | lazy | Registry enforces zero overlap with oxlint |
+| CSS semantics | **Biome, scoped to CSS** | bundled | Implemented — see §13.6. **CSS only: Biome cannot lint SCSS or Less at all** |
 | Structural and slop rules | **ast-grep** | bundled | Declarative YAML, cross-language. Implemented — see §13.3 |
 | GitHub Actions correctness | **actionlint** | lazy | Go binary. Implemented — see §13.5 |
 | GitHub Actions security | **zizmor** | lazy | Rust binary |
@@ -1104,6 +1104,104 @@ derived from the source using actionlint's own token rule rather than from `end_
 embed absolute paths, which are stripped before they can reach a fingerprint or a cache key. And the
 `if: false` remediation actionlint emits — "remove the `if:` section" — would *enable* a job someone
 disabled on purpose, so the diagnosis is kept and the instruction replaced.
+
+### 13.6 `biome-css`: stylesheets, and the quietest engine here on purpose
+
+**Implemented (M2, seventh engine).** `@misaon/slop-gate-engine-biome-css` shells out to a bundled
+`@biomejs/biome` 2.5.6, running
+`lint --config-path=<ephemeral> --max-diagnostics=none --no-errors-on-unmatched --reporter=json --reporter-file=<tmp>`
+and parsing the JSON report. Distribution is oxlint's exactly — one npm dependency with eight
+platform optional packages, both musl variants included, and `bin/biome` a `#!/usr/bin/env node`
+shim, so `resolveScriptBin` applies unchanged and there is no `availability()`, no download and no
+platform matrix. It is the only engine here whose upstream tool was already a candidate in §3 and
+whose scope this section *narrows*.
+
+**Expect it to find nothing, and read that as working.** Thirteen of its seventeen `recommended`
+rules produced zero findings across 1729 hand-authored production stylesheets. Run over that whole
+corpus the shipped configuration reports **66 findings in 1729 files** — 31 duplicate properties, 26
+stylesheets it could not parse, 5 shorthand overrides, 3 unknown properties, 1 unknown type selector
+— of which about 23 are real defects. This is written down because the first person to run `sgate
+check` on a CSS codebase and see nothing will otherwise conclude the engine is broken.
+
+**CSS only. Not SCSS, not Less.** Biome 2.5.6 does not lint them badly; it does not open them.
+`biome lint x.scss` prints `Checked 0 files` and lists the path as ignored, and upstream's own
+language-support table marks SCSS linting 🚫 with parsing and formatting still in progress. The
+engine therefore declares `languages: ['css']`, because declaring `scss` would have arbitration elect
+it for stylesheets it silently never reads and the run would report clean — the worst outcome
+available. That leaves a real hole in the target file set, recorded in the M0 follow-ups: across the
+ten corpus repositories alone there are 119 `.scss` and 176 `.less` files this engine cannot see,
+and one of them (jellyfin-web) has 111 `.scss` files and no CSS at all.
+
+**The measurement, and what it removed.** 1729 hand-authored `.css` files (220,585 lines) from ten
+repositories at pinned default-branch HEADs — vscode, metabase, highlight.js, jupyterlab, zulip,
+pdf.js, mediawiki, prism, django's admin, tailwindcss — with build output, minified files, vendored
+directories, test fixtures and `.css` compiled from a same-named `.scss` excluded by path. Every
+Biome rule enabled: **12,125 lint findings, roughly 23 of them real defects**. Four rules
+(`noHexColors`, `noDescendingSpecificity`, `useBaseline`, `noImportantStyles`) are 11,525 of the
+findings and none of the defects. They are house style, not defects, and shipping them on by default
+would have ended this engine's credibility on first contact; all four keep full registry entries so a
+project that wants the convention can enable it by concept. Nine rules have entries but stay out of
+`recommended` (`MANUAL_RULE_EXCLUSIONS`), and nine more have no entry at all, each with a written
+reason in `packages/engine-biome-css/src/rules.ts` — a test asserts those two lists partition Biome's
+35 CSS-capable rules, so none can be dropped silently.
+
+**Two exclusions are written as revisit triggers rather than verdicts, and the distinction is
+load-bearing.** `noUnknownAtRules` (26 findings, 0 true positives) and `noUnknownFunction` (3, 0) are
+*correct* about plain CSS and are defeated by a preprocessor standing between the file and the
+browser: `@extend` is PostCSS, `@tailwind` is Tailwind v3, `alpha()` is `postcss-preset-mantine`.
+Their reasons name the condition that puts them back — a §23 framework profile detecting a CSS
+preprocessor — because a future reader must be able to tell them apart from `noUnknownUnit`, which is
+genuinely wrong about `1x` (a standard resolution unit) in every repository.
+
+**Three silent failures this adapter had to be built around, all verified against the real binary.**
+
+- **The exit code is ambiguous three ways.** `1` means "found findings", "your configuration is
+  broken" *and* "no path matched". `--no-errors-on-unmatched` removes the third; the other two are
+  not separable, so the adapter never gates on the code. `--reporter-file` puts the report somewhere
+  Biome's failure text cannot corrupt it, and the report's *absence* is what signals a failed run.
+- **A file over `files.maxSize` (1 MiB) is not linted and barely says so** — a warning whose
+  `message` is the empty string at line 0, with `summary.skipped` still 0. The ceiling is raised in
+  the config, and `summary.unchanged` is compared against the batch size, because a ceiling can be
+  set too low but never proved high enough.
+- **`css.parser.tailwindDirectives: true` silently disables `.module.css` detection.** Isolated to
+  that single key: with it set and `cssModules` left alone, `:global` becomes an unknown pseudo-class
+  and the corpus produced **265 false findings across 36 files**. Both keys are now always set
+  together, and the near-miss is the argument for testing config keys in combination rather than one
+  at a time.
+
+**No reporter emits byte offsets, and Biome's columns are not UTF-16.** All nine output formats give
+line/column only, and the column counts **Unicode codepoints** — measured with three astral
+characters ahead of a finding: UTF-16 would be 28, codepoints 25, Biome said 25. The two units agree
+on every input without an astral character, so a `LineIndex.offsetAt` call would have been silently
+correct in every test anybody thought to write. Core gained `offsetAtCodepointColumn` next to it,
+with the discriminating fixture, rather than a flag that would let the units be confused again.
+
+**A `biome-ignore` comment leaves no trace of any kind**, so the adapter does not ask Biome about
+them: it scans the bytes it has already read for the byte-offset conversion and reports each one
+under `config.foreign-suppression`. Verified — an effective suppression yields `diagnostics: []`,
+`errors: 0`, and no counter anywhere. This matters more than it looks because D2 has `init` replace
+the repository's own Biome configuration, so a comment orphaned by our own migration would go on
+silencing findings slop-gate now owns, invisibly and forever. Same principle as an unavailable
+engine: a silent gap must not be representable.
+
+**A stylesheet Biome cannot parse is reported as `config.css-not-analysed`, not as a parse error**,
+and its rule findings are discarded. Biome recovers from a syntax error and keeps linting the partial
+tree — the 26 unparseable corpus files produced 986 further findings that way — and a finding derived
+from a document the parser could not finish reading is not evidence. The concept is deliberately not
+`correctness.parse-error`: all 125 parse errors measured came from `.css` files written for a
+preprocessor, every one of which compiles and ships, so "this file is broken" would have been wrong
+125 times out of 125 where "this file was not analysed" is right every time. Dropping those recovered
+findings is also what makes the shipped rules look as good as they do — `noUnknownTypeSelector` goes
+from 1 true positive in 4 findings to 1 in 1.
+
+**One claim in this section was wrong and was caught by a fixture.** The first reading of the corpus
+classified six `noDuplicateProperties` findings as Biome reporting across a nested `@container`
+boundary and called it an upstream defect. An authored fixture refused to reproduce it — Biome
+handles CSS nesting correctly — and all six turned out to be parse-recovery artefacts in files that
+do not parse. `noInvalidGridAreas` failed the same way in the other direction: zero findings on the
+corpus looked like a rare defect, and its fixture showed the rule misses its own documented invalid
+example whenever the declaration sits on its own indented line. It is now excluded. A rule that never
+fires is worse than no rule, and only an authored fixture can tell "never fires" from "rarely fires".
 
 ---
 

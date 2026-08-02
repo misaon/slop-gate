@@ -824,6 +824,544 @@ const ACTIONLINT_RULE_ENTRIES = [
   },
 ] as const satisfies readonly RuleEntry[]
 
+const BIOME_DOCS = 'https://biomejs.dev/linter/rules'
+
+/**
+ * The `biome-css` engine (`packages/engine-biome-css`) — CSS semantics, and the seventh engine.
+ *
+ * **`css` only. Not `scss`, not `less`.** Biome 2.5.6 does not lint SCSS: it does not report on it
+ * badly, it does not open the file at all. `biome lint x.scss` prints `Checked 0 files` and lists
+ * the path under "these paths were provided but ignored", and upstream's own language-support table
+ * marks SCSS linting 🚫 with parsing and formatting still ⌛. Declaring `scss` here would make
+ * arbitration elect this engine for stylesheets it will silently never read — the single worst
+ * outcome available, because the run would report clean. See the M0 follow-ups for the gap this
+ * leaves in the stated target file set.
+ *
+ * **`tier: 0`** — a Rust binary distributed as an npm package with eight platform optional
+ * dependencies, oxlint's shape exactly. Bundled, not lazy: `@biomejs/biome` is a normal dependency
+ * of the adapter, so there is no download, no checksum cache and no `availability()`.
+ *
+ * **The measurement.** 1729 hand-authored CSS files (220,585 lines, 5.8 MB) from ten repositories at
+ * pinned default-branch HEADs — microsoft/vscode, metabase, highlight.js, jupyterlab, zulip,
+ * mozilla/pdf.js, mediawiki, prism, django's admin, tailwindcss — with every Biome rule enabled
+ * (`preset: "all"` plus the four nursery CSS rules). Build output, minified files, vendored
+ * directories, test fixtures and `.css` compiled from a same-named `.scss`/`.less` were excluded by
+ * path before the run.
+ *
+ * **12,125 lint findings. Roughly 23 are real defects.** Four rules — `noHexColors`,
+ * `noDescendingSpecificity`, `useBaseline`, `noImportantStyles` — are 11,525 of the findings and
+ * none of the defects. They are house style, not defects; every one keeps an entry here so a project
+ * that wants the convention can enable it by concept, and every one is in `MANUAL_RULE_EXCLUSIONS`
+ * so no `recommended` run ever emits them. A first run reporting eleven thousand findings with no
+ * defect content would have ended this engine's credibility on contact.
+ *
+ * **What that leaves is deliberately quiet.** Seventeen rules are in `recommended`: four measured on
+ * the corpus (`noShorthandPropertyOverrides` 5/5, `noUnknownProperty` 2/3, `noUnknownTypeSelector`
+ * 1/1, `noDuplicateProperties` 15/31 — all after the adapter discards findings recovered from
+ * unparseable files) and thirteen that fired **zero times across all 1729 files**. Zero measured
+ * false positives, and zero evidence of value from the corpus alone: a rule that never fires is worse
+ * than no rule, so each of the thirteen is backed instead by an authored fixture in
+ * `packages/engine-biome-css/fixtures/` proving it fires on its target construct.
+ *
+ * That distinction earned its keep immediately. `noInvalidGridAreas` was in this list until its
+ * fixture failed: fed Biome's own documented invalid example it reports nothing whenever the
+ * declaration sits on its own indented line, which is every real stylesheet. Its zero on the corpus
+ * meant "cannot fire", not "rarely fires", and nothing but the fixture could tell those apart. It is
+ * now in `EXCLUDED_RULES` with the four formattings that were tried.
+ *
+ * Thirteen of the seventeen have never produced a finding on real code. That is the correct shape for
+ * a stylesheet linter and it is written down here so nobody reads a clean run as a broken engine.
+ *
+ * **`warn` throughout, and it is a policy rather than eighteen judgements**, the same policy
+ * `actionlint` shipped under: `error` is the bar the `schema` engine clears on 826 files with no
+ * judgement call in any of them, and this is a first release whose best-measured rule has six
+ * findings behind it. Several of these have a consequence argument for `error` that only lacks
+ * exposure — an `@import` after a style rule means a stylesheet is silently not loaded — and should
+ * be revisited once real repositories have produced any.
+ *
+ * **`fixKind: 'none'` throughout.** Only one CSS rule in Biome has a fix at all (`noImportantStyles`,
+ * unsafe, and excluded), so the adapter declares `fixes: false` and implements neither fix route.
+ */
+const BIOME_CSS_RULE_ENTRIES = [
+  {
+    engine: 'biome-css',
+    // 6 findings on the corpus, 6 true positives — the best precision measured for any rule here (5
+    // after the adapter discards the one in an unparseable file, still 5/5). Every one a real dead
+    // declaration: `flex-wrap: wrap` then `flex-flow: column nowrap` in pdf.js, `margin-top` then
+    // `margin` in VS Code, four more of the same shape.
+    engineRuleId: 'noShorthandPropertyOverrides',
+    concepts: ['correctness.css-shorthand-override'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-shorthand-property-overrides`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // 3 findings, 2 true positives: `-mox-box-sizing`, a typo for `-moz-`, in two VS Code files where
+    // the correct declaration on the next line hides it. The third is `-khtml-user-select`, a real
+    // prefix for a browser nobody targets — the rule is right that it does nothing, which is a
+    // judgement about legacy rather than a mistake, so it is counted against the rule rather than for it.
+    engineRuleId: 'noUnknownProperty',
+    concepts: ['correctness.css-unknown-property'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-unknown-property`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // Biome produced 4 findings; 3 came from files it could not parse and the adapter discards them,
+    // leaving **1 finding and 1 true positive**. That one is the kind of bug that survives review for
+    // years: pdf.js writes `.annotationEditorLayer freeTextEditor` in one place and `.freeTextEditor`
+    // in the other five, so that rule has never matched anything. The three discarded were Biome
+    // mis-reading syntax it does not model — `:-moz-locale-dir(rtl)` and, twice, the keywords in
+    // Tailwind's `@theme default inline reference` — and are a good illustration of why findings
+    // recovered from an unparseable tree are dropped rather than reported.
+    engineRuleId: 'noUnknownTypeSelector',
+    concepts: ['correctness.css-unknown-type-selector'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-unknown-type-selector`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // Biome produced 44 findings; **13 of them came from files it could not parse**, which the adapter
+    // discards, so what a user actually sees is 31 — **15 true positives (48%)**. The noisiest rule
+    // that still ships, and it ships because the remaining false-positive mode is one thing rather
+    // than many: 14 of the 16 are deliberate progressive-enhancement fallbacks (`background: <solid>`
+    // then `background: <gradient>`, `width: max-content` then `-moz-max-content`). pdf.js carries
+    // `/* stylelint-enable declaration-block-no-duplicate-properties */` beside one of them — that
+    // project already told a linter this pattern is intentional.
+    //
+    // **A correction worth keeping.** The first pass through this measurement classified 6 findings as
+    // Biome reporting across a nested `@container` boundary, and called that an upstream defect. An
+    // authored fixture refused to reproduce it: Biome handles CSS nesting correctly. All 6 were in
+    // zulip stylesheets that fail to parse, and were artefacts of parse recovery flattening the
+    // nesting — the adapter now drops that whole class before it reaches anyone. The claim was wrong
+    // in a direction that flattered the analysis, and only a fixture caught it.
+    //
+    // Note also that Biome reports only the **first** duplicated property per block (verified against
+    // two independent pairs in one block, one finding), so these counts are a floor.
+    engineRuleId: 'noDuplicateProperties',
+    concepts: ['correctness.css-duplicate-property'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-duplicate-properties`,
+    since: '0.1.0',
+  },
+  // The fourteen below fired **zero times across 1729 production stylesheets**. That is zero measured
+  // false positives and zero measured true positives, so the corpus is not what puts them in
+  // `recommended` — each one's fixture in `packages/engine-biome-css/fixtures/` is, by proving the
+  // rule fires on the construct it names. Stated plainly so their silence is not read as precision
+  // the corpus established.
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noInvalidDirectionInLinearGradient',
+    concepts: ['correctness.css-invalid-gradient-direction'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-invalid-direction-in-linear-gradient`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noInvalidPositionAtImportRule',
+    concepts: ['correctness.css-import-position'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-invalid-position-at-import-rule`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noMissingVarFunction',
+    concepts: ['correctness.css-missing-var-function'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-missing-var-function`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // Zero findings — but only after the config was fixed. With `css.parser.tailwindDirectives`
+    // enabled and `cssModules` left alone, this rule produced **265 findings on `:global` across 36
+    // `.module.css` files**, every one an artefact of that single key silently switching off CSS
+    // Modules parsing. See `materializeBiomeCssConfig` for why both keys are now set together.
+    engineRuleId: 'noUnknownPseudoClass',
+    concepts: ['correctness.css-unknown-pseudo-class'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-unknown-pseudo-class`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noUnknownPseudoElement',
+    concepts: ['correctness.css-unknown-pseudo-element'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-unknown-pseudo-element`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noUnmatchableAnbSelector',
+    concepts: ['correctness.css-unmatchable-selector'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-unmatchable-anb-selector`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noDuplicateAtImportRules',
+    concepts: ['correctness.css-duplicate-import'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-duplicate-at-import-rules`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noDuplicateCustomProperties',
+    concepts: ['correctness.css-duplicate-custom-property'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-duplicate-custom-properties`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noDuplicateFontNames',
+    concepts: ['correctness.css-duplicate-font-name'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-duplicate-font-names`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noDuplicateSelectorsKeyframeBlock',
+    concepts: ['correctness.css-duplicate-keyframe-selector'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-duplicate-selectors-keyframe-block`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noImportantInKeyframe',
+    concepts: ['correctness.css-important-in-keyframe'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-important-in-keyframe`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noDeprecatedMediaType',
+    concepts: ['correctness.css-deprecated-media-type'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-deprecated-media-type`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // Biome documents this one with JavaScript examples and it is `suspicious`-category there, but it
+    // runs on CSS (observed under `--profile-rules`) and fires on a CSS fixture. Scoped to `css` here:
+    // oxlint owns irregular whitespace for JavaScript, and ownership is `(concept, language)`-keyed.
+    engineRuleId: 'noIrregularWhitespace',
+    concepts: ['correctness.css-irregular-whitespace'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-irregular-whitespace`,
+    since: '0.1.0',
+  },
+  // Below: entries that exist so the rule can be enabled by concept, and are kept out of
+  // `recommended` by `MANUAL_RULE_EXCLUSIONS`. Two distinct reasons, and the file must keep them
+  // apart — a future reader has to be able to tell "wrong rule" from "right rule, wrong context".
+  {
+    engine: 'biome-css',
+    // 26 findings, 0 true positives — **and the rule is not at fault**. 25 are `@extend` (zulip, via
+    // PostCSS) and 1 is `@tailwind` (Tailwind v3). Both are valid input to their own build step, so
+    // this measures the corpus containing preprocessed `.css`, not the check being wrong. See
+    // `MANUAL_RULE_EXCLUSIONS` for the revisit trigger.
+    engineRuleId: 'noUnknownAtRules',
+    concepts: ['correctness.css-unknown-at-rule'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-unknown-at-rules`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // 3 findings, 0 true positives, all one function in one file: Mantine's `alpha()`, compiled away
+    // by `postcss-preset-mantine`. Same shape as `noUnknownAtRules` directly above and excluded on
+    // the same revisit trigger, not as a verdict on the rule.
+    engineRuleId: 'noUnknownFunction',
+    concepts: ['correctness.css-unknown-function'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-unknown-function`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // 16 findings, 1 true positive. 15 are icon fonts, where the remediation is actively harmful.
+    engineRuleId: 'useGenericFontNames',
+    concepts: ['a11y.css-generic-font-name'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/use-generic-font-names`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // 178 findings in 78 files; none of the ten sampled was a defect.
+    engineRuleId: 'noDuplicateSelectors',
+    concepts: ['duplication.css-duplicate-selector'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-duplicate-selectors`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // 181 findings, 176 of them one repository's documented placeholder convention. Five findings in
+    // the other 1553 files — quiet, but an empty block costs nothing at run time either.
+    engineRuleId: 'noEmptyBlock',
+    concepts: ['duplication.css-empty-block'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-empty-block`,
+    since: '0.1.0',
+  },
+  // The four house-style rules. 11,525 of 12,125 findings, zero defects between them.
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noHexColors',
+    concepts: ['style.css-hex-color'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'info',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-hex-colors`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'noDescendingSpecificity',
+    concepts: ['style.css-descending-specificity'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'info',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-descending-specificity`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    engineRuleId: 'useBaseline',
+    concepts: ['style.css-baseline'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'info',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/use-baseline`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // `fixKind: 'none'` despite Biome offering an unsafe fix for this one — the only CSS rule that has
+    // any fix at all. The adapter declares `fixes: false` and implements neither fix route, so
+    // claiming a tier here would let `sgate rules` promise edits nothing can produce.
+    engineRuleId: 'noImportantStyles',
+    concepts: ['complexity.css-important'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'info',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: `${BIOME_DOCS}/no-important-styles`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // Synthetic, and the counterpart to `oxlint/parse-error` rather than a copy of it. oxlint's says
+    // "this file is broken"; this one says "this file was not read", and the difference is the whole
+    // finding on real input — all 125 parse errors over 1729 production stylesheets were `.css` files
+    // written for a preprocessor, every one of which compiles and ships. It is still reported, and
+    // still in `recommended`, because a repository whose stylesheets this engine cannot parse would
+    // otherwise come back clean. One finding per file, not per error: 125 collapse to 26.
+    //
+    // The adapter also discards the *lint* findings from such a file. Biome recovers from a syntax
+    // error and keeps going — those 26 files produced 986 further findings — and a finding derived
+    // from a tree Biome could not finish reading is not evidence of anything.
+    engineRuleId: 'css-parse-error',
+    concepts: ['config.css-not-analysed'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: 'https://biomejs.dev/internals/language-support/',
+    since: '0.1.0',
+  },
+  {
+    engine: 'biome-css',
+    // Synthetic, like the entry above: not a Biome rule, and not something Biome's config format
+    // could enable. It is the adapter reporting on the engine's own behaviour.
+    //
+    // A `biome-ignore` comment in a user's stylesheet suppresses our findings and leaves **no trace
+    // anywhere in the JSON report** — the diagnostic is absent, `summary.errors` is 0, and the run is
+    // indistinguishable from a clean one. Biome offers no flag to disable them and no counter for
+    // them, so the adapter does not ask Biome: it scans the bytes it already read and reports each
+    // occurrence itself (`packages/engine-biome-css/src/suppressions.ts`). Same principle as an
+    // unavailable engine — a coverage gap the run states out loud rather than a silence.
+    //
+    // `warn`, not `error`: the comment may be entirely harmless. A finding here says "this file
+    // carries a suppression slop-gate did not write and cannot see through", which is true and worth
+    // knowing whether or not it currently hides anything.
+    engineRuleId: 'foreign-suppression',
+    concepts: ['config.foreign-suppression'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['css'],
+    docsUrl: 'https://biomejs.dev/linter/#suppress-lint-rules',
+    since: '0.1.0',
+  },
+] as const satisfies readonly RuleEntry[]
+
 /**
  * Entries the registry generator (packages/core/scripts/generate-registry.ts) cannot produce,
  * because neither one is a real row in `oxlint --rules --format json` — merged with
@@ -916,4 +1454,5 @@ export const MANUAL_RULE_ENTRIES = [
   ...ASTGREP_RULE_ENTRIES,
   ...SCHEMA_RULE_ENTRIES,
   ...ACTIONLINT_RULE_ENTRIES,
+  ...BIOME_CSS_RULE_ENTRIES,
 ] as const satisfies readonly RuleEntry[]

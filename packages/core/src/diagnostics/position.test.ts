@@ -141,3 +141,46 @@ test('offsetAt clamps a column below 1 to the start of the line', () => {
   const index = createLineIndex('aaa\nbbb\n')
   expect(index.offsetAt({ line: 2, column: 0 })).toBe(index.rangeOfLine(2).start)
 })
+
+test('offsetAtCodepointColumn counts an astral-plane character as one column', () => {
+  const source = '😀x'
+  const byteOffsetOfX = new TextEncoder().encode('😀').length
+  expect(byteOffsetOfX).toBe(4)
+  expect(createLineIndex(source).offsetAtCodepointColumn({ line: 1, column: 2 })).toBe(byteOffsetOfX)
+})
+
+test('offsetAtCodepointColumn and offsetAt disagree by one per astral character', () => {
+  // The discriminating fixture, and the reason the two entry points exist. Three astral characters
+  // before the target make the UTF-16 column three higher than the codepoint column, so a reading
+  // that confuses the units lands three codepoints early — inside the emoji run, not on `x`.
+  // Every BMP-only input agrees, which is exactly why this case has to be written down.
+  const source = '/* 😀😀😀 */ x'
+  const index = createLineIndex(source)
+  const byteOffsetOfX = new TextEncoder().encode('/* 😀😀😀 */ ').length
+
+  const codepointColumn = [...'/* 😀😀😀 */ '].length + 1
+  const utf16Column = '/* 😀😀😀 */ '.length + 1
+  expect(utf16Column - codepointColumn).toBe(3)
+
+  expect(index.offsetAtCodepointColumn({ line: 1, column: codepointColumn })).toBe(byteOffsetOfX)
+  expect(index.offsetAt({ line: 1, column: utf16Column })).toBe(byteOffsetOfX)
+  expect(index.offsetAt({ line: 1, column: codepointColumn })).not.toBe(byteOffsetOfX)
+})
+
+test('offsetAtCodepointColumn matches offsetAt on input with no astral characters', () => {
+  const index = createLineIndex('čč x\nplain ascii\n')
+  for (const position of [
+    { line: 1, column: 1 },
+    { line: 1, column: 4 },
+    { line: 2, column: 7 },
+  ]) {
+    expect(index.offsetAtCodepointColumn(position)).toBe(index.offsetAt(position))
+  }
+})
+
+test('offsetAtCodepointColumn clamps out-of-range lines and columns like offsetAt', () => {
+  const index = createLineIndex('aaa\nbbb')
+  expect(index.offsetAtCodepointColumn({ line: 99, column: 1 })).toBe(index.offsetAt({ line: 2, column: 1 }))
+  expect(index.offsetAtCodepointColumn({ line: 1, column: 999 })).toBe(index.rangeOfLine(1).end)
+  expect(index.offsetAtCodepointColumn({ line: 2, column: 0 })).toBe(index.rangeOfLine(2).start)
+})
