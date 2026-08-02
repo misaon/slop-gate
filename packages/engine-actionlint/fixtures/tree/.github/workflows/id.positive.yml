@@ -1,0 +1,9 @@
+on: push
+jobs:
+  'bad id': # HIT
+    runs-on: ubuntu-latest
+    steps:
+      - id: setup
+        run: echo a
+      - id: setup # HIT
+        run: echo b

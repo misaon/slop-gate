@@ -1,0 +1,8 @@
+on: push
+env:
+  'BAD NAME': 1 # HIT
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi

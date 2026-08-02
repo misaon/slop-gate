@@ -1,0 +1,16 @@
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        description: mode
+        options: [on, off]
+    secrets: # HIT
+      TOKEN:
+        required: true
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+        nonexistent-step-key: true # HIT

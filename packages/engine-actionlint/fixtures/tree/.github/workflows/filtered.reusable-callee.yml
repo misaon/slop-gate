@@ -1,0 +1,16 @@
+on:
+  workflow_call:
+    inputs:
+      include-prod-images:
+        description: Whether to also build the production image. Declared as a string on purpose.
+        required: true
+        type: string
+      release-tag:
+        description: Also a string, and also given a value that looks like another type.
+        required: true
+        type: string
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ inputs.include-prod-images }} ${{ inputs.release-tag }}"

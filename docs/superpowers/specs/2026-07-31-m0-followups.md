@@ -1096,6 +1096,24 @@ chose to suppress the better reporter. Three ways out, none taken:
 - **Let both report and merge on position.** No mechanism exists for this, and building one for a
   single input would be the wrong trade today.
 
+> **Amended when the adapter landed, in two ways.**
+>
+> **The scope of the `line: 0, column: 0` claim was too wide.** Only the *unresolved-anchor* case
+> loses its position. Measured directly against 1.7.12 with four other malformed YAML inputs — bad
+> indentation, an unterminated quote, a malformed flow sequence, a stray tab — every one reports a
+> real line and column (`5:10`, `4:13`, `4:13`, `6:13`). The paragraph above reads as though
+> actionlint has no position for parse errors generally; it does, except where the failure happens
+> before any node has a location, which is anchor resolution.
+>
+> **The second option was taken, and for a different reason than the one given here.** actionlint
+> claims neither `correctness.parse-error` nor `correctness.no-duplicate-object-key`, and the
+> deciding evidence was not the general principle about specialists — it was that over **403 real
+> workflow files from 17 repositories, actionlint reported zero of either**. There was no contested
+> ground to win, so the precision loss above was the only thing the transfer had on offer. It also
+> did not require the arbitration change this bullet worried about: actionlint simply does not claim
+> the concepts, and the adapter drops both message classes from `syntax-check` (`MESSAGE_EXCLUSIONS`)
+> rather than mapping them onto anything. See spec §13.5.
+
 ### `shellcheck` is a candidate engine in its own right, not an actionlint implementation detail
 
 actionlint shells out to two other programs, and neither is opt-in: `-shellcheck` and `-pyflakes`
@@ -1190,3 +1208,126 @@ Settled either way: the *evidence* for the trade-off belongs in an assertion, no
 `suppressions/parse.test.ts` pins "a token inside a string literal is a directive" as a named test.
 Forty-five warnings nobody can tell apart from a regression are a worse proof of the same fact — and
 that they were the proof was the argument for leaving them.
+
+## Found building the `actionlint` engine (spec §13.5, the first optional engine)
+
+### We have no policy for an engine that is not deterministic
+
+Everything in this project assumes that the same inputs produce the same findings — fingerprints
+(§10.1) are position-based, the cache is keyed on content, and the baseline compares finding sets.
+actionlint breaks that assumption, and it is the first engine here to do so.
+
+Measured: **ten identical runs over the same 403 workflow files produced 442–447 findings**; 441 were
+present in all ten and 6 were not. Every unstable one is `kind: "action"` with the message
+`could not parse action metadata`. The mechanism, read off 1.7.12's source rather than inferred:
+
+- `LocalActionsCache.FindMetadata` (`action_metadata.go:255-281`) writes `nil` into the cache on a
+  parse failure **and returns the error**; a later lookup gets a cache hit and returns *no* error.
+  So whichever reference reaches a broken local action first reports it, and the rest are silent.
+- `Linter.LintFiles` (`linter.go:347`) lints files concurrently through an `errgroup`, all sharing
+  that one cache — so *which file* wins the race varies.
+- `pass.go:67` iterates a workflow's jobs with `for _, j := range n.Jobs`, and `Jobs` is
+  `map[string]*Job`. Go randomises map iteration, so **which job wins varies inside a single file in
+  a single process too.** Ten runs of `actionlint <one file>` put the same finding on lines 99, 71,
+  316 and 359.
+
+That last point is the one that matters for design: per-file invocation, which would have fixed the
+cross-file race, does not fix this. Excluding `actionlint/action` handles this instance. It does not
+handle the next one, and a rule with an unstable *position* would silently churn the baseline on
+every run — the failure mode nobody reports because it looks like normal drift.
+
+Worth deciding before the next binary engine lands (zizmor, hadolint, shellcheck are all queued):
+whether adapters should be required to declare determinism, whether the run should detect instability
+(a second pass over a sample, compared), and whether a fingerprint should fall back to something
+position-independent for an engine that cannot promise stability.
+
+### D3's "lazily on first use" and `Engine.availability` cannot both hold
+
+D3 says an exotic engine is "downloaded lazily into a checksum-verified local cache" and §13.1
+glosses that as "downloaded on first use". `Engine.availability` says the probe must touch the
+filesystem and nothing else, because `sgate rules why` calls it and an explain-only command must not
+change the machine. These are in direct conflict: **availability is what decides whether a first use
+ever happens.** An engine reported unavailable is never elected, so its `run` is never called, so a
+download placed there never fires.
+
+Resolved in favour of the contract, and the spec text is what should change: "lazy" now means *on
+explicit request, cached forever after*. `sgate engines install actionlint` is the only thing that
+downloads; `availability()` reports the cache as populated or not; the coverage gap a run prints names
+that command. The rejected alternative was to report `available: true` whenever a download *could*
+succeed and fetch inside `run` — which would make `sgate check` hit the network mid-run, turn an
+air-gapped CI image into an engine error rather than a clean gap, and let `--require-engines` pass on
+a machine with no actionlint installed at all.
+
+`sgate engines install` is currently the whole command surface — one engine, one verb. When zizmor and
+hadolint arrive it should probably grow `list` and gain a way for `sgate init` to offer the install.
+
+### Pinning a binary makes its staleness our choice, not the user's
+
+Every false positive `actionlint/syntax-check` produced on the corpus — 7 of 9 — is actionlint 1.7.12
+not yet knowing about a GitHub Actions feature that shipped after it: `concurrency.queue: max`
+(2026-05-07) and background/`wait:` steps (2026-06-25), both confirmed against GitHub's changelog.
+18 of the `runner-label` findings are `ubuntu-26.04`, a real GitHub-hosted runner; cpython's own
+committed `actionlint.yaml` works around it with a comment citing the upstream PR that adds it.
+
+This recurs by construction and it is asymmetric in an uncomfortable way: because discovery prefers
+`PATH`, a user who already has a newer actionlint gets **fewer** false positives than a user we
+downloaded for. Tracking upstream releases needs to be a real maintenance task with a real trigger,
+not something noticed when someone files an issue. Renovate can watch the GitHub release feed;
+what it cannot do is re-transcribe `actionlint_<version>_checksums.txt`, which is deliberate.
+
+### `ClassifyRule.messagePattern` still has no user
+
+It was expected to get one here: actionlint reports YAML parse errors, duplicate keys and schema
+violations under a single `kind: "syntax-check"`, which is exactly the "one rule, two concepts,
+disambiguated per finding" shape `classify` exists for. Two things removed the need. The concept
+split turned out to be **three** classes rather than two, and the first two are owned by the `schema`
+engine and dropped by the adapter — so what reaches the registry is one rule with one concept.
+
+Every other actionlint rule maps one-to-one as well. `classify` remains untested against a real
+engine, and the next candidate is probably zizmor, whose audits span security concepts that are
+genuinely distinct.
+
+### Message-level exclusions needed a home, and rule-level ones needed enforcing
+
+Two of the three false-positive classes inside shipped rules are not whole rules — they are message
+patterns inside `expression`. They live in the adapter (`MESSAGE_EXCLUSIONS` in
+`packages/engine-actionlint/src/rules.ts`) with the measurement and the reason written out, because
+the adapter is what filters, and each has a fixture asserting both that actionlint still produces the
+class and that nothing survives.
+
+Rule-level exclusions for a hand-written engine had no home at all. `RULE_EXCLUSIONS` is keyed by bare
+oxlint rule id and consumed only by the oxlint generator, so an `actionlint` row there would be
+ignored — or, for a name like `id` or `matrix`, would silently exclude an oxlint rule that happens to
+share it. `MANUAL_RULE_EXCLUSIONS` is the new table, keyed by `ruleRefKey`, and `entries.test.ts`
+asserts every key names a real entry and that none of its concepts reaches `recommended`.
+
+**Two existing exclusions should be backfilled into it**: `slop.swallowed-error` and
+`slop.emoji-in-code`, whose reasons are currently prose in a comment in `config/presets.ts` with
+nothing checking that the prose and the preset agree. knip's are in the same position.
+
+### Smaller things, all measured
+
+- **`column` and `end_column` are in different units.** `column` is a 1-based byte offset into the
+  line (`getIndicator` slices with `line[Column-1:]`, Go string indexing); `end_column` is
+  `len(indicator)`, built from `runewidth.StringWidth` — display columns — **and inclusive**. They
+  agree on ASCII and diverge on any line with a wide character. The adapter derives the end from the
+  source using actionlint's own token rule instead.
+- **Messages embed absolute paths** (`could not parse action metadata in "/Users/…"`, `the action is
+  defined at "…"`), which would make fingerprints, cache keys and baselines machine-specific. Stripped
+  by prefix rather than by known message, so a future one is covered.
+- **actionlint says nothing about a local action it cannot find** (`action_metadata.go:259-262`,
+  deliberate, for submodule-style repositories). Useful to know when measuring: a sparse checkout
+  cannot manufacture false "action not found" findings, it can only suppress real input checks.
+- **No zip reader, so nothing downloads on Windows.** Upstream publishes `.zip` there and `.tar.gz`
+  everywhere else; `node:zlib` covers gunzip and a small ustar reader covers the rest, but a zip needs
+  a central-directory parse. The digests for all three Windows assets are recorded already, so adding
+  the reader is the only missing piece. Until then Windows is `PATH`-or-`SLOP_GATE_ACTIONLINT_PATH`.
+- **`fromJSON` with a trailing comma is unverified at run time.** Three corpus findings are trailing
+  commas inside a `fromJSON('[…,]')` literal — invalid by the JSON specification, and shipped in
+  `recommended` on that basis. Whether GitHub's own `fromJSON` rejects them was not established; in
+  two of the three a `||` short-circuits before the call, so the affected repository's green CI is not
+  evidence either way. Recorded on the registry entry too.
+- **`recursive alias …` is left in `config.workflow-syntax`.** It is a YAML-level defect like the two
+  classes the adapter drops, but it was not confirmed that the `schema` engine reports it, and
+  dropping a finding on the assumption that someone else covers it is the mistake this whole section
+  exists to avoid. Cheap to check and then decide.

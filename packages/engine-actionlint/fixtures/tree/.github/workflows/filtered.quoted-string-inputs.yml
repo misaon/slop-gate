@@ -1,0 +1,15 @@
+# Every value here is an explicitly quoted YAML string passed to an input the callee declares as
+# `type: string`. actionlint infers the type from the scalar's text and reports all of them; the
+# adapter filters the class. 88 of 447 corpus findings, zero true positives.
+on: push
+jobs:
+  a:
+    uses: ./.github/workflows/filtered.reusable-callee.yml
+    with:
+      include-prod-images: "false"
+      release-tag: "1.24"
+  b:
+    uses: ./.github/workflows/filtered.reusable-callee.yml
+    with:
+      include-prod-images: 'true'
+      release-tag: "null"

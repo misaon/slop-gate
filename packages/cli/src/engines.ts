@@ -1,4 +1,5 @@
 import type { Engine } from '@misaon/slop-gate-core'
+import { createActionlintEngine } from '@misaon/slop-gate-engine-actionlint'
 import { createAstGrepEngine } from '@misaon/slop-gate-engine-astgrep'
 import { createKnipEngine } from '@misaon/slop-gate-engine-knip'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
@@ -31,6 +32,13 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * the Compose specification. It is also the first engine registered here whose concepts are in
  * `recommended`, so unlike every other entry below it does real work on a default `sgate check`.
  *
+ * `actionlint` needs no binding either, and is the first entry here that may not be *runnable*: it
+ * is the only optional engine, so it declares `availability()` and is resolved from `PATH`, from
+ * `SLOP_GATE_ACTIONLINT_PATH` or from slop-gate's own cache. Registering it unconditionally is the
+ * point — an engine that is registered and absent is a coverage gap the run states out loud, which
+ * is deliberately not the same fact as an engine that was never registered at all (see
+ * `IneligibilityReason`).
+ *
  * Registering an engine here does not, on its own, make `sgate check` invoke it: arbitration only
  * assigns work if some enabled concept resolves to it, and none of `types.type-error` (`tsc`), the
  * ten `dead-code.*`/`deps.*` concepts knip owns, or the five `slop.*` concepts ast-grep owns is part
@@ -45,5 +53,6 @@ export function defaultEngines(rootDir: string, configFile?: string): Engine[] {
     createKnipEngine({ ...(configFile === undefined ? {} : { configFile }) }),
     createAstGrepEngine(),
     createSchemaEngine(),
+    createActionlintEngine(),
   ]
 }

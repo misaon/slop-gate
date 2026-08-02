@@ -34,6 +34,32 @@ const recommended: RuleMap = {
   // this one means `sgate fix` gave up on a file mid-run and the rules named are still fighting. It
   // is only ever emitted by `sgate fix`, so it costs a `sgate check` nothing.
   'config.fix-oscillation': 'error',
+  // The thirteen GitHub Actions concepts the `actionlint` engine owns — every one it has except the
+  // three in `MANUAL_RULE_EXCLUSIONS` (`config.workflow-runner-label`, `config.workflow-action`,
+  // `config.workflow-syntax`), whose exclusion is enforced against this map by `entries.test.ts`.
+  //
+  // `warn` uniformly, on the measurement recorded per entry in `registry/entries.manual.ts`: over 403
+  // workflow files from 17 repositories these thirteen produced **29 findings, 29 true positives, no
+  // false positives**, with eight of them silent across thousands of opportunities. `error` is the
+  // `schema` engine's bar and is deliberately not claimed on a first release.
+  //
+  // Costing a repository with no workflows nothing is structural rather than careful: every entry is
+  // scoped to `languages: ['github-workflow']`, so arbitration never elects one where the inventory
+  // contains no workflow files. On a machine with no actionlint, all thirteen become a reported
+  // coverage gap instead — never a silent absence.
+  'config.workflow-call': 'warn',
+  'config.workflow-condition': 'warn',
+  'config.workflow-deprecated-command': 'warn',
+  'config.workflow-env-var': 'warn',
+  'config.workflow-event': 'warn',
+  'config.workflow-expression': 'warn',
+  'config.workflow-glob': 'warn',
+  'config.workflow-id': 'warn',
+  'config.workflow-job-needs': 'warn',
+  'config.workflow-matrix': 'warn',
+  'config.workflow-permissions': 'warn',
+  'config.workflow-shell': 'warn',
+  'security.workflow-hardcoded-credential': 'warn',
 }
 
 const strict: RuleMap = {

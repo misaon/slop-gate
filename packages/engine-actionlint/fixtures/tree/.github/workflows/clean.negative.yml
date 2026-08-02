@@ -1,0 +1,52 @@
+name: A well-formed workflow that every shipped rule must stay silent on
+on:
+  push:
+    branches: [main, 'release/**']
+    paths-ignore: ['docs/**']
+  pull_request:
+    types: [opened, synchronize]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Branch to build
+        required: false
+        default: main
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  NODE_VERSION: '24'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact: ${{ steps.pack.outputs.artifact }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            coverage: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build on ${{ matrix.os }}
+        run: echo "building on ${{ matrix.os }}"
+        shell: bash
+      - id: pack
+        run: echo "artifact=dist.tgz" >> "$GITHUB_OUTPUT"
+  publish:
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    services:
+      cache:
+        image: redis:7
+    steps:
+      - run: echo "${{ needs.build.outputs.artifact }}"
+        working-directory: .

@@ -1,0 +1,21 @@
+# Every label below is legitimate: two commercial runner providers, one repository's own self-hosted
+# pool, and one GitHub-hosted runner newer than actionlint 1.7.12's built-in list. actionlint reports
+# all of them, which is why `runner-label` is excluded from `recommended`.
+on: push
+jobs:
+  depot:
+    runs-on: depot-ubuntu-24.04-arm # HIT
+    steps:
+      - run: echo hi
+  namespace:
+    runs-on: namespace-profile-linux-x64-default # HIT
+    steps:
+      - run: echo hi
+  self-hosted-pool:
+    runs-on: ubuntu-x64-large # HIT
+    steps:
+      - run: echo hi
+  newer-than-actionlint:
+    runs-on: ubuntu-26.04 # HIT
+    steps:
+      - run: echo hi

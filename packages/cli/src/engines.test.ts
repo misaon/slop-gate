@@ -3,7 +3,18 @@ import { defaultEngines } from './engines.ts'
 
 test('registers exactly the engines a real check run uses', () => {
   const engines = defaultEngines(process.cwd())
-  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip', 'astgrep', 'schema'])
+  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip', 'astgrep', 'schema', 'actionlint'])
+})
+
+test('only the optional engine declares availability', () => {
+  // `Engine.availability` says to omit it entirely for a bundled engine: anything `npm install` puts
+  // there is present by construction, and an implementation that always returns `available: true`
+  // is noise. actionlint is the one engine here that is downloaded or found on PATH rather than
+  // installed with slop-gate, so it is the one that may legitimately be missing.
+  const declaring = defaultEngines(process.cwd())
+    .filter((engine) => engine.availability !== undefined)
+    .map((engine) => engine.id)
+  expect(declaring).toEqual(['actionlint'])
 })
 
 test('returns a fresh engine instance each call, not a shared singleton', () => {
@@ -18,7 +29,7 @@ test('binds each engine to the given rootDir, not a fixed default', () => {
   // `rootDir` — passing a different directory must produce a distinctly-configured engine, not one
   // that silently ignores the argument.
   const engines = defaultEngines('/some/other/project')
-  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip', 'astgrep', 'schema'])
+  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip', 'astgrep', 'schema', 'actionlint'])
 })
 
 test('passes the discovered config file through so knip does not report it as unused', () => {

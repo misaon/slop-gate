@@ -1,0 +1,12 @@
+name: Broken local action
+description: Its input definition uses a key GitHub's action metadata schema does not define.
+inputs:
+  who:
+    type: string
+    description: Who to greet.
+    default: world
+runs:
+  using: composite
+  steps:
+    - run: echo "hi ${{ inputs.who }}"
+      shell: bash

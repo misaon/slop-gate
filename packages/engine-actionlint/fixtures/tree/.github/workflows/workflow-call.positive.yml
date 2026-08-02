@@ -1,0 +1,7 @@
+on: push
+jobs:
+  a:
+    uses: ./.github/workflows/workflow-call.callee.yml
+    with:
+      target: main
+      nonexistent: 1 # HIT

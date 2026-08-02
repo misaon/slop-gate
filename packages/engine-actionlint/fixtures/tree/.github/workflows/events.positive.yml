@@ -1,0 +1,18 @@
+on:
+  push:
+    branches: [main]
+  nonexistent_event: # HIT
+  schedule:
+    - cron: 'not a cron expression' # HIT
+    - cron: '*/1 * * * *' # HIT
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        default: main # HIT
+        type: string
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi

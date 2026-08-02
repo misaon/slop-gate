@@ -639,6 +639,153 @@ export const HAND_WRITTEN_CONCEPTS = [
       'nothing and so can never observe it.',
     servicedBySlopGate: true,
   },
+  // GitHub Actions workflow concepts, owned by the `actionlint` engine
+  // (`packages/engine-actionlint`). One concept per actionlint rule, because each is a separate check
+  // over a separate part of the workflow schema and users need to be able to turn them off one at a
+  // time — a single `config.workflow` concept would make disabling the runner-label allowlist problem
+  // also disable expression typechecking.
+  //
+  // `config.*`, not `correctness.*`, and the boundary is load-bearing: actionlint deliberately claims
+  // **neither** `correctness.parse-error` nor `correctness.no-duplicate-object-key`, both of which
+  // stay with the `schema` engine for `github-workflow`. Over 403 real workflow files from 17
+  // repositories actionlint reported zero of either, so there was no contested ground — and the M0
+  // follow-ups had already recorded what taking them would cost, since on an unresolved YAML alias
+  // actionlint reports `line: 0, column: 0` where the schema engine gives the exact token. The
+  // adapter drops both message classes rather than mapping them (see `MESSAGE_EXCLUSIONS`).
+  {
+    id: 'config.workflow-action',
+    group: 'config',
+    title: 'Workflow action call is wrong',
+    description:
+      'A `uses:` step passes an input the action does not declare, omits a required one, or points at ' +
+      'action metadata that does not match the schema. Checked against actionlint\'s built-in dataset ' +
+      'of popular actions and against local `action.yml` files in the repository.',
+  },
+  {
+    id: 'config.workflow-call',
+    group: 'config',
+    title: 'Reusable workflow call is wrong',
+    description:
+      'A job calling a reusable workflow passes an input or secret the called workflow does not ' +
+      'declare, or omits a required one. The call fails at run time, not at edit time.',
+  },
+  {
+    id: 'config.workflow-condition',
+    group: 'config',
+    title: 'Workflow condition never varies',
+    description:
+      'An `if:` that cannot do what it looks like it does. The case worth having is text around the ' +
+      'placeholder — `if: (${{ success() }} || ${{ failure() }})` is evaluated as a non-empty string ' +
+      'and is therefore always true, so the step also runs when the job was cancelled.',
+  },
+  {
+    id: 'config.workflow-deprecated-command',
+    group: 'config',
+    title: 'Deprecated workflow command',
+    description:
+      'A `run:` block uses a workflow command GitHub has deprecated (`::set-output`, `::save-state`, ' +
+      '`::set-env`, `::add-path`). They still work today and are scheduled not to.',
+  },
+  {
+    id: 'config.workflow-env-var',
+    group: 'config',
+    title: 'Invalid environment variable name',
+    description: 'An `env:` key contains `&`, `=` or a space, so the variable cannot be set.',
+  },
+  {
+    id: 'config.workflow-event',
+    group: 'config',
+    title: 'Workflow trigger is wrong',
+    description:
+      'An `on:` trigger that does not do what it says: an unknown webhook event name, a `cron:` ' +
+      'expression that is malformed or fires more often than GitHub\'s five-minute floor, or a ' +
+      '`workflow_call` input that is both required and given a default. An invalid cron is the one to ' +
+      'care about — the workflow is accepted and then silently never runs.',
+  },
+  {
+    id: 'config.workflow-expression',
+    group: 'config',
+    title: 'Workflow expression is wrong',
+    description:
+      'A `${{ }}` expression that does not typecheck: a property of a context that was never declared, ' +
+      'a function called with the wrong number of arguments, malformed syntax, or invalid JSON handed ' +
+      'to `fromJSON`. `${{ matrix.os }}` in a job with no matrix and ' +
+      '`needs.build.outputs.whatever` where `build` declares no such output both expand to the empty ' +
+      'string, so the workflow runs and quietly does the wrong thing.',
+  },
+  {
+    id: 'config.workflow-glob',
+    group: 'config',
+    title: 'Invalid filter pattern',
+    description:
+      'A `branches:`, `tags:` or `paths:` filter is not a valid pattern, so it matches nothing and the ' +
+      'workflow never triggers on what it was meant to.',
+  },
+  {
+    id: 'config.workflow-id',
+    group: 'config',
+    title: 'Invalid or duplicated identifier',
+    description:
+      'A job or step id that GitHub will reject, or a step id used twice in one job — ids are ' +
+      'case-insensitive there, so two that differ only in case collide.',
+  },
+  {
+    id: 'config.workflow-job-needs',
+    group: 'config',
+    title: 'Broken job dependency',
+    description: 'A `needs:` naming a job that does not exist, or a cycle between jobs.',
+  },
+  {
+    id: 'config.workflow-matrix',
+    group: 'config',
+    title: 'Matrix configuration is wrong',
+    description:
+      'An `exclude:` entry that matches no generated combination, or an `include:`/`exclude:` value ' +
+      'outside the matrix it modifies. An exclusion that matches nothing silently runs the job it was ' +
+      'written to skip.',
+  },
+  {
+    id: 'config.workflow-permissions',
+    group: 'config',
+    title: 'Invalid permissions',
+    description:
+      'A `permissions:` scope or value GitHub does not define. A misspelled value does not fail the ' +
+      'workflow — the token is issued with different rights than intended.',
+  },
+  {
+    id: 'config.workflow-runner-label',
+    group: 'config',
+    title: 'Unknown runner label',
+    description:
+      'A `runs-on:` label that is neither a GitHub-hosted runner nor declared as self-hosted. Note ' +
+      'that actionlint\'s list of GitHub-hosted labels ships with the binary, so a runner GitHub has ' +
+      'added more recently than the installed actionlint reads as unknown.',
+  },
+  {
+    id: 'config.workflow-shell',
+    group: 'config',
+    title: 'Invalid shell name',
+    description: 'A `shell:` value outside the set the runner supports.',
+  },
+  {
+    id: 'config.workflow-syntax',
+    group: 'config',
+    title: 'Workflow does not match the schema',
+    description:
+      'A key GitHub does not define at this position, a required key missing, or a value of the wrong ' +
+      'shape. Deliberately **not** YAML parse errors or duplicate keys, which stay with the `schema` ' +
+      'engine as `correctness.parse-error` and `correctness.no-duplicate-object-key`. The schema this ' +
+      'is checked against ships with the installed actionlint, so syntax GitHub has added more ' +
+      'recently reads as an unexpected key.',
+  },
+  {
+    id: 'security.workflow-hardcoded-credential',
+    group: 'security',
+    title: 'Credential written into a workflow',
+    description:
+      'A `services.<id>.credentials.password` given a literal instead of a `secrets.*` reference, so ' +
+      'the password is in version control and in every fork of the repository.',
+  },
 ] as const satisfies readonly ConceptDefinition[]
 
 /**

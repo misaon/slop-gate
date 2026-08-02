@@ -493,6 +493,337 @@ const SCHEMA_RULE_ENTRIES = [
   },
 ] as const satisfies readonly RuleEntry[]
 
+const ACTIONLINT_DOCS = 'https://github.com/rhysd/actionlint/blob/v1.7.12/docs/checks.md'
+
+/**
+ * The `actionlint` engine (`packages/engine-actionlint`) — GitHub Actions workflow correctness, and
+ * the **first optional engine**: it declares `availability()`, wins these concepts only where the
+ * binary is present, and is a reported coverage gap where it is not.
+ *
+ * **`tier: 0`** — a native Go binary, honestly the same tier as oxlint's Rust. Inert in practice:
+ * nothing else claims a `config.workflow-*` concept, and `ENGINE_PREFERENCE` would rank actionlint
+ * after `schema` anyway if anything ever did.
+ *
+ * **The measurement all of this rests on.** 403 workflow files from 17 actively-maintained
+ * repositories at pinned default-branch HEADs (grafana, airflow, next.js, bun, oxc, biome, cpython,
+ * react, astro, home-assistant, terraform, deno, vite, prometheus, svelte, knip, nest), linted with
+ * actionlint 1.7.12 and `-shellcheck= -pyflakes=`. **447 findings; 32 true positives, 406 false
+ * positives, 9 correct-but-inert.** That aggregate is not the number any decision here was made on —
+ * it is dominated by rules this file excludes — so every entry below carries its own.
+ *
+ * The half that ships: **29 findings, 29 true positives, 0 false positives** across `expression`
+ * (minus two excluded message classes), `events` and `if-cond`, plus eight more rules that had
+ * thousands of opportunities to fire on those 403 files and fired on none.
+ *
+ * **Everything is `warn`, uniformly, and that is a policy rather than a per-rule judgement.** This is
+ * the engine's first release; 29/29 on 403 real files earns `recommended`, and `error` is the bar the
+ * `schema` engine's entries clear on 826 files with no judgement call anywhere in them. Two rules
+ * here have a consequence argument for `error` that only lacks exposure —
+ * `config.workflow-event` (an invalid `cron` means the workflow is accepted and then silently never
+ * runs) and `security.workflow-hardcoded-credential` (a password in version control) — and both
+ * should be revisited once real repositories have produced any.
+ *
+ * **`fixKind: 'none'` throughout.** actionlint emits no fix data in any of its output formats, and
+ * none of these findings has one mechanical repair: an unknown runner label, a `matrix.` reference in
+ * a job with no matrix, and a required input carrying a default are all decisions about intent.
+ */
+const ACTIONLINT_RULE_ENTRIES = [
+  {
+    engine: 'actionlint',
+    // 10 findings on the corpus (4 stable, 6 not — see below), 1 true positive. Excluded from
+    // `recommended`; see `MANUAL_RULE_EXCLUSIONS`, which records the nondeterminism in full.
+    engineRuleId: 'action',
+    concepts: ['config.workflow-action'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#action-format-in-uses`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // Zero findings on the corpus, and — unlike the eight rules below — zero *opportunities*: not one
+    // of the 403 files contains a `services.<id>.credentials` block at all (3 `services:` blocks in 2
+    // files, 0 with credentials). So this is in `recommended` on the strength of its shape rather than
+    // on measured precision: it fires only where a `password:` under `credentials:` is a literal
+    // rather than a `secrets.*` reference, which cannot be a false positive without being a real
+    // secret in version control. Stated plainly so nobody reads it as measured.
+    engineRuleId: 'credentials',
+    concepts: ['security.workflow-hardcoded-credential'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#hardcoded-credentials`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // The other rule with zero measured exposure: no file in the corpus uses `::set-output`,
+    // `::save-state`, `::set-env` or `::add-path` (24 occurrences of `::add-matcher`, which is not
+    // deprecated, and none of the four that are). In `recommended` on the same structural ground as
+    // `credentials` — it matches a fixed list of four names GitHub has itself deprecated, so the only
+    // false positive available to it is one of those names appearing in a `run:` block that is not a
+    // workflow command.
+    engineRuleId: 'deprecated-commands',
+    concepts: ['config.workflow-deprecated-command'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#check-deprecated-workflow-commands`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 971 `env:` blocks in 275 of the 403 files.
+    engineRuleId: 'env-var',
+    concepts: ['config.workflow-env-var'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#environment-variable-names`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 3 findings, 3 true positives — all the same shape, a `workflow_call` input marked `required`
+    // and also given a `default` that can therefore never apply.
+    //
+    // The cron half of this rule is the one worth having and is the reason the corpus had to be built
+    // the way it was. A previous measurement against `actions/starter-workflows` produced 60 `invalid
+    // CRON format "$cron-daily"` findings out of 99 — every one a template placeholder GitHub
+    // substitutes when the workflow is used, i.e. an artefact of measuring files that were never
+    // meant to run, which would have argued for excluding a rule that is fine. Measured here instead
+    // against files that do run: **87 of the 403 carry a `cron:` schedule, and the rule fired zero
+    // times on them**. It does catch a malformed expression and a sub-five-minute interval, proved by
+    // fixture. An invalid cron is high consequence and nearly invisible by eye — GitHub accepts the
+    // workflow and it simply never runs.
+    engineRuleId: 'events',
+    concepts: ['config.workflow-event'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#webhook-events-validation`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // The engine's strongest entry, and its most heavily filtered. 114 findings on the corpus, of
+    // which **91 belong to two false-positive classes the adapter drops by message pattern**
+    // (`MESSAGE_EXCLUSIONS` in packages/engine-actionlint/src/rules.ts carries both measurements and
+    // both reasons). What is left is **23 findings, 23 true positives, across 4 repositories**:
+    // 20 references to a context property that was never declared and 3 trailing commas inside a
+    // `fromJSON('[…]')` literal.
+    //
+    // Those 20 are the case this engine exists for. `${{ matrix.goos }}` in a job with no matrix
+    // (hashicorp/terraform), `needs.check.outputs.version_changed` where the `check` job declares only
+    // `version` — so a release job's `if:` is permanently false (biomejs/biome) — and
+    // `github.event.inputs.releaseType` where the input is called `type`, naming an environment that
+    // does not exist (vercel/next.js). Every one expands to the empty string, so the workflow runs and
+    // quietly does something else. All 20 were verified by locating the enclosing job and confirming
+    // the context really is empty, not sampled.
+    //
+    // The 3 trailing-comma findings are true positives by the JSON specification and **were not
+    // verified against GitHub's own `fromJSON` at run time**; in two of the three a `||` short-circuits
+    // before the call is ever evaluated, so the affected repository's green CI proves nothing either
+    // way. Recorded rather than quietly counted.
+    engineRuleId: 'expression',
+    concepts: ['config.workflow-expression'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#contexts-and-built-in-functions`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 298 `branches:`/`tags:`/`paths:` filter lists in 156 of the 403 files.
+    engineRuleId: 'glob',
+    concepts: ['config.workflow-glob'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#glob-filter-pattern-syntax-validation`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 2,432 job ids and 619 explicit step ids.
+    engineRuleId: 'id',
+    concepts: ['config.workflow-id'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#job-id-and-step-id-uniqueness`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 3 findings, 3 true positives. Two are sveltejs/svelte's
+    // `if: (${{ success() }} || ${{ failure() }})` — the parentheses make it a non-empty string, so it
+    // is unconditionally true and the step also runs on cancellation, which is precisely what the
+    // comment above it says it is there to avoid. The third is vercel/next.js's `if: false`.
+    //
+    // **The `if: false` message is not surfaced as actionlint words it.** Upstream emits one message
+    // for every constant and ends it "remove the if: section"; `if: false` is the standard way to
+    // disable a job deliberately, so following that advice would enable it. The adapter keeps the
+    // diagnosis and replaces the instruction — see `MESSAGE_REWRITES`.
+    engineRuleId: 'if-cond',
+    concepts: ['config.workflow-condition'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#constant-conditions-at-if`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 469 `needs:` declarations across 90 of the 403 files.
+    engineRuleId: 'job-needs',
+    concepts: ['config.workflow-job-needs'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#job-dependencies-validation`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 196 matrices, 88 of them carrying an `include:` or `exclude:`, in 30 files.
+    engineRuleId: 'matrix',
+    concepts: ['config.workflow-matrix'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#matrix-values`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 773 `permissions:` blocks in 354 of the 403 files — the most heavily
+    // exercised rule in the set and still silent.
+    engineRuleId: 'permissions',
+    concepts: ['config.workflow-permissions'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#permissions`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 308 findings — 69% of everything the corpus produced — and **zero true positives**. Excluded
+    // from `recommended`; the full measurement and the condition for revisiting are in
+    // `MANUAL_RULE_EXCLUSIONS`.
+    engineRuleId: 'runner-label',
+    concepts: ['config.workflow-runner-label'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#runner-labels`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 252 `shell:` keys in 64 of the 403 files.
+    engineRuleId: 'shell-name',
+    concepts: ['config.workflow-shell'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#shell-name-validation-at-shell`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 9 findings, 2 true positives, 7 false — and all 7 are one failure mode. Excluded from
+    // `recommended`; see `MANUAL_RULE_EXCLUSIONS`. Note what this entry does **not** claim:
+    // `correctness.parse-error` and `correctness.no-duplicate-object-key` both stay with the `schema`
+    // engine, and the adapter drops those two message classes outright rather than mapping them here.
+    engineRuleId: 'syntax-check',
+    concepts: ['config.workflow-syntax'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#unexpected-keys`,
+    since: '0.1.0',
+  },
+  {
+    engine: 'actionlint',
+    // 0 findings against 165 `uses: ./.github/workflows/…` calls in 34 files.
+    engineRuleId: 'workflow-call',
+    concepts: ['config.workflow-call'],
+    tier: 0,
+    priority: 100,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['github-workflow'],
+    docsUrl: `${ACTIONLINT_DOCS}#reusable-workflows`,
+    since: '0.1.0',
+  },
+] as const satisfies readonly RuleEntry[]
+
 /**
  * Entries the registry generator (packages/core/scripts/generate-registry.ts) cannot produce,
  * because neither one is a real row in `oxlint --rules --format json` — merged with
@@ -584,4 +915,5 @@ export const MANUAL_RULE_ENTRIES = [
   ...KNIP_RULE_ENTRIES,
   ...ASTGREP_RULE_ENTRIES,
   ...SCHEMA_RULE_ENTRIES,
+  ...ACTIONLINT_RULE_ENTRIES,
 ] as const satisfies readonly RuleEntry[]

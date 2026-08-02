@@ -818,7 +818,7 @@ dependencies.
 | Dead code, dependency hygiene | **knip** | bundled | Pure JS. Project granularity. Shelled out to today, not run in a worker — see §13.2 |
 | CSS/SCSS semantics | **Biome, scoped to CSS** | lazy | Registry enforces zero overlap with oxlint |
 | Structural and slop rules | **ast-grep** | bundled | Declarative YAML, cross-language. Implemented — see §13.3 |
-| GitHub Actions correctness | **actionlint** | lazy | Go binary |
+| GitHub Actions correctness | **actionlint** | lazy | Go binary. Implemented — see §13.5 |
 | GitHub Actions security | **zizmor** | lazy | Rust binary |
 | Config files | **JSON Schema** / SchemaStore | bundled | docker-compose implemented — see §13.4. tsconfig, package.json, renovate still open (JSON needs a position-preserving parser) |
 | Dockerfile | **hadolint** | lazy | Plus ast-grep rules |
@@ -1042,6 +1042,68 @@ treats a second YAML document as a parse *error*, which would flag every Kuberne
 existence. And ajv's `allErrors` output must be collapsed before reporting: a single bad
 `depends_on.condition` produces three errors across two paths, of which only the deepest, most
 specific one describes what the author actually wrote.
+
+### 13.5 `actionlint`: GitHub Actions, and the first optional engine
+
+`@misaon/slop-gate-engine-actionlint` shells out to actionlint 1.7.12 with
+`-shellcheck= -pyflakes= -no-color -config-file <ephemeral> -format '{{json .}}'`. It is the first
+adapter to declare `Engine.availability()`, so it is also the first to make availability-gated
+ownership something a real run can observe rather than something the stub tests describe.
+
+**Sixteen rules, thirteen in `recommended`, and the split is a measurement.** 403 workflow files from
+17 actively-maintained repositories at pinned default-branch HEADs produced **447 findings: 32 true
+positives, 406 false positives and 9 correct-but-inert**. That aggregate is not the number anything
+was decided on — 308 of the 406 belong to one rule — and the per-rule figures are recorded on each
+entry in `registry/entries.manual.ts`. What ships produces **29 findings on those same 403 files, all
+29 true positives**: an `${{ matrix.goos }}` in a job with no matrix, a release job whose `if:` reads
+an output its dependency never declares and which therefore never runs, an `environment:` named after
+an input that was renamed. Eight of the thirteen shipped rules fired zero times across thousands of
+opportunities (773 `permissions:` blocks, 971 `env:` blocks, 2,432 job ids, 469 `needs:`) and are in
+on that silence plus an authored-defect fixture each.
+
+Three rules are excluded, as data in `registry/exclusions.ts` with the measurement written out:
+`runner-label` (308 findings, zero true positives — every one a legitimate self-hosted, commercial or
+newer-than-actionlint runner label, and actionlint's own remedy is an engine-native config file §13
+forbids), `syntax-check` (7 of 9 false, all of them GitHub features that shipped after the pinned
+release), and `action` (below).
+
+**actionlint is not deterministic, and that is a first for this project.** Ten identical runs over
+the same 403 files produced 442–447 findings. The variance is confined to one message —
+`could not parse action metadata` — and the mechanism is exact: `LocalActionsCache.FindMetadata`
+reports a metadata parse failure only on the *uncached* lookup, actionlint lints files concurrently
+sharing one cache, **and iterates a workflow's jobs over a Go map**, whose order is randomised. So the
+same finding lands on a different line on each run of a *single file in a single process*; per-file
+invocation does not help. Excluding the rule handles this instance, and only this instance —
+slop-gate has no policy for a non-deterministic engine, and position-based fingerprints (§10.1) would
+thrash on every run if one arrived that could not simply be excluded.
+
+**Two concepts actionlint deliberately does not take.** `correctness.parse-error` and
+`correctness.no-duplicate-object-key` stay with the `schema` engine for `github-workflow`. The plan
+was for the specialist to win them; the corpus reported **zero of either across 403 files**, and the
+M0 follow-ups had already recorded the cost — on an unresolved YAML alias actionlint reports
+`line: 0, column: 0`, the absence of a position, where the schema engine gives the offending token's
+byte range. The adapter drops both message classes rather than mapping them, so `syntax-check` claims
+only the schema-violation third of what actionlint reports under that one `kind`.
+
+**"Lazy" means on explicit request, not on first use, and this is a deliberate narrowing of D3.** D3
+says an exotic engine downloads on first use; `Engine.availability` says the availability probe may
+touch the filesystem and nothing else. Both cannot hold, because availability is *what decides
+whether a first use ever happens* — an engine reported absent is never elected and its `run` is never
+called. The contract wins. `availability()` is a `PATH` walk and a few `stat` calls over
+`SLOP_GATE_ACTIONLINT_PATH`, then `PATH`, then a version-scoped cache; `sgate engines install
+actionlint` is the only thing that downloads, and the coverage gap a run reports names that command.
+So `sgate check` never reaches the network, an air-gapped image gets a clean coverage gap instead of a
+mid-run engine error, and `--require-engines` cannot pass on a machine with no actionlint on it. The
+download itself is D3 in full: pinned version, SHA-256 transcribed from upstream's published
+`actionlint_<version>_checksums.txt`, hashed in memory and refused before anything is written,
+extracted with a small ustar reader and moved into place by `rename`.
+
+**Three smaller things worth not rediscovering.** actionlint's `column` is a 1-based *byte* offset
+into the line but its `end_column` is a display-width offset **and** inclusive, so byte ranges are
+derived from the source using actionlint's own token rule rather than from `end_column`. Messages
+embed absolute paths, which are stripped before they can reach a fingerprint or a cache key. And the
+`if: false` remediation actionlint emits — "remove the `if:` section" — would *enable* a job someone
+disabled on purpose, so the diagnosis is kept and the instruction replaced.
 
 ---
 

@@ -1,0 +1,13 @@
+# `fromJSON` is typed as taking a string, so a matrix boolean is reported as unassignable. GitHub's
+# expression language coerces it and the workflow evaluates as written. cpython suppresses this same
+# message in its own committed actionlint config.
+on: push
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        free-threading: [false, true]
+    name: Build ${{ fromJSON(matrix.free-threading) && '(free-threading)' || '' }}
+    steps:
+      - run: echo hi
