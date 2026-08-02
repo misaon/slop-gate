@@ -4,7 +4,7 @@ import { deriveProjectResultKey, deriveResultKey, hashJson, type ProjectResultKe
 import { openProjectResultStore, openResultStore, type ProjectResultStore } from '../cache/result-store.ts'
 import { openStatIndex, type StatIndex } from '../cache/stat-index.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
-import type { SlopGateConfig } from '../config/types.ts'
+import type { GeneratedPolicy, SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Severity } from '../diagnostics/types.ts'
 import type { FixTier } from '../fix/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
@@ -148,6 +148,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     fixTier: options.fixTier,
     unavailableEngines,
   })
+  const generatedPolicy = options.config.generated ?? 'skip'
   const statIndex = await openStatIndex(cacheDir)
   const resultStore = openResultStore(cacheDir)
   // Project-granularity engines (spec §8.1: `tsc`, `knip`) cache one whole-program result per
@@ -259,6 +260,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
                 statIndex,
                 projectResultStore,
                 readSource,
+                generated: generatedPolicy,
                 signal,
               },
               projectStats,
@@ -350,6 +352,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
                 // other file the engine touches, which defeats the point of scoping it.
                 levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
                 suppressionScanFiles: [path],
+                generated: generatedPolicy,
               })
 
               // `normalized` — the *complete* per-file array, suppressed findings included — is what
@@ -429,6 +432,7 @@ type ProjectAssignmentContext = {
   statIndex: StatIndex
   projectResultStore: ProjectResultStore
   readSource: (file: string) => Promise<string>
+  generated: GeneratedPolicy
   signal: AbortSignal
 }
 
@@ -528,6 +532,7 @@ async function* runProjectAssignment(
         sourceOf: () => source,
         levelOf: (concept) => ctx.resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
         suppressionScanFiles: [path],
+        generated: ctx.generated,
       }),
     )
   }

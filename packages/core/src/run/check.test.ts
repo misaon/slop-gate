@@ -103,6 +103,23 @@ test('hands an engine the options configured for its elected rules', async () =>
   expect([...(seen[0] ?? new Map())]).toEqual([['no-debugger', [{ probe: true }]]])
 })
 
+test('reports nothing for a generated file, and everything for it once asked', async () => {
+  await writeFile(join(dir, 'src/client.gen.ts'), 'export function f() {\n  debugger\n}\n')
+  const engines = () => [stubEngine({ findings: [debuggerFinding('src/client.gen.ts')] })]
+
+  const skipped = await runCheck({ ...baseOptions(), engines: engines() })
+  expect(skipped.diagnostics).toEqual([])
+  expect(skipped.counts).toEqual({ error: 0, warn: 0, info: 0 })
+
+  const checked = await runCheck({
+    ...baseOptions(),
+    config: { rules: { 'correctness.no-debugger': 'error' }, generated: 'check' } as never,
+    engines: engines(),
+  })
+  expect(checked.diagnostics).toHaveLength(1)
+  expect(checked.diagnostics[0]?.file).toBe('src/client.gen.ts')
+})
+
 test('returns a normalized diagnostic for an engine finding', async () => {
   const result = await runCheck({ ...baseOptions(), engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })] })
 

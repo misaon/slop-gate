@@ -41,12 +41,13 @@ export type Diagnostic = {
    * Set when something silenced this finding rather than the run never producing it — the
    * distinction that lets a reporter, cache entry or future `--show-suppressed` flag tell "quiet
    * because nothing is wrong" apart from "quiet because a human said so". `'inline'` (source
-   * comment, see `suppressions/parse.ts`) is the only producer today; `'baseline'` (spec §12.2) and
-   * `'config'` are carried in the union so this shape does not need to change when those land.
+   * comment, see `suppressions/parse.ts`) and `'generated'` (the file is machine-written, see
+   * `discovery/generated.ts`) are the producers today; `'baseline'` (spec §12.2) and `'config'` are
+   * carried in the union so this shape does not need to change when those land.
    * Suppressed diagnostics are kept in the array returned by `normalizeDiagnostics` (and so in the
    * per-file cache entry) rather than dropped — `run/check.ts` is what hides them from the default
    * result and severity counts, which is the seam a future `--show-suppressed` flag would change
    * instead of restructuring anything upstream of it.
    */
-  suppressed?: { by: 'inline' | 'baseline' | 'config'; reason?: string }
+  suppressed?: { by: 'inline' | 'baseline' | 'config' | 'generated'; reason?: string }
 }

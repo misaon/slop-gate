@@ -49,6 +49,17 @@ export type PresetName = 'recommended' | 'strict' | 'slop'
 
 export type EngineOptions = { readonly enabled?: boolean | 'auto' }
 
+/**
+ * What to do about findings in machine-written files (`discovery/generated.ts`). `'skip'` is the
+ * default and marks them suppressed; `'check'` reports them like any other file.
+ *
+ * A switch rather than an `ignore` entry because the two are not the same operation: `ignore` takes
+ * files out of the inventory, which also takes them out of knip's import graph and can *manufacture*
+ * findings — a hand-written module whose only importer was generated then reads as unreachable. This
+ * leaves every engine's view of the repository intact and only hides the report.
+ */
+export type GeneratedPolicy = 'skip' | 'check'
+
 export type SlopGateConfig = {
   readonly extends?: readonly PresetName[]
   readonly workspaces?: 'auto' | readonly string[]
@@ -57,6 +68,7 @@ export type SlopGateConfig = {
   readonly owners?: Partial<Record<ConceptId, EngineId>>
   readonly engines?: Partial<Record<EngineId, EngineOptions>>
   readonly ignore?: readonly string[]
+  readonly generated?: GeneratedPolicy
 }
 
 const RULE_LEVELS: readonly RuleLevel[] = ['off', 'info', 'warn', 'error']
