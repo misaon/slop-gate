@@ -38,5 +38,8 @@
     "@modelcontextprotocol/server": "^2.0.0",
     "citty": "^0.2.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0"
   }
 }

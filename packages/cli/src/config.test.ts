@@ -40,8 +40,12 @@ test('reports a broken config file as an error, without throwing, after writing 
 
   try {
     const result = await loadCliConfig(dir, DEFAULT_CONFIG)
-    expect(result).toEqual({ kind: 'error' })
-    expect(stderr.join('')).not.toBe('')
+    expect(result.kind).toBe('error')
+    // The same text on both channels. stderr is where a human running a command looks; `message` is
+    // for a caller with somewhere else to put it — `sgate mcp` hands it back to the client, since an
+    // agent told only "configuration failed, check the log" has nothing to act on.
+    expect(result.kind === 'error' && result.message).not.toBe('')
+    expect(stderr.join('')).toContain(result.kind === 'error' ? result.message : 'unreachable')
   } finally {
     process.stderr.write = original
   }

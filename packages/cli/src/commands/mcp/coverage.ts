@@ -7,7 +7,7 @@ import { isCoverageGap } from '@misaon/slop-gate-reporters'
  * structure of a single `check` result cannot tell different stories.
  */
 export type CoverageGap = {
-  readonly kind: 'engine-failed' | 'engine-unavailable' | 'concepts-uncovered'
+  readonly kind: 'engine-failed' | 'engine-unavailable'
   readonly engine?: string
   readonly detail: string
   /** What the caller can do about it, when there is anything. Absent means there is nothing to run. */
@@ -28,6 +28,22 @@ export type CoverageGap = {
  */
 export type CheckOutcome = 'clean' | 'findings' | 'incomplete' | 'incomplete-with-findings'
 
+/**
+ * `result.ruleset.uncovered` is deliberately **not** one of these, and the reason is worth stating
+ * because it looks like an omission.
+ *
+ * The `agent` reporter's `coverage:` line — the sentence the whole honesty design is arranged around
+ * — counts engine gaps and nothing else, while printing `uncovered:` separately as a notice. Driving
+ * `outcome` off `uncovered` too would put the structure and the prose of one result in
+ * contradiction, which is worse than either rule on its own.
+ *
+ * It would also cry wolf. `uncovered` is "no *capable* candidate", and an engine that is registered
+ * but not installed is not capable — so every concept an absent optional engine owns lands there
+ * whether or not the repository contains a single file of the language it applies to. On a fixture
+ * with no workflows and no actionlint, that is thirteen concepts none of which had anything to
+ * check, and `unavailableEngines` already reports that engine correctly as having cost the run
+ * nothing. The count is still surfaced beside these gaps, just not as one.
+ */
 export function coverageGaps(result: CheckResult): CoverageGap[] {
   const gaps: CoverageGap[] = []
 
@@ -53,15 +69,6 @@ export function coverageGaps(result: CheckResult): CoverageGap[] {
         'Nothing it would have reported appears in this result; do not read an empty findings list as clean.',
       ...(engine.install === undefined ? {} : { remedy: engine.install }),
       concepts: engine.displaced.map((record) => record.concept),
-    })
-  }
-
-  if (result.ruleset.uncovered.length > 0) {
-    gaps.push({
-      kind: 'concepts-uncovered',
-      detail:
-        `${result.ruleset.uncovered.length} enabled concept(s) have no capable engine in this run, so nothing checked them.`,
-      concepts: result.ruleset.uncovered,
     })
   }
 

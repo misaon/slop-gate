@@ -92,14 +92,14 @@ export const CHECK_OUTPUT = z.object({
   gaps: z
     .array(
       z.object({
-        kind: z.enum(['engine-failed', 'engine-unavailable', 'concepts-uncovered']),
+        kind: z.enum(['engine-failed', 'engine-unavailable']),
         engine: z.string().optional(),
         detail: z.string(),
         remedy: z.string().optional(),
         concepts: z.array(z.string()),
       }),
     )
-    .describe('Empty on a complete run. Required, so its absence is never something to infer from silence.'),
+    .describe('What stopped this run seeing everything. Empty on a complete run, and required, so its absence is never inferred from silence.'),
   counts: z.object({ error: z.int(), warn: z.int(), info: z.int() }),
   concepts: z
     .array(
@@ -120,6 +120,13 @@ export const CHECK_OUTPUT = z.object({
     ),
   filesScanned: z.int(),
   filesAnalysed: z.int(),
+  uncoveredConcepts: z
+    .array(z.string())
+    .describe(
+      'Enabled concepts no engine in this run can check. Not counted as a gap and not reflected in `outcome`: an ' +
+        'optional engine that is registered but absent puts every concept it owns here even when the repository ' +
+        'contains no file it would have looked at. `gaps` is the authority on whether coverage was actually lost.',
+    ),
   unknownConfigKeys: z.int().describe('Config rule keys naming nothing. Not a coverage gap, but a rule you think is on may not be.'),
   reportTruncated: z.boolean().describe('True when the token budget omitted per-finding detail. `concepts` is unaffected.'),
 })
@@ -171,6 +178,7 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
       concepts: summariseAgentGroups(result),
       filesScanned: result.stats.filesScanned,
       filesAnalysed: result.stats.filesAnalysed,
+      uncoveredConcepts: result.ruleset.uncovered,
       unknownConfigKeys: result.ruleset.unknownKeys.length,
       // Read off the report the caller is actually being handed, not predicted from the budget: the
       // reporter tries the complete document first and prints it whole when it fits, so a budget
