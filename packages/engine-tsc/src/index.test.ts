@@ -1,4 +1,5 @@
 import { access, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, expect, test } from 'vitest'
@@ -201,4 +202,39 @@ test('honours an explicit tsconfigPath when deciding availability', async () => 
   const engine = createTscEngine({ rootDir: dir, tsconfigPath: join(dir, 'tsconfig.build.json') })
 
   expect(await engine.availability?.()).toEqual({ available: true })
+})
+
+test('is a coverage gap, not a crash, when the project has no typescript of its own to run', async () => {
+  // The Windows-only CI failure that found this, reproduced deterministically on every platform.
+  // A directory under `os.tmpdir()` has no `node_modules` anywhere above it on any OS, so Node's
+  // resolution cannot reach a `typescript` — which is precisely the condition every one of these
+  // fixtures would be in if they did not deliberately live inside this package (see `fixturesRoot`).
+  //
+  // Unguarded, `resolveScriptBin` hands back its bare-`tsc`-on-PATH fallback and `availability()`
+  // says yes on the strength of the tsconfig alone. `run()` then spawns a command that a POSIX CI
+  // runner happens to have on PATH and a Windows one can never execute by bare name: `spawn tsc
+  // ENOENT`, an EngineError, which `resolveExitCode` maps to exit 3 and fails the run.
+  const detached = await mkdtemp(join(tmpdir(), 'sgate-tsc-no-typescript-'))
+  try {
+    await writeFile(join(detached, 'tsconfig.json'), TSCONFIG)
+    const availability = await createTscEngine({ rootDir: detached }).availability?.()
+
+    expect(availability).toEqual({
+      available: false,
+      reason: expect.stringContaining('no `typescript` is installed in this project'),
+      install: 'npm install -D typescript',
+    })
+  } finally {
+    await rm(detached, { recursive: true, force: true })
+  }
+})
+
+test('a resolvable typescript plus a tsconfig is what makes it available — both, not either', async () => {
+  // `dir` lives under `.test-tmp/` inside this package, so the workspace's hoisted `typescript` is
+  // reachable from it; the tsconfig is written by `beforeEach`. Removing either precondition alone
+  // must be enough to stand the engine down.
+  expect(await createTscEngine({ rootDir: dir }).availability?.()).toEqual({ available: true })
+
+  await rm(join(dir, 'tsconfig.json'))
+  expect(await createTscEngine({ rootDir: dir }).availability?.()).toMatchObject({ available: false })
 })

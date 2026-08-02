@@ -1,6 +1,7 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { parseArgs } from 'citty'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { EXIT_CODES } from '../exit-codes.ts'
@@ -210,17 +211,30 @@ test('--require-engines on a fully equipped machine still exits clean', async ()
   // nothing downloaded. The file is never executed: `actionlint` is scoped to `github-workflow` and
   // the fixture directory contains no workflow, so arbitration never elects it and `run` is never
   // reached.
-  // The tsc half of the same constructed premise: `tsc` declares `availability()` because `tsc -p`
-  // needs a project, and this fixture is a bare temp directory. Without a `tsconfig.json` here the
-  // flag would fire on a genuinely unrunnable engine and this test would be asserting the fixture's
-  // incompleteness rather than the flag's neutrality.
+  // **The tsc half of the same premise, and it takes two things, not one.** `tsc` is unavailable
+  // without a project *and* without a `typescript` of the project's own — this fixture is a bare
+  // temp directory under `os.tmpdir()`, which has neither. Supplying only the tsconfig is what shipped
+  // first, and it passed on macOS and Linux for the wrong reason: `resolveTscBinary` fell through to a
+  // bare `tsc` on `PATH`, which a POSIX CI runner happens to have and Windows cannot execute by bare
+  // name. Both halves are therefore constructed here, and the linked `typescript` is the workspace's
+  // own — a junction rather than a symlink so it needs no elevation on Windows.
   await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { noEmit: true }, include: ['*.ts'] }))
+  const typescriptDir = dirname(createRequire(import.meta.url).resolve('typescript/package.json'))
+  await mkdir(join(dir, 'node_modules'), { recursive: true })
+  await symlink(typescriptDir, join(dir, 'node_modules', 'typescript'), 'junction')
+
   const stub = join(dir, 'actionlint-stub')
   await writeFile(stub, '')
   const previous = process.env['SLOP_GATE_ACTIONLINT_PATH']
   process.env['SLOP_GATE_ACTIONLINT_PATH'] = stub
   try {
-    await runCheckCapturingStdout({ 'require-engines': true })
+    const output = await runCheckCapturingStdout({ 'require-engines': true })
+
+    // Asserted before the exit code, and deliberately: `expected 3 to be +0` is the least
+    // informative thing this run knows, and it has now sent two people hunting through two
+    // different engines. Both banners name the engine, so a regression fails with the engine in
+    // the message instead of a bare number.
+    expect(output).not.toMatch(/COVERAGE GAP|ENGINE FAILED/)
     expect(process.exitCode).toBe(EXIT_CODES.clean)
   } finally {
     if (previous === undefined) delete process.env['SLOP_GATE_ACTIONLINT_PATH']
