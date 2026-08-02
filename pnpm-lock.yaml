@@ -44,6 +44,9 @@ importers:
       '@misaon/slop-gate-engine-biome-css':
         specifier: workspace:*
         version: link:../engine-biome-css
+      '@misaon/slop-gate-engine-deps-security':
+        specifier: workspace:*
+        version: link:../engine-deps-security
       '@misaon/slop-gate-engine-knip':
         specifier: workspace:*
         version: link:../engine-knip
@@ -115,6 +118,22 @@ importers:
       '@misaon/slop-gate-core':
         specifier: workspace:*
         version: link:../core
+
+  packages/engine-deps-security:
+    dependencies:
+      '@misaon/slop-gate-core':
+        specifier: workspace:*
+        version: link:../core
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+    devDependencies:
+      '@types/semver':
+        specifier: ^7.7.1
+        version: 7.8.0
 
   packages/engine-knip:
     dependencies:
@@ -1263,6 +1282,9 @@ packages:
 
   '@types/picomatch@4.0.3':
     resolution: {integrity: sha512-iG0T6+nYJ9FAPmx9SsUlnwcq1ZVRuCXcVEvWnntoPlrOpwtSTKNDC9uVAxTsC3PUvJ+99n4RpAcNgBbHX3JSnQ==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@vitest/expect@3.2.7':
     resolution: {integrity: sha512-E8eBXaKibuvH2pSZErOjdVb5vF4PbKYcrnluBTYxEk1l/VhhwZg1kZQsdtjq+CsF5CFydf2Rdkz7jDHKSisi3w==}
@@ -2452,6 +2474,8 @@ snapshots:
       undici-types: 7.18.2
 
   '@types/picomatch@4.0.3': {}
+
+  '@types/semver@7.8.0': {}
 
   '@vitest/expect@3.2.7':
     dependencies:

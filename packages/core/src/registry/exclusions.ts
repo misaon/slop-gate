@@ -82,6 +82,18 @@ export type RuleExclusion = {
  * checking them. Backfilling those (and knip's) into this table is a follow-up.
  */
 export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
+  'deps-security/missing-lockfile-entry': {
+    reason:
+      'The only rule in this engine with a genuine false-positive mode, and it is structural rather ' +
+      'than measurable away: a manifest entry absent from the lockfile has two causes — the package ' +
+      'does not exist on the registry, or the lockfile predates the edit that added it — and nothing ' +
+      'available without the network separates them. A lockfile one commit out of date would report ' +
+      'every newly added dependency as possibly imaginary. It stays available by concept because ' +
+      "knip's answer for the same shape is worse rather than merely absent (`deps.unused-dependency`, " +
+      '"nothing imports this", when the truth is "this cannot be installed"), and because the one case ' +
+      'that reaches a committed lockfile at all — an unresolvable `optionalDependencies` entry, which ' +
+      'npm and pnpm both install past with exit 0 — is genuinely silent everywhere else.',
+  },
   'actionlint/runner-label': {
     reason:
       'The largest single finding class in the whole corpus measurement and the least useful: **308 of ' +

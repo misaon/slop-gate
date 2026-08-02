@@ -493,6 +493,112 @@ const SCHEMA_RULE_ENTRIES = [
   },
 ] as const satisfies readonly RuleEntry[]
 
+const DEPS_SECURITY_DOCS = 'https://osv.dev/'
+
+/**
+ * The `deps-security` engine (`packages/engine-deps-security`) — known-vulnerable and known-malicious
+ * dependencies, and the **second optional engine**. Like actionlint it declares `availability()`, but
+ * what it is waiting for is data rather than a binary: an advisory snapshot that
+ * `sgate engines install advisories` fetches once and `sgate check` then reads offline forever.
+ *
+ * **`tier: 2`** — plain JavaScript over a JSON index. Inert: nothing else claims any of these four
+ * concepts, and `ENGINE_PREFERENCE` ranks this engine second-to-last anyway.
+ *
+ * **The measurement.** Six real lockfiles — strapi 4.0.0, gatsby 4.0.0, Ghost 5.0.0, nest 9.0.0,
+ * vue 3.2.0 and axios 1.4.0, 10,671 resolved packages between them — were scanned twice: once with
+ * this engine's offline index, once with `npm audit` against the live registry. **682 advisories,
+ * zero divergence in either direction**, and the per-advisory severity histogram matched `pnpm audit`
+ * exactly on a controlled fixture. This is the one engine here whose accuracy is not an estimate: it
+ * agrees with the reference implementation advisory for advisory.
+ *
+ * That is also why these entries carry no false-positive rate the way knip's and actionlint's do. The
+ * question "is this a false positive" is not really open for `GHSA-x affects lodash@4.17.11` — either
+ * the version is in the range or it is not. The open question is a different one, and it belongs to
+ * the concept rather than the rule: an advisory says nothing about whether the vulnerable code is
+ * *reachable* from this repository. `security.vulnerable-dependency` is `warn` for exactly that
+ * reason, with the advisory's own severity carried in the message.
+ */
+const DEPS_SECURITY_RULE_ENTRIES = [
+  {
+    engine: 'deps-security',
+    // `severityDefault: 'warn'`, not `error`, and the reason is the same categorical one that made
+    // `deps.unresolved-import` an error in the other direction. There, "the module cannot load" is a
+    // fact about this repository. Here the fact is "a published advisory names this version", which is
+    // true regardless of whether the affected code path is reachable from any line anyone here wrote —
+    // and no reachability analysis backs this engine up. A tree with 164 findings, which the axios
+    // lockfile really produces, must not fail a build by default on that basis.
+    engineRuleId: 'vulnerability',
+    concepts: ['security.vulnerable-dependency'],
+    tier: 2,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['json', 'yaml'],
+    docsUrl: DEPS_SECURITY_DOCS,
+    since: '0.1.0',
+  },
+  {
+    engine: 'deps-security',
+    // The one `error` here, on categorical grounds rather than measured ones: there is no reading of
+    // "this exact published release contains a credential stealer" under which the right response is a
+    // warning. Measured for the *absence* of noise instead — zero findings across all six corpora, and
+    // version-exact discrimination on the September 2025 npm compromise (`chalk@5.6.1` fires,
+    // `chalk@5.3.0` does not; likewise `debug@4.4.2` against `4.3.4` and `@ctrl/tinycolor@4.1.1`
+    // against `4.1.0`).
+    engineRuleId: 'malware',
+    concepts: ['security.malicious-dependency'],
+    tier: 2,
+    priority: 100,
+    severityDefault: 'error',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['json', 'yaml'],
+    docsUrl: DEPS_SECURITY_DOCS,
+    since: '0.1.0',
+  },
+  {
+    engine: 'deps-security',
+    // Kept out of `recommended` (see registry/exclusions.ts) because this is the one rule here with a
+    // real false-positive mode: a lockfile that predates the manifest edit produces exactly the same
+    // observation as a package that does not exist, and nothing available offline separates them.
+    // Still worth having, because knip's answer for the same shape — `deps.unused-dependency`, "nothing
+    // imports this" — is actively wrong when the truth is "this cannot be installed".
+    engineRuleId: 'missing-lockfile-entry',
+    concepts: ['deps.missing-lockfile-entry'],
+    tier: 2,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['json', 'yaml'],
+    docsUrl: DEPS_SECURITY_DOCS,
+    since: '0.1.0',
+  },
+  {
+    engine: 'deps-security',
+    // In `recommended` and deliberately so, even though it reports nothing about the repository's own
+    // code. It is the engine saying what it failed to cover — a stale snapshot, or a lockfile format it
+    // cannot read — and a security check that goes quiet when it stops working is the failure mode this
+    // whole engine was designed around. `npm audit --offline` is the cautionary example: exit 0, empty
+    // stderr, "no vulnerabilities", on a tree with 34 of them.
+    engineRuleId: 'coverage-gap',
+    concepts: ['deps.advisory-coverage-gap'],
+    tier: 2,
+    priority: 50,
+    severityDefault: 'warn',
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    languages: ['json', 'yaml'],
+    docsUrl: DEPS_SECURITY_DOCS,
+    since: '0.1.0',
+  },
+] as const satisfies readonly RuleEntry[]
+
 const ACTIONLINT_DOCS = 'https://github.com/rhysd/actionlint/blob/v1.7.12/docs/checks.md'
 
 /**
@@ -1455,4 +1561,5 @@ export const MANUAL_RULE_ENTRIES = [
   ...SCHEMA_RULE_ENTRIES,
   ...ACTIONLINT_RULE_ENTRIES,
   ...BIOME_CSS_RULE_ENTRIES,
+  ...DEPS_SECURITY_RULE_ENTRIES,
 ] as const satisfies readonly RuleEntry[]

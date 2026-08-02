@@ -1648,3 +1648,93 @@ parse diagnostics are identical across configurations, so every option you try r
 same total and the rule reads as one whose options do nothing. Both this and the "check the
 exclusion's own words against the option schema" lesson are now in the header of
 `registry/exclusions.ts`, which is where someone about to measure a rule is actually looking.
+
+---
+
+## Found building the `deps-security` engine (spec §13.7, the second optional engine)
+
+### Typosquat detection was proposed, measured, and dropped — do not re-propose it without new data
+
+The brief for this engine asked for typosquatting detection: a dependency that exists on the registry
+but is a lookalike of a popular package. It is the most on-thesis idea in the whole area, because a
+model reaching for a plausible-sounding neighbour of a real package is a characteristically AI
+failure, and it is **not implementable soundly with data this project is willing to fetch**. Recorded
+here in full so the next person proposing it starts from the measurement rather than the intuition.
+
+- **The obvious typos of top packages are already held.** `lodahs` — one transposition from `lodash`,
+  165 million weekly downloads — exists on npm right now, has 87 downloads a week, and its own
+  description is `security holding package`. npm registered it defensively. The single-edit
+  neighbourhood of the popular names is largely already swept.
+- **Plausible invented names frequently resolve.** The brief's own example was `@types/lodash-es-utils`.
+  `lodash-es-utils` is real: 20 published versions, 0 downloads a week. So is `react-hook-form-utils`:
+  2 versions, 1 download a week. Both return 200. A check that only asked "does this name exist"
+  would pass them, and a check that flagged them would have to explain why `lodash-es` and
+  `lodash.merge` are fine.
+- **The distinguishing signal is reputation, and reputation is a request per package.** Separating a
+  malicious lookalike from a legitimate derivative needs download counts and publish dates —
+  `api.npmjs.org/downloads/point/last-week/<pkg>`, one call each. This engine's entire architecture is
+  the decision that `sgate check` does not reach the network. The two cannot both hold.
+- **An offline corpus of every npm name costs 111.5 MB and is stale daily.** That is
+  `all-the-package-names`' own `unpackedSize`, for the name list alone, against 1.9 MB for the whole
+  vulnerability index it would sit beside.
+
+What shipped instead is the sound substitute: OSV's malicious-packages feed, 216,778 packages that
+somebody has actually confirmed malicious, matched offline, zero false positives across six real
+lockfiles. It answers a narrower question than "is this a typosquat" and answers it with evidence.
+
+Reopening this needs a new input, not a new heuristic — a reputation dataset that can be distributed
+offline, or a decision to let one command make per-package registry calls.
+
+### knip's answer for a phantom manifest entry is not merely absent, it is wrong
+
+§14 records `slop.hallucinated-import` as covered by knip's `deps.unresolved-import`, and for an
+unresolvable *import statement* it is. For a phantom entry in `package.json` it is not, and the
+difference was measured rather than reasoned about: three nonexistent packages in `dependencies` and
+`devDependencies`, none of them imported, produce an **empty** `unresolved` from knip 6.31.0. They
+land in `dependencies`/`devDependencies` instead — `deps.unused-dependency` and
+`deps.unused-dev-dependency`, both `warn`, both measured 3/3 false positives, neither in
+`recommended`. So the tool's answer to "this package cannot be installed" is "nothing imports this",
+which is the worst-performing bucket knip has and a description of a different defect.
+
+`deps.missing-lockfile-entry` (§13.7) now covers the shape properly, from the lockfile rather than the
+import graph. It is not a full replacement and does not claim to be: it sees a manifest entry the
+lockfile did not resolve, whose other cause is simply a stale lockfile, and offline nothing separates
+the two. Worth revisiting if the concept catalogue ever gains a way for two engines to contribute
+different evidence toward one concept — knip knows nothing imports it, this engine knows it does not
+install, and together those are a much stronger claim than either alone.
+
+### The prize for the phantom-dependency check is smaller than it looks, and the reason is `npm install`
+
+Both npm and pnpm exit 1 on an unresolvable entry in `dependencies` or `peerDependencies`, so a
+committed lockfile in that state is rare — the developer found out at install time. The case that
+stays silent is `optionalDependencies`: measured on both package managers, a nonexistent optional
+dependency installs with **exit 0** and is simply absent from the resulting lockfile, while a
+platform-restricted one (`fsevents`, `@esbuild/linux-x64`) *is* written into the lockfile with its
+`os`/`cpu` constraints intact. That asymmetry is what makes the check sound at all, and it is also
+most of its remaining value.
+
+### A corpus measurement caught what unit tests could not, twice
+
+Both defects found in this engine were invisible to its unit tests and obvious the moment real
+lockfiles were scanned. The malicious-feed reading (242 false positives on the five most-installed
+packages on npm) passed every hand-written case, because the hand-written cases used ranges — the
+shape the code read correctly. The peer-edge gap in the path walk showed up only as "1,452 findings
+anchor at byte zero" on one corpus and "190 do" on another.
+
+The general form: **a unit test written from the same understanding as the code shares its blind
+spot.** What broke both was running against data nobody here authored. This is the same lesson the
+knip and actionlint sections record, arriving a third time, and it is worth treating as the default
+rather than as a recurring surprise — an engine's first evidence should be a corpus run, and its
+fixtures should be written afterwards to pin what the corpus found.
+
+### `npm audit --offline` deserves an upstream issue
+
+Exit 0, zero bytes of stderr, `"total": 0`, on a tree with 34 real advisories. Reproducible, and not a
+cold-cache artefact — the cache was warm from a successful run seconds earlier. Every other failure
+mode npm has here is loud: an unreachable registry exits 1 with a JSON error object, a missing
+lockfile exits 1 with `ENOLOCK`. Only the flag whose name says "do not use the network" reports a
+clean bill of health it cannot possibly have earned. `pnpm audit` has no `--offline` at all, which is
+the safer design by omission.
+
+Not our bug and not our fix, but it is the single most useful artefact this work produced for anyone
+outside this repository, and the reproduction is three commands.
