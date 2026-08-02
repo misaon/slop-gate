@@ -61,20 +61,68 @@ test('an override that enables a concept widens the planner view without revivin
 })
 
 test('options replace rather than merge', () => {
-  const { base } = createRuleSetResolver({
-    config: {
-      rules: { 'style.no-var': ['warn', { a: 1, b: 2 }] },
-      overrides: [{ files: ['**/*.ts'], rules: { 'style.no-var': ['warn', { b: 3 }] } }],
+  const resolver = createRuleSetResolver({
+    config: { rules: { 'style.no-var': ['warn', { a: 1, b: 2 }] } },
+    workspaceConfig: {
+      file: 'packages/app/slop-gate.config.ts',
+      config: { rules: { 'style.no-var': ['warn', { b: 3 }] } },
     },
   })
-  expect(base.rules.get('style.no-var')?.options).toEqual({ a: 1, b: 2 })
+  expect(resolver.base.rules.get('style.no-var')?.options).toEqual([{ b: 3 }])
+})
+
+test('a later layer setting only a level keeps the options an earlier one set', () => {
+  // The single most likely edit anyone makes to a config — raise a rule's severity — and the one
+  // that silently undid an earlier layer's measured option choice while a setting was replaced
+  // whole. Level and options are settled independently, so the raise costs nothing.
+  const resolver = createRuleSetResolver({
+    config: { rules: { 'pedantic.eqeqeq': ['warn', 'smart'] } },
+    workspaceConfig: { file: 'packages/app/slop-gate.config.ts', config: { rules: { 'pedantic.eqeqeq': 'error' } } },
+  })
+
+  expect(resolver.base.rules.get('pedantic.eqeqeq')?.level).toBe('error')
+  expect(resolver.optionsOf('pedantic.eqeqeq')).toEqual(['smart'])
+  expect(resolver.base.rules.get('pedantic.eqeqeq')?.optionsFrom).toEqual({
+    layer: 'root-config',
+    source: 'slop-gate.config.ts',
+  })
+})
+
+test('the empty tuple clears inherited options', () => {
+  const resolver = createRuleSetResolver({
+    config: { rules: { 'pedantic.eqeqeq': ['warn', 'smart'] } },
+    workspaceConfig: { file: 'packages/app/slop-gate.config.ts', config: { rules: { 'pedantic.eqeqeq': ['error'] } } },
+  })
+  expect(resolver.optionsOf('pedantic.eqeqeq')).toEqual([])
+  expect(resolver.base.rules.get('pedantic.eqeqeq')?.optionsFrom).toEqual({
+    layer: 'workspace-config',
+    source: 'packages/app/slop-gate.config.ts',
+  })
+})
+
+test('options in an override are ignored and recorded, while its level still applies', () => {
   const resolver = createRuleSetResolver({
     config: {
-      rules: { 'style.no-var': ['warn', { a: 1, b: 2 }] },
-      overrides: [{ files: ['**/*.ts'], rules: { 'style.no-var': ['warn', { b: 3 }] } }],
+      rules: { 'pedantic.eqeqeq': ['warn', 'smart'] },
+      overrides: [{ files: ['**/*.test.ts'], rules: { 'pedantic.eqeqeq': ['error', 'always'] } }],
     },
   })
-  expect(resolver.forFile('src/a.ts').rules.get('style.no-var')?.options).toEqual({ b: 3 })
+
+  expect(resolver.optionsOf('pedantic.eqeqeq')).toEqual(['smart'])
+  expect(resolver.maxLevelOf('pedantic.eqeqeq')).toBe('error')
+  expect(resolver.ignoredOverrideOptions).toEqual([
+    { source: 'overrides[0] (**/*.test.ts)', key: 'pedantic.eqeqeq' },
+  ])
+})
+
+test('an override that sets only a level is not reported as carrying options', () => {
+  const resolver = createRuleSetResolver({
+    config: {
+      rules: { 'pedantic.eqeqeq': ['warn', 'smart'] },
+      overrides: [{ files: ['**/*.test.ts'], rules: { 'pedantic.eqeqeq': 'off' } }],
+    },
+  })
+  expect(resolver.ignoredOverrideOptions).toEqual([])
 })
 
 test('an override applies only to matching files', () => {

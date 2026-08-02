@@ -307,6 +307,7 @@ export default defineConfig({
   rules: {
     'dead-code.unused-import': 'error',
     'complexity.max-function-length': ['warn', { max: 80 }],
+    'pedantic.eqeqeq': ['warn', 'smart'],
     'slop.narrative-comment': 'error',
   },
 
@@ -340,6 +341,44 @@ Lowest to highest precedence:
 7. Inline source directives
 
 Every application is recorded as a provenance step.
+
+#### Per-rule options
+
+A setting is either a level (`'warn'`) or a level followed by that rule's options
+(`['warn', 'smart']`, `['warn', { max: 80 }]`). The options are a **positional list**, matching the
+ESLint-family grammar every engine here inherits, and they are **opaque to core** — the same
+arrangement `RuleEntry.engineRuleId` uses. Core decides *which* options apply; the adapter that owns
+the elected rule is the only thing that decides what they mean. Core validating an oxlint option
+shape would couple the two and be wrong for the next engine.
+
+A positional list rather than an options object because the object form cannot express the values
+that matter. `eqeqeq`'s `smart` mode — the reason `recommended` can carry the rule at all — is only
+reachable as `["warn", "smart"]`; oxlint 1.76.0 rejects the object form outright with *unknown
+variant `null`, expected `always` or `smart`*.
+
+**Merge semantics — three decisions, stated rather than left to implementation order:**
+
+- **Level and options are settled independently**, each last-wins. A layer that writes the bare level
+  raises severity and inherits the options an earlier layer set. Without this, the commonest edit
+  anyone makes to a config — `'pedantic.eqeqeq': 'error'` on top of `extends: ['recommended']` —
+  silently discards a measured option and restores 2553 findings.
+- **Options replace, they never merge.** A positional list has no meaning-preserving merge: combining
+  `['smart']` with `['always', { null: 'ignore' }]` produces a third configuration nobody wrote. A
+  deep merge would also require core to understand the engine's option grammar.
+- **`['error']` — the tuple with no options — is the explicit reset**, so clearing an inherited
+  option stays expressible without a second keyword.
+
+**Options cannot be scoped to a path.** Levels can: the engine runs at the strongest level any
+override asks for and each finding is re-graded per file during normalization. Options change
+*whether the engine reports the finding at all*, and an engine is configured once per run — so
+honouring a path-scoped option would mean applying it to every file or to none. Options in an
+`overrides` block are therefore ignored and reported as `config.dead-override`; the level in the
+same block still applies. (An engine whose own config format has path scoping, as oxlint's does,
+could in principle be handed the override structure. That is a larger change than this and is
+recorded as a follow-up.)
+
+`sgate rules why` answers "what won" separately for each: the enablement line names the layer that
+decided the level, and an `Options:` line names the layer that decided the options.
 
 ### 6.3 Inline suppressions
 
@@ -882,6 +921,20 @@ interface Engine {
 
 Ephemeral engine configs are materialised under `.slop-gate/tmp/` with restrictive permissions and
 removed afterwards. Users never see or maintain engine-native config files.
+
+Per-rule options (§6.2) reach the adapter on `RunContext.ruleOptions` — `engineRuleId` → that rule's
+option list, in the same key space as the selection, present only for the rules that have any. They
+ride there rather than inside `EngineRuleSelection`'s value, which is where they would sit if the
+interface were being designed now: widening that value type would break every adapter outside this
+repository, and four of the adapters inside it decide enablement by comparing it against the literal
+`'off'` — a comparison that keeps compiling and starts being wrong the day the value can be a tuple.
+Recorded as a follow-up.
+
+**An adapter that reads `ruleOptions` must fold it into `EngineConfigHandle.rulesetHash`.** That hash
+is the only per-engine term in the result cache key (§9), so two runs differing only by a rule's
+options would otherwise share a cache entry and the second would be served the first's findings. An
+adapter that materialises its options into a config object it already hashes gets this for free; one
+that does not has to say so on purpose.
 
 ### 13.1 Domain ownership
 

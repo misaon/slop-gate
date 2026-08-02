@@ -23,6 +23,45 @@ export type RuleExclusion = {
  * twenty-four jest/vitest dual-firing rules (now the `test-framework` profile, whose reason text this
  * file used to carry verbatim as the unblocking condition). What stays here is the other kind: a rule
  * that is wrong regardless of what the repository is built with.
+ *
+ * ---
+ *
+ * **Two things anyone measuring an oxlint rule needs before they start, both learned the expensive
+ * way (see the `feat/rule-options` work and its follow-ups).**
+ *
+ * **1. Count `"code": "<rule>"`, never `"message"`.** `--format json` puts oxlint's own `TS(…)` parse
+ * diagnostics in the same `diagnostics` array as rule findings, and they are emitted whatever the
+ * `rules` map says. Over any corpus containing deliberately-malformed input — prettier's
+ * `tests/format` is 1,171 unparseable files on its own — counting messages reports the same inflated
+ * total for every configuration you try, which reads exactly like a rule whose options do nothing.
+ * Measured concretely: `eqeqeq` with `smart` counted 1249 by message and **84** by code.
+ *
+ * **2. Check an exclusion's own words against the engine's option schema before trusting it.** An
+ * exclusion that describes a shape — "sorting an array just derived from a spread" — may be naming
+ * an option the engine already offers, in which case the rule is promotable and nobody noticed.
+ * `oxlint -c <config with {"__probe":1}>` prints the accepted field names for *most* rules, but read
+ * the caution at the end of this comment before trusting a silent answer.
+ *
+ * That sweep has been done once, across every oxlint entry in `RULE_EXCLUSIONS`. **Five of the six
+ * are not rescued and the sixth is an open question, not a promotion.** Recorded per entry below so
+ * it is not repeated:
+ *
+ * - `unicorn/no-array-sort` (95 → 50), `unicorn/no-array-reverse` (4 → 4), `no-underscore-dangle`
+ *   (135,767 → 5,255) and `import/no-unassigned-import` (3,000 → 1,662) each have a
+ *   relevant-sounding option; none is rescued by it.
+ * - `no-implied-eval` takes none — oxlint says so in as many words (*this rule does not accept
+ *   configuration options*) — and never fires anyway, which is its actual exclusion.
+ * - **`vitest/valid-expect` is the live one**, and the reason it is not simply promoted here is a
+ *   split measurement worth reading before anyone acts on it. See its entry.
+ *
+ * The one rule the sweep did rescue outright was never in this table — `eqeqeq`, promoted in
+ * `config/rule-options.ts`.
+ *
+ * A caution the sixth case earns: **`oxlint -c` with a probe key does not reliably tell you whether
+ * a rule has options.** `eqeqeq`, `no-empty-object-type` and `no-implied-eval` reject an unknown key
+ * by name; `vitest/valid-expect` and `ban-ts-comment` accept one in silence while still honouring
+ * their real options. Silence means "unknown", not "no options" — check the upstream rule's
+ * documented option names too, or a rule with a live option reads as having none.
  */
 
 /**
@@ -249,7 +288,27 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "— it reports the same message on the same code, and there it is correct, because jest's " +
       "`expect` genuinely takes one argument. Verified by running each rule alone: over this " +
       "repository jest reports 37 and vitest 27, and the 10 it does not report are exactly the " +
-      "string-literal calls the vitest rule correctly allows.",
+      "string-literal calls the vitest rule correctly allows.\n\n" +
+      "**The option sweep found a live candidate here and deliberately stopped short of promoting " +
+      "it, because the measurement splits.** The rule accepts `maxArgs`, and `maxArgs: 2` is not a " +
+      "workaround but the literally correct statement of vitest's signature — the one this reason " +
+      "already quotes, `<T>(actual: T, message?: string)`. It removes exactly the defect described " +
+      "above and nothing else: verified against a fixture carrying every other thing the rule " +
+      "checks, `expect` with no matcher, `expect()` with no argument and an un-awaited async " +
+      "matcher all still fire, and `expect(1, 2, 3)` is still caught as genuinely too many.\n\n" +
+      "Then the numbers diverge. **On this repository: 48 findings on defaults, 0 with " +
+      "`maxArgs: 2`** (up from the 27 above; the repository grew, the ratio did not). **On the " +
+      "32,035-file third-party corpus: 18 either way** — the option changes nothing, because nobody " +
+      "else passes a computed second argument to `expect`. So the false-positive class it removes is " +
+      "close to a slop-gate house idiom, and a promotion cannot rest on 'it fixes our repository'.\n\n" +
+      "What the promotion needs, and what this sweep did not do: audit those 18 corpus findings " +
+      "(nest 10, hono 4, vue core 2, prettier 2) to establish the rule has defect content on code " +
+      "that is not ours. If they are real, this comes out of the table and goes into " +
+      "`config/rule-options.ts` with `['error', { maxArgs: 2 }]`. Note the extra care that needs: " +
+      "the rule is `correctness`-category, so removing the exclusion puts it into " +
+      "`GENERATED_RECOMMENDED_RULES` at its *default* configuration and the optioned table has to " +
+      "override it afterwards — which means a later deletion of that row silently restores the 48. " +
+      "`eqeqeq` has no such trap, because nothing else puts it in `recommended`.",
   },
   'import/no-unassigned-import': {
     reason:
@@ -259,7 +318,17 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "`import 'dotenv/config'`, `import './custom.css'` (a VitePress theme), and `import '@/tracing'` " +
       "(app startup instrumentation), plus this repo's own CLI entry shim (`import '../dist/main.js'`). " +
       "These are the textbook use case side-effect imports exist for, not an accidentally-unused " +
-      "import — 5/5 (100%) false positives across two independently-chosen, unrelated codebases.",
+      "import — 5/5 (100%) false positives across two independently-chosen, unrelated codebases.\n\n" +
+      "Swept for a rescuing option. It has exactly one, `allow`, taking globs — and the sweep is why " +
+      "this entry now carries a third-party number it never had: **3,000 findings over the " +
+      "32,035-file corpus**, against the 5 this reason was originally written from. A generous " +
+      "generic allowlist (`**/*.css`, `**/*.scss`, `**/*.less`, `**/*.sass`, `reflect-metadata`, " +
+      "`dotenv/config`, `**/polyfills*`) brings that to **1,662**, which is still two orders of " +
+      "magnitude past anything in `recommended`. The residue is what an allowlist cannot generalise " +
+      "over — application-local startup imports like `@/tracing` and this repository's own " +
+      "`packages/cli/bin/sgate.js` shim, which are legitimate and unguessable. Same shape as " +
+      "`biome-css/useBaseline`: the option exists, and the value it would need is a fact about the " +
+      "project that slop-gate does not know.",
   },
   'unicorn/no-array-sort': {
     reason:
@@ -271,13 +340,27 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "pattern apart from mutating a caller-owned array in place, which is the real bug it exists to " +
       "catch. 21/21 (100%) false positives here specifically because of how this codebase happens to " +
       "call `.sort()`, not because the rule is wrong in general — the same category of gap as " +
-      "typescript/no-extraneous-class below, applied to a different rule.",
+      "typescript/no-extraneous-class below, applied to a different rule.\n\n" +
+      "**Re-checked once per-rule options could reach an adapter, because this exclusion's own " +
+      "wording — \"sorting an array just derived from a spread\" — names an option oxlint offers: " +
+      "`allowAfterSpread`. It does not rescue the rule.** Measured on this repository at oxlint " +
+      "1.76.0: 95 findings on defaults, **50 with `allowAfterSpread: true`** (and 50 with " +
+      "`allowExpressionStatement` added, which changes nothing here). The option covers the literal " +
+      "`[...x].sort()` form only, and the residue is the other half of the same idiom — " +
+      "`x.map(...).sort()`, `x.filter(...).sort()`, `Object.entries(x).sort()` — which the rule " +
+      "cannot tell from mutating a caller-owned array either. Recorded so the next reader does not " +
+      "repeat the measurement, and as the counter-example to `pedantic.eqeqeq`, where the same " +
+      "question got the opposite answer (see config/rule-options.ts).",
   },
   'unicorn/no-array-reverse': {
     reason:
       "Same measurement and same reasoning as unicorn/no-array-sort immediately above (the two rules " +
       "share a rationale in oxlint itself): all 3 occurrences on this repository reverse an array " +
-      "just produced by a spread, with nothing else aliasing it.",
+      "just produced by a spread, with nothing else aliasing it.\n\n" +
+      "Swept for an option that would rescue it, like its sibling. It has one — " +
+      "`allowExpressionStatement` — and it changes nothing here: 4 findings on this repository with " +
+      "it and 4 without. Notably it does **not** have `allowAfterSpread`, which is the option that " +
+      "would have been relevant, so this rule has less recourse than the one above rather than more.",
   },
   'no-underscore-dangle': {
     reason:
@@ -291,7 +374,16 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "not the arbiter of whether it belongs in `recommended` — whether a finding represents " +
       "something a competent developer would actually want to change is, and a trailing underscore " +
       "adopted on purpose to dodge shadowing an outer binding does not. A quality gate that argues " +
-      "with a codebase's own naming convention on every run teaches its user to ignore it.",
+      "with a codebase's own naming convention on every run teaches its user to ignore it.\n\n" +
+      "**Swept for a rescuing option and it is the strongest exclusion in this table, not the " +
+      "weakest.** It has ten (`allow`, `allowAfterThis`, `allowFunctionParams`, " +
+      "`allowInObjectDestructuring`, and so on), and turning on every one that could plausibly apply " +
+      "takes it from **135,767 findings to 5,255** over the 32,035-file third-party corpus — a 96% " +
+      "reduction that still leaves more findings than every rule in `recommended` produces combined. " +
+      "The default figure is the largest of any rule ever measured for this registry. None of the " +
+      "options addresses the case this exclusion is actually about either: `allow` is an exact-name " +
+      "list, so exempting a *trailing* underscore adopted to dodge a shadowed import means naming " +
+      "each identifier, which is a per-repository decision and not a preset's to make.",
   },
   'no-implied-eval': {
     reason:

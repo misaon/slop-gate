@@ -46,7 +46,25 @@ function evidenceText(evidence: FrameworkEvidence): string {
 
 function settingText(setting: RuleSetting): string {
   const { level, options } = splitRuleSetting(setting)
-  return Object.keys(options).length > 0 ? `${level} ${JSON.stringify(options)}` : level
+  if (options === undefined) return level
+  // `[]` is a layer explicitly clearing the options it inherited, which is a different statement
+  // from the bare level above and has to read as one, or the provenance table shows two identical
+  // rows for two different decisions.
+  return options.length === 0 ? `${level} (options cleared)` : `${level} ${JSON.stringify(options)}`
+}
+
+/**
+ * The effective options and the layer that decided them — the options half of the same question
+ * `enablementSummary` answers for the level, and separate from it because the two can be settled by
+ * different layers: `extends: ['recommended']` plus `'pedantic.eqeqeq': 'error'` takes its level
+ * from the config file and its options from the preset. Rendered only when there are options, so
+ * every concept that has none looks exactly as it did.
+ */
+function optionsSummary(enablement: ConceptEnablement): string | undefined {
+  if (enablement.options.length === 0) return undefined
+  const from = enablement.optionsFrom
+  const source = from === undefined ? '' : ` — from ${LAYER_LABEL[from.layer]} \`${from.source}\``
+  return `Options: ${JSON.stringify(enablement.options)}${source}`
 }
 
 /** One sentence answering "is this enabled, and by what" — the first of the six answers `sgate
@@ -193,6 +211,8 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
   {
     const lines = [`  Enabled: ${explanation.enablement.enabled ? paint('green', 'yes') : paint('yellow', 'no')} — ${enablementSummary(explanation.enablement)}`]
     lines.push(...provenanceLines(explanation.enablement))
+    const options = optionsSummary(explanation.enablement)
+    if (options !== undefined) lines.push(`  ${options}`)
     if (explanation.pinnedOwner !== undefined) lines.push(`  Pinned owner: \`${explanation.pinnedOwner}\` (via \`owners\` in config)`)
     writeUnit(lines)
   }

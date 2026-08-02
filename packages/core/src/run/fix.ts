@@ -6,7 +6,7 @@ import type { RuleSetResolver } from '../config/resolve.ts'
 import type { SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Edit, FixKind } from '../diagnostics/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
-import type { Engine, FixTarget, RunContext } from '../engine/types.ts'
+import type { Engine, EngineRuleOptions, FixTarget, RunContext } from '../engine/types.ts'
 import { LEVEL_TO_SEVERITY } from '../engine/normalize.ts'
 import { engineAdjustmentsFor } from '../frameworks/adjustments.ts'
 import type { FrameworkDetection } from '../frameworks/types.ts'
@@ -18,7 +18,8 @@ import { createOscillationLedger } from '../fix/oscillation.ts'
 import { FIX_TIER_RANK, type CandidateEdit, type DroppedEdit, type FixTier } from '../fix/types.ts'
 import { inspectWorktree, type InspectWorktreeOptions, type WorktreeState } from '../fix/worktree.ts'
 import { compareStrings } from '../ordering.ts'
-import { ruleRefKey, type RuleEntry } from '../registry/types.ts'
+import { buildPlan } from '../planner/plan.ts'
+import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
 import { runCheck } from './check.ts'
 import { resolveRun } from './resolve-run.ts'
 
@@ -155,7 +156,7 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
   // could disagree. It is genuinely load-bearing rather than belt-and-braces — a project-granularity
   // engine is explicitly allowed to report against files the inventory never contained (see
   // `runProjectAssignment`), and a fix attached to one of those must not be applied.
-  const { inventory, resolver, entries, frameworks } = await resolveRun({
+  const { inventory, resolver, entries, frameworks, election } = await resolveRun({
     rootDir: options.rootDir,
     config: options.config,
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
@@ -165,6 +166,19 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
     signal,
   })
   const writable = new Set(inventory.files.map((file) => file.path))
+  // The same per-engine rule options `streamCheck` hands each adapter, rebuilt here because
+  // `withDerivedFixes` runs *outside* `runCheck` and would otherwise re-materialise the engine's
+  // config with the engine's own defaults. That is not a cosmetic difference for an engine that
+  // derives fixes by re-running itself over a whole file: oxlint's `--fix` pass rewrites every
+  // occurrence the rule finds, so a fix run configured with `eqeqeq`'s default `always` would
+  // rewrite the `== null` comparisons the check run deliberately exempted with `smart` — edits for
+  // findings the user was never shown.
+  const ruleOptionsByEngine = new Map(
+    buildPlan({ engines: options.engines, inventory, election, resolver }).map((assignment) => [
+      assignment.engineId,
+      assignment.ruleOptions,
+    ]),
+  )
   // Spec §11 step 2's first tiebreak. Read off the registry rather than carried on the diagnostic:
   // `RuleEntry.priority` is the reviewable, committed declaration of how a rule's fixes rank against
   // another's, and widening `Diagnostic` to ferry it would put a second copy of that number in the
@@ -223,6 +237,7 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       entries,
       writable,
       frameworks,
+      ruleOptionsByEngine,
       signal,
     })
 
@@ -312,6 +327,7 @@ type DeriveContext = {
   entries: readonly RuleEntry[]
   writable: ReadonlySet<string>
   frameworks: FrameworkDetection
+  ruleOptionsByEngine: ReadonlyMap<EngineId, EngineRuleOptions>
   signal: AbortSignal
 }
 
@@ -377,6 +393,7 @@ async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveC
       rootDir: ctx.rootDir,
       tmpDir: ctx.tmpDir,
       adjustments: engineAdjustmentsFor(engine.id, ctx.frameworks),
+      ruleOptions: ctx.ruleOptionsByEngine.get(engine.id) ?? new Map(),
       fixTier: ctx.tier,
     }
     for (const derived of await engine.deriveFixes!(targets, context, ctx.signal)) {

@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { createRuleSetResolver } from '../config/resolve.ts'
+import type { RuleSetting } from '../config/types.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import type { Engine } from '../engine/types.ts'
 import { electOwners } from '../registry/elect.ts'
@@ -40,7 +41,7 @@ const planWith = (args: {
   entries: RuleEntry[]
   engines: Engine[]
   files: InventoryFile[]
-  rules: Record<string, 'off' | 'info' | 'warn' | 'error'>
+  rules: Record<string, RuleSetting>
 }) => {
   const resolver = createRuleSetResolver({ config: { rules: args.rules as never } })
   const election = electOwners({
@@ -126,6 +127,51 @@ test('configures a multi-concept rule at the strongest resolved level', () => {
   })
 
   expect(plan[0]?.selection.get('no-unused-vars')).toBe('error')
+})
+
+test('carries a rule\'s configured options through to its engine', () => {
+  const plan = planWith({
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'eqeqeq', concepts: ['pedantic.eqeqeq'] })],
+    engines: [fakeEngine('oxlint', ['ts'])],
+    files: [file('a.ts', 'ts')],
+    rules: { 'pedantic.eqeqeq': ['warn', 'smart'] },
+  })
+
+  expect(plan[0]?.selection.get('eqeqeq')).toBe('warn')
+  expect(plan[0]?.ruleOptions.get('eqeqeq')).toEqual(['smart'])
+})
+
+test('omits a rule with no options from ruleOptions entirely', () => {
+  const plan = planWith({
+    entries: [entry({ engine: 'oxlint', engineRuleId: 'no-debugger', concepts: ['correctness.no-debugger'] })],
+    engines: [fakeEngine('oxlint', ['ts'])],
+    files: [file('a.ts', 'ts')],
+    rules: { 'correctness.no-debugger': 'error' },
+  })
+
+  expect(plan[0]?.ruleOptions.size).toBe(0)
+})
+
+test('resolves a multi-concept rule\'s options in sorted concept order', () => {
+  // Two concepts of one rule carrying different options has no right answer, only a determinate
+  // one. Pinned so it cannot start depending on registry declaration order — the property
+  // `electOwners` maintains for arbitration, held here too.
+  const entries = [
+    entry({
+      engine: 'oxlint',
+      engineRuleId: 'no-unused-vars',
+      concepts: ['dead-code.unused-variable', 'dead-code.unused-import'],
+      classify: [{ messagePattern: 'import', concept: 'dead-code.unused-import' }],
+    }),
+  ]
+  const rules = {
+    'dead-code.unused-variable': ['warn', { from: 'variable' }],
+    'dead-code.unused-import': ['warn', { from: 'import' }],
+  } satisfies Record<string, RuleSetting>
+
+  const plan = planWith({ entries, engines: [fakeEngine('oxlint', ['ts'])], files: [file('a.ts', 'ts')], rules })
+
+  expect(plan[0]?.ruleOptions.get('no-unused-vars')).toEqual([{ from: 'import' }])
 })
 
 test('is deterministic in engine order', () => {

@@ -1541,3 +1541,110 @@ was willing to apply — is dropped. It is the one a user is most likely to want
 answer to "why did `sgate fix` change nothing when `check` said these were fixable". The MCP
 `propose_fixes` tool returns all four. Trivial to fix in the CLI; noted rather than done, because it
 changes output every `fix` test asserts on.
+
+---
+
+## Found making per-rule options reach engine adapters (spec §6.2)
+
+### `EngineRuleSelection` should carry the options, and does not
+
+The shape options belong in is `Map<engineRuleId, { level, options }>`. They are on
+`RunContext.ruleOptions` instead, a second map keyed the same way, and the reason is not that the
+better shape was not obvious.
+
+Widening `EngineRuleSelection`'s value would break every adapter outside this repository — it is part
+of the published `Engine` contract — and, worse, it breaks four adapters *inside* it silently.
+`engine-biome-css` (`config.ts:54`), `engine-tsc` (`config.ts:22`), `engine-knip` and `engine-astgrep`
+all decide enablement by comparing that value against the literal `'off'`. A union that admits a
+tuple keeps those comparisons compiling and makes them wrong the day a rule they own gets options: an
+`['off', …]` value is not `'off'`, so a disabled rule reads as enabled. The type error that would have
+caught it does not fire, because the comparison is against a string literal, not an exhaustive switch.
+
+**Read that failure carefully before starting, because it decides the shape of the work.** It is a
+silent inversion of *enablement*, not a wrong option: every rule in an affected engine flips state,
+`materializeConfig` writes a config nobody asked for, and there is nothing in the output to see it
+by — no error, no warning, just a different set of findings. That is the worst failure mode this
+codebase has, and it is exactly the one a gradual migration produces, because during the migration
+some adapters read the new shape and some still compare against `'off'`.
+
+**So this is one atomic change, not a per-adapter rollout.** In a single commit: widen the value to
+`RuleLevel | readonly [RuleLevel, ...RuleOptions]`, replace every `=== 'off'` / `!== 'off'`
+comparison in all six adapters with `splitRuleSetting`-style destructuring, delete
+`RunContext.ruleOptions` and `EngineAssignment.ruleOptions`, and add one test per adapter asserting
+that an `['off', { … }]` value still disables the rule — that test is the whole point and none of the
+six has it today. Worth doing before the adapter count grows again; two parallel maps that must stay
+in sync is exactly the shape that rots.
+
+### `vitest/valid-expect` is one audit away from being promotable
+
+The option sweep (`registry/exclusions.ts`) found exactly one exclusion that a configuration might
+dissolve, and left it as a question because the measurement splits in a way a single number hides.
+
+`maxArgs: 2` is the correct statement of vitest's `expect(actual, message?)` signature — the one that
+rule's own exclusion text already quotes — and it removes precisely the false-positive class the
+exclusion is about while preserving every other check the rule makes (verified against a fixture:
+missing matcher, empty `expect()`, un-awaited async matcher and a genuinely three-argument call all
+still fire). On this repository it takes the rule from **48 findings to 0**. On the 32,035-file
+third-party corpus it takes it from **18 to 18** — inert, because nobody outside this codebase passes
+a computed second argument to `expect`.
+
+So the work is: audit those 18 (nest 10, hono 4, vue core 2, prettier 2). If the rule has defect
+content on code that is not ours, it comes out of `RULE_EXCLUSIONS` and into
+`OPTIONED_RECOMMENDED_RULES` as `['error', { maxArgs: 2 }]`. If they are all noise, the exclusion
+stays and its reason gets the corpus number it currently lacks. Either way the entry improves.
+
+One structural trap to handle if it is promoted: the rule is `correctness`-category, so deleting the
+exclusion puts it into `GENERATED_RECOMMENDED_RULES` at its **default** configuration, with the
+optioned table overriding it afterwards. A later deletion of that row would then silently restore the
+48 findings rather than merely dropping the rule. `presets.test.ts` guards the row, but the failure
+mode is worse than `eqeqeq`'s and deserves a comment where the exclusion used to be.
+
+### Options on an engine rule id key do nothing, and nothing says so
+
+`RuleMap` accepts `'oxlint/eqeqeq'` as a key (spec §6.1). `buildPlan` never reads engine-rule keys —
+it resolves levels and now options from *concept* ids only (`resolver.maxLevelOf`,
+`resolver.optionsOf`) — so a user who writes `'oxlint/eqeqeq': ['warn', 'smart']`, which is the more
+precise thing to write since options are engine vocabulary, gets nothing. It is not reported either:
+the key is in `SHIPPED_RULE_KEYS`, so `config.dead-override` does not fire for it.
+
+This predates options — an engine rule id key has been inert for levels too — but options make it
+worse, because the engine-rule form is the one that reads as correct. Either wire engine-rule keys
+into the plan, or report them as dead. The second is a smaller change and arguably the honest one:
+the spec already says the concept id is the canonical form.
+
+### A rule owning two option-carrying concepts resolves silently
+
+`optionsFor` (`planner/plan.ts`) walks a rule's concepts in sorted order and takes the first that
+specifies options. Deterministic, tested, and arbitrary — `no-unused-vars` owns both
+`dead-code.unused-variable` and `dead-code.unused-import`, and if a config gave those different
+options one of them would be discarded with no diagnostic. It belongs with the other `config.*`
+governance output. Not built now because no shipped rule has two option-carrying concepts, which is
+also why it would have gone unnoticed.
+
+### Path-scoped options are refused, and oxlint could actually do them
+
+Options in an `overrides` block are ignored and reported as `config.dead-override`, because an engine
+is configured once per run (spec §6.2). That is true of the *orchestrator*, not of every engine:
+oxlint's own config format has an `overrides: [{ files, rules }]` key, so the adapter could be handed
+the override structure and translate it. Doing so means `materializeConfig` taking path-scoped rules
+rather than a flat selection, and it means every engine without that capability needs a way to say
+so. Real, and much larger than this change.
+
+### The corpus figures in `presets.ts` are not all from one corpus
+
+This change measured over 32,035 script files from the twelve repositories named there; the four
+rules promoted before it cite 21,777 from the same twelve. The repositories moved on between the two
+runs, and nothing pins them. Every count in the preset is therefore comparable within a promotion and
+only roughly comparable across promotions. Pinning the corpus to explicit commits — a lockfile of
+`owner/repo@sha`, checked out on demand — would cost little and make a re-measurement mean something.
+Worth doing before the next promotion argues from a delta.
+
+A second, sharper trap from the same work, recorded because it silently multiplies every figure:
+**oxlint's JSON output mixes rule diagnostics with `TS(…)` parse diagnostics.** Counting `"message"`
+occurrences rather than `"code": "<rule>"` reported 1249 `eqeqeq` findings where there were 84 — the
+difference being prettier's deliberately-malformed `tests/format` corpus, which oxlint fails to parse
+and reports on regardless of which rules are enabled. The failure is worse than a wrong number: the
+parse diagnostics are identical across configurations, so every option you try reports roughly the
+same total and the rule reads as one whose options do nothing. Both this and the "check the
+exclusion's own words against the option schema" lesson are now in the header of
+`registry/exclusions.ts`, which is where someone about to measure a rule is actually looking.

@@ -1,5 +1,5 @@
-import type { ProvenanceStep, RuleSetResolver } from '../config/resolve.ts'
-import type { RuleLevel, RuleSetting } from '../config/types.ts'
+import type { ProvenanceLayer, ProvenanceStep, RuleSetResolver } from '../config/resolve.ts'
+import type { RuleLevel, RuleOptions, RuleSetting } from '../config/types.ts'
 import { splitRuleSetting } from '../config/types.ts'
 
 export type OverrideMention = { source: string; setting: RuleSetting }
@@ -9,6 +9,13 @@ export type ConceptEnablement = {
   enabled: boolean
   /** The strongest level any layer assigns, base or override — `resolver.maxLevelOf(concept)`. */
   level: RuleLevel
+  /** The options the engine is actually configured with — `resolver.optionsOf(concept)`, so base
+   *  cascade only. Empty when no layer set any. */
+  options: RuleOptions
+  /** Which layer those options came from. The whole reason this is carried separately from
+   *  `baseProvenance`: options and level can be decided by two different layers (a config raising
+   *  the severity of a rule a preset configured), and "what won" has to be answerable for each. */
+  optionsFrom: { layer: ProvenanceLayer; source: string } | undefined
   /** The base cascade's provenance for this concept — preset, root config, workspace config, in
    *  application order — or empty when no base layer ever mentions it. */
   baseProvenance: readonly ProvenanceStep[]
@@ -29,6 +36,8 @@ export function resolveEnablement(resolver: RuleSetResolver, concept: string): C
   return {
     enabled: resolver.anyEnabledConcepts.has(concept),
     level: resolver.maxLevelOf(concept),
+    options: resolver.optionsOf(concept),
+    optionsFrom: resolver.base.rules.get(concept as never)?.optionsFrom,
     baseProvenance: resolver.base.rules.get(concept as never)?.provenance ?? [],
     overrides: resolver.overridesFor(concept),
   }

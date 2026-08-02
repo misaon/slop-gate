@@ -62,11 +62,13 @@ export {
   type RuleKey,
   type RuleLevel,
   type RuleMap,
+  type RuleOptions,
   type RuleSetting,
   type SlopGateConfig,
 } from './config/types.ts'
 export { defineConfig } from './config/define.ts'
 export { PRESETS } from './config/presets.ts'
+export { OPTIONED_RECOMMENDED_RULES, type OptionedRule } from './config/rule-options.ts'
 
 export { ConfigError, EngineError } from './errors.ts'
 export { resolveScriptBin, type ResolveScriptBinOptions, type ScriptBinInvocation } from './exec/resolve-script-bin.ts'
@@ -159,6 +161,7 @@ export type {
   EngineAvailability,
   EngineCapabilities,
   EngineConfigHandle,
+  EngineRuleOptions,
   EngineRuleSelection,
   FileBatch,
   FixTarget,

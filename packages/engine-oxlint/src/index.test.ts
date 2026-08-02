@@ -85,6 +85,65 @@ test('never writes the synthetic parse-error rule id into the materialised confi
   await handle.dispose()
 })
 
+test('writes a rule\'s options into the config as oxlint\'s positional option list', async () => {
+  const handle = await createOxlintEngine().materializeConfig(new Map([['eqeqeq', 'warn']]), {
+    ...context,
+    ruleOptions: new Map([['eqeqeq', ['smart']]]),
+  })
+  const written = JSON.parse(await readFile(handle.path, 'utf8')) as { rules: Record<string, unknown> }
+
+  expect(written.rules).toEqual({ eqeqeq: ['warn', 'smart'] })
+  await handle.dispose()
+})
+
+test('the ruleset hash changes when only a rule\'s options change', async () => {
+  // The cache-correctness guard. `rulesetHash` is the only per-engine term in `deriveResultKey`, so
+  // two runs differing only by an option would otherwise share a cache entry and the second would be
+  // served the first's findings — the same silent-stale-warm-run failure the stat index and
+  // `configHash` each produced before they were fixed. Verified by removing the options from the
+  // hashed object: this test fails, the other three in this group do not.
+  const engine = createOxlintEngine()
+  const selection = new Map([['eqeqeq', 'warn' as const]])
+  const smart = await engine.materializeConfig(selection, { ...context, ruleOptions: new Map([['eqeqeq', ['smart']]]) })
+  const always = await engine.materializeConfig(selection, { ...context, ruleOptions: new Map([['eqeqeq', ['always']]]) })
+  const bare = await engine.materializeConfig(selection, context)
+
+  expect(smart.rulesetHash).not.toBe(always.rulesetHash)
+  expect(smart.rulesetHash).not.toBe(bare.rulesetHash)
+  await smart.dispose()
+  await always.dispose()
+  await bare.dispose()
+})
+
+test('an option-free selection hashes exactly as it did before options existed', async () => {
+  const engine = createOxlintEngine()
+  const selection = new Map([['no-debugger', 'error' as const]])
+  const without = await engine.materializeConfig(selection, context)
+  const withEmpty = await engine.materializeConfig(selection, { ...context, ruleOptions: new Map() })
+
+  expect(withEmpty.rulesetHash).toBe(without.rulesetHash)
+  expect(JSON.parse(await readFile(without.path, 'utf8')).rules).toEqual({ 'no-debugger': 'error' })
+  await without.dispose()
+  await withEmpty.dispose()
+})
+
+test('runs a rule at its configured options against the real binary', async () => {
+  await writeFile(join(dir, 'src/a.ts'), 'export const f = (a: unknown, b: unknown) => a == null || a == b\n')
+  const engine = createOxlintEngine()
+
+  const strict = await engine.materializeConfig(new Map([['eqeqeq', 'warn']]), context)
+  const strictFindings = await collect(engine.run({ files: [file('src/a.ts')] }, strict, context, new AbortController().signal))
+  await strict.dispose()
+
+  const smartContext = { ...context, ruleOptions: new Map([['eqeqeq', ['smart']]]) }
+  const smart = await engine.materializeConfig(new Map([['eqeqeq', 'warn']]), smartContext)
+  const smartFindings = await collect(engine.run({ files: [file('src/a.ts')] }, smart, smartContext, new AbortController().signal))
+  await smart.dispose()
+
+  expect(strictFindings).toHaveLength(2)
+  expect(smartFindings).toHaveLength(1)
+})
+
 test('produces the same ruleset hash regardless of selection order', async () => {
   const engine = createOxlintEngine()
   const a = await engine.materializeConfig(new Map([['no-debugger', 'error'], ['no-var', 'warn']]), context)
