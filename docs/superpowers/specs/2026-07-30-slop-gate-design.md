@@ -688,14 +688,94 @@ All reporters consume the same diagnostic stream.
 
 ### 12.1 MCP server
 
-`sgate mcp` implements the **stateless** 2026-07-28 revision — no `initialize` handshake, no
-protocol-level session, which matches a CLI that holds no state between calls. Transports: stdio
-(default) and HTTP.
+`sgate mcp`, in `packages/cli/src/commands/mcp/`. The `agent` reporter lets an agent *read*
+slop-gate; this lets one *call* it. No network egress, and nothing here writes to the repository.
 
-Tools: `check` (optionally scoped to paths or concepts), `explain_rule`, `list_conflicts`,
-`fix` (with `dryRun`), `baseline_status`. Resources: rule documentation pages.
+**Stateless, protocol revision 2026-07-28.** No `initialize` handshake and no protocol-level session:
+every request carries its own protocol version and client capabilities in
+`_meta.io.modelcontextprotocol/*`, and `server/discover` — mandatory for a server, optional for a
+client — answers identity, capabilities and supported versions in one round trip. That is the reason
+for choosing this revision rather than an accident of timing: slop-gate holds nothing between calls,
+so a protocol insisting on a session would model state that does not exist. Built on
+`@modelcontextprotocol/server` 2.0, which serves a 2025-era `initialize` opening from the same
+factory, so era is a property of the caller and not of the tool surface.
 
-No network egress. Local-only by default.
+**stdio only.** HTTP was in the original wording and is deliberately not implemented: it is
+network-facing, it is where the revision's authorization hardening applies, and a listening socket
+needs a threat model rather than a flag. stdio has no such surface — the client launches the process
+and owns both ends of the pipe, so the operating system's process permissions *are* the access
+control. Deferred, with the threat model it would need, in the follow-ups.
+
+#### The three tools, and why not the others
+
+Each answers one question an agent has about **the user's code**:
+
+- **`check`** — what is wrong here. Runs every installed engine and returns the `agent` reporter's
+  own output verbatim as its text content. Verbatim is the point: the `INCOMPLETE:` block, the
+  `coverage:` line leading with its correction, the automated/judgement split and `nextActions` are
+  properties of that renderer (§12.3), and re-deriving any of them for a second surface would be
+  re-deriving exactly the part that matters. Bounded to 25,000 estimated tokens by default, where the
+  CLI is unbounded — a tool result lands directly in a context window, and the report states its own
+  budget and omissions on every run, so the bound is safe to apply without being asked.
+- **`explain_concept`** — why this counts as wrong. `resolveRun` + `explainConcept`, so no engine is
+  ever spawned. Named for what it takes: **§12.1 previously called this `explain_rule`**, and every
+  finding carries both a `concept` and a `ruleId`, so that name invites the wrong argument. Passing a
+  rule id is answered rather than refused — the registry knows which concepts a rule declares, and
+  saying so turns a dead end into a retry the model can make itself.
+- **`propose_fixes`** — what would the tool change. The real fix pipeline (§11) with `dryRun: true`
+  **hard-coded, not defaulted**; no argument turns it off. `sgate fix` can refuse a dirty worktree and
+  offer `--dry-run` because a human is standing at the terminal to read the refusal; a model calling a
+  tool has none of that, and an unexpected edit lands in a repository nobody is watching. Exposing the
+  diff costs the caller one shell command and leaves the decision with the person whose files they
+  are. All three tools are annotated `readOnlyHint: true`, and that is a property of the set.
+
+Not shipped, each for a reason rather than for want of time:
+
+- **`baseline_status`** cannot ship. §12.2's baseline does not exist in this codebase — there is no
+  `sgate baseline` command and no `.slop-gate/baseline.json` writer, only the `'baseline'` member of
+  `Diagnostic.suppressed.by` reserving room for one.
+- **`list_conflicts` and a rules listing** answer a question about *slop-gate's own configuration*,
+  which is a human's authoring task. Every tool costs context in every session on every `tools/list`,
+  and `explain_concept` already reports the suppressed candidates and displaced owners for the concept
+  a caller actually holds. `sgate rules conflicts` remains one shell command away.
+- **Scoping `check` to paths** was in the original wording and is not implementable safely. `knip` and
+  `tsc` are project-granularity (§8.1) and receive the inventory-derived file set, so narrowing the
+  inventory does not give a narrower answer — it gives a *wrong* one, with every import from outside
+  the subset reading as unused. This is §15's own argument for why `--since` narrows per-file engines
+  only, applied to the same engines. `rootDir` is offered instead: it re-resolves config, inventory
+  and project graph from a real root, which is what `--cwd` already does.
+- **Resources.** `docsUrl` is a third-party URL for most concepts, and fetching one would breach the
+  no-egress rule above; the five local `docs/rules/*.md` pages are not in the published package.
+
+#### Confinement
+
+`rootDir` defaults to the directory the server was started in and must resolve inside it. `sgate
+check --cwd /anywhere` is fine because a human typed it; the same argument reaching a tool handler
+came from a model, which may have read it out of a source file or a commit message. This is a
+guardrail and not a sandbox — containment is lexical, so a symlink inside the root that points
+outside it is followed — and the server runs with the user's own privileges regardless. What it stops
+is the realistic accident.
+
+#### Making a coverage gap unrepresentable
+
+An MCP tool returning `{"findings": []}` while hadolint was missing is §12.3's cardinal sin with the
+safety removed. Three things prevent it, and only the first is prose:
+
+1. The text content **is** the `agent` report, so every honesty property in §12.3 applies unchanged.
+2. `structuredContent.outcome` is a required enum — `clean`, `findings`, `incomplete`,
+   `incomplete-with-findings` — with **no value meaning "nothing found" on its own**. A run that could
+   not see everything is `incomplete` whatever its finding count, and the word leads.
+3. `outcome`, `complete` and `gaps` are `required` in the declared `outputSchema`, and the SDK
+   validates `structuredContent` against it before anything reaches the wire. An edit that drops the
+   coverage block becomes a loud validation failure, not a quietly reassuring result.
+
+Gap-ness is `isCoverageGap` — the reporter's own predicate, exported rather than restated, so an
+absent engine that would have won nothing is not reported as a loss in one channel and not the other.
+`ruleset.uncovered` is deliberately **not** a gap: it means "no *capable* candidate", and an engine
+that is registered but not installed is not capable, so every concept an absent optional engine owns
+lands there whether or not the repository holds a single file it would have looked at. Thirteen
+workflow concepts, on a directory with no workflows. It is surfaced beside the gaps, not as one —
+which is also what keeps this agreeing with the `coverage:` line, which counts engines only.
 
 ### 12.2 Baseline
 
@@ -1284,7 +1364,7 @@ sgate baseline [create | update | show]
 sgate cache [info | prune | clear]
 sgate doctor
 sgate migrate
-sgate mcp [--http]
+sgate mcp                                  # stdio; `--http` deferred, see §12.1
 sgate lsp                                  # phase 6
 ```
 
