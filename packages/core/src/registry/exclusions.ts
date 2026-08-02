@@ -82,6 +82,29 @@ export type RuleExclusion = {
  * checking them. Backfilling those (and knip's) into this table is a follow-up.
  */
 export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
+  'knip/files': {
+    reason:
+      'Promoted into `recommended` once, on a re-measurement taken against the NestJS-shaped fixture ' +
+      'after §23 framework awareness landed — which is to say, against the very cases the profiles ' +
+      'had just been written to fix. A 145k-line React monorepo (28 workspace packages, 1,251 ' +
+      'TypeScript sources) took it straight back out: **105 findings**, of which at least 98 are a ' +
+      'file that is loaded but not imported.\n\n' +
+      '**The composition is the argument, not the count.** Those 98 decompose into six unrelated ' +
+      'conventions: 60 Cucumber step definitions and page objects globbed by a `cucumber` config, 17 ' +
+      "configs for an in-house licence checker, 11 `.mdx` content files, 5 `@hey-api/openapi-ts` " +
+      'configs, 3 `lighthouserc.js`, and a `public/serviceworker.js` that is served rather than ' +
+      'imported. No predicate covers that set. The nearest candidate — "a file referenced only by ' +
+      'some tool\'s own config" — is not decidable without understanding each tool\'s config format, ' +
+      'which is executing repository code by another name (spec §23.5 forbids it). So this is not a ' +
+      'gap that four more framework profiles close; it is what the concept *is* on a repository that ' +
+      'uses more tools than knip has plugins for, and knip ships around 100 of those.\n\n' +
+      'The concept stays available and unchanged — `\'dead-code.unused-file\': \'warn\'` in a config ' +
+      'restores it, and a repository whose conventions knip does cover gets a genuinely useful check. ' +
+      'What it must not be is the *default*, where its first impression is 105 findings nobody can ' +
+      'act on. **This does cost real coverage**: a genuinely dead file now goes unreported by default, ' +
+      "and 7 of the 105 above (five `src/v*/index.ts` package entry points among them) could not be " +
+      'explained away and may well have been true positives.',
+  },
   'deps-security/missing-lockfile-entry': {
     reason:
       'The only rule in this engine with a genuine false-positive mode, and it is structural rather ' +
