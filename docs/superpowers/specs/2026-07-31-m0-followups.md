@@ -1541,3 +1541,72 @@ was willing to apply — is dropped. It is the one a user is most likely to want
 answer to "why did `sgate fix` change nothing when `check` said these were fixable". The MCP
 `propose_fixes` tool returns all four. Trivial to fix in the CLI; noted rather than done, because it
 changes output every `fix` test asserts on.
+
+---
+
+## Found making per-rule options reach engine adapters (spec §6.2)
+
+### `EngineRuleSelection` should carry the options, and does not
+
+The shape options belong in is `Map<engineRuleId, { level, options }>`. They are on
+`RunContext.ruleOptions` instead, a second map keyed the same way, and the reason is not that the
+better shape was not obvious.
+
+Widening `EngineRuleSelection`'s value would break every adapter outside this repository — it is part
+of the published `Engine` contract — and, worse, it breaks four adapters *inside* it silently.
+`engine-biome-css` (`config.ts:54`), `engine-tsc` (`config.ts:22`), `engine-knip` and `engine-astgrep`
+all decide enablement by comparing that value against the literal `'off'`. A union that admits a
+tuple keeps those comparisons compiling and makes them wrong the day a rule they own gets options: an
+`['off', …]` value is not `'off'`, so a disabled rule reads as enabled. The type error that would have
+caught it does not fire, because the comparison is against a string literal, not an exhaustive switch.
+
+Doing it properly means one atomic change: widen the value, update the six adapters to
+`splitRuleSetting`-style destructuring, and add a test per adapter that an `off`-with-options value
+still disables. Worth doing before the adapter count grows again. Two parallel maps that must stay in
+sync is exactly the shape that rots.
+
+### Options on an engine rule id key do nothing, and nothing says so
+
+`RuleMap` accepts `'oxlint/eqeqeq'` as a key (spec §6.1). `buildPlan` never reads engine-rule keys —
+it resolves levels and now options from *concept* ids only (`resolver.maxLevelOf`,
+`resolver.optionsOf`) — so a user who writes `'oxlint/eqeqeq': ['warn', 'smart']`, which is the more
+precise thing to write since options are engine vocabulary, gets nothing. It is not reported either:
+the key is in `SHIPPED_RULE_KEYS`, so `config.dead-override` does not fire for it.
+
+This predates options — an engine rule id key has been inert for levels too — but options make it
+worse, because the engine-rule form is the one that reads as correct. Either wire engine-rule keys
+into the plan, or report them as dead. The second is a smaller change and arguably the honest one:
+the spec already says the concept id is the canonical form.
+
+### A rule owning two option-carrying concepts resolves silently
+
+`optionsFor` (`planner/plan.ts`) walks a rule's concepts in sorted order and takes the first that
+specifies options. Deterministic, tested, and arbitrary — `no-unused-vars` owns both
+`dead-code.unused-variable` and `dead-code.unused-import`, and if a config gave those different
+options one of them would be discarded with no diagnostic. It belongs with the other `config.*`
+governance output. Not built now because no shipped rule has two option-carrying concepts, which is
+also why it would have gone unnoticed.
+
+### Path-scoped options are refused, and oxlint could actually do them
+
+Options in an `overrides` block are ignored and reported as `config.dead-override`, because an engine
+is configured once per run (spec §6.2). That is true of the *orchestrator*, not of every engine:
+oxlint's own config format has an `overrides: [{ files, rules }]` key, so the adapter could be handed
+the override structure and translate it. Doing so means `materializeConfig` taking path-scoped rules
+rather than a flat selection, and it means every engine without that capability needs a way to say
+so. Real, and much larger than this change.
+
+### The corpus figures in `presets.ts` are not all from one corpus
+
+This change measured over 32,035 script files from the twelve repositories named there; the four
+rules promoted before it cite 21,777 from the same twelve. The repositories moved on between the two
+runs, and nothing pins them. Every count in the preset is therefore comparable within a promotion and
+only roughly comparable across promotions. Pinning the corpus to explicit commits — a lockfile of
+`owner/repo@sha`, checked out on demand — would cost little and make a re-measurement mean something.
+Worth doing before the next promotion argues from a delta.
+
+A second, sharper trap from the same work, recorded because it silently multiplies every figure:
+**oxlint's JSON output mixes rule diagnostics with `TS(…)` parse diagnostics.** Counting `"message"`
+occurrences rather than `"code": "<rule>"` reported 1249 `eqeqeq` findings where there were 84 — the
+difference being prettier's deliberately-malformed `tests/format` corpus, which oxlint fails to parse
+and reports on regardless of which rules are enabled.

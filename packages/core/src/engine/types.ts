@@ -3,7 +3,7 @@ import type { FixTier } from '../fix/types.ts'
 import type { InventoryFile } from '../discovery/types.ts'
 import type { EngineAdjustments } from '../frameworks/types.ts'
 import type { LanguageId } from '../languages.ts'
-import type { RuleLevel } from '../config/types.ts'
+import type { RuleLevel, RuleOptions } from '../config/types.ts'
 import type { Capability, EngineId } from '../registry/types.ts'
 
 export type RawSeverity = 'error' | 'warning' | 'advice' | 'info'
@@ -45,6 +45,17 @@ export type RawDiagnostic = {
 /** engineRuleId → level. Levels are already resolved; the engine only materialises them. */
 export type EngineRuleSelection = ReadonlyMap<string, RuleLevel>
 
+/**
+ * engineRuleId → that rule's options, for the rules that have any. Same key space as
+ * `EngineRuleSelection`; a rule absent here simply has none.
+ *
+ * **Core does not interpret the values** — the arrangement `engineRuleId` already uses. Core
+ * resolves *which* options apply (spec §6.2's cascade, with the merge semantics stated there) and
+ * hands the resulting list over; what a list means is the adapter's business, and an adapter for an
+ * engine with no option grammar ignores this entirely.
+ */
+export type EngineRuleOptions = ReadonlyMap<string, RuleOptions>
+
 export type EngineCapabilities = {
   readonly languages: readonly LanguageId[]
   readonly granularity: 'file' | 'project'
@@ -63,6 +74,20 @@ export type RunContext = {
    * including how the union maps onto whatever merge semantics the engine's config format has.
    */
   readonly adjustments?: EngineAdjustments
+  /**
+   * Per-rule options for this assignment's `EngineRuleSelection`, resolved from the config cascade
+   * (spec §6.2). Optional so an adapter test can construct a context without one; absent and empty
+   * mean the same thing, exactly like `adjustments` above.
+   *
+   * **An adapter that reads this must fold it into `EngineConfigHandle.rulesetHash`.** That hash is
+   * the only per-engine term in the result cache key (`deriveResultKey`), so two runs differing only
+   * by a rule's options would otherwise share a cache entry and the second would be served the
+   * first's findings — the same silent-stale-warm-run shape that the stat index trusting
+   * `(size, mtimeMs)` and `configHash` omitting framework detection each produced before they were
+   * fixed. An adapter that materialises its options into a config object it already hashes gets this
+   * for free; one that does not has to say so on purpose.
+   */
+  readonly ruleOptions?: EngineRuleOptions
   /**
    * Set by `sgate fix` (spec §11) to the highest fix tier this run will apply, and absent on every
    * `sgate check`. An adapter that can report fixes should populate `RawDiagnostic.fix` when it is

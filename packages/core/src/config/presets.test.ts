@@ -2,6 +2,7 @@ import { expect, test } from 'vitest'
 import { SLOP_GATE_SERVICED_CONCEPTS, isConceptId } from '../concepts/catalogue.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { PRESETS } from './presets.ts'
+import { OPTIONED_RECOMMENDED_RULES } from './rule-options.ts'
 import { isRuleLevel, splitRuleSetting, type RuleKey, type RuleSetting } from './types.ts'
 
 const allKeys = Object.values(PRESETS).flatMap((map) => Object.keys(map) as RuleKey[])
@@ -38,9 +39,26 @@ test('strict is at least as strict as recommended', () => {
   }
 })
 
+test('every optioned rule reaches recommended and strict with its options intact', () => {
+  // The guard the whole `OPTIONED_RECOMMENDED_RULES` table exists for. Tidying `['warn', 'smart']`
+  // down to `'warn'` is invisible in review — same rule, same level — and restores 2553 findings.
+  const entries = Object.entries(OPTIONED_RECOMMENDED_RULES)
+  expect(entries.length).toBeGreaterThan(0)
+
+  for (const [concept, rule] of entries) {
+    expect(PRESETS.recommended[concept as RuleKey], concept).toEqual(rule!.setting)
+    expect(PRESETS.strict[concept as RuleKey], concept).toEqual(rule!.setting)
+    expect(splitRuleSetting(rule!.setting).options, concept).not.toEqual([])
+    expect(rule!.reason.length, concept).toBeGreaterThan(200)
+  }
+})
+
 test('splitRuleSetting normalises both shapes', () => {
-  expect(splitRuleSetting('warn')).toEqual({ level: 'warn', options: {} })
-  expect(splitRuleSetting(['error', { max: 80 }])).toEqual({ level: 'error', options: { max: 80 } })
+  // `undefined` and `[]` are two different statements, not two spellings of "no options": the bare
+  // level says nothing about options and inherits them, the empty tuple clears them.
+  expect(splitRuleSetting('warn')).toEqual({ level: 'warn', options: undefined })
+  expect(splitRuleSetting(['warn'])).toEqual({ level: 'warn', options: [] })
+  expect(splitRuleSetting(['error', { max: 80 }])).toEqual({ level: 'error', options: [{ max: 80 }] })
 })
 
 test('splitRuleSetting reads level and options from the tuple in order', () => {
@@ -48,5 +66,13 @@ test('splitRuleSetting reads level and options from the tuple in order', () => {
   const { level, options } = splitRuleSetting(setting)
 
   expect(level).toBe('error')
-  expect(options).toEqual({ max: 80, allow: ['a'] })
+  expect(options).toEqual([{ max: 80, allow: ['a'] }])
+})
+
+test('splitRuleSetting keeps a positional option list positional', () => {
+  // The shape `eqeqeq` needs and the old `Record<string, unknown>` could not express: oxlint rejects
+  // `["warn", { null: "ignore" }]` outright ("unknown variant `null`, expected `always` or `smart`"),
+  // so `smart` is only reachable as a bare positional string.
+  expect(splitRuleSetting(['warn', 'smart']).options).toEqual(['smart'])
+  expect(splitRuleSetting(['warn', 'always', { null: 'ignore' }]).options).toEqual(['always', { null: 'ignore' }])
 })

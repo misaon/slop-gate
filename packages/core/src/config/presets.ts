@@ -1,5 +1,11 @@
 import { GENERATED_RECOMMENDED_RULES } from '../registry/entries.generated.ts'
+import { OPTIONED_RECOMMENDED_RULES } from './rule-options.ts'
 import type { PresetName, RuleMap } from './types.ts'
+
+/** `OPTIONED_RECOMMENDED_RULES` flattened to the `RuleMap` shape the presets below spread. */
+const optionedRules: RuleMap = Object.fromEntries(
+  Object.entries(OPTIONED_RECOMMENDED_RULES).map(([concept, rule]) => [concept, rule.setting]),
+)
 
 /**
  * The `slop.*` ruleset, kept as a preset of its own **and** spread into `recommended` below.
@@ -141,18 +147,61 @@ const recommended: RuleMap = {
   // | pedantic    |   104 |   56,096 | genuinely mixed — `eqeqeq` and `jsdoc/*` sit in the same tier |
   // | perf        |    14 |    9,866 | 70% is four `react-perf` JSX rules on inline props, a judgement call |
   //
-  // A category's name is not evidence, and neither is its size. These four earned it one at a time:
+  // A category's name is not evidence, and neither is its size. These five earned it one at a time.
+  //
+  // Two of the five are here because a selection can now carry per-rule options, so a rule whose
+  // *default configuration* was the problem could finally be judged on its behaviour instead. Two
+  // were re-measured on that basis; one survived and one did not, and the difference is the useful
+  // part — an option that changes the count is not the same as an option that changes the content.
+  //
+  // `pedantic.eqeqeq` survived. Its setting, and the measurement behind the exact option value, live
+  // in `./rule-options.ts` — where removing the options means removing the evidence that put the
+  // rule here. On defaults it is the noisiest rule ever considered for this preset (2637 findings);
+  // with `smart` it is one of the quietest (84).
+  //
+  // **`restriction.no-empty-object-type` did not, and the option values are not the reason.** 926
+  // findings on defaults over 32,035 files; 608 with `allowInterfaces: 'with-single-extends'`, which
+  // exempts the deliberate `interface X extends Y {}` forward-compat idiom (318 of the 376
+  // empty-interface findings); 58 once `allowObjectTypes: 'always'` also removes all 550
+  // empty-object-literal findings. Setting `allowInterfaces: 'always'` as well takes it to **0** —
+  // the rule has no third thing to report, which is the shape of a rule whose entire content is its
+  // two option switches.
+  //
+  // The 58 are where it dies. Eighteen are prettier's `tests/format` fixtures. Of the other 40,
+  // every one read in context was deliberate: hono's `ContextVariableMap {}` and Vue's
+  // `ComponentCustomOptions {}` (whose own JSDoc is the `declare module` augmentation example),
+  // VS Code's `IWorkbenchContribution` (whose body is the comment `// Marker Interface`), tRPC's
+  // ambient `Event {}`, TypeORM's `Email {}` type-parameter placeholder. Declaration-merging
+  // targets and marker interfaces are what an empty interface is *for* in TypeScript, and no option
+  // distinguishes one from a vestigial declaration. The 550 literals it also drops are the same
+  // story one level down — `T extends {}`, `S extends Schema = {}`, `: {}` conditional branches —
+  // type-level machinery, not holes. Same verdict as `unicorn/no-array-sort`
+  // (`registry/exclusions.ts`): the option changes the count and not the content.
+  //
+  ...optionedRules,
   'pedantic.prefer-ts-expect-error': 'warn',
   // 79 findings, ~75 true. `@ts-ignore` silences an error *and keeps silencing nothing* once the
   // underlying error is fixed; `@ts-expect-error` fails loudly when it becomes unnecessary. The four
   // false positives are one pattern in tRPC — a suppression whose own comment says the error does not
   // reproduce in every environment, where `@ts-expect-error` would break the build that lacks it.
   //
-  // Deliberately promoted while `typescript/ban-ts-comment` (126 findings) is not, and they look like
-  // near-duplicates. They are not: ban-ts-comment's default already permits a described suppression,
-  // so 86 of its 90 audited findings are "this `@ts-expect-error` has no description" — a
-  // documentation nit that fires even when the rationale sits on the line above. Its remaining useful
-  // content, catching `@ts-ignore`, is exactly what this rule catches without the nit.
+  // Deliberately promoted while `typescript/ban-ts-comment` is not, and they look like near-
+  // duplicates. **Re-measured with options in hand, because "its default configuration is wrong" was
+  // the obvious next thing to check about it — and the option fixes the volume without producing a
+  // rule worth having.** Over the same 32,035 files: 325 findings on defaults, of which 264 are Vue
+  // core alone; with `{ "ts-expect-error": false }`, which is the option that silences the
+  // missing-description nit, **24**. Eighteen of those 24 are `@ts-ignore`, every one of which
+  // `prefer-ts-expect-error` above already reports — it found 97 across the same corpus, a strict
+  // superset, because it flags a described `@ts-ignore` too and ban-ts-comment's default does not.
+  // The six that are genuinely its own are all `@ts-nocheck`: one date-fns release script and five
+  // axios module-resolution test helpers, all deliberate. Six findings in 32,035 files, none of them
+  // a defect, is not a rule — it is the answer to a question, recorded so nobody asks it again.
+  //
+  // Worth noting for the next reader: oxlint validates this rule's options **laxly**. `eqeqeq` and
+  // `no-empty-object-type` reject an unknown key by name and refuse to load the config;
+  // `ban-ts-comment` accepts `{ "bogusKey": 1 }` and `{ "ts-expect-error": "bogus" }` in silence
+  // (both confirmed against 1.76.0). A typo in its options would have been invisible, which is a
+  // second reason not to build a promotion on top of them.
   'restriction.no-import-type-side-effects': 'warn',
   // 100 findings, ~13 of 14 audited true, and the one rule here that catches something a careful
   // developer still would not see. Under single-file transpilation — esbuild, swc, Babel, which is
@@ -169,7 +218,7 @@ const recommended: RuleMap = {
   //
   // Its sibling `oxc/no-map-spread` (226) is deliberately absent: `{...item, x}` inside `.map()` is
   // O(n), the same complexity as the map itself, so that rule names a constant factor as if it were a
-  // blowup. Same category, same author, opposite verdict — which is why this list is four rules and
+  // blowup. Same category, same author, opposite verdict — which is why this list is five rules and
   // not a category.
   'restriction.no-non-null-asserted-nullish-coalescing': 'warn',
   // **1 finding in 21,777 files**, and it is real: `a! ?? b!`, which asserts a value cannot be null

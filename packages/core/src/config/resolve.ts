@@ -10,6 +10,7 @@ import {
   type RuleKey,
   type RuleLevel,
   type RuleMap,
+  type RuleOptions,
   type RuleSetting,
   type SlopGateConfig,
 } from './types.ts'
@@ -25,7 +26,11 @@ export type ProvenanceStep = {
 export type RuleResolution = {
   key: RuleKey
   level: RuleLevel
-  options: Record<string, unknown>
+  /** Empty when no layer supplied any — never `undefined`, which is a per-*layer* fact only. */
+  options: RuleOptions
+  /** The layer `options` came from, absent when no layer supplied any. What lets `sgate rules why`
+   *  answer "which config layer decided the options" in the same sentence it answers it for levels. */
+  optionsFrom?: { layer: ProvenanceLayer; source: string }
   provenance: ProvenanceStep[]
 }
 
@@ -62,6 +67,24 @@ export type RuleSetResolver = {
   anyEnabledConcepts: ReadonlySet<string>
   /** The strongest level any layer assigns to a concept, or `off` if no layer mentions it. */
   maxLevelOf(concept: string): RuleLevel
+  /**
+   * The options the engine should be configured with for this concept, from the **base cascade
+   * only** — deliberately not the `maxLevelOf` treatment, which folds overrides in.
+   *
+   * A level can be narrowed per file after the fact (`forFile` re-resolves severity during
+   * normalization, so the engine runs at the strongest level any override asks for and each finding
+   * is then graded against its own file). Options cannot: they change *whether the engine reports
+   * the finding at all*, and an engine is configured once for the whole run. Honouring a
+   * path-scoped option would therefore mean applying it to every file or to none, and both are
+   * wrong. So override options are ignored and reported instead — see `ignoredOverrideOptions`.
+   */
+  optionsOf(concept: string): RuleOptions
+  /**
+   * Every `overrides` entry that carries options, which the run cannot apply (see `optionsOf`).
+   * Surfaced as `config.dead-override` rather than dropped, because a user who scopes an option to
+   * a glob and gets the base options everywhere has no other way to find out.
+   */
+  ignoredOverrideOptions: ReadonlyArray<{ source: string; key: string }>
   /**
    * Every override block that mentions `key` (a concept id or engine rule id), regardless of which
    * files it matches — in declaration order, the same `source` label `forFile`'s provenance already
@@ -115,11 +138,13 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   // a rule any override enables must still be configured on the engine for the whole run, and
   // `forFile` narrows it back down during normalization.
   const maxLevels = new Map<string, RuleLevel>()
+  const ignoredOverrideOptions: Array<{ source: string; key: string }> = []
   for (const [key, resolution] of base.rules) maxLevels.set(key, resolution.level)
   for (const override of overrides) {
     for (const [key, setting] of Object.entries(override.rules)) {
       if (setting === undefined) continue
-      const { level } = splitRuleSetting(setting)
+      const { level, options } = splitRuleSetting(setting)
+      if (options !== undefined && options.length > 0) ignoredOverrideOptions.push({ source: override.source, key })
       if (LEVEL_STRENGTH[level] > LEVEL_STRENGTH[maxLevels.get(key) ?? 'off']) maxLevels.set(key, level)
     }
   }
@@ -150,6 +175,10 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
     maxLevelOf(concept) {
       return maxLevels.get(concept) ?? 'off'
     },
+    optionsOf(concept) {
+      return base.rules.get(concept as RuleKey)?.options ?? []
+    },
+    ignoredOverrideOptions,
     overridesFor(key) {
       const result: Array<{ source: string; setting: RuleSetting }> = []
       for (const override of overrides) {
@@ -173,10 +202,26 @@ function materialize(
       const key = rawKey as RuleKey
       const { level, options } = splitRuleSetting(setting)
       const existing = rules.get(key)
+      // **Level and options are two facts, each last-wins independently, and options replace rather
+      // than merge.** Three decisions, none of which should fall out of implementation order:
+      //
+      // - *Replace, not deep-merge*: options are opaque to core (see `RuleOptions`), and a
+      //   positional list is not mergeable in any meaning-preserving way — merging `['smart']` with
+      //   `['always', { null: 'ignore' }]` produces a third configuration nobody wrote. Merging
+      //   would also require core to understand the engine's option grammar, which is the coupling
+      //   `engineRuleId` exists to avoid.
+      // - *Independently, not as one setting*: writing `'pedantic.eqeqeq': 'error'` on top of
+      //   `extends: ['recommended']` is a request to raise the severity, not to discard the `smart`
+      //   mode the preset chose on the strength of a 2553-finding measurement. Collapsing the two
+      //   would make the commonest edit in the config file silently the most expensive one.
+      // - *`['error']` is the reset*: the tuple form with no options is a layer explicitly saying
+      //   "no options", so the escape hatch stays expressible without a second keyword.
+      const optionsFrom = options === undefined ? existing?.optionsFrom : { layer, source }
       rules.set(key, {
         key,
         level,
-        options,
+        options: options ?? existing?.options ?? [],
+        ...(optionsFrom === undefined ? {} : { optionsFrom }),
         provenance: [...(existing?.provenance ?? []), { layer, source, setting }],
       })
     }

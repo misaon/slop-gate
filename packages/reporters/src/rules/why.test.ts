@@ -8,7 +8,7 @@ const explanation = (over: Partial<ConceptWhy> = {}): ConceptWhy => ({
   concept: 'correctness.no-debugger',
   isKnownConcept: true,
   servicedBySlopGate: false,
-  enablement: { enabled: true, level: 'error', baseProvenance: [{ layer: 'preset', source: 'recommended', setting: 'error' }], overrides: [] },
+  enablement: { enabled: true, level: 'error', options: [], optionsFrom: undefined, baseProvenance: [{ layer: 'preset', source: 'recommended', setting: 'error' }], overrides: [] },
   pinnedOwner: undefined,
   candidates: [],
   ownership: [],
@@ -34,7 +34,7 @@ const capture = (result: ConceptWhy, contextOver: Partial<RulesReporterContext> 
 const flat = (output: string): string => output.replace(/\s+/g, ' ')
 
 test('reports an unknown concept without throwing, and does not attempt to describe it', () => {
-  const output = capture(explanation({ concept: 'not.a.concept', isKnownConcept: false, enablement: { enabled: false, level: 'off', baseProvenance: [], overrides: [] } }))
+  const output = capture(explanation({ concept: 'not.a.concept', isKnownConcept: false, enablement: { enabled: false, level: 'off', options: [], optionsFrom: undefined, baseProvenance: [], overrides: [] } }))
   expect(output).toMatch(/not a recognised concept/i)
   expect(output).toContain('sgate rules list')
 })
@@ -42,7 +42,7 @@ test('reports an unknown concept without throwing, and does not attempt to descr
 test('explains a concept no layer ever enables', () => {
   const output = capture(
     explanation({
-      enablement: { enabled: false, level: 'off', baseProvenance: [], overrides: [] },
+      enablement: { enabled: false, level: 'off', options: [], optionsFrom: undefined, baseProvenance: [], overrides: [] },
       candidates: [{ engine: 'oxlint', engineRuleId: 'no-debugger', concepts: ['correctness.no-debugger'], tier: 0, priority: 100, severityDefault: 'error', fixKind: 'none', fixTouches: [], requires: [], languages: ['ts'], docsUrl: 'https://x.test', since: '0.1.0' } as never],
     }),
   )
@@ -52,12 +52,64 @@ test('explains a concept no layer ever enables', () => {
   expect(output).toMatch(/produces no findings: not enabled/i)
 })
 
+test('names the layer that decided the options, separately from the one that decided the level', () => {
+  // The arbitration question options introduce: a preset can settle the options while a config file
+  // settles the level, and "what won" has to be answerable for each in one sentence.
+  const output = flat(
+    capture(
+      explanation({
+        concept: 'pedantic.eqeqeq',
+        enablement: {
+          enabled: true,
+          level: 'error',
+          options: ['smart'],
+          optionsFrom: { layer: 'preset', source: 'recommended' },
+          baseProvenance: [
+            { layer: 'preset', source: 'recommended', setting: ['warn', 'smart'] },
+            { layer: 'root-config', source: 'slop-gate.config.ts', setting: 'error' },
+          ],
+          overrides: [],
+        },
+      }),
+    ),
+  )
+
+  expect(output).toContain('enabled at `error` by root config `slop-gate.config.ts`')
+  expect(output).toContain('Options: ["smart"] — from preset `recommended`')
+  expect(output).toContain('recommended -> warn ["smart"]')
+})
+
+test('distinguishes a layer that cleared the options from one that set only a level', () => {
+  const output = flat(
+    capture(
+      explanation({
+        enablement: {
+          enabled: true,
+          level: 'error',
+          options: [],
+          optionsFrom: { layer: 'root-config', source: 'slop-gate.config.ts' },
+          baseProvenance: [
+            { layer: 'preset', source: 'recommended', setting: ['warn', 'smart'] },
+            { layer: 'root-config', source: 'slop-gate.config.ts', setting: ['error'] },
+          ],
+          overrides: [],
+        },
+      }),
+    ),
+  )
+
+  expect(output).toContain('slop-gate.config.ts -> error (options cleared)')
+  expect(output).not.toContain('Options:')
+})
+
 test('explains a layer that enabled a concept and a later one that turned it off', () => {
   const output = capture(
     explanation({
       enablement: {
         enabled: false,
         level: 'off',
+        options: [],
+        optionsFrom: undefined,
         baseProvenance: [
           { layer: 'preset', source: 'recommended', setting: 'error' },
           { layer: 'root-config', source: 'slop-gate.config.ts', setting: 'off' },
@@ -220,6 +272,8 @@ test('names the framework, the evidence file and the reason when a profile turne
         enablement: {
           enabled: false,
           level: 'off',
+          options: [],
+          optionsFrom: undefined,
           baseProvenance: [
             { layer: 'preset', source: 'recommended', setting: 'warn' },
             { layer: 'framework', source: 'nestjs', setting: 'off' },

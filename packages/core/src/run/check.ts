@@ -227,6 +227,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           rootDir: options.rootDir,
           tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
           adjustments: engineAdjustmentsFor(engine.id, frameworks),
+          ruleOptions: assignment.ruleOptions,
           ...(options.fixTier === undefined ? {} : { fixTier: options.fixTier }),
         }
         const handle = await engine.materializeConfig(assignment.selection, runContext)
@@ -566,6 +567,21 @@ function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
     const diagnostic = emit(
       'config.dead-override',
       `\`${key}\` does not name a known concept or a rule any engine provides.`,
+    )
+    if (diagnostic) diagnostics.push(diagnostic)
+  }
+
+  // The second kind of dead override, and the one with no other symptom: an `overrides` block that
+  // sets a rule's *options*. Its level still applies to the files it matches, so nothing looks
+  // broken — but the engine is configured once for the whole run, so the options are silently the
+  // base cascade's everywhere (see `RuleSetResolver.optionsOf`). Without this the user's only
+  // evidence is a finding count that does not match what they configured.
+  for (const { source, key } of input.resolver.ignoredOverrideOptions) {
+    const diagnostic = emit(
+      'config.dead-override',
+      `\`${source}\` sets options for \`${key}\`, which cannot be scoped to a path: an engine is ` +
+        `configured once per run, so the options from the base config apply everywhere. The level ` +
+        `in this override still applies.`,
     )
     if (diagnostic) diagnostics.push(diagnostic)
   }

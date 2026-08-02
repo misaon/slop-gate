@@ -11,7 +11,7 @@ const entry = (over: Partial<RulesListEntry> & Pick<RulesListEntry, 'concept' | 
   uncovered: false,
   languageMismatch: false,
   suppressedCount: 0,
-  enablement: { enabled: true, level: 'warn', baseProvenance: [{ layer: 'preset', source: 'recommended', setting: 'warn' }], overrides: [] },
+  enablement: { enabled: true, level: 'warn', options: [], optionsFrom: undefined, baseProvenance: [{ layer: 'preset', source: 'recommended', setting: 'warn' }], overrides: [] },
   ...over,
 })
 

@@ -271,7 +271,17 @@ export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       "pattern apart from mutating a caller-owned array in place, which is the real bug it exists to " +
       "catch. 21/21 (100%) false positives here specifically because of how this codebase happens to " +
       "call `.sort()`, not because the rule is wrong in general — the same category of gap as " +
-      "typescript/no-extraneous-class below, applied to a different rule.",
+      "typescript/no-extraneous-class below, applied to a different rule.\n\n" +
+      "**Re-checked once per-rule options could reach an adapter, because this exclusion's own " +
+      "wording — \"sorting an array just derived from a spread\" — names an option oxlint offers: " +
+      "`allowAfterSpread`. It does not rescue the rule.** Measured on this repository at oxlint " +
+      "1.76.0: 95 findings on defaults, **50 with `allowAfterSpread: true`** (and 50 with " +
+      "`allowExpressionStatement` added, which changes nothing here). The option covers the literal " +
+      "`[...x].sort()` form only, and the residue is the other half of the same idiom — " +
+      "`x.map(...).sort()`, `x.filter(...).sort()`, `Object.entries(x).sort()` — which the rule " +
+      "cannot tell from mutating a caller-owned array either. Recorded so the next reader does not " +
+      "repeat the measurement, and as the counter-example to `pedantic.eqeqeq`, where the same " +
+      "question got the opposite answer (see config/rule-options.ts).",
   },
   'unicorn/no-array-reverse': {
     reason:

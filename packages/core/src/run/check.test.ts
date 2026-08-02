@@ -77,6 +77,32 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
+test('hands an engine the options configured for its elected rules', async () => {
+  // The seam between the planner and the adapter. Every other part of this path has its own test —
+  // the cascade resolves them (`config/resolve.test.ts`), the planner attaches them to the
+  // assignment (`planner/plan.test.ts`), the adapter writes them into its config and its hash
+  // (`engine-oxlint`) — and none of those would notice `streamCheck` forgetting to pass the
+  // assignment's `ruleOptions` into the `RunContext` it builds.
+  const seen: Array<ReadonlyMap<string, readonly unknown[]> | undefined> = []
+  const engine = stubEngine({})
+  const recording: Engine = {
+    ...engine,
+    materializeConfig: async (selection, context) => {
+      seen.push(context.ruleOptions)
+      return engine.materializeConfig(selection, context)
+    },
+  }
+
+  await runCheck({
+    ...baseOptions(),
+    config: { rules: { 'correctness.no-debugger': ['error', { probe: true }] } } as never,
+    engines: [recording],
+  })
+
+  expect(seen).toHaveLength(1)
+  expect([...(seen[0] ?? new Map())]).toEqual([['no-debugger', [{ probe: true }]]])
+})
+
 test('returns a normalized diagnostic for an engine finding', async () => {
   const result = await runCheck({ ...baseOptions(), engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })] })
 
@@ -182,6 +208,24 @@ test('emits a diagnostic for a dead override', async () => {
   const dead = result.diagnostics.filter((d) => d.concept === 'config.dead-override')
   expect(dead).toHaveLength(1)
   expect(dead[0]?.message).toContain('oxlint/no-such-rule')
+})
+
+test('reports options set in an override as dead, while its level still applies', async () => {
+  const result = await runCheck({
+    ...baseOptions(),
+    config: {
+      rules: { 'correctness.no-debugger': 'warn', 'config.dead-override': 'warn' },
+      overrides: [{ files: ['**/*.ts'], rules: { 'correctness.no-debugger': ['error', { probe: true }] } }],
+    } as never,
+    engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })],
+  })
+
+  const dead = result.diagnostics.filter((d) => d.concept === 'config.dead-override')
+  expect(dead).toHaveLength(1)
+  expect(dead[0]?.message).toContain('correctness.no-debugger')
+  expect(dead[0]?.message).toContain('cannot be scoped to a path')
+  // The level in the same override is not dead — the finding is graded at `error`, not `warn`.
+  expect(result.diagnostics.find((d) => d.concept === 'correctness.no-debugger')?.severity).toBe('error')
 })
 
 test('a config diagnostic is attributed to no file when no config file was given', async () => {
