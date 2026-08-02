@@ -82,10 +82,24 @@ test('only the concepts whose measurement supports it are in the slop preset', (
   ])
 })
 
-test('no slop concept is in the recommended preset', () => {
-  // `recommended` is the general quality gate. Every slop concept is a judgement about intent, and
-  // none has a measured true-positive rate on real code to justify that bar.
-  expect(Object.keys(PRESETS.recommended).filter((concept) => concept.startsWith('slop.'))).toEqual([])
+test('recommended carries exactly the slop preset, and the two held-out concepts stay held out', () => {
+  // The inverse of what this test used to assert, and the reversal is the point: a tool called
+  // slop-gate whose default preset finds no slop has failed at its own name. What is worth guarding
+  // now is that the two concepts measured *out* cannot drift back in — `slop.swallowed-error` (433
+  // findings, ~19 of a 22-item sample deliberate) and `slop.emoji-in-code` (20/20 false on this
+  // repository). Both remain reachable by concept; neither may arrive by preset.
+  const inRecommended = Object.keys(PRESETS.recommended).filter((concept) => concept.startsWith('slop.'))
+
+  expect(inRecommended.toSorted()).toEqual([
+    'slop.as-any-cast',
+    'slop.double-cast',
+    'slop.narrative-comment',
+    'slop.stub-implementation',
+  ])
+  expect(inRecommended).not.toContain('slop.swallowed-error')
+  expect(inRecommended).not.toContain('slop.emoji-in-code')
+  // `recommended` includes `slop` wholesale rather than restating it, so the two must not diverge.
+  expect(inRecommended.toSorted()).toEqual(Object.keys(PRESETS.slop).toSorted())
 })
 
 test('astGrepRuleById returns nothing for an unknown id', () => {

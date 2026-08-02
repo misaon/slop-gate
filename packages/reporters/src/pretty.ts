@@ -139,9 +139,9 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     const gaps = result.unavailableEngines.filter((engine) => engine.displaced.length > 0)
     for (const gap of gaps) {
       writeUnit([
-        `  ${paint(['bgYellow', 'black'], ' COVERAGE GAP ')} ${gap.engine} is not installed — ${gap.reason}`,
+        `  ${paint(['bgYellow', 'black'], ' COVERAGE GAP ')} ${gap.engine} could not run here — ${gap.reason}`,
         `    ${paint('yellow', `${plural(gap.displaced.length, 'concept')} went unchecked or to a lower-ranked rule.`)}` +
-          (gap.install === undefined ? '' : ` ${paint('yellow', `Install it with \`${gap.install}\`.`)}`),
+          (gap.install === undefined ? '' : ` ${paint('yellow', `Resolve it with \`${gap.install}\`.`)}`),
       ])
     }
 

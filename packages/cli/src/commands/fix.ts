@@ -41,7 +41,7 @@ export const fix = defineCommand({
         rootDir,
         config: loaded.config,
         ...(loaded.kind === 'loaded' ? { configFile: loaded.configFile } : {}),
-        engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined),
+        engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined, loaded.config.ignore),
         tier,
         dryRun: args['dry-run'],
         allowDirty: args['allow-dirty'],

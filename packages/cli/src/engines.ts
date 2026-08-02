@@ -56,11 +56,14 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * `packages/core/src/config/presets.ts` and `packages/core/src/registry/entries.manual.ts`. Three of
  * ast-grep's five reach a user through `extends: ['slop']`; the rest are opted into by concept.
  */
-export function defaultEngines(rootDir: string, configFile?: string): Engine[] {
+export function defaultEngines(rootDir: string, configFile?: string, ignore?: readonly string[]): Engine[] {
   return [
     createOxlintEngine(),
     createTscEngine({ rootDir }),
-    createKnipEngine(configFile === undefined ? {} : { configFile }),
+    createKnipEngine({
+      ...(configFile === undefined ? {} : { configFile }),
+      ...(ignore === undefined ? {} : { ignore }),
+    }),
     createAstGrepEngine(),
     createSchemaEngine(),
     createActionlintEngine(),

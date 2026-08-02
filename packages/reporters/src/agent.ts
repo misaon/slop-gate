@@ -521,9 +521,9 @@ function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
   const lines: string[] = []
   for (const engine of engines.filter(isCoverageGap)) {
     lines.push(
-      `INCOMPLETE: engine \`${engine.engine}\` is registered but not installed here — ${engine.reason}. ` +
+      `INCOMPLETE: engine \`${engine.engine}\` is registered but could not run here — ${engine.reason}. ` +
         'Nothing it would have reported appears below; do not read a clean section as clean.' +
-        (engine.install === undefined ? '' : ` Install it with \`${engine.install}\`.`),
+        (engine.install === undefined ? '' : ` Resolve it with \`${engine.install}\`.`),
     )
     for (const record of engine.displaced) {
       if (record.insteadOwnedBy === undefined) lines.push(`  unchecked: ${record.concept} — no other engine here covers it.`)
@@ -539,7 +539,7 @@ function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
   }
   for (const engine of engines.filter((candidate) => !isCoverageGap(candidate))) {
     lines.push(
-      `note: engine \`${engine.engine}\` is not installed here — ${engine.reason}. ` +
+      `note: engine \`${engine.engine}\` could not run here — ${engine.reason}. ` +
         'It would have owned nothing in this run, so no coverage was lost.',
     )
   }
@@ -731,7 +731,7 @@ function nextActionLines(
   for (const engine of gaps) {
     const command = engine.install === undefined ? '' : ` (\`${engine.install}\`)`
     actions.push(
-      `Install \`${engine.engine}\`${command} and re-run — ${engine.displaced.length} concept(s) went unchecked or to a lower-ranked rule.`,
+      `Make \`${engine.engine}\` runnable here${command} and re-run — ${engine.displaced.length} concept(s) went unchecked or to a lower-ranked rule.`,
     )
   }
 

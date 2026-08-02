@@ -48,6 +48,11 @@ const VITEPRESS_ENTRY = 'vitepress.entry'
 export type MaterializeKnipConfigOptions = {
   /** Repo-relative path of the slop-gate config file, when one was found. See `buildIgnore`. */
   configFile?: string
+  /**
+   * The user's own `ignore` globs from `slop-gate.config.ts`, verbatim. See `buildIgnore` for why a
+   * project-granularity engine has to be told these explicitly rather than inheriting them.
+   */
+  ignore?: readonly string[]
 }
 
 /**
@@ -159,11 +164,23 @@ export async function materializeKnipConfig(
  *   configs); it does not have one for slop-gate, and it never will. Ignoring it is a narrower, safer
  *   fix than declaring it an `entry`, which in knip's config *replaces* the workspace's default entry
  *   patterns rather than adding to them — a strictly worse trade for one file.
+ *
+ * And the user's own `ignore` globs, which a **file**-granularity engine never has to be told: core
+ * filters the inventory and hands oxlint the surviving list. A project-granularity engine derives its
+ * own file set from its own config, so it never sees that filtering — measured on this repository,
+ * where a config ignoring `fixtures/**` and `packages/star/fixtures/**` still produced 19
+ * `dead-code.unused-file` findings, every one inside a directory the user had explicitly excluded and
+ * every one therefore a false positive slop-gate itself manufactured. That was the single largest
+ * false-positive class knip had here, and it was never knip's fault.
+ *
+ * Sorted and deduplicated so two configs that mean the same thing hash the same, and so `rulesetHash`
+ * (and the result cache behind it) does not turn over when a user merely reorders their `ignore` list.
  */
 function buildIgnore(options: MaterializeKnipConfigOptions): string[] {
-  const ignore = ['.slop-gate/**']
-  if (options.configFile !== undefined) ignore.push(toPosix(options.configFile))
-  return ignore
+  const ignore = new Set(['.slop-gate/**'])
+  for (const pattern of options.ignore ?? []) ignore.add(toPosix(pattern))
+  if (options.configFile !== undefined) ignore.add(toPosix(options.configFile))
+  return [...ignore].sort(compareStrings)
 }
 
 /**

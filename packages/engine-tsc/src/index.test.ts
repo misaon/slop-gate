@@ -177,3 +177,28 @@ test('yields nothing for an empty batch on a clean project without throwing', as
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()
 })
+
+test('is available when the resolved tsconfig exists', async () => {
+  const engine = createTscEngine({ rootDir: dir })
+  expect(await engine.availability?.()).toEqual({ available: true })
+})
+
+test('is a reported coverage gap, not an engine error, when no tsconfig is there to typecheck', async () => {
+  await rm(join(dir, 'tsconfig.json'))
+  const engine = createTscEngine({ rootDir: dir })
+  const availability = await engine.availability?.()
+
+  expect(availability?.available).toBe(false)
+  expect(availability).toMatchObject({
+    reason: expect.stringContaining('tsconfig.json'),
+    install: expect.stringContaining('tsconfigPath'),
+  })
+})
+
+test('honours an explicit tsconfigPath when deciding availability', async () => {
+  await rm(join(dir, 'tsconfig.json'))
+  await writeFile(join(dir, 'tsconfig.build.json'), TSCONFIG)
+  const engine = createTscEngine({ rootDir: dir, tsconfigPath: join(dir, 'tsconfig.build.json') })
+
+  expect(await engine.availability?.()).toEqual({ available: true })
+})

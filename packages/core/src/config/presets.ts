@@ -2,6 +2,52 @@ import { GENERATED_RECOMMENDED_RULES } from '../registry/entries.generated.ts'
 import type { PresetName, RuleMap } from './types.ts'
 
 /**
+ * The `slop.*` ruleset, kept as a preset of its own **and** spread into `recommended` below.
+ *
+ * Two entry points, because they answer two different questions. `extends: ['slop']` alone is "tell
+ * me only what looks machine-written", which is a real request and the only way to ask it without
+ * also turning on 164 lint rules. `extends: ['recommended']` includes these because a tool called
+ * slop-gate that finds no slop by default has failed at the one thing its name promises — and
+ * because the evidence for the two rules at the centre of it is better than the evidence for most of
+ * what `recommended` already ships: `slop.narrative-comment` and `slop.stub-implementation` each
+ * measured **0 false positives across 3,529 files**, recorded per rule in `registry/entries.manual.ts`.
+ *
+ * Spread rather than folded so the measurements stay attached to the thing they measure: a reader
+ * asking "what does the slop ruleset consist of, and what is the evidence" gets one list and one
+ * comment, not four rows scattered through a preset built by a different policy.
+ *
+ * **Two of the six concepts ast-grep owns stay out, and both exclusions are numbers rather than
+ * caution:** `slop.swallowed-error` (433 findings over the third-party corpus, ~19 of a 22-item
+ * sample deliberate) and `slop.emoji-in-code` (20/20 false positives on this repository, all of them
+ * the pretty reporter's own severity glyphs and the tests for them). Both remain available by
+ * concept. Re-measuring them is the only thing that should change that.
+ *
+ * `warn`, not `error`, for all four: warnings do not fail a run (`EXIT_CODES` — only errors, or
+ * warnings past an explicit `--max-warnings`, do). These are things to look at, not things to stop a
+ * build over, and that distinction is what makes shipping them on by default defensible.
+ */
+const slop: RuleMap = {
+  // Owned by oxlint's `typescript/no-explicit-any`, not by ast-grep — so this line is also the
+  // decision to put a `restriction`-category oxlint rule into `recommended`, and it is the loudest
+  // thing in this change. Measured over 21,777 third-party files: **10,777 findings in 2,093 files**,
+  // and the density is wildly uneven — 0 per file in axios and fastify, 0.07 in prettier, 0.09 in
+  // hono, 0.13 in metabase, 0.39 in VS Code, but **1.2 in tRPC, 2.9 in TypeORM, 3.0 in NestJS itself
+  // and 4.0 in Vue core**. The heavy end is exactly the codebases whose subject matter *is* generic
+  // type machinery, the same concentration `slop.double-cast` records for `zod`.
+  //
+  // It goes in anyway, and the reason is that these are not false positives. Every one is a real hole in the
+  // type system, which is the distinction between this and the four house-style CSS rules in
+  // `registry/exclusions.ts`: those produced 11,525 findings and zero defects, this produces findings
+  // whose content is precisely the thing the user asked to be pedantic about. A library whose job is
+  // type-level construction should turn it off in one line; an application that has accumulated three
+  // `any`s per file should be told.
+  'slop.as-any-cast': 'warn',
+  'slop.double-cast': 'warn',
+  'slop.narrative-comment': 'warn',
+  'slop.stub-implementation': 'warn',
+}
+
+/**
  * Computed from the generated registry by policy, not listed by hand (design plan Task 3):
  * `GENERATED_RECOMMENDED_RULES` (registry/entries.generated.ts) already carries every concept whose
  * source rule is oxlint's `correctness` or `suspicious` category, non-type-aware, and not in
@@ -20,6 +66,60 @@ import type { PresetName, RuleMap } from './types.ts'
 const recommended: RuleMap = {
   'correctness.parse-error': 'error',
   ...GENERATED_RECOMMENDED_RULES,
+  ...slop,
+  // `tsc`. Excluded from the first release on cost, which was the wrong axis: **a type error is a
+  // compiler error, so the false-positive rate is zero by construction** — not low, zero — and no
+  // rule in this map has better evidence than that. A tool that names type-safety as a goal and then
+  // declines to notice that a project does not compile has mis-set its own bar.
+  //
+  // Cost, now measured rather than feared, on a 17-file NestJS project with a warm `typescript`
+  // install: **+436 ms cold** (98 ms -> 534 ms) and **0 ms warm** — the result cache absorbs it
+  // completely, and `tsc --incremental`'s own build info under `.slop-gate/cache` absorbs the rest.
+  // A cold run that pays a third of a second once to learn whether the repository compiles is not
+  // the reason a user turns a quality gate off.
+  //
+  // What did nearly make this wrong is not cost, and it is why `createTscEngine` now declares
+  // `availability()`: `tsc -p` does no project discovery, so on a monorepo whose root has no
+  // `tsconfig.json` — this repository included — the engine failed outright and `sgate check` exited
+  // 3. Promoting this concept without that fix would have turned the default preset into a hard
+  // first-run failure on the commonest TypeScript monorepo shape. It is now a reported coverage gap
+  // instead, which is the honest answer: nothing was typechecked, and the run says so.
+  'types.type-error': 'error',
+  // Five of the ten concepts knip owns. Excluded wholesale on a measurement taken **before the fix
+  // for it existed**: the false positives recorded against these were MikroORM migrations, a
+  // `mikro-orm.config.ts` read by path, VitePress convention-loaded files and NestJS's transitive
+  // `express` — which is the list §23 framework awareness was substantially built from. Nobody
+  // re-measured afterwards. Re-measured now, and the exclusion's basis is gone.
+  //
+  // On the NestJS-shaped fixture, knip run directly reports **8 findings, 7 of them false** (5 unused
+  // files: three migrations, the ORM config and slop-gate's own config; `@mikro-orm/migrations`
+  // unused; `express` unlisted) against **1 true positive**. The same repository through slop-gate,
+  // with profiles applied, reports **1 finding — the true positive — and nothing else**.
+  //
+  // A second false-positive class had to be fixed before this was honest, and it was ours rather than
+  // knip's: a project-granularity engine picks its own files, so the user's `ignore` globs never
+  // reached it. On this repository that alone produced **20 `dead-code.unused-file` findings, every
+  // one inside a directory the config explicitly excluded**. `buildIgnore` now forwards them; the
+  // count went 28 -> 7.
+  //
+  // **The other five stay out, and each for a reason that survived the re-measurement:**
+  // `deps.unused-dependency` (1/1 false here — `oxlint`, which `engine-oxlint` reaches through
+  // `require.resolve`, invisible to any import graph) and `deps.unused-dev-dependency` (1/1 false —
+  // `@misaon/slop-gate`, used only by the config file slop-gate itself tells knip to ignore) are both
+  // dynamic-resolution failures that framework profiles do not touch. `deps.unlisted-binary` has one
+  // true and one false against it and has not been re-measured since. `dead-code.unused-enum-member`
+  // and `dead-code.duplicate-export` have produced **zero findings on real code** in every
+  // measurement — fixture-only evidence that they fire at all, which is how `no-implied-eval` got
+  // into a registry it could never contribute to. Promoting a rule nobody has watched work is the
+  // mistake this file exists to prevent.
+  'dead-code.unused-file': 'warn',
+  'dead-code.unused-export': 'warn',
+  'dead-code.unused-exported-type': 'warn',
+  'deps.unlisted-dependency': 'warn',
+  // `error`, alone in this group, and categorically rather than on a count: every other concept here
+  // asks "is this still needed?", which is a judgement. An import specifier that resolves to nothing
+  // is not — the module cannot load and the code cannot run.
+  'deps.unresolved-import': 'error',
   // The `schema` engine's own concept. Its other two rules need no entry here: they claim
   // `correctness.parse-error` (listed above) and `correctness.no-duplicate-object-key` (already in
   // `GENERATED_RECOMMENDED_RULES` at `error`), which they now co-own with oxlint per language.
@@ -111,25 +211,6 @@ const strict: RuleMap = {
   'dead-code.unused-variable': 'error',
   'style.no-var': 'error',
   'config.rule-overlap': 'warn',
-}
-
-/**
- * Opt-in by name (`extends: ['recommended', 'slop']`), which is a different bar from `recommended`:
- * a user who asks for AI-slop detection has accepted that some of it is a judgement call. It is not
- * a lower bar, though — membership here is still a measurement, recorded per rule in
- * `registry/entries.manual.ts` (ast-grep) and `registry/entries.generated.ts` (oxlint).
- *
- * Two of the five concepts ast-grep owns are deliberately **not** here, and both exclusions are
- * numbers rather than caution: `slop.swallowed-error` (433 findings over the third-party corpus,
- * ~19 of a 22-item sample deliberate) and `slop.emoji-in-code` (20/20 false positives on this
- * repository, all of them the pretty reporter's own severity glyphs and the tests for them). Both
- * remain available by concept, the same way everything knip owns is.
- */
-const slop: RuleMap = {
-  'slop.as-any-cast': 'warn',
-  'slop.double-cast': 'warn',
-  'slop.narrative-comment': 'warn',
-  'slop.stub-implementation': 'warn',
 }
 
 export const PRESETS: Readonly<Record<PresetName, RuleMap>> = { recommended, strict, slop }

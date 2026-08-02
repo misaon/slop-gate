@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { access, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import {
@@ -65,6 +65,38 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       // `tsc` is merely registered, regardless of whether tsgolint's own wiring can run it yet).
       provides: [],
       fixes: false,
+    },
+
+    /**
+     * Declared for a *bundled* engine, which the doc on `Engine.availability` says is normally noise
+     * — the exception is earned, and `types.type-error` being in `recommended` is what earns it.
+     * `typescript` is present by construction; the **project** is not. `run()` invokes `tsc -p
+     * <tsconfigPath>` with no discovery and no fallback, so a repository whose packages each carry
+     * their own tsconfig and whose root carries none — this repository, and the ordinary shape of a
+     * pnpm/turbo monorepo — makes tsc exit with `TS5058: The specified path does not exist`. Before
+     * this probe existed that surfaced as an `EngineError` and exit code 3: a default preset turning
+     * every `sgate check` on a package-based monorepo into a hard failure on the first run.
+     *
+     * A missing project is a *coverage gap*, which is the distinction `EngineAvailability` exists to
+     * draw — the same shape as actionlint not being installed. Nothing typechecked, and the run says
+     * so out loud instead of either failing or, worse, reporting a clean result it did not earn.
+     *
+     * Within the filesystem-only budget the contract sets: one `access`, no spawn. It deliberately
+     * does not go looking for a tsconfig elsewhere — guessing which of a monorepo's tsconfigs is
+     * *the* project is how you silently typecheck a quarter of a repository and call it covered.
+     * `tsconfigPath` is the way to say which one, and the gap's `install` field names it.
+     */
+    async availability() {
+      try {
+        await access(tsconfigPath)
+        return { available: true as const }
+      } catch {
+        return {
+          available: false as const,
+          reason: `no tsconfig.json at ${tsconfigPath}, so nothing here declares what "the project" is and nothing was typechecked`,
+          install: 'a root tsconfig.json, or a tsconfigPath naming the project to check',
+        }
+      }
     },
 
     async version() {

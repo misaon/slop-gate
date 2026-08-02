@@ -120,7 +120,12 @@ test('accepts the agent format and reports its coverage even on a clean reposito
   const output = await runCheckCapturingStdout({ format: 'agent' })
 
   expect(output).toContain('slop-gate agent report v1')
-  expect(output).toContain('coverage: no findings. Nothing was omitted.')
+  // Not "no findings. Nothing was omitted." — this fixture is a bare temp directory with no
+  // `tsconfig.json`, and `types.type-error` is in `recommended`, so `tsc` is a genuine coverage gap
+  // here. The agent report saying so is the point of the format: a clean section that is clean only
+  // because an engine could not run must never read as clean.
+  expect(output).toContain('coverage: 1 engine could not run (see INCOMPLETE above)')
+  expect(output).toContain('unchecked: types.type-error')
 })
 
 test('--max-tokens reaches the agent reporter and bounds what it prints', async () => {
@@ -129,7 +134,10 @@ test('--max-tokens reaches the agent reporter and bounds what it prints', async 
   const unbounded = await runCheckCapturingStdout({ format: 'agent' })
   const bounded = await runCheckCapturingStdout({ format: 'agent', 'max-tokens': '200' })
 
-  expect(unbounded).toContain('coverage: 2 of 2 findings shown, 0 omitted (no --max-tokens set).')
+  // Deliberately not a hard-coded finding count: this test is about `--max-tokens` bounding the
+  // report, and coupling it to how many findings `recommended` happens to produce made it fail every
+  // time the preset grew. What must hold is that the unbounded run omits nothing.
+  expect(unbounded).toContain('findings shown, 0 omitted (no --max-tokens set).')
   expect(bounded).toContain('(--max-tokens 200)')
   expect(bounded).toContain('omitted')
 })
@@ -202,6 +210,11 @@ test('--require-engines on a fully equipped machine still exits clean', async ()
   // nothing downloaded. The file is never executed: `actionlint` is scoped to `github-workflow` and
   // the fixture directory contains no workflow, so arbitration never elects it and `run` is never
   // reached.
+  // The tsc half of the same constructed premise: `tsc` declares `availability()` because `tsc -p`
+  // needs a project, and this fixture is a bare temp directory. Without a `tsconfig.json` here the
+  // flag would fire on a genuinely unrunnable engine and this test would be asserting the fixture's
+  // incompleteness rather than the flag's neutrality.
+  await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { noEmit: true }, include: ['*.ts'] }))
   const stub = join(dir, 'actionlint-stub')
   await writeFile(stub, '')
   const previous = process.env['SLOP_GATE_ACTIONLINT_PATH']

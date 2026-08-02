@@ -35,6 +35,12 @@ export type CreateKnipEngineOptions = {
    * positive is both avoidable and embarrassing. See `buildIgnore` in config.ts.
    */
   configFile?: string
+  /**
+   * The user's own `ignore` globs from `slop-gate.config.ts`. A project-granularity engine picks its
+   * own files, so core's inventory filtering never reaches it — without this, knip reports on
+   * directories the user explicitly excluded. See `buildIgnore` in config.ts for the measurement.
+   */
+  ignore?: readonly string[]
   /** Test-only escape hatch, mirroring the other two adapters': spawned exactly as given, with no `node` prefix. */
   binaryPath?: string
 }
@@ -100,7 +106,10 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
       return materializeKnipConfig(
         selection,
         context,
-        options.configFile === undefined ? {} : { configFile: options.configFile },
+        {
+          ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
+          ...(options.ignore === undefined ? {} : { ignore: options.ignore }),
+        },
       )
     },
 

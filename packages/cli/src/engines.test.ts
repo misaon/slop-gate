@@ -9,12 +9,22 @@ test('registers exactly the engines a real check run uses', () => {
 test('only the optional engine declares availability', () => {
   // `Engine.availability` says to omit it entirely for a bundled engine: anything `npm install` puts
   // there is present by construction, and an implementation that always returns `available: true`
-  // is noise. actionlint is the one engine here that is downloaded or found on PATH rather than
-  // installed with slop-gate, so it is the one that may legitimately be missing.
+  // is noise. Two engines here can legitimately be unable to run, for two different reasons, and
+  // both are coverage gaps rather than errors:
+  //
+  // - **actionlint** is downloaded or found on PATH rather than installed with slop-gate, so its
+  //   *binary* may be missing.
+  // - **tsc** ships with us, but `tsc -p` needs a project and does no discovery, so on a monorepo
+  //   whose root has no `tsconfig.json` there is nothing to typecheck. Since `types.type-error` is
+  //   in `recommended`, without this probe that shape failed the run outright (exit 3) instead of
+  //   reporting the gap.
+  //
+  // The other five are bundled *and* need nothing from the repository to run, so they declare
+  // nothing. Order is `defaultEngines`' own.
   const declaring = defaultEngines(process.cwd())
     .filter((engine) => engine.availability !== undefined)
     .map((engine) => engine.id)
-  expect(declaring).toEqual(['actionlint'])
+  expect(declaring).toEqual(['tsc', 'actionlint'])
 })
 
 test('returns a fresh engine instance each call, not a shared singleton', () => {

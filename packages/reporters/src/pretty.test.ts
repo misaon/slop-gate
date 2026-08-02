@@ -209,8 +209,8 @@ test('reports an engine failure prominently', () => {
 test('a clean run with a missing engine does not read as clean', () => {
   const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 }, unavailableEngines: [absent()] }) }])
 
-  expect(output).toContain('COVERAGE GAP  astgrep is not installed — `ast-grep` was not found on PATH')
-  expect(output).toContain('2 concepts went unchecked or to a lower-ranked rule. Install it with `brew install ast-grep`.')
+  expect(output).toContain('COVERAGE GAP  astgrep could not run here — `ast-grep` was not found on PATH')
+  expect(output).toContain('2 concepts went unchecked or to a lower-ranked rule. Resolve it with `brew install ast-grep`.')
   expect(output).toContain('No issues found, but 1 engine could not run')
   expect(output).not.toMatch(/✓ {2}No issues found\s/)
 })
