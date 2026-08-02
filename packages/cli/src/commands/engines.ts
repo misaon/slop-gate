@@ -1,6 +1,9 @@
 import { defineCommand } from 'citty'
 import { ActionlintInstallError, installActionlint } from '@misaon/slop-gate-engine-actionlint'
+import { AdvisoryInstallError, installAdvisorySnapshot } from '@misaon/slop-gate-engine-deps-security'
 import { EXIT_CODES } from '../exit-codes.ts'
+
+const INSTALLABLE = ['actionlint', 'advisories'] as const
 
 /**
  * The only command that downloads anything, and the reason it exists as a command at all.
@@ -22,29 +25,56 @@ export const engines = defineCommand({
     install: defineCommand({
       meta: { name: 'install', description: 'Download and verify an optional engine into the local cache' },
       args: {
-        engine: { type: 'positional', required: true, description: 'Engine to install (currently only `actionlint`)' },
+        engine: {
+          type: 'positional',
+          required: true,
+          description: `What to install: ${INSTALLABLE.map((name) => `\`${name}\``).join(' or ')}`,
+        },
       },
       async run({ args }) {
-        if (args.engine !== 'actionlint') {
-          process.stderr.write(`Unknown optional engine \`${String(args.engine)}\`. The only one today is \`actionlint\`.\n`)
+        const target = String(args.engine)
+        if (!INSTALLABLE.includes(target as (typeof INSTALLABLE)[number])) {
+          process.stderr.write(`Unknown optional engine \`${target}\`. Today there are two: ${INSTALLABLE.join(', ')}.\n`)
           process.exitCode = EXIT_CODES.config
           return
         }
 
         try {
-          const result = await installActionlint()
-          process.stdout.write(
-            result.cached
-              ? `actionlint ${result.version} is already installed at ${result.path}\n`
-              : `actionlint ${result.version} verified and installed at ${result.path}\n`,
-          )
+          process.stdout.write(target === 'actionlint' ? await runActionlintInstall() : await runAdvisoryInstall())
         } catch (error) {
           // An install error is a configuration problem, not a findings count — a checksum mismatch in
           // particular must not be reportable as "the check found something".
-          process.stderr.write(`${error instanceof ActionlintInstallError ? error.message : String(error)}\n`)
+          const known = error instanceof ActionlintInstallError || error instanceof AdvisoryInstallError
+          process.stderr.write(`${known ? error.message : String(error)}\n`)
           process.exitCode = EXIT_CODES.config
         }
       },
     }),
   },
 })
+
+async function runActionlintInstall(): Promise<string> {
+  const result = await installActionlint()
+  return result.cached
+    ? `actionlint ${result.version} is already installed at ${result.path}\n`
+    : `actionlint ${result.version} verified and installed at ${result.path}\n`
+}
+
+/**
+ * Unconditionally refetched, unlike actionlint's cached-binary short-circuit, and that asymmetry is
+ * the point: a pinned binary at a known digest is the same file every time, while this is a snapshot
+ * of a database that changed since the last run. "Already installed" is never the useful answer to
+ * someone who just asked for the advisory data.
+ */
+async function runAdvisoryInstall(): Promise<string> {
+  const { directory, manifest, vulnerablePackages, maliciousPackages } = await installAdvisorySnapshot()
+  return (
+    `advisory snapshot installed at ${directory}\n` +
+    `  ${manifest.vulnerableAdvisories} vulnerability advisories over ${vulnerablePackages} packages\n` +
+    `  ${manifest.maliciousAdvisories} malicious-package advisories over ${maliciousPackages} packages\n` +
+    `  fetched ${manifest.fetchedAt} from ${manifest.source}\n` +
+    `  sha256 ${manifest.digest}\n` +
+    '  That digest records what was fetched; it is not a verification against the publisher, which\n' +
+    '  regenerates this archive daily and publishes no per-release checksum.\n'
+  )
+}

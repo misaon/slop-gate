@@ -2,6 +2,7 @@ import type { Engine } from '@misaon/slop-gate-core'
 import { createActionlintEngine } from '@misaon/slop-gate-engine-actionlint'
 import { createAstGrepEngine } from '@misaon/slop-gate-engine-astgrep'
 import { createBiomeCssEngine } from '@misaon/slop-gate-engine-biome-css'
+import { createDepsSecurityEngine } from '@misaon/slop-gate-engine-deps-security'
 import { createKnipEngine } from '@misaon/slop-gate-engine-knip'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { createSchemaEngine } from '@misaon/slop-gate-engine-schema'
@@ -60,9 +61,19 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * measurement that kept it out recorded in `packages/core/src/config/presets.ts` and
  * `packages/core/src/registry/entries.manual.ts`.
  *
- * Two of these engines can be registered and still unable to run, which is a *coverage gap* rather
- * than an error: actionlint when its binary is absent, and `tsc` when the root has no
- * `tsconfig.json` for `tsc -p` to point at. Both report it out loud.
+ * `deps-security` needs no binding either, and is the **second optional engine** — but what it waits
+ * for is data rather than a binary. Its `availability()` is a `stat` on the advisory snapshot that
+ * `sgate engines install advisories` writes, and on a machine that has never run that command it is a
+ * coverage gap naming it. That is the whole architecture in one line: the data a vulnerability check
+ * needs is inherently remote, `sgate check` may not reach the network, so the fetch moves to an
+ * explicit command and the check reads what is already on disk. `npm audit` is what happens without
+ * that discipline — measured on a tree with 34 real advisories, `npm audit --offline` exits 0, writes
+ * nothing to stderr, and reports none of them.
+ *
+ * Three of these engines can be registered and still unable to run, which is a *coverage gap* rather
+ * than an error: actionlint when its binary is absent, `tsc` when the root has no `tsconfig.json` for
+ * `tsc -p` to point at, and `deps-security` when no advisory snapshot has been installed. All three
+ * report it out loud.
  */
 export function defaultEngines(rootDir: string, configFile?: string, ignore?: readonly string[]): Engine[] {
   return [
@@ -76,5 +87,6 @@ export function defaultEngines(rootDir: string, configFile?: string, ignore?: re
     createSchemaEngine(),
     createActionlintEngine(),
     createBiomeCssEngine(),
+    createDepsSecurityEngine(),
   ]
 }

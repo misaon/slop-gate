@@ -134,6 +134,29 @@ const recommended: RuleMap = {
   // A JavaScript project, or a TypeScript one whose root has no project file, would otherwise get no
   // report of an import that cannot resolve. One duplicated line is the cheaper failure.
   'deps.unresolved-import': 'error',
+
+  // The `deps-security` engine (spec §13.7). Three of its four concepts are in; the exclusion of the
+  // fourth is recorded in registry/exclusions.ts.
+  //
+  // **This is the only group here promoted on an exact-agreement measurement rather than a
+  // false-positive count.** Six real lockfiles, 10,671 resolved packages, 682 advisories, scanned
+  // offline and again with `npm audit` against the live registry: zero divergence in either
+  // direction. There is no false-positive rate to quote because the question does not arise — a
+  // version is inside an advisory's range or it is not.
+  //
+  // `warn` for the vulnerability concept, and that is the volume valve rather than a hedge about
+  // accuracy: the axios lockfile alone yields 164 findings, and an accurate check that fails every
+  // build on its first run gets switched off wholesale, which is the outcome worth avoiding. The
+  // reachability caveat on the concept is the honest justification for it.
+  'security.vulnerable-dependency': 'warn',
+  // `error`, and the only one of these that fires on almost nothing: zero findings across all six
+  // corpora. A confirmed-malicious published release has no "probably fine" reading.
+  'security.malicious-dependency': 'error',
+  // Here rather than left to the engine's own logging, because it is the engine reporting what it did
+  // *not* cover — a snapshot old enough to be missing advisories, or a lockfile format it cannot
+  // read. `npm audit --offline` is the cautionary tale this concept exists to not repeat: on a tree
+  // with 34 real advisories it exits 0, writes nothing at all to stderr, and reports zero.
+  'deps.advisory-coverage-gap': 'warn',
   // Four oxlint rules promoted **individually**, from three categories none of which is promotable
   // whole. Measured over 21,777 third-party files from 12 repositories (nest, hono, got, trpc, vue
   // core, date-fns, typeorm, fastify, axios, prettier, metabase, vscode), then audited by reading

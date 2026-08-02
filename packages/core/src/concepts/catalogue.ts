@@ -494,6 +494,55 @@ export const HAND_WRITTEN_CONCEPTS = [
       'code cannot run. The static-analysis half of `slop.hallucinated-import` (spec §14).',
   },
   {
+    id: 'deps.missing-lockfile-entry',
+    group: 'deps',
+    title: 'Dependency missing from the lockfile',
+    description:
+      'A package named in a manifest that the lockfile resolved to nothing. It has two causes and, ' +
+      'read from the repository alone, they are indistinguishable: the package may not exist on the ' +
+      'registry — the hallucinated-dependency case — or the lockfile may simply predate the edit that ' +
+      'added it. The reach is narrower than it sounds, because `npm install` and `pnpm install` both ' +
+      'fail outright on an unresolvable entry in `dependencies`; `optionalDependencies` is the group ' +
+      'where both exit 0 and say nothing. A platform-specific optional dependency does not trip this: ' +
+      'both package managers write those into the lockfile with their `os`/`cpu` constraints intact.',
+  },
+  {
+    id: 'deps.advisory-coverage-gap',
+    group: 'deps',
+    title: 'Dependency security check was incomplete',
+    description:
+      'The dependency security engine ran but did not cover everything: the advisory snapshot is old ' +
+      'enough to be missing findings, or the repository is locked with a package manager whose ' +
+      'lockfile format it cannot read. It is not a defect in the dependencies — it is the check ' +
+      'declining to imply it looked. Reported as a diagnostic rather than logged so it reaches every ' +
+      'reporter, and escalating in wording as a snapshot ages rather than reading the same at three ' +
+      'days and three months.',
+  },
+  {
+    id: 'security.vulnerable-dependency',
+    group: 'security',
+    title: 'Dependency with a known vulnerability',
+    description:
+      'An installed package version that a published advisory names as affected. Matched offline ' +
+      "against a local snapshot of OSV's npm export, which reproduced `npm audit` exactly across six " +
+      'real lockfiles. Note what it does not establish: whether the vulnerable code is reachable from ' +
+      'this repository. A moderate-severity issue in a transitive devDependency is a fact about the ' +
+      'tree, not a judgement that it matters here — which is why the advisory\'s own severity is ' +
+      'carried in the message rather than raising the level of the finding.',
+  },
+  {
+    id: 'security.malicious-dependency',
+    group: 'security',
+    title: 'Dependency recorded as malicious',
+    description:
+      'An installed package version that appears in the OpenSSF malicious-packages feed — a ' +
+      'credential stealer, a typosquat, or a compromised release of an otherwise legitimate package. ' +
+      'Version-exact: the September 2025 compromise of `chalk`, `debug` and `ansi-styles` is recorded ' +
+      'against the single published release that carried the payload, and the neighbouring versions ' +
+      'are unaffected. Fires on almost nothing almost always, which is what malware detection looks ' +
+      'like on a clean machine.',
+  },
+  {
     id: 'style.no-var',
     group: 'style',
     title: 'Use of var',

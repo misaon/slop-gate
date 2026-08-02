@@ -3,14 +3,23 @@ import { defaultEngines } from './engines.ts'
 
 test('registers exactly the engines a real check run uses', () => {
   const engines = defaultEngines(process.cwd())
-  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip', 'astgrep', 'schema', 'actionlint', 'biome-css'])
+  expect(engines.map((engine) => engine.id)).toEqual([
+    'oxlint',
+    'tsc',
+    'knip',
+    'astgrep',
+    'schema',
+    'actionlint',
+    'biome-css',
+    'deps-security',
+  ])
 })
 
-test('only the optional engine declares availability', () => {
+test('only the engines that can genuinely be unable to run declare availability', () => {
   // `Engine.availability` says to omit it entirely for a bundled engine: anything `npm install` puts
   // there is present by construction, and an implementation that always returns `available: true`
-  // is noise. Two engines here can legitimately be unable to run, for two different reasons, and
-  // both are coverage gaps rather than errors:
+  // is noise. Three engines here can legitimately be unable to run, for three different reasons, and
+  // all are coverage gaps rather than errors:
   //
   // - **actionlint** is downloaded or found on PATH rather than installed with slop-gate, so its
   //   *binary* may be missing.
@@ -18,13 +27,17 @@ test('only the optional engine declares availability', () => {
   //   whose root has no `tsconfig.json` there is nothing to typecheck. Since `types.type-error` is
   //   in `recommended`, without this probe that shape failed the run outright (exit 3) instead of
   //   reporting the gap.
+  // - **deps-security** ships with us too, and so does everything it executes — what it can be
+  //   missing is *data*. Its advisory snapshot is fetched by an explicit `sgate engines install
+  //   advisories` and never by a check, so a machine that has not run that command has no
+  //   vulnerability data and must say so rather than report every repository clean.
   //
   // The other five are bundled *and* need nothing from the repository to run, so they declare
   // nothing. Order is `defaultEngines`' own.
   const declaring = defaultEngines(process.cwd())
     .filter((engine) => engine.availability !== undefined)
     .map((engine) => engine.id)
-  expect(declaring).toEqual(['tsc', 'actionlint'])
+  expect(declaring).toEqual(['tsc', 'actionlint', 'deps-security'])
 })
 
 test('returns a fresh engine instance each call, not a shared singleton', () => {
@@ -39,7 +52,16 @@ test('binds each engine to the given rootDir, not a fixed default', () => {
   // `rootDir` — passing a different directory must produce a distinctly-configured engine, not one
   // that silently ignores the argument.
   const engines = defaultEngines('/some/other/project')
-  expect(engines.map((engine) => engine.id)).toEqual(['oxlint', 'tsc', 'knip', 'astgrep', 'schema', 'actionlint', 'biome-css'])
+  expect(engines.map((engine) => engine.id)).toEqual([
+    'oxlint',
+    'tsc',
+    'knip',
+    'astgrep',
+    'schema',
+    'actionlint',
+    'biome-css',
+    'deps-security',
+  ])
 })
 
 test('passes the discovered config file through so knip does not report it as unused', () => {

@@ -4,26 +4,63 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { parseArgs } from 'citty'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import {
+  SNAPSHOT_FORMAT_VERSION,
+  SNAPSHOT_PATH_ENV,
+  writeAdvisorySnapshot,
+} from '@misaon/slop-gate-engine-deps-security'
 import { EXIT_CODES } from '../exit-codes.ts'
 import { check, parseMaxTokens } from './check.ts'
 
 let dir: string
 let originalExitCode: typeof process.exitCode
+let originalSnapshotPath: string | undefined
 
 beforeEach(async () => {
   originalExitCode = process.exitCode
   dir = await mkdtemp(join(tmpdir(), 'sgate-cli-check-'))
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture' }))
   await writeFile(join(dir, 'clean.ts'), 'export const a = 1\n')
+  originalSnapshotPath = process.env[SNAPSHOT_PATH_ENV]
+  process.env[SNAPSHOT_PATH_ENV] = await installAdvisoryFixture(dir)
 })
 
 afterEach(async () => {
+  if (originalSnapshotPath === undefined) delete process.env[SNAPSHOT_PATH_ENV]
+  else process.env[SNAPSHOT_PATH_ENV] = originalSnapshotPath
   // Every test here drives the real `check.run`, which sets `process.exitCode` as a side
   // effect. Restoring it prevents a test's simulated exit code from leaking into vitest's own
   // process and silently corrupting the exit status of the actual `pnpm test` invocation.
   process.exitCode = originalExitCode
   await rm(dir, { recursive: true, force: true })
 })
+
+/**
+ * Gives the dependency-security engine an advisory snapshot, so what these tests describe is the
+ * tool rather than whether this machine has ever run `sgate engines install advisories`. Same
+ * discipline as the actionlint stub below: construct the premise, never inherit it from a laptop.
+ *
+ * Dated now, deliberately. A snapshot past a week old reports its own age as a finding — that is the
+ * engine working correctly, and here it would be indistinguishable from the regressions these tests
+ * exist to catch. The tables are empty because none of these fixtures has a lockfile to match
+ * against; what is being constructed is availability, not findings.
+ */
+async function installAdvisoryFixture(root: string): Promise<string> {
+  const directory = join(root, '.advisory-snapshot')
+  await writeAdvisorySnapshot(
+    directory,
+    {
+      formatVersion: SNAPSHOT_FORMAT_VERSION,
+      source: 'fixture://advisories',
+      fetchedAt: new Date().toISOString(),
+      digest: 'f'.repeat(64),
+      vulnerableAdvisories: 1,
+      maliciousAdvisories: 0,
+    },
+    { vulnerable: {}, malicious: {} },
+  )
+  return directory
+}
 
 async function runCheck(): Promise<void> {
   const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)

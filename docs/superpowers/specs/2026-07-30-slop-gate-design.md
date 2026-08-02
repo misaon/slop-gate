@@ -955,6 +955,7 @@ dependencies.
 | GitHub Actions security | **zizmor** | lazy | Rust binary |
 | Config files | **JSON Schema** / SchemaStore | bundled | docker-compose implemented — see §13.4. tsconfig, package.json, renovate still open (JSON needs a position-preserving parser) |
 | Dockerfile | **hadolint** | lazy | Plus ast-grep rules |
+| Dependency vulnerabilities and malware | **deps-security** (in-process) | bundled, **data lazy** | Reads the lockfile against a local OSV snapshot. Implemented — see §13.7. Never touches the network at check time |
 | Framework templates, niche plugins | **eslint** (shrinking escape hatch) | peer | Only concepts no faster engine owns |
 
 Using the repository's own `typescript` and `eslint` (peer) is deliberate: type errors and ESLint
@@ -1336,6 +1337,117 @@ corpus looked like a rare defect, and its fixture showed the rule misses its own
 example whenever the declaration sits on its own indented line. It is now excluded. A rule that never
 fires is worse than no rule, and only an authored fixture can tell "never fires" from "rarely fires".
 
+
+### 13.7 `deps-security`: dependency vulnerabilities, and the engine whose data is remote
+
+**Implemented (M2, eighth engine, third with `granularity: 'project'`, and the second optional one.)**
+`@misaon/slop-gate-engine-deps-security` reads the repository's lockfile and matches it against a
+local snapshot of OSV's npm export. It runs in-process, spawns nothing, and **never reaches the
+network** — the snapshot is written by an explicit `sgate engines install advisories`.
+
+**`npm audit` was measured and disqualified, and the measurement is the reason this engine exists in
+this shape.** On a controlled tree holding 34 real advisories:
+
+| invocation | exit | stderr | reported |
+|---|---|---|---|
+| `npm audit --json` | 1 | — | 34 advisories, grouped into 3 package entries |
+| **`npm audit --offline --json`** | **0** | **0 bytes** | **`"total": 0`** |
+| `npm audit --prefer-offline --json` | 1 | — | 34 (falls back to the network) |
+| `npm audit` against an unreachable registry | 1 | loud | a JSON error object |
+| `pnpm audit --json` | 1 | — | 34 advisories |
+| `pnpm audit --offline` | 1 | `Unknown option: 'offline'` | — |
+
+`npm audit --offline` is a silent, total false negative: exit 0, not one byte of stderr, "no
+vulnerabilities", on a tree with 34 of them. Wrapping it would mean an air-gapped CI image reports
+every repository clean — worse than no check, because the tool implies it looked. It is not a cache
+artefact either; the cache was populated by a successful online run immediately before. npm and pnpm
+hit the *same* 34 advisories, differing only in reporting unit: npm collapses to one entry per package
+carrying the worst severity, so its headline "3 vulnerabilities" is a package count.
+
+**The offline snapshot reproduces the online audit exactly.** OSV's `npm/all.zip` is 213 MB and
+224,136 documents (7,033 GHSA, 217,101 MAL); distilled it is 1.9 MB of vulnerability data over 3,483
+packages and 41 MB of malicious-package data over 216,778. Six real lockfiles were scanned twice —
+once offline against that index, once with `npm audit` against the live registry:
+
+| repository | resolved packages | `npm audit` | offline | divergence |
+|---|---|---|---|---|
+| strapi 4.0.0 | 1,792 | 91 | 91 | 0 |
+| gatsby 4.0.0 | 1,705 | 46 | 46 | 0 |
+| Ghost 5.0.0 | 2,739 | 192 | 192 | 0 |
+| nest 9.0.0 | 1,830 | 163 | 163 | 0 |
+| vue 3.2.0 | 983 | 26 | 26 | 0 |
+| axios 1.4.0 | 1,622 | 164 | 164 | 0 |
+
+**10,671 packages, 682 advisories, zero divergence in either direction**, and on the controlled
+fixture the severity histogram matched `pnpm audit` exactly. This is the only engine here whose
+accuracy is not an estimate. Checking Ghost's tree end to end takes 0.84 s wall clock.
+
+**The malicious feed nearly shipped 242 false positives, and how it was caught is the transferable
+part.** The first distiller read only `affected[].ranges` and treated an entry with none as
+unbounded. OSV records a compromised release of a *legitimate* package as an explicit version
+enumeration instead — `chalk`'s MAL-2025-46969 carries `versions: ["5.6.1"]` and no range at all — so
+that reading reported `chalk`, `debug`, `ansi-styles`, `color-name` and `supports-color` as malware
+across all six corpora. Flagging the five most-installed packages on npm as malware is not a bug you
+recover from. It surfaced only because the corpora were re-scanned rather than the unit tests re-run.
+Reading `versions` brings the count to **zero across all six** while keeping version-exact
+discrimination on the September 2025 compromise: `chalk@5.6.1` fires and `5.3.0` does not, likewise
+`debug@4.4.2` against `4.3.4` and `@ctrl/tinycolor@4.1.1` against `4.1.0`. It matters in the other
+direction too — 148 npm GHSA entries are versions-only, and a range-only reader loses every one
+silently. `advisory.test.ts` pins both halves.
+
+**Recall needs both feeds.** MAL has no entry for `event-stream@3.3.6` or `ua-parser-js@0.7.29`; GHSA
+has both. Neither alone covers the history.
+
+**Four concepts, and the split is deliberate.** `security.vulnerable-dependency` is `warn`, not
+`error`: an advisory is a fact about the tree, not a judgement that the vulnerable path is reachable
+from anything this repository wrote, and no reachability analysis backs it up — the axios lockfile
+alone produces 164 findings, and an accurate check that fails every build on its first run gets
+switched off wholesale. The advisory's own severity rides in the message, because
+`normalizeDiagnostics` takes severity from the registry and one rule therefore has exactly one level.
+`security.malicious-dependency` is `error` on categorical grounds. `deps.missing-lockfile-entry` is
+the phantom-dependency check and the only rule here with a real false-positive mode, so it is kept
+out of `recommended` (see registry/exclusions.ts). `deps.advisory-coverage-gap` is the engine
+reporting what it did *not* cover.
+
+**"Lazy" here means data, not a binary, and the staleness is reported rather than hidden.** There is
+no bundled floor of advisories: a snapshot shipped in the package would age with the release cadence,
+and npm publishes about 35 new advisories a week and 243 a month, so within a quarter it would be
+quietly missing around a thousand — `npm audit --offline` again, only slower. An engine that is
+loudly absent is safer than one that is quietly out of date. An installed snapshot past a week old
+reports its own age as a `deps.advisory-coverage-gap` finding whose wording escalates through three
+bands, because a line that reads identically at ten days and two hundred is a line people stop
+reading. Age never makes the engine *unavailable*: that would turn a calendar date into a build
+failure with no commit behind it and throw away every finding the snapshot can still make.
+
+**Only npm and pnpm lockfiles are read.** `yarn.lock` and `bun.lockb` are named in
+`UNSUPPORTED_LOCKFILES` and reported as a coverage gap rather than passed over, as is a repository
+with dependencies and no lockfile at all. A repository whose manifests declare no dependencies gets
+silence — a gap that fires when coverage is complete is how a gap line stops being read.
+
+**Three implementation details worth carrying forward.**
+
+- **The archive needs a real ZIP64 reader, and reading local headers would fail silently.** OSV writes
+  `npm/all.zip` as a stream, so general-purpose flag bit 3 is set and every local header records
+  `compressedSize: 0`, with the true figure in a data descriptor *after* the payload. A reader that
+  trusted local headers would decompress nothing, hand back 224,136 empty files without erroring, and
+  produce an index that reports every repository clean. `zip.ts` walks the central directory, which
+  always carries real sizes; 224k entries also overflow the classic 16-bit entry count, so ZIP64 is
+  mandatory rather than optional. Its fixtures are written by Info-ZIP and by Python, never by our own
+  writer — a reader tested only against its own encoder proves nothing.
+- **A finding points at a manifest line, not at byte zero.** OSV supplies no position, and there is
+  still no position-preserving JSON parser here (§13.4 records that as open work), so `manifest.ts`
+  does the bounded thing: locate the dependency group, then the quoted name inside its braces, and
+  return nothing rather than guess. A transitive dependency borrows the line of whichever direct
+  dependency reaches it, found by breadth-first walk of the lockfile graph, and names the chain in the
+  message. `peerDependencies` is an edge in that walk — npm 7 installs peers — which on axios 1.4.0 is
+  the difference between 1,866 and all 2,056 packages having a line to point at. It is deliberately
+  *not* a declaration when read from the root manifest, where it would report every library that
+  declares peers it does not carry. Where no path exists the fallback is honest: on Ghost 1,452 of
+  3,814 packages have none, and npm marks exactly 1,452 entries `extraneous`.
+- **An install that produces no vulnerability data is refused.** A snapshot with an empty index would
+  make every repository read as clean and keep doing so on every run until someone reinstalled. An
+  archive that yields none is far likelier to mean the layout changed than that npm has no advisories.
+
 ---
 
 ## 14. The slop ruleset
@@ -1505,8 +1617,18 @@ Engines are treated as untrusted subprocesses.
 
 ## 19. Security
 
-- Lazily downloaded binaries are verified against SHA-256 digests pinned in a committed manifest. No
-  `curl | sh`. An offline mode fails loudly rather than reaching the network.
+- Lazily downloaded **binaries** are verified against SHA-256 digests pinned in a committed manifest.
+  No `curl | sh`. An offline mode fails loudly rather than reaching the network.
+- **Lazily downloaded *data* cannot honour that rule literally, and says so rather than pretending
+  to.** The advisory snapshot (§13.7) comes from OSV's `npm/all.zip`, which upstream regenerates
+  daily and publishes no per-release checksum for; the `ETag` changes with it, so no committed digest
+  could ever match. What `sgate engines install advisories` records instead is the SHA-256 of the
+  bytes it actually fetched, written into the snapshot manifest and printed on install. **That makes
+  a snapshot reproducible between machines and tamper-evident on disk, and proves nothing about the
+  publisher** — it is trust-on-fetch, and the distinction is stated in the command's own output so
+  nobody reads the digest as a verification it is not. The transport is HTTPS to a single pinned
+  origin; a repository that cannot accept that trust model can build a snapshot elsewhere and point
+  `SLOP_GATE_ADVISORIES_PATH` at it.
 - Materialised engine configs live in `.slop-gate/tmp/` with restrictive permissions and are removed
   on exit, including on `SIGINT`.
 - The MCP server is local-only by default with no network egress.

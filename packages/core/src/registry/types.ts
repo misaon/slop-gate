@@ -14,6 +14,7 @@ export type EngineId =
   | 'zizmor'
   | 'hadolint'
   | 'knip'
+  | 'deps-security'
   | 'eslint'
 
 /**
@@ -32,6 +33,10 @@ export const ENGINE_PREFERENCE: readonly EngineId[] = [
   'zizmor',
   'hadolint',
   'knip',
+  // Last but for `eslint`, and uncontested there: it owns four concepts nothing else covers, so its
+  // rank never decides anything. It sits here rather than higher because a project engine that reads
+  // a lockfile and a 16 MB index is not the "fastest capable engine" for anything.
+  'deps-security',
   'eslint',
 ]
 

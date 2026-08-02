@@ -2,10 +2,16 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
+import {
+  SNAPSHOT_FORMAT_VERSION,
+  SNAPSHOT_PATH_ENV,
+  writeAdvisorySnapshot,
+} from '@misaon/slop-gate-engine-deps-security'
 import { callCheck, callExplain, callPropose, type ToolContext } from './tools.ts'
 
 let dir: string
 let context: ToolContext
+let originalSnapshotPath: string | undefined
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'sgate-mcp-tools-'))
@@ -22,10 +28,14 @@ beforeEach(async () => {
     join(dir, 'slop-gate.config.ts'),
     "export default { extends: ['recommended'], rules: { 'types.type-error': 'off', 'dead-code.unused-file': 'off' } }\n",
   )
+  originalSnapshotPath = process.env[SNAPSHOT_PATH_ENV]
+  process.env[SNAPSHOT_PATH_ENV] = await installAdvisoryFixture(dir)
   context = { serverRoot: dir, version: '0.0.0' }
 })
 
 afterEach(async () => {
+  if (originalSnapshotPath === undefined) delete process.env[SNAPSHOT_PATH_ENV]
+  else process.env[SNAPSHOT_PATH_ENV] = originalSnapshotPath
   await rm(dir, { recursive: true, force: true })
 })
 
@@ -43,7 +53,34 @@ type CheckStructured = {
 }
 
 /**
- * Forces the one optional engine absent through the override its own resolver reads first, which is
+ * Gives the dependency-security engine an advisory snapshot, so what these tests describe is the
+ * tool rather than whether this machine has ever run `sgate engines install advisories`. Same
+ * discipline as the actionlint stub below: construct the premise, never inherit it from a laptop.
+ *
+ * Dated now, deliberately. A snapshot past a week old reports its own age as a finding — that is the
+ * engine working correctly, and here it would be indistinguishable from the regressions these tests
+ * exist to catch. The tables are empty because none of these fixtures has a lockfile to match
+ * against; what is being constructed is availability, not findings.
+ */
+async function installAdvisoryFixture(root: string): Promise<string> {
+  const directory = join(root, '.advisory-snapshot')
+  await writeAdvisorySnapshot(
+    directory,
+    {
+      formatVersion: SNAPSHOT_FORMAT_VERSION,
+      source: 'fixture://advisories',
+      fetchedAt: new Date().toISOString(),
+      digest: 'f'.repeat(64),
+      vulnerableAdvisories: 1,
+      maliciousAdvisories: 0,
+    },
+    { vulnerable: {}, malicious: {} },
+  )
+  return directory
+}
+
+/**
+ * Forces actionlint absent through the override its own resolver reads first, which is
  * documented to resolve to nothing rather than fall through to `PATH`. Constructed rather than
  * assumed, so this holds on a developer machine with actionlint installed and on a CI runner without
  * it — the mistake `packages/cli/src/commands/check.test.ts` records having made once already.
