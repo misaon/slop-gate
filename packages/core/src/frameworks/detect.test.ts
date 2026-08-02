@@ -333,7 +333,7 @@ test('the same repository detects identically regardless of manifest key order',
   })
 
   expect(forward).toEqual(reversed)
-  expect(forward.applied.map((a) => a.id)).toEqual([...forward.applied.map((a) => a.id)].sort())
+  expect(forward.applied.map((a) => a.id)).toEqual(forward.applied.map((a) => a.id).sort())
 })
 
 test('detection reads no manifest the inventory did not list', async () => {
