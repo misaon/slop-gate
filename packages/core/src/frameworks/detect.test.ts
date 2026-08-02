@@ -240,6 +240,88 @@ test('two sites in one workspace both contribute, and the union is sorted', asyn
   expect(values).toContain('site/.vitepress/config.{js,mjs,cjs,ts,mts,cts}')
 })
 
+// --- react-jsx-transform ----------------------------------------------------------------------
+
+const tsconfig = (jsx: string | null): string =>
+  JSON.stringify({ compilerOptions: jsx === null ? { strict: true } : { jsx, strict: true } })
+
+test('disables react-in-jsx-scope when the only tsconfig asks for the automatic runtime', async () => {
+  const detection = await detect({ 'tsconfig.json': tsconfig('react-jsx') })
+  const react = applied(detection, 'react-jsx-transform')
+
+  expect(react?.evidence).toEqual([
+    { kind: 'config-literal', file: 'tsconfig.json', property: 'compilerOptions.jsx', value: 'react-jsx' },
+  ])
+  expect(react?.adjustments).toEqual([
+    expect.objectContaining({ kind: 'disable-concept', concept: 'suspicious.react-in-jsx-scope' }),
+  ])
+})
+
+test('treats react-jsxdev as the automatic runtime too', async () => {
+  const detection = await detect({ 'tsconfig.json': tsconfig('react-jsxdev') })
+  expect(applied(detection, 'react-jsx-transform')?.adjustments).toHaveLength(1)
+})
+
+test('collects every automatic tsconfig in a monorepo as evidence', async () => {
+  const detection = await detect({
+    'tsconfig.base.json': tsconfig('react-jsx'),
+    'apps/web/tsconfig.json': tsconfig('react-jsx'),
+    'packages/ui/tsconfig.json': tsconfig(null),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')?.evidence).toEqual([
+    { kind: 'config-literal', file: 'apps/web/tsconfig.json', property: 'compilerOptions.jsx', value: 'react-jsx' },
+    { kind: 'config-literal', file: 'tsconfig.base.json', property: 'compilerOptions.jsx', value: 'react-jsx' },
+  ])
+})
+
+test('reads a jsx value through the comments a tsconfig is allowed to carry', async () => {
+  const detection = await detect({
+    'tsconfig.json': '{\n  // "jsx": "react" was the old setting\n  "compilerOptions": { "jsx": "react-jsx" }\n}\n',
+  })
+  expect(applied(detection, 'react-jsx-transform')?.evidence).toEqual([
+    { kind: 'config-literal', file: 'tsconfig.json', property: 'compilerOptions.jsx', value: 'react-jsx' },
+  ])
+})
+
+test('leaves the rule alone when the classic transform is the only one configured', async () => {
+  const detection = await detect({ 'tsconfig.json': tsconfig('react') })
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+  expect(detection.inapplicable.some((entry) => entry.id === 'react-jsx-transform')).toBe(false)
+})
+
+test('stands down, naming both files, when two tsconfigs disagree about the transform', async () => {
+  const detection = await detect({
+    'apps/legacy/tsconfig.json': tsconfig('react'),
+    'apps/web/tsconfig.json': tsconfig('react-jsx'),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+  expect(detection.inapplicable).toContainEqual(
+    expect.objectContaining({
+      id: 'react-jsx-transform',
+      blocked: expect.stringContaining('apps/legacy/tsconfig.json'),
+    }),
+  )
+  expect(detection.inapplicable.find((entry) => entry.id === 'react-jsx-transform')?.blocked).toContain(
+    'apps/web/tsconfig.json',
+  )
+})
+
+test('says nothing about a transform TypeScript hands to another tool', async () => {
+  const detection = await detect({
+    'tsconfig.json': tsconfig('preserve'),
+    'native/tsconfig.json': tsconfig('react-native'),
+  })
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+  expect(detection.inapplicable.some((entry) => entry.id === 'react-jsx-transform')).toBe(false)
+})
+
+test('says nothing when no tsconfig configures jsx at all', async () => {
+  const detection = await detect({ 'tsconfig.json': tsconfig(null), 'package.json': manifest({ react: '^19.0.0' }) })
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+})
+
 // --- test-framework ---------------------------------------------------------------------------
 
 const ruleIdsInScope = (scope: string): Set<string> =>

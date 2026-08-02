@@ -256,6 +256,107 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
     }),
 })
 
+const TSCONFIG = /(^|\/)tsconfig(\.[^/]+)?\.json$/
+
+/**
+ * The two `compilerOptions.jsx` values that mean **automatic runtime**: the compiler emits calls to
+ * `react/jsx-runtime`, so `React` need not be in scope and its absence is correct.
+ */
+const AUTOMATIC_JSX = new Set(['react-jsx', 'react-jsxdev'])
+
+/**
+ * The one value that means **classic runtime**. `preserve` and `react-native` are deliberately in
+ * neither set: TypeScript emits the JSX untouched and some downstream tool decides, which this
+ * cannot know offline — see the profile's own comment.
+ */
+const CLASSIC_JSX = 'react'
+
+type JsxTransform = { readonly file: string; readonly value: string }
+
+/**
+ * `react/react-in-jsx-scope` requires `React` to be in scope wherever JSX appears. React 17's
+ * automatic JSX transform (2020) removed that requirement, and `compilerOptions.jsx` states which
+ * transform a project uses outright — so this is a compiler option contradicting a lint rule, not a
+ * heuristic. Measured on a 145k-line React monorepo: **5,386 findings, 100% false**, 87% of
+ * everything the run reported.
+ *
+ * The three-way classification is the measurement rather than the documentation. Running tsc 5.9.3
+ * over a `.tsx` module using JSX with no `React` import, once per `jsx` value:
+ *
+ * - `react` → **`error TS2874: This JSX tag requires 'React' to be in scope`**. The rule is right
+ *   here, and tsc says the same thing at `error` through `types.type-error`.
+ * - `react-jsx`, `react-jsxdev` → **no error**. The rule cannot be right here.
+ * - `preserve`, `react-native` → **no error either**, because TypeScript emits the JSX untouched and
+ *   never looks for a factory. That silence is not evidence of the automatic runtime: Babel, SWC or
+ *   Metro decides, and nothing readable offline says which. Both are therefore treated as *no
+ *   evidence in either direction* — the rule stays on, and it is the only coverage those projects
+ *   get, since tsc offers none. This is the profile's biggest deliberate gap: a Next.js repository
+ *   left on Next's own `"jsx": "preserve"` default gets nothing from it.
+ *
+ * **Disagreement stands the profile down.** `disable-concept` is repository-global — the adjustment
+ * vocabulary has no file-scoped shape and §23.3 is the reason it does not — so one package on the
+ * classic transform cannot be excluded from a repository-wide "off". Standing down restores the
+ * status quo the user can already see, and `sgate rules why` names the two files that disagree,
+ * which is a one-line fix in their own tsconfig. Applying anyway would silently drop the rule in the
+ * one place it is load-bearing.
+ *
+ * **`disable-concept` because oxlint offers nothing narrower.** Confirmed against 1.76.0: the rule
+ * takes no options at all (*this rule does not accept configuration options*, and the bundled
+ * `configuration_schema.json` resolves it to `RuleNoConfig`); `settings.react.runtime` and
+ * `settings.react.jsxRuntime` are accepted by the parser and change nothing; and a sibling
+ * `tsconfig.json` reading `"jsx": "react-jsx"` does not silence it, with or without `--tsconfig`.
+ * An `engine-setting` adjustment would have no key to write.
+ *
+ * There is no sibling to disable alongside it: `react/jsx-uses-react`, which the automatic transform
+ * obsoletes in the same stroke, is **not in the registry** because oxlint does not implement it —
+ * `oxlint --rules --format json` lists 64 rules in the `react` scope and that is not one of them.
+ */
+const reactJsxTransform = defineProfile<void>({
+  id: 'react-jsx-transform',
+  summary: 'React — TypeScript is configured for the automatic JSX runtime',
+  async detect(context) {
+    const found = await Promise.all(
+      findFiles(context, (path) => TSCONFIG.test(path)).map(async (file): Promise<JsxTransform | null> => {
+        const source = await context.readText(file.path)
+        const value = source === null ? null : extractStringLiteral(source, ['compilerOptions', 'jsx'])
+        return value === null ? null : { file: file.path, value }
+      }),
+    )
+
+    const configured = found.filter((entry): entry is JsxTransform => entry !== null)
+    const automatic = configured.filter((entry) => AUTOMATIC_JSX.has(entry.value))
+    if (automatic.length === 0) return null
+
+    const classic = configured.filter((entry) => entry.value === CLASSIC_JSX)
+    const evidence = automatic.map((entry) => ({
+      kind: 'config-literal' as const,
+      file: entry.file,
+      property: 'compilerOptions.jsx',
+      value: entry.value,
+    }))
+
+    if (classic.length > 0) {
+      return {
+        evidence,
+        blocked:
+          `${classic[0]!.file} sets \`"jsx": "react"\` while ${automatic[0]!.file} sets ` +
+          `\`"jsx": "${automatic[0]!.value}"\`, and the rule can only be turned off for the whole ` +
+          'repository, so turning it off would drop it where the classic transform still needs it',
+      }
+    }
+
+    return { evidence, parameters: undefined }
+  },
+  consequences: () => [
+    {
+      kind: 'disable-concept',
+      concept: 'suspicious.react-in-jsx-scope' as ConceptId,
+      reason:
+        "React 17's automatic JSX transform compiles JSX to `react/jsx-runtime` calls, so importing React is unnecessary and its absence is correct.",
+    },
+  ],
+})
+
 const TEST_SCOPES = ['jest', 'vitest'] as const
 
 /**
@@ -309,6 +410,7 @@ export const FRAMEWORK_PROFILES: readonly AnyFrameworkProfile[] = [
   mikroOrm,
   nestjs,
   nestjsExpress,
+  reactJsxTransform,
   testFramework,
   vitepress,
 ]
