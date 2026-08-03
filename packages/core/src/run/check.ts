@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, rmdir } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { createBaselineMatcher, type BaselineMatcher } from '../baseline/apply.ts'
 import { baselinePathFor, readBaseline } from '../baseline/file.ts'
@@ -171,6 +171,17 @@ const DEFAULT_BATCH_SIZE = 500
 // applied identically to a fresh normalize and to a cache hit below, so which path served a file never
 // changes what the user sees.
 const isVisible = (diagnostic: Diagnostic): boolean => diagnostic.suppressed === undefined
+
+/**
+ * Removes each directory in order, only while it is empty.
+ *
+ * `rmdir` and not `rm -r`: it fails on a non-empty directory, which is exactly the guarantee wanted here.
+ * A repository that already holds a real `.slop-gate/cache` from an ordinary run keeps it, with no
+ * bookkeeping about which run created what — the filesystem answers that question correctly by refusing.
+ */
+async function removeIfEmpty(...dirs: readonly string[]): Promise<void> {
+  for (const dir of dirs) await rmdir(dir).catch(() => undefined)
+}
 
 export async function runCheck(options: CheckOptions): Promise<CheckResult> {
   for await (const event of streamCheck(options)) {
@@ -549,7 +560,12 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       }
     }
   } finally {
-    await timing.phase('stat-index-persist', () => statIndex.persist())
+    // `--no-cache` means write nothing either, not just read nothing. Without this the stat index was the
+    // one thing a `--no-cache` run still created inside the analysed repository — a `.slop-gate/` directory
+    // appearing in someone's `git status` from a command they asked to be cacheless, and the only reason
+    // the tool could not be pointed at a read-only checkout at all.
+    if (useCache) await timing.phase('stat-index-persist', () => statIndex.persist())
+    else await removeIfEmpty(join(options.rootDir, '.slop-gate', 'tmp'), join(options.rootDir, '.slop-gate'))
     // Deferred to one write rather than written through on each miss: a cold run misses on every
     // engine at once, and six concurrent atomic writes to one file would leave whichever landed last,
     // silently discarding the other five so the next run probed them all over again.

@@ -1152,3 +1152,20 @@ test('a long-lived host that does not claim process start is charged no startup'
 
   expect(result.timings?.startupMs).toBe(0)
 })
+
+test('a --no-cache run writes nothing into the analysed repository', async () => {
+  const repo = await mkdtemp(join(tmpdir(), 'sgate-nocache-writes-'))
+  try {
+    await writeFile(join(repo, 'package.json'), JSON.stringify({ name: 'r', version: '0.0.0', type: 'module' }))
+    await mkdir(join(repo, 'src'), { recursive: true })
+    await writeFile(join(repo, 'src', 'a.ts'), 'export const a = 1\n')
+
+    await runCheck({ rootDir: repo, config: { extends: [] }, engines: [], useCache: false })
+
+    // Asserted on the path rather than on a rejection: the message `access` rejects with is the platform's,
+    // and three tests on this repository have already been broken once by assuming one.
+    expect(existsSync(join(repo, '.slop-gate'))).toBe(false)
+  } finally {
+    await rm(repo, { recursive: true, force: true })
+  }
+})
