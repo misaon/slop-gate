@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { resolveTscBinary } from './resolve-binary.ts'
+import { resolveTscAcrossWorkspaces, resolveTscBinary, type TscInvocation } from './resolve-binary.ts'
 
 /**
  * `typescript/bin/tsc`, like `oxlint/bin/oxlint`, is an extensionless `#!/usr/bin/env node` script —
@@ -91,4 +91,59 @@ test('resolves the analysed project’s own typescript install, not wherever thi
   await expect(realpath(resolved!.prefixArgs[0]!)).resolves.toBe(
     await realpath(join(fixtureTypescriptDir, 'bin', 'tsc')),
   )
+})
+
+/**
+ * The workspace-monorepo case, which the root-only anchor gets wrong. Stubs stand in for a real pnpm tree
+ * because what is under test is the decision between one version, several, and none — not `createRequire`,
+ * which the tests above already exercise against this repository's real install.
+ */
+const invocationIn = (packageDir: string): TscInvocation => ({
+  command: process.execPath,
+  prefixArgs: [join(packageDir, 'node_modules', 'typescript', 'bin', 'tsc')],
+})
+
+test('resolves from a workspace package when the root manifest declares no typescript', () => {
+  const resolution = resolveTscAcrossWorkspaces(
+    '/repo',
+    ['apps/api', 'packages/utils'],
+    (from) => (from === '/repo' ? undefined : invocationIn(from)),
+    () => '5.9.3',
+  )
+
+  expect(resolution).toEqual({ kind: 'resolved', invocation: invocationIn('apps/api'), version: '5.9.3', fromDir: 'apps/api' })
+})
+
+test('prefers the root install over any workspace package, so a pinned root wins', () => {
+  const resolution = resolveTscAcrossWorkspaces('/repo', ['apps/api'], (from) => invocationIn(from), () => '5.9.3')
+
+  expect(resolution).toMatchObject({ kind: 'resolved', fromDir: '/repo' })
+})
+
+test('refuses to choose when workspace packages disagree on the version', () => {
+  const versions: Record<string, string> = {
+    [join('apps/api', 'node_modules', 'typescript', 'bin', 'tsc')]: '5.9.3',
+    [join('apps/web', 'node_modules', 'typescript', 'bin', 'tsc')]: '7.0.2',
+  }
+
+  const resolution = resolveTscAcrossWorkspaces(
+    '/repo',
+    ['apps/web', 'apps/api'],
+    (from) => (from === '/repo' ? undefined : invocationIn(from)),
+    (invocation) => versions[invocation.prefixArgs[0]!],
+  )
+
+  // Sorted, not in the order the graph happened to list them, so the message a user reads is stable.
+  expect(resolution).toEqual({ kind: 'ambiguous', versions: ['5.9.3', '7.0.2'] })
+})
+
+test('reports missing when neither the root nor any workspace package has typescript', () => {
+  expect(resolveTscAcrossWorkspaces('/repo', ['apps/api'], () => undefined, () => undefined)).toEqual({ kind: 'missing' })
+})
+
+test('resolves this repository from a workspace package with no stubbing at all', () => {
+  const resolution = resolveTscAcrossWorkspaces(join(process.cwd(), 'packages', 'engine-tsc'), [])
+
+  expect(resolution).toMatchObject({ kind: 'resolved' })
+  expect(resolution.kind === 'resolved' && resolution.version).toMatch(/^\d+\.\d+\.\d+/)
 })

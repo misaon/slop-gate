@@ -62,7 +62,17 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
     concepts: ['dead-code.unused-variable', 'dead-code.unused-import'],
     classify: [{ messagePattern: '\\bimport(ed)?\\b', concept: 'dead-code.unused-import' }],
     // oxlint's own category is `correctness` (mechanically → `error`), but an unused variable is
-    // judged a hygiene issue rather than a certain bug — the one deliberate severity override.
+    // judged a hygiene issue rather than a certain bug.
+    severityDefault: 'warn',
+  },
+  'vitest/require-mock-type-parameters': {
+    // `correctness` mechanically, and a bare `vi.fn()` really is a mock typed `any` — 112 of the 122
+    // findings on a real vitest application are exactly that, so the rule stays on. `error` is the wrong
+    // level for it twice over. It fails a build over pre-existing type debt rather than a bug that bites
+    // today, which is the line `presets.ts` draws for `slop.as-any-cast` — the same kind of hole, at
+    // `warn`. And the other 10 of the 122 are wrong outright: the rule demands the type-*parameter* form
+    // specifically, so it also fires on `vi.fn((x: number): string => String(x))`, whose signature is
+    // right there, and tells the reader parameters are "missing" when they are inferred.
     severityDefault: 'warn',
   },
   'no-var': { concepts: ['style.no-var'] },
