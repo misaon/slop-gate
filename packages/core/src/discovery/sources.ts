@@ -13,15 +13,11 @@ export type FileSource = {
 }
 
 /**
- * Directory and file names no source should ever surface, regardless of git or ignore-file state.
- * The walker below uses this to prune whole subtrees during traversal (an optimisation — skipping
- * `node_modules` unread is the difference between a fast walk and a slow one). `buildInventory`
- * (`./inventory.ts`) additionally re-applies this same set to every path each source returns,
- * because the git source has no equivalent traversal step to hook: `git ls-files` lists
- * `.slop-gate/cache/**` as untracked, non-ignored content in any repository that has not run
- * `sgate init` (which is the only thing that writes `.slop-gate/.gitignore`). Enforcing the set once
- * more where the sources converge means a future third `FileSource` gets this exclusion for free
- * instead of having to remember to reimplement it.
+ * Directory and file names no source should ever surface, regardless of git or ignore-file state. The walker below
+ * prunes whole subtrees with it — skipping `node_modules` unread is the difference between a fast walk and a slow
+ * one — and `buildInventory` (`./inventory.ts`) re-applies the same set to every path each source returns, for the
+ * reason recorded there, so a future third `FileSource` gets the exclusion for free instead of having to remember
+ * to reimplement it.
  */
 export const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
 
@@ -48,11 +44,10 @@ async function readGitignore(rootDir: string, relativeDir: string): Promise<Igno
 }
 
 /**
- * True when `path` is excluded by any `.gitignore` collected on the way down to it. Levels are
- * tested root-first so a deeper `.gitignore` — the last one tested — has the final say, mirroring
- * git's own precedence: a nested `.gitignore` can re-include (`!pattern`) something an ancestor
- * excluded. Each level's patterns are tested against `path` relative to that level's own directory,
- * exactly as git scopes a `.gitignore` to its own directory and everything below it.
+ * True when `path` is excluded by any `.gitignore` collected on the way down to it. Levels are tested root-first so
+ * a deeper `.gitignore` — the last one tested — has the final say, mirroring git's own precedence: a nested
+ * `.gitignore` can re-include (`!pattern`) something an ancestor excluded. Each level's patterns are tested against
+ * `path` relative to that level's own directory, exactly as git scopes a `.gitignore`.
  */
 function isGitignored(levels: readonly GitignoreLevel[], path: string, isDirectory: boolean): boolean {
   let ignored = false
@@ -98,12 +93,11 @@ export function createWalkFileSource(): FileSource {
 }
 
 /**
- * Asks git whether this directory is inside a work tree, rather than looking for a literal `.git`.
- * A `.git` probe only ever finds the repository root, so running from `packages/app/` would fall
- * back to the walker — which reads only `.gitignore` files, not `.git/info/exclude` or the global
- * `core.excludesFile`, and re-walks the tree by hand instead of asking git — precisely in the
- * monorepo case the git source exists to serve. Git resolves both its implicit pathspec and its
- * relative output against `cwd`, so the subtree scoping is correct without extra flags.
+ * Asks git whether this directory is inside a work tree, rather than looking for a literal `.git`. A `.git` probe
+ * only ever finds the repository root, so running from `packages/app/` would fall back to the walker — which reads
+ * only `.gitignore` files, not `.git/info/exclude` or the global `core.excludesFile` — precisely in the monorepo
+ * case the git source exists to serve. Git resolves both its implicit pathspec and its relative output against
+ * `cwd`, so the subtree scoping is correct without extra flags.
  */
 export async function selectFileSource(rootDir: string): Promise<FileSource> {
   try {

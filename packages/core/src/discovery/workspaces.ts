@@ -28,9 +28,8 @@ async function readPatterns(rootDir: string): Promise<string[]> {
   const pnpmFile = join(rootDir, 'pnpm-workspace.yaml')
   const pnpmSource = await readFile(pnpmFile, 'utf8').catch(() => null)
 
-  // A missing file legitimately means "not a pnpm workspace". A malformed one does not: swallowing
-  // it would silently produce a root-only graph, so every file attributes to the root and any
-  // per-workspace config is ignored without explanation.
+  // A missing file legitimately means "not a pnpm workspace". A malformed one does not: swallowing it would silently
+  // produce a root-only graph, so every file attributes to the root and any per-workspace config is ignored.
   if (pnpmSource !== null) {
     let parsed: { packages?: unknown }
     try {
@@ -66,10 +65,9 @@ export async function buildWorkspaceGraph(rootDir: string): Promise<WorkspaceGra
   const found = new Map<string, WorkspaceNode>()
   for (const pattern of positive) {
     for await (const match of glob(`${pattern}/package.json`, { cwd: rootDir })) {
-      // Resolve then re-relativise so `..` is collapsed wherever it appears, not just at the
-      // start. `WorkspaceNode.dir` is contractually repo-relative and downstream code joins it
-      // onto the root, so a pattern like `../shared/*` or `packages/../../shared/*` must not
-      // produce a node at all.
+      // Resolve then re-relativise so `..` is collapsed wherever it appears, not just at the start.
+      // `WorkspaceNode.dir` is contractually repo-relative and downstream code joins it onto the root, so a pattern
+      // like `../shared/*` or `packages/../../shared/*` must not produce a node at all.
       const dir = relativePosix(rootDir, resolve(rootDir, dirname(match)))
       if (dir === '..' || dir.startsWith('../')) {
         throw new ConfigError(`workspace pattern "${pattern}" resolves outside the repository root`)

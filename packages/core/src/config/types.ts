@@ -6,9 +6,9 @@ export type RuleLevel = 'off' | 'info' | 'warn' | 'error'
 
 /**
  * A rule's options, **opaque to core** — the same arrangement `RuleEntry.engineRuleId` uses: core carries the
- * value, validates nothing about it, and the engine adapter that owns the elected rule is the only thing that
- * gives it meaning. Interpreting an oxlint option shape here would couple the two and be wrong for the next
- * engine.
+ * value, sorts nothing inside it, validates nothing about it, and the engine adapter that owns the elected rule is
+ * the only thing that gives it meaning. Interpreting an oxlint option shape here would couple the two and be wrong
+ * for the next engine.
  *
  * A **positional list**, not an object, because the ESLint-family option grammar every engine here inherits is
  * positional and its first element is frequently a bare string rather than a settings object. `eqeqeq`'s `smart`

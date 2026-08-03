@@ -2,21 +2,18 @@
  * The upstream release this adapter is pinned to, and the digests that make fetching it safe.
  *
  * **Upstream's own digests, transcribed verbatim** from
- * `https://github.com/hadolint/hadolint/releases/download/v2.15.1/checksums.sha256` — not computed
- * from a download of ours, which would only prove we hashed whatever we were served. This is the
- * stronger of the two options available and is worth stating, because the sibling engine that was
- * measured alongside this one could not have it: shellcheck publishes no checksums file and no build
- * attestations at all, so a shellcheck adapter would have to carry digests we computed ourselves.
- * hadolint does publish them, so we use them.
+ * `https://github.com/hadolint/hadolint/releases/download/v2.15.1/checksums.sha256` — not computed from a
+ * download of ours, which would only prove we hashed whatever we were served. (shellcheck, measured
+ * alongside, publishes no checksums file and no build attestations at all, so an adapter for it would have
+ * to carry digests we computed ourselves.)
  *
- * **The layout changed under us and will again.** v2.14.0 published a per-asset `<name>.sha256`
- * beside each binary; v2.15.0 replaced that with the single `checksums.sha256` transcribed here. A
- * version bump has to re-check which file to read, not just which tag.
+ * **The layout changed under us and will again.** v2.14.0 published a per-asset `<name>.sha256` beside
+ * each binary; v2.15.0 replaced that with the single `checksums.sha256` transcribed here. A version bump
+ * has to re-check which file to read, not just which tag.
  *
- * **These are raw binaries, not archives.** hadolint publishes the executable directly, so unlike
- * actionlint there is no tar or zip to unpack — and consequently **Windows x86_64 works here**, where
- * actionlint's Windows support is blocked on its assets being `.zip` and Node shipping no zip reader.
- * The one platform upstream does not build is Windows arm64.
+ * **These are raw binaries, not archives**, so unlike actionlint there is no tar or zip to unpack — and
+ * consequently **Windows x86_64 works here**, where actionlint's Windows support is blocked on its assets
+ * being `.zip` and Node shipping no zip reader. The one platform upstream does not build is Windows arm64.
  */
 export const HADOLINT_VERSION = '2.15.1'
 
@@ -28,15 +25,11 @@ export const HADOLINT_ASSETS: Readonly<Record<string, string>> = {
   'linux x64': 'hadolint-linux-x86_64',
   'win32 x64': 'hadolint-windows-x86_64.exe',
   // `win32 arm64` is deliberately absent: upstream builds no Windows arm64 binary. Nothing else is
-  // missing — the Linux builds are produced inside an `alpine:3.24` container and statically linked,
-  // so they run on musl as well as glibc. (The M0 follow-ups previously grouped hadolint with zizmor
-  // as lacking a musl build; that was wrong, and is corrected there.)
+  // missing — the Linux builds are produced inside an `alpine:3.24` container and statically linked, so
+  // they run on musl as well as glibc.
 }
 
-/**
- * Asset name → SHA-256, transcribed from upstream's published `checksums.sha256`. Includes the
- * Windows entry, which this adapter can actually use.
- */
+/** Asset name → SHA-256, transcribed from upstream's published `checksums.sha256`. */
 export const HADOLINT_CHECKSUMS: Readonly<Record<string, string>> = {
   'hadolint-linux-arm64': 'f6198ef8090f404dbb771abfee086eb8c48ac177f30da7fd3510aca35b344b5d',
   'hadolint-linux-x86_64': 'c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507',

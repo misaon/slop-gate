@@ -63,9 +63,7 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
   const invocation: BiomeInvocation | undefined =
     options.binaryPath === undefined ? resolveBiomeBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  // An unresolvable bundled dependency is a broken installation of slop-gate, not a coverage gap, and
-  // there is no `PATH` fallback: `@biomejs/biome` is pinned exactly here, so a `biome` on `PATH` is by
-  // definition not the one the rule entries were measured against.
+  // An unresolvable bundled dependency is a broken installation of slop-gate, not a coverage gap.
   const required = (): BiomeInvocation => {
     if (invocation === undefined) throw new EngineError('biome-css', MISSING_BIOME)
     return invocation

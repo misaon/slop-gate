@@ -51,6 +51,8 @@ type LocatedDiagnostic = {
  * tsc's plain-text output carries no *length*, only a starting position, so **every diagnostic gets a deliberate
  * one-character range** at its reported column. `--pretty`'s code frame does show an underline width, but parsing
  * two output shapes to reconcile one position is the worse trade.
+ *
+ * @yields One `RawDiagnostic` per located diagnostic tsc reported, in the order tsc printed them.
  */
 export async function* parseTscOutput(stdout: string, rootDir: string): AsyncGenerator<RawDiagnostic> {
   const trimmed = stdout.trim()

@@ -80,10 +80,11 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
       // `json` and `jsonc` are here for two reasons, neither of them "knip lints JSON". First, **the
       // workspace map is derived from the assigned file list** (`synthesizeKnipWorkspaces`), and a
       // `package.json` only reaches `run()` via `batch.files` if `buildPlan` considered its language
-      // supported. Second, **cache invalidation** — spec §9: "knip has no incremental mode; it is re-run
-      // only when JS/TS files, `package.json` files or the workspace graph changed." A project
-      // assignment's cache key folds in every assigned file's content hash, so declaring these languages
-      // is what makes a manifest or tsconfig edit invalidate knip's cached result.
+      // supported — without `json`, the one thing this adapter exists to do cannot happen. Second, **cache
+      // invalidation** — spec §9: "knip has no incremental mode; it is re-run only when JS/TS files,
+      // `package.json` files or the workspace graph changed." A project assignment's cache key folds in every
+      // assigned file's content hash, so declaring these languages is what makes a manifest or tsconfig edit
+      // invalidate knip's cached result.
       //
       // `yaml` is deliberately *not* claimed even though `pnpm-workspace.yaml` is part of the workspace
       // graph: this adapter overrides knip's own workspace discovery entirely, so that file no longer

@@ -19,20 +19,18 @@ const LEVEL_TO_BIOME: Readonly<Record<string, string>> = {
 }
 
 /**
- * Biome only reads a configuration file called exactly this, and `--config-path` may name either the
- * file or the directory holding it. Written under a per-ruleset subdirectory of `tmpDir` rather than
- * beside the other engines' ephemeral configs — see `assertCleanConfigDir`.
+ * Biome only reads a configuration file called exactly this, and `--config-path` may name either the file
+ * or the directory holding it. It gets a per-ruleset subdirectory of `tmpDir` of its own rather than
+ * sitting beside the other engines' ephemeral configs — see `assertCleanConfigDir`.
  */
 const CONFIG_BASENAME = 'biome.json'
 
 /**
  * Well above any hand-authored stylesheet; the largest in a 1729-file corpus was 176 KB.
  *
- * Biome's own default is 1 MiB, and a file above it is **not linted and barely says so**: the run emits
- * a warning whose `message` is the empty string, leaves `summary.skipped` at 0, and otherwise looks
- * clean. Raising the ceiling is the first half of that guard; comparing `summary.unchanged` against the
- * batch size in `parseBiomeOutput` is the half that catches it, because a ceiling can only be set too
- * low, never proved high enough.
+ * Biome's own default is 1 MiB, and a file above it is **not linted and barely says so** — see the
+ * `summary.unchanged` guard in `parseBiomeOutput`, which is the half that actually catches it, because a
+ * ceiling can only be set too low, never proved high enough.
  */
 const MAX_FILE_BYTES = 64 * 1024 * 1024
 
@@ -71,8 +69,7 @@ export async function materializeBiomeCssConfig(
 
   const config = {
     // `root: true` and a dedicated directory together stop Biome merging anything of the user's:
-    // `--config-path` disables its normal upward search, but its project scanner still walks *down*
-    // from the config's own directory and hard-fails on a nested configuration it finds there.
+    // `--config-path` disables its upward search, but the project scanner still walks *down*.
     root: true,
     // `recommended: false` is load-bearing in the way oxlint's `categories` block is. Without it Biome
     // enables its whole recommended set — 20-odd CSS rules — regardless of what `rules` lists, so

@@ -40,17 +40,15 @@ export type RawDiagnostic = {
 
 /**
  * One rule's resolved level followed by that rule's options (spec §6.2), both already resolved through
- * the config cascade; the engine only materialises them.
+ * the config cascade; the engine only materialises them. **Core does not interpret the options** — it
+ * resolves *which* apply and hands the list over; what a list means is the adapter's business, and an
+ * adapter for an engine with no option grammar reads `setting[0]` and ignores the rest.
  *
  * **Always a tuple, never a bare level** — unlike `RuleSetting`, the shape a *user* writes. Widening
  * this to that union would leave every `level !== 'off'` comparison in the adapters compiling while
  * silently inverting the day a rule got options: an `['off', …]` is not `'off'`, so a disabled rule
  * reads as enabled with nothing in the output to see it by. Against the tuple that same comparison is
  * a hard type error (TS2367), so an adapter is forced to destructure the level out before comparing.
- *
- * **Core does not interpret the options** — it resolves *which* apply and hands the list over; what a
- * list means is the adapter's business, and an adapter for an engine with no option grammar reads
- * `setting[0]` and ignores the rest.
  *
  * **An adapter that reads the options must fold them into `EngineConfigHandle.rulesetHash`.** That
  * hash is the only per-engine term in the result cache key (`deriveResultKey`), so two runs differing
@@ -83,11 +81,10 @@ export type RunContext = {
   /**
    * Set by `sgate fix` (spec §11) to the highest fix tier this run will apply, and absent on every
    * `sgate check`. An adapter that can report fixes should populate `RawDiagnostic.fix` when it is
-   * present and skip that work when it is not; an adapter with no fixes ignores it entirely.
-   *
-   * It is a *ceiling*, not a filter of last resort — an adapter may hand back everything it has and let
-   * `normalizeDiagnostics` and the fix loop gate on `RuleEntry.fixKind`. It exists so that an engine
-   * which must run itself again to produce a fix (oxlint) can ask for only the applicable tiers.
+   * present and skip that work when it is not. It is a *ceiling*, not a filter of last resort — an
+   * adapter may hand back everything it has and let `normalizeDiagnostics` and the fix loop gate on
+   * `RuleEntry.fixKind`; it exists so an engine that must run itself again to produce a fix (oxlint)
+   * can ask for only the applicable tiers.
    */
   readonly fixTier?: FixTier
 }
@@ -146,13 +143,11 @@ export interface Engine {
    */
   availability?(): Promise<EngineAvailability>
   /**
-   * A cache-key component and nothing else: no reporter prints it and nothing in a run branches on
-   * it. It exists so that upgrading a tool invalidates the results the previous one produced, which
-   * is why it must report the *resolved* binary's version rather than any pinned constant.
-   *
-   * `cache` is optional because most implementations need nothing to answer. An implementation that
-   * spawns `<tool> --version` must pass it through to `toolVersion`, which is where the spawn is
-   * elided; called with no cache it always spawns.
+   * A cache-key component and nothing else: no reporter prints it and nothing in a run branches on it.
+   * It exists so that upgrading a tool invalidates the results the previous one produced, which is why
+   * it must report the *resolved* binary's version rather than any pinned constant. `cache` is optional
+   * because most implementations need nothing to answer; one that spawns `<tool> --version` must pass it
+   * through to `toolVersion`, where the spawn is elided — called with no cache it always spawns.
    */
   version(cache?: ToolVersionCache): Promise<string>
   materializeConfig(selection: EngineRuleSelection, context: RunContext): Promise<EngineConfigHandle>

@@ -39,8 +39,8 @@ export type IneligibilityReason =
   | 'engine-not-participating'
   /** The engine is registered but its tooling is not installed here (`Engine.availability`). Distinct
    *  from `engine-not-participating`: "this build does not include actionlint" and "actionlint is not
-   *  installed on this machine" are different facts, and a user comparing two machines that disagree
-   *  needs to be told which one they are looking at. */
+   *  installed on this machine" are different facts, and a user comparing two machines needs to know
+   *  which. */
   | 'engine-unavailable'
   | 'missing-capability'
   | 'language-mismatch'
@@ -179,9 +179,8 @@ export function electOwners(input: ElectionInput): ElectionResult {
     const ranked = candidates.filter(isApplicable).sort(compare)
 
     // Every candidate that missed `ranked` is about to become invisible to both `overlaps` (whose losers
-    // are drawn from `ranked`) and `uncovered` (a bare concept id) — record why each one was rejected
-    // before that happens, or a deprecated, non-participating, incapable or wrong-language rule vanishes
-    // without a trace.
+    // are drawn from `ranked`) and `uncovered` (a bare concept id) — so record why each one was rejected,
+    // or a deprecated, non-participating, incapable or wrong-language rule vanishes without a trace.
     for (const candidate of candidates) {
       if (isApplicable(candidate)) continue
       ineligible.push({ concept, candidate: refOf(candidate), ...ineligibilityReason(candidate) })
@@ -258,8 +257,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
         const pinOverrode = pinned !== undefined && compare(loser, winner) < 0
         const reason = reasonFor(winner, loser, pinOverrode)
         // Keyed by loser *and* winner *and* reason: a rule beaten by two different winners on two
-        // languages is two distinct facts, and collapsing them would attribute both to whichever came
-        // first.
+        // languages is two distinct facts, and collapsing them would attribute both to the first.
         const key = `${loserKey} ${winnerKey} ${reason}`
         const lost = lostLanguages.get(key) ?? {
           record: { concept, loser: refOf(loser), winner: refOf(winner), reason },
@@ -271,17 +269,16 @@ export function electOwners(input: ElectionInput): ElectionResult {
     }
 
     if (ownedLanguages.size > 0) {
-      // Sorted by arbitration order rather than by whichever language was processed first: `owners` is
-      // read straight into `rules list` and `rules why`, where a reader comparing two owners of one
-      // concept is comparing tiers, so the faster engine belongs first.
+      // Sorted by arbitration order, not by whichever language was processed first: `owners` is read
+      // straight into `rules list` and `rules why`, where a reader comparing two owners of one concept is
+      // comparing tiers, so the faster engine belongs first.
       owners.set(
         concept,
         [...ownedLanguages.values()]
           .sort((a, b) => compare(a.entry, b.entry))
           .map(({ entry, languages }) => ({ owner: refOf(entry), languages })),
       )
-      // Loser order rather than language order, so the sequence does not depend on which language was
-      // arbitrated first.
+      // Loser order, not language order: the sequence must not depend on which language came first.
       for (const key of [...lostLanguages.keys()].sort(compareStrings)) {
         const { record, languages } = lostLanguages.get(key)!
         overlaps.push({ ...record, languages })

@@ -44,6 +44,8 @@ const DEFLATED = 8
  *
  * The archive also *requires* ZIP64: 224k entries overflow the 16-bit count in the classic end-of-central-directory
  * record and the directory offset overflows 32 bits, so both arrive as sentinels to resolve through ZIP64 records.
+ *
+ * @yields each non-directory entry, decompressed, in central-directory order.
  */
 export function* readZipEntries(archive: Uint8Array): Generator<ZipEntry> {
   const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength)

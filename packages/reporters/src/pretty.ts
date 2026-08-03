@@ -52,8 +52,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
   // positive — but a 0 or negative budget would be a nonsensical wrap target to hand `wrapText`.
   const messageWidth = Math.max(1, width - detailIndent)
 
-  // --- Header: printed synchronously here, before `streamCheck` has done any work at all, rather than
-  // waiting for the first diagnostic.
+  // --- Header: printed synchronously here, before `streamCheck` has done any work at all.
   {
     const left = `  ${logoMark}  slop-gate`
     const right = `v${context.version} `

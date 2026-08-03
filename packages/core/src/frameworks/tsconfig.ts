@@ -1,10 +1,8 @@
 import { posix } from 'node:path'
 import { extractStringList, extractStringLiteral } from './literal.ts'
 
-/**
- * What a `compilerOptions.jsx` value means for whether `React` has to be in scope. Measured against
- * tsc 5.9.3 rather than read off the documentation — see the `react-jsx-transform` profile.
- */
+/** What a `compilerOptions.jsx` value means for whether `React` has to be in scope. Measured against
+ *  tsc 5.9.3 rather than read off the documentation — see the `react-jsx-transform` profile. */
 export type JsxTransform = 'automatic' | 'classic' | 'deferred'
 
 export type EffectiveJsx =
@@ -26,26 +24,22 @@ const TRANSFORMS: Readonly<Record<string, JsxTransform>> = {
 /** A `tsconfig.json`, `tsconfig.app.json`, `jsconfig.json` — anything `extends` can name. */
 export const TSCONFIG = /(^|\/)[jt]sconfig(\.[^/]+)?\.json$/
 
-/**
- * The paths TypeScript would try for one `extends` target. A specifier ending in `.json` is taken
- * literally; anything else gets `.json` appended and, failing that, is treated as a directory
- * holding a `tsconfig.json` — the same two completions `tsc` applies.
- */
+/** The paths TypeScript would try for one `extends` target — the same two completions `tsc` applies: a
+ *  specifier ending in `.json` is taken literally, anything else gets `.json` appended and, failing that,
+ *  is treated as a directory holding a `tsconfig.json`. */
 function completions(base: string): string[] {
   return base.endsWith('.json') ? [base] : [`${base}.json`, posix.join(base, 'tsconfig.json')]
 }
 
 /**
- * Every candidate path for `specifier` written in `from`, most-likely first.
+ * Every candidate path for `specifier` written in `from`, most-likely first. A relative specifier resolves
+ * against the extending file's own directory; a bare one is a package name, resolved through
+ * `node_modules` walking up from that directory exactly as a runtime `import` would. The walk is bounded
+ * by the repository root: a `node_modules` above it belongs to something slop-gate was not pointed at.
  *
- * A relative specifier resolves against the extending file's own directory. A bare one is a package
- * name, which TypeScript resolves through `node_modules` — walking up from that directory, exactly
- * as a runtime `import` would. The walk is bounded by the repository root: a `node_modules` above it
- * belongs to something slop-gate was not pointed at.
- *
- * Deliberately not a full module resolver. `exports` maps, `imports` subpaths and `typesVersions`
- * are not consulted, so a package that publishes its config behind one of those resolves to nothing
- * — and the caller turns that into a *stood-down profile with a reason*, never into a guess.
+ * Deliberately not a full module resolver — `exports` maps, `imports` subpaths and `typesVersions` are not
+ * consulted, so a package that publishes its config behind one of those resolves to nothing, which the
+ * caller turns into a *stood-down profile with a reason*, never into a guess.
  */
 function candidates(specifier: string, from: string): string[] {
   if (specifier.startsWith('./') || specifier.startsWith('../')) {
@@ -67,20 +61,16 @@ function candidates(specifier: string, from: string): string[] {
 type ReadText = (path: string) => Promise<string | null>
 
 /**
- * The effective `compilerOptions.jsx` for one config file, following `extends` to wherever the value
- * is actually written.
- *
- * This exists because a leaf `tsconfig.json` in a monorepo usually says almost nothing — that is the
- * point of the file. Measured on a 28-package React monorepo: only 4 of 19 config files set `jsx` at
- * all, and none of the four belonged to one of the three Next.js apps that hold most of the `.tsx`;
- * those reach it through `"extends": "../../tsconfig.app.json"`.
+ * The effective `compilerOptions.jsx` for one config file, following `extends` to wherever the value is
+ * actually written — a leaf `tsconfig.json` in a monorepo usually says almost nothing, which is the point
+ * of the file, and reaches `jsx` through something like `"extends": "../../tsconfig.app.json"`.
  *
  * TypeScript's own precedence, and both halves matter: **the extending file wins over everything it
  * extends**, and within the 5.0 array form **later entries win over earlier ones**. So the search is
  * own-value first, then the array walked back to front.
  *
- * Never throws and never loops: a config already on the current chain is skipped, which makes a
- * cycle end the search rather than hang it.
+ * Never throws and never loops: a config already on the current chain is skipped, which makes a cycle end
+ * the search rather than hang it.
  */
 export async function resolveJsx(file: string, readText: ReadText): Promise<EffectiveJsx> {
   return resolve(file, readText, new Set())

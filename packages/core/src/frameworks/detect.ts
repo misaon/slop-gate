@@ -33,16 +33,11 @@ const DEPENDENCY_FIELDS: readonly DependencyField[] = [
 export const EMPTY_DETECTION: FrameworkDetection = { applied: [], inapplicable: [] }
 
 /**
- * Erases a profile's parameter type so profiles of different shapes share one list, and is the seam
- * that keeps `consequences` a pure, separately-testable function of the parameters rather than
- * something fused into the I/O of `detect`.
- *
- * It is also where `refuseEnable` runs, because this is the first point at which an adjustment and
- * the evidence behind it are both in hand. An addition that does not clear the bar is dropped rather
- * than thrown on: the shipped profile set is closed and `profiles.test.ts` already pins that none of
- * them is ever refused, so a throw here could only ever reach a user through a parameterised
- * `consequences` — and crashing somebody's run over our own measurement is the loudest possible
- * response to the quietest possible problem.
+ * Erases a profile's parameter type so profiles of different shapes share one list, and is where
+ * `refuseEnable` runs — the first point at which an adjustment and the evidence behind it are both in
+ * hand. An addition that does not clear the bar is dropped rather than thrown on: the shipped profile
+ * set is closed and `profiles.test.ts` pins that none of them is ever refused, so a throw here could
+ * only ever reach a user through a parameterised `consequences`.
  */
 export function defineProfile<P>(profile: FrameworkProfile<P>): AnyFrameworkProfile {
   return {
@@ -76,9 +71,8 @@ function parseManifest(path: string, workspace: string, source: string): Manifes
   try {
     parsed = JSON.parse(source) as Record<string, unknown>
   } catch {
-    // A malformed manifest is not this module's error to raise. `buildWorkspaceGraph` already reads
-    // the root one and `knip` will report on it; detection's job is to say "no evidence here", which
-    // makes every profile stand down and restores the status quo.
+    // A malformed manifest is not this module's error to raise — `buildWorkspaceGraph` already reads the
+    // root one and `knip` will report on it. Saying "no evidence here" stands every profile down.
     return null
   }
 
@@ -92,10 +86,9 @@ function parseManifest(path: string, workspace: string, source: string): Manifes
 }
 
 /**
- * The `dependency` and `path` probes' shared input: every `package.json` the inventory already
- * listed, parsed once. Bounded by the workspace count rather than the file count — spec §23.1's cost
- * argument — and it walks nothing: `inventory.files` is the file list, already sorted by
- * `buildInventory`, which is where this pass's determinism comes from.
+ * The `dependency` and `path` probes' shared input: every `package.json` the inventory already listed,
+ * parsed once. Bounded by the workspace count rather than the file count (spec §23.1's cost argument)
+ * and it walks nothing — `inventory.files` is already sorted, which is this pass's determinism.
  */
 export async function buildDetectionContext(
   inventory: FileInventory,
@@ -131,13 +124,10 @@ export type DetectFrameworksOptions = {
 }
 
 /**
- * Spec §23.1. Runs every profile against one shared context and returns what applied, what stood
- * down for want of a parameter, and the evidence behind both.
- *
- * Profiles are evaluated concurrently but their results are sorted by `id` before being returned, so
- * the outcome never depends on which read finished first. Combined with `inventory.files` already
- * being sorted and each manifest's dependency list being sorted on parse, that is every point where
- * iteration order could have leaked into the result.
+ * Spec §23.1. Runs every profile against one shared context and returns what applied, what stood down
+ * for want of a parameter, and the evidence behind both. Profiles are evaluated concurrently but sorted
+ * by `id` before being returned, so the outcome never depends on which read finished first — with
+ * `inventory.files` and each manifest's dependency list already sorted, that is every ordering leak.
  */
 export async function detectFrameworks(options: DetectFrameworksOptions): Promise<FrameworkDetection> {
   const profiles = options.profiles ?? FRAMEWORK_PROFILES
@@ -155,11 +145,8 @@ export async function detectFrameworks(options: DetectFrameworksOptions): Promis
   }
 }
 
-/**
- * First manifest dependency matching `names`, in `(manifest path, field, name)` order — the
- * `dependency` probe. Returns evidence rather than a boolean, so the caller can say which manifest
- * and which field it came from.
- */
+/** First manifest dependency matching `names`, in `(manifest path, field, name)` order — the `dependency`
+ *  probe. Evidence rather than a boolean, so the caller can say which manifest and field it came from. */
 export function dependencyEvidence(context: DetectionContext, names: readonly string[]): FrameworkEvidence | null {
   const wanted = new Set(names)
   for (const manifest of context.manifests) {
@@ -177,12 +164,9 @@ export function dependencyEvidence(context: DetectionContext, names: readonly st
   return null
 }
 
-/**
- * The `path` probe: inventory entries matching `predicate`, in inventory order — no I/O at all,
- * because the file list is already in memory. Yields `InventoryFile` rather than evidence so a
- * caller can also read the workspace a match was attributed to, which is what scopes a knip setting
- * to the right package.
- */
+/** The `path` probe: inventory entries matching `predicate`, in inventory order — no I/O at all, the file
+ *  list is already in memory. `InventoryFile` rather than evidence so a caller can also read the
+ *  workspace a match was attributed to, which is what scopes a knip setting to the right package. */
 export function inventoryFilesMatching(
   context: DetectionContext,
   predicate: (path: string) => boolean,

@@ -37,7 +37,7 @@ export type CreateTscEngineOptions = {
    * dependency resolved from *this* directory, not from wherever `engine-tsc` itself happens to be installed.
    */
   rootDir: string
-  /** Defaults to `<rootDir>/tsconfig.json`. Scope is a single `-p` invocation — no `--build` mode. */
+  /** Defaults to `<rootDir>/tsconfig.json`. Scope is a single `-p` invocation — no project references beyond what that handles, no `--build` mode. */
   tsconfigPath?: string
   /** Defaults to `<rootDir>/.slop-gate/cache`. Where `tsc --incremental` keeps its build info (spec §9), never inside the analysed repository. */
   cacheDir?: string

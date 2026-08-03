@@ -81,18 +81,12 @@ function settledLevels(detection: FrameworkDetection): Map<string, Map<ConceptId
 /**
  * The ruleset consumer (spec §23.2). One layer per applied profile rather than one merged layer, so
  * `sgate rules why` prints `framework nestjs -> off` and names the profile responsible instead of an
- * anonymous "framework" step. Two profiles disabling the same concept produce two steps, both `off`
- * — honest, and inert.
+ * anonymous "framework" step.
  *
- * A profile only appears for the concepts where its own setting *is* the joined one, so no layer
- * ever carries a value that a later layer is going to overwrite. That matters more than it looks:
- * these layers enter a last-wins cascade, and emitting a loser would make the outcome depend on the
- * order profiles happen to be sorted in — the precise failure this design exists to avoid. The join
- * decides; the cascade only transports the answer.
- *
- * Profiles with nothing to say about rules are omitted entirely; a `test-framework` that found
- * exactly one test runner still contributes a layer, because disabling the *other* scope is the
- * whole point of it.
+ * A profile only appears for the concepts where its own setting *is* the joined one, so no layer ever
+ * carries a value that a later layer is going to overwrite. These layers enter a last-wins cascade, and
+ * emitting a loser would make the outcome depend on the order profiles happen to be sorted in — the
+ * precise failure this design exists to avoid. The join decides; the cascade only transports the answer.
  */
 export function frameworkRuleLayers(detection: FrameworkDetection): readonly FrameworkRuleLayer[] {
   const unscoped = settledLevels(detection).get(scopeKey([])) ?? new Map<ConceptId, RuleLevel>()
@@ -119,18 +113,15 @@ export function frameworkRuleLayers(detection: FrameworkDetection): readonly Fra
 
 /**
  * The same consumer as `frameworkRuleLayers`, for the adjustments that named `paths` — one layer per
- * `(profile, glob set)`, sorted so the list never depends on which read finished first.
+ * `(profile, glob set)`, sorted so the list never depends on which read finished first. These enter
+ * `createRuleSetResolver`'s `overrides` list, **not** its base cascade, spliced in at the framework
+ * position — above the presets, below the user's own `rules`: a profile may correct a preset that is
+ * wrong for this repository, and your config still beats every profile.
  *
- * These enter `createRuleSetResolver`'s `overrides` list, **not** its base cascade, and the resolver
- * splices them in at the framework position — above the presets, below the user's own `rules`. That
- * placement is the whole precedence story and it is unchanged from the unscoped case: a profile may
- * correct a preset that is wrong for this repository, and your config still beats every profile.
- *
- * A concept appearing under two different glob sets carries the level joined across *its own* scope
- * only (`settledLevels`), so two profiles scoping the same concept to the same globs cannot disagree.
- * Two profiles scoping one concept to *overlapping but unequal* globs is the one shape whose outcome
- * on a file matched by both depends on layer order; no shipped profile does it (`profiles.test.ts`
- * pins that), and the ordering is at least deterministic rather than incidental.
+ * A concept appearing under two different glob sets carries the level joined across *its own* scope only
+ * (`settledLevels`). Two profiles scoping one concept to *overlapping but unequal* globs is the one shape
+ * whose outcome on a file matched by both depends on layer order; no shipped profile does it
+ * (`profiles.test.ts` pins that), and the ordering is at least deterministic rather than incidental.
  */
 export function frameworkOverrideLayers(detection: FrameworkDetection): readonly FrameworkOverrideLayer[] {
   const settled = settledLevels(detection)
@@ -164,12 +155,11 @@ export function frameworkOverrideLayers(detection: FrameworkDetection): readonly
 }
 
 /**
- * The engine-configuration consumer (spec §23.2), narrowed to one engine and merged.
- *
- * Every contribution to the same `(workspace, key)` is unioned and sorted, which is the entire
- * conflict story: union is commutative, associative and idempotent, so the result does not depend on
- * profile order, detection order, or how many profiles said the same thing. There is no shape here
- * that assigns a value to a key, so there is nothing for a precedence rule to arbitrate.
+ * The engine-configuration consumer (spec §23.2), narrowed to one engine and merged. Every contribution
+ * to the same `(workspace, key)` is unioned and sorted, which is the entire conflict story: union is
+ * commutative, associative and idempotent, so the result does not depend on profile order, detection
+ * order, or how many profiles said the same thing, and no shape here assigns a value to a key, so there
+ * is nothing for a precedence rule to arbitrate.
  */
 export function engineAdjustmentsFor(engine: EngineId, detection: FrameworkDetection): EngineSettings {
   const merged = new Map<string, { workspace: string; key: string; values: Set<string> }>()
@@ -200,7 +190,6 @@ export function settingValues(adjustments: EngineSettings, key: string): readonl
   return [...values].sort(compareStrings)
 }
 
-/** One key's values for one workspace, `[]` when no profile contributed any. */
 export function settingValuesFor(
   adjustments: EngineSettings,
   key: string,

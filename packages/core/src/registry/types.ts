@@ -31,8 +31,8 @@ export const ENGINE_PREFERENCE: readonly EngineId[] = [
   'zizmor',
   'hadolint',
   'knip',
-  // Uncontested: it owns four concepts nothing else covers, so its rank never decides anything. Not
-  // higher because a project engine reading a lockfile and a 16 MB index is fastest at nothing.
+  // Last but for `eslint`, and uncontested there: it owns four concepts nothing else covers, so its rank
+  // never decides anything — and a project engine reading a lockfile and a 16 MB index is fastest at nothing.
   'deps-security',
   'eslint',
 ]
@@ -46,8 +46,8 @@ export type EngineTier = 0 | 1 | 2
 
 /**
  * Attributes one finding of a multi-concept rule to a single concept. `concepts` says what a rule may
- * *claim* during arbitration; this says what an individual finding *is*. Without it, a rule covering
- * two concepts would emit two diagnostics for one finding — the double reporting arbitration prevents.
+ * *claim* during arbitration; this says what an individual finding *is*. Without it a rule covering two
+ * concepts emits two diagnostics for one finding — the double reporting arbitration exists to prevent.
  */
 export type ClassifyRule = {
   readonly messagePattern: string

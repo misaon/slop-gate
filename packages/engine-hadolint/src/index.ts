@@ -49,33 +49,26 @@ const MAX_FINDINGS_EXIT_CODE = 1
 
 /**
  * The Dockerfile engine — hadolint, and the **second optional engine**, following actionlint's
- * availability-gated pattern rather than reinventing it.
- *
- * **Discovery order is `SLOP_GATE_HADOLINT_PATH`, then `PATH`, then our own cache.** A machine that
- * already has hadolint never downloads anything and never has its own installation shadowed.
- *
- * **Nothing on the check path reaches the network**, for the reason spec §13.5 records for actionlint:
- * `Engine.availability` is contractually filesystem-only, and availability is what decides whether a
- * first use ever happens, so "lazy" means "on explicit request" — `sgate engines install hadolint`
- * populates the cache, and until it does the run reports a coverage gap naming that command.
+ * availability-gated pattern: nothing on the check path reaches the network, `sgate engines install
+ * hadolint` populates the cache, and until it does the run reports a coverage gap naming that command.
+ * The reasoning is in `createActionlintEngine` and spec §13.5.
  *
  * **Six rules of roughly seventy, and the ratio is the point.** Over 275 Dockerfiles from 32
  * repositories hadolint produced 893 findings at 25% precision, with 68% of its output coming from
- * thirteen rules that had **zero** true positives. What ships is the concentrated remainder. Two
- * findings from that measurement are worth not rediscovering, and both are recorded at length in
- * `rules.ts` and `registry/not-recommended.ts`: hadolint **cannot detect a missing `USER`** (a Dockerfile
- * with no `USER` at all is silent; `DL3002` fires only on an explicit `USER root`), and `DL3066`
- * actively fires on the correct fix — 69 findings, on `USER nobody`, `USER node`, `USER appuser`.
+ * thirteen rules that had **zero** true positives; what ships is the concentrated remainder. Two findings
+ * from that measurement are recorded at length in `rules.ts` and `registry/not-recommended.ts`: hadolint
+ * **cannot detect a missing `USER`** (a Dockerfile with no `USER` at all is silent; `DL3002` fires only
+ * on an explicit `USER root`), and `DL3066` actively fires on the correct fix — 69 findings, on
+ * `USER nobody`, `USER node`, `USER appuser`.
  *
- * **`-c` always points at our own ephemeral config**, so a `.hadolint.yaml` in the analysed repository
- * is never read (spec §13: users neither see nor maintain engine-native config files).
- *
- * **`--no-fail` is not passed.** Exit 1 means findings and is handled below; suppressing it would also
- * suppress the distinction between "findings" and "hadolint could not read the file".
+ * **`-c` always points at our own ephemeral config**, so a `.hadolint.yaml` in the analysed repository is
+ * never read (spec §13). **`--no-fail` is not passed**: exit 1 means findings and is handled below, and
+ * suppressing it would also suppress the distinction between findings and "hadolint could not read the
+ * file".
  */
 export function createHadolintEngine(options: { binaryPath?: string } = {}): Engine {
-  // Keyed by the handle's `path`, exactly as the `schema` and `actionlint` adapters do it: hadolint
-  // takes no ruleset we trust, so the elected selection has to reach `run` some other way.
+  // hadolint takes no ruleset we trust, so the elected selection has to reach `run` some other way.
+  // Keyed by the handle's `path`, unique per handle.
   const selections = new Map<string, ReadonlySet<string>>()
 
   const resolution = (): HadolintResolution | undefined =>
@@ -95,8 +88,8 @@ export function createHadolintEngine(options: { binaryPath?: string } = {}): Eng
       granularity: 'file',
       provides: [],
       // hadolint emits no fix data in any output format, and none of the shipped rules has a single
-      // mechanical repair: which tag to pin a base image to and where `pipefail` belongs are both
-      // decisions about intent.
+      // mechanical repair: which tag to pin a base image to and where `pipefail` belongs are decisions
+      // about intent.
       fixes: false,
     },
 
@@ -109,21 +102,18 @@ export function createHadolintEngine(options: { binaryPath?: string } = {}): Eng
 
     async version(cache) {
       // The *resolved* binary's version, not `HADOLINT_VERSION`: a `PATH` hadolint is frequently a
-      // different release from the pin, and since this string is part of every cache key, reporting
-      // the pin would serve one binary's results after the machine started running another.
-      //
-      // No strip regex: hadolint prints `Haskell Dockerfile Linter <version>`, and the label is kept
-      // rather than stripped because this string is a cache-key component, not a display value —
-      // narrowing it now would invalidate every cached result for no gain.
+      // different release from the pin, and this string is part of every cache key — reporting the pin
+      // would serve one binary's results after the machine started running another. No strip regex:
+      // hadolint prints `Haskell Dockerfile Linter <version>` and the label is kept, because narrowing a
+      // cache-key component now would invalidate every cached result for no gain.
       return toolVersion({ command: required().command, prefixArgs: [] }, undefined, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
-      // The level is read even though the config file below carries no ruleset, because `parse.ts`
-      // gates every finding on membership of `selections` — so that set *is* this engine's enablement
-      // decision, and building it from the keys alone would make an `['off', …]` setting read as
-      // enabled. Options are dropped and correspondingly absent from the hash: hadolint's rules take
-      // none.
+      // The level is read even though the config file below carries no ruleset, because `parse.ts` gates
+      // every finding on membership of `selections` — so that set *is* this engine's enablement decision,
+      // and building it from the keys alone would make an `['off', …]` setting read as enabled. Options
+      // are dropped and absent from the hash: hadolint's rules take none.
       const enabled = [...selection].filter(([, [level]]) => level !== 'off')
       const rulesetHash = hashJson(enabled.map(([rule, [level]]) => [rule, level]).sort())
       const path = join(context.tmpDir, `hadolint.${rulesetHash.slice(0, 12)}.yaml`)
@@ -131,7 +121,7 @@ export function createHadolintEngine(options: { binaryPath?: string } = {}): Eng
       await mkdir(context.tmpDir, { recursive: true })
       // The content is nearly inert; an *existing* file at a path we chose is the point. Without `-c`,
       // hadolint discovers `.hadolint.yaml` in the analysed repository and silently changes its own
-      // behaviour, so a run would stop matching what `sgate rules why` says it does.
+      // behaviour.
       await writeFile(
         path,
         ['# Generated by slop-gate. Do not edit; it is deleted when the run ends.', 'failure-threshold: none', ''].join('\n'),
@@ -140,9 +130,8 @@ export function createHadolintEngine(options: { binaryPath?: string } = {}): Eng
       return {
         path,
         rulesetHash,
-        // Deliberately absent, as on actionlint and tsc: hadolint reports no count of the rules it
-        // loaded, so there is no number to assert a selection against. Selection is enforced in
-        // `parse.ts` instead.
+        // `ruleCount` deliberately absent, as on actionlint and tsc: hadolint reports no count of the
+        // rules it loaded, so there is no number to assert a selection against. `parse.ts` enforces it.
         async dispose() {
           selections.delete(path)
         },
@@ -187,8 +176,8 @@ async function* execute(
   const findings = readHadolintFindings(stdout)
   const prefixes = await absolutePrefixes(context)
 
-  // Every file that produced a finding is read up front so `readSource` can stay synchronous: both
-  // `instructionKeywordRange` and the `DL3025` source exclusion need the text.
+  // Read up front so `readSource` can stay synchronous: both `instructionKeywordRange` and the `DL3025`
+  // source exclusion need the text.
   const sources = new Map<string, string | undefined>()
   for (const finding of findings) {
     const file = stripPrefixes(finding.file, prefixes)
@@ -196,8 +185,8 @@ async function* execute(
     try {
       sources.set(file, await readFile(join(context.rootDir, file), 'utf8'))
     } catch {
-      // The inventory listed this file, so it existed when the run started. One removed mid-run is not
-      // a finding about the repository; the diagnostic still reports, at the top of the file.
+      // A file removed mid-run is not a finding about the repository; the diagnostic still reports, at
+      // the top of the file.
       sources.set(file, undefined)
     }
   }
