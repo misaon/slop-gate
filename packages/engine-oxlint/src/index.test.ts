@@ -303,6 +303,36 @@ test('reports a binding that shadows an outer-scope declaration', async () => {
   await handle.dispose()
 })
 
+test('anchors a multi-label finding on the offending node against the real binary', async () => {
+  // The one rule in `ANCHOR_LABELS`. This test exists to fail when oxc rewords the label the table
+  // matches on: the fallback there is silent by design (it reproduces the old behaviour rather than
+  // guessing at an index), so the real binary is the only thing that can notice.
+  await writeFile(
+    join(dir, 'src/a.ts'),
+    [
+      'export function outerNamedScope(input: number[]) {',
+      '  const items = input.map((x) => x * 2)',
+      '',
+      '  function innerHelper(value: number) {',
+      '    return value + 1',
+      '  }',
+      '',
+      '  return items.map(innerHelper)',
+      '}',
+      '',
+    ].join('\n'),
+  )
+  const engine = createOxlintEngine()
+  const handle = await engine.materializeConfig(new Map([['unicorn/consistent-function-scoping', 'warn']]), context)
+
+  const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
+
+  expect(found).toHaveLength(1)
+  const source = await readFile(join(dir, 'src/a.ts'), 'utf8')
+  expect(source.slice(found[0]!.range.start, found[0]!.range.end)).toBe('innerHelper')
+  await handle.dispose()
+})
+
 test('raises an EngineError when the binary is missing', async () => {
   const engine = createOxlintEngine({ binaryPath: join(dir, 'does-not-exist') })
   const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
