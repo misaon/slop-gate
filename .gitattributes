@@ -1,6 +1,11 @@
-# Two source files reached `main` with a stray NUL byte where a space belonged (a `Map` key separator
-# in a template literal), which makes git classify them as binary and print "Binary files differ"
-# instead of a reviewable diff. `diff` forces the textual comparison regardless of byte values; the
-# two occurrences this branch touched are also fixed at the source.
-*.ts diff
-*.tsx diff
+# `diff` alone makes git render these as text even when a stray control byte would otherwise get them
+# classified as binary — two source files reached `main` with a NUL where a `Map` key separator's space
+# belonged, and git printed "Binary files differ" instead of a reviewable diff for one of them.
+#
+# `-text` is not decoration. Setting `diff` also makes git's `core.autocrlf=true` path treat the file as
+# convertible, so `diff` on its own checks every `.ts` out with CRLF on a Windows runner and every test
+# that compares generated source against disk fails — reproduced locally with `git -c core.autocrlf=true
+# clone`, 12,173 CRLF line endings in `entries.generated.ts` against zero on `main`. `-text` restores the
+# byte-for-byte checkout this repository already relied on.
+*.ts diff -text
+*.tsx diff -text
