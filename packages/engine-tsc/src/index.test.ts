@@ -273,3 +273,34 @@ test('a resolvable typescript plus a tsconfig is what makes it available — bot
   await rm(join(dir, 'tsconfig.json'))
   expect(await createTscEngine({ rootDir: dir }).availability?.()).toMatchObject({ available: false })
 })
+
+/**
+ * A monorepo root that only lists its projects. `tsc -p` reads no source there, so "available, 0 findings"
+ * would be a clean bill of health over zero files — measured on a real repository before this check existed.
+ */
+test('reports a coverage gap for a solution-style tsconfig instead of typechecking nothing', async () => {
+  const solutionDir = await mkdtemp(join(tmpdir(), 'sgate-tsc-solution-'))
+  try {
+    await writeFile(join(solutionDir, 'tsconfig.json'), JSON.stringify({ files: [], references: [{ path: 'packages/a' }] }))
+    const engine = createTscEngine({ rootDir: process.cwd(), tsconfigPath: join(solutionDir, 'tsconfig.json') })
+
+    const availability = await engine.availability?.()
+
+    expect(availability).toMatchObject({ available: false })
+    expect(availability?.available === false && availability.reason).toContain('solution-style')
+  } finally {
+    await rm(solutionDir, { recursive: true, force: true })
+  }
+})
+
+test('stays available for a tsconfig that declares its own inputs alongside references', async () => {
+  const bothDir = await mkdtemp(join(tmpdir(), 'sgate-tsc-both-'))
+  try {
+    await writeFile(join(bothDir, 'tsconfig.json'), JSON.stringify({ include: ['src'], references: [{ path: 'packages/a' }] }))
+    const engine = createTscEngine({ rootDir: process.cwd(), tsconfigPath: join(bothDir, 'tsconfig.json') })
+
+    expect(await engine.availability?.()).toEqual({ available: true })
+  } finally {
+    await rm(bothDir, { recursive: true, force: true })
+  }
+})
