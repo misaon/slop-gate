@@ -24,7 +24,7 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   engineFailures: [],
   unavailableEngines: [],
   baseline: null,
-  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
+  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, cacheByEngine: [], enginesRun: 1, durationMs: 42 },
   ruleset: { enabledConcepts: 5, overlaps: 0, uncovered: [], unknownKeys: [] },
   ...over,
 })

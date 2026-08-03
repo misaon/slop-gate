@@ -29,8 +29,11 @@ type StatEntry = { size: number; mtimeMs: number; hash: string }
  * accuracy (NTFS resolves to 100ns), and it truncates to the granule rather than rounding, so a file
  * reporting mtime `T` may have been written as late as `T + 2000` — past which no write can still
  * share that timestamp. Halving this would leave half of FAT's granule exposed.
+ *
+ * Exported because `ToolVersionCache` needs the same number for the same filesystem reason, on a
+ * different kind of file. Shared rather than restated so the two cannot drift apart from one edit.
  */
-const RACY_WINDOW_MS = 2_000
+export const RACY_WINDOW_MS = 2_000
 
 export type StatIndex = {
   hashOf(rootDir: string, file: InventoryFile): Promise<string>

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import type { ToolVersionCache } from '../cache/tool-versions.ts'
 import { EngineError } from '../errors.ts'
 import type { EngineId } from '../registry/types.ts'
 import type { ScriptBinInvocation } from './resolve-script-bin.ts'
@@ -85,15 +86,33 @@ export async function runEngineTool(options: RunEngineToolOptions): Promise<{ st
 /**
  * What `<tool> --version` reports, with the tool's own label stripped off the front — oxlint and Biome
  * print `version: 1.2.3`, tsc prints `Version 5.9.0`, ast-grep prints `ast-grep 0.45.0`. The regex is
- * the parameter because that prefix is the only thing that differs.
+ * the parameter because that prefix is the only thing that differs, and it is optional because
+ * actionlint and hadolint print no label to strip.
  *
  * **The resolved binary's version, never the pinned one.** This string is part of every cache key, so
  * reporting the pin would keep serving one binary's results after the machine started running another.
  *
+ * The first line only. Every tool here prints one, but actionlint prints three (a build banner follows
+ * the number), and a cache key is not the place to discover that a tool became chatty on upgrade.
+ *
  * `prefixArgs` come first, because a `ScriptBinInvocation` may be `node <script>` — appending
  * `--version` to the wrong end asks Node for its own version instead.
+ *
+ * `cache` is the whole reason this helper is the single choke point for every spawning `version()`:
+ * with one passed in, the spawn happens only when the resolved binary is not the one a previous run
+ * already asked. Absent — every direct call in a test — it always spawns, which is what keeps those
+ * tests hermetic. See `ToolVersionCache` for what "the same binary" means and what it does not.
  */
-export async function toolVersion(invocation: ScriptBinInvocation, strip: RegExp): Promise<string> {
-  const { stdout } = await run(invocation.command, [...invocation.prefixArgs, '--version'], { encoding: 'utf8' })
-  return stdout.trim().replace(strip, '')
+export async function toolVersion(
+  invocation: ScriptBinInvocation,
+  strip?: RegExp,
+  cache?: ToolVersionCache,
+): Promise<string> {
+  const argv = [invocation.command, ...invocation.prefixArgs]
+  const probe = async (): Promise<string> => {
+    const { stdout } = await run(invocation.command, [...invocation.prefixArgs, '--version'], { encoding: 'utf8' })
+    const firstLine = stdout.trim().split('\n')[0]!.trim()
+    return strip === undefined ? firstLine : firstLine.replace(strip, '')
+  }
+  return cache === undefined ? probe() : cache.resolve(argv, probe)
 }

@@ -66,6 +66,13 @@ export const check = defineCommand({
     process.once('SIGINT', onInterrupt)
     process.once('SIGTERM', onInterrupt)
 
+    // The run's source text, shared with `streamCheck` (see `CheckOptions.sources`) rather than kept
+    // as a second copy here. Both directions matter: a file some engine had to examine is already in
+    // here by the time its diagnostics reach the reporter, and a file every engine served from cache
+    // was never read at all, so the reporter's own read below is the one that fills it. Either way
+    // `pretty` reads each file once per run instead of once per code frame.
+    const sources = new Map<string, string>()
+
     const reporter = createReporter(args.format, {
       write: (chunk) => process.stdout.write(chunk),
       color: supportsColor(),
@@ -78,9 +85,16 @@ export const check = defineCommand({
         // `Diagnostic.file`). Guarded explicitly rather than left to `join(rootDir, null)` throwing
         // and being swallowed by the `catch` below — that would work by accident, not by contract.
         if (file === null) return null
+        const held = sources.get(file)
+        if (held !== undefined) return held
         try {
-          return readFileSync(join(rootDir, file), 'utf8')
+          const content = readFileSync(join(rootDir, file), 'utf8')
+          sources.set(file, content)
+          return content
         } catch {
+          // A failure is deliberately not remembered. Storing a `null` would need a second map with a
+          // wider value type than the run's own, and the case is a file deleted between discovery and
+          // rendering — rare, and bounded by the frame dedupe to a handful of retries.
           return null
         }
       },
@@ -95,6 +109,12 @@ export const check = defineCommand({
         engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined, loaded.config.ignore),
         useCache: args.cache,
         useBaseline: args.baseline,
+        sources,
+        // From process start, not from the top of `streamCheck`. This process exists to run one check,
+        // so node boot, the module graph and `loadCliConfig` are part of what the user waited for —
+        // roughly 73 ms of a 157 ms run here, which is why the reported figure used to be about half
+        // the one a stopwatch gives. See `CheckOptions.startedAt`.
+        startedAt: 0,
         signal: controller.signal,
       })) {
         reporter.onEvent(event)

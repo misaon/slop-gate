@@ -1,12 +1,11 @@
-import { execFile } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import {
   absolutePrefixes,
   EngineError,
   hashJson,
   runEngineTool,
+  toolVersion,
   type Engine,
   type EngineAvailability,
   type EngineConfigHandle,
@@ -16,7 +15,6 @@ import {
   type RunContext,
 } from '@misaon/slop-gate-core'
 import { parseActionlintOutput, readActionlintErrors } from './parse.ts'
-import { ACTIONLINT_VERSION } from './release.ts'
 import { ACTIONLINT_PATH_ENV, resolveActionlintBinary, type ActionlintResolution } from './resolve-binary.ts'
 
 export {
@@ -46,8 +44,6 @@ export {
   type ActionlintResolution,
   type ActionlintSource,
 } from './resolve-binary.ts'
-
-const run = promisify(execFile)
 
 /** 0 = clean, 1 = findings. 2 (bad option) and 3 (fatal) are real failures. Read off `command.go` in 1.7.12. */
 const MAX_FINDINGS_EXIT_CODE = 1
@@ -126,13 +122,14 @@ export function createActionlintEngine(options: { binaryPath?: string } = {}): E
       return { available: false, reason: unavailableReason(), install: 'sgate engines install actionlint' }
     },
 
-    async version() {
+    async version(cache) {
       // The *resolved* binary's version, not `ACTIONLINT_VERSION`: a `PATH` actionlint is frequently
       // newer than the pin, and since this string is part of every cache key, reporting the pin would
       // serve results from one binary after the machine started running another.
-      const invocation = required()
-      const { stdout } = await run(invocation.command, ['--version'], { encoding: 'utf8' })
-      return stdout.split('\n')[0]?.trim() ?? ACTIONLINT_VERSION
+      //
+      // No strip regex: actionlint prints the bare number, and `toolVersion` already takes the first
+      // line only — which actionlint needs, since two lines of build banner follow it.
+      return toolVersion({ command: required().command, prefixArgs: [] }, undefined, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {

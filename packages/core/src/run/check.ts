@@ -6,6 +6,8 @@ import type { BaselineSummary } from '../baseline/types.ts'
 import { deriveProjectResultKey, deriveResultKey, hashJson, type ProjectResultKeyInput, type ResultKeyInput } from '../cache/keys.ts'
 import { openProjectResultStore, openResultStore, type ProjectResultStore } from '../cache/result-store.ts'
 import { openStatIndex, type StatIndex } from '../cache/stat-index.ts'
+import { openToolVersionCache } from '../cache/tool-versions.ts'
+import { mapWithLimit, PROBE_CONCURRENCY } from '../concurrency.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { GeneratedPolicy, SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Severity } from '../diagnostics/types.ts'
@@ -18,8 +20,9 @@ import { engineAdjustmentsFor } from '../frameworks/adjustments.ts'
 import { compareStrings } from '../ordering.ts'
 import { buildPlan, type EngineAssignment } from '../planner/plan.ts'
 import type { ElectionResult } from '../registry/elect.ts'
-import { ruleRefKey, type RuleEntry } from '../registry/types.ts'
+import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
 import { resolveRun, type UnavailableEngine } from './resolve-run.ts'
+import { createTiming, NO_TIMING, writeTimingReport, type Timing } from './timing.ts'
 
 export type CheckOptions = {
   rootDir: string
@@ -41,12 +44,49 @@ export type CheckOptions = {
   baselineFile?: string
   batchSize?: number
   /**
+   * The run's source text, shared with the caller. Every file any engine had to look at ends up here,
+   * so a second engine over the same file reads it free — and passing a map in makes that text
+   * available to whoever is *rendering* the run as well.
+   *
+   * The reason it is an in/out parameter rather than a field on `CheckResult` is that the consumer is a
+   * reporter, and `pretty` draws its code frames from the event stream as diagnostics arrive, long
+   * before there is a result to read a map off. Without this the CLI hands the reporters a second,
+   * unmemoised `readFileSync`, and `pretty` re-reads a file once per code frame — four times per file
+   * on a corpus where four concepts fire in each of two thousand files, while core held the same text
+   * the whole time.
+   *
+   * A caller that reads *and writes* it (the CLI does: a cache hit means core never read the file, so
+   * the reporter's own read is the only one) keeps this the single copy of the run's source text rather
+   * than adding a second cache beside it. Omitted, `streamCheck` allocates its own and nothing outside
+   * the run can see it.
+   */
+  sources?: Map<string, string>
+  /**
+   * A `performance.now()` reading for when the run began, reported back as `stats.durationMs`.
+   *
+   * `0` means "from process start" — `performance.now()` is measured from `performance.timeOrigin`,
+   * which Node sets before it bootstraps — and is what a one-shot process should pass, because
+   * everything this function cannot see happened before it was called: node boot, the module graph,
+   * config loading. Defaults to the top of `streamCheck`, which is right for a long-lived host, where
+   * process start is when the *server* booted and has nothing to do with this run.
+   */
+  startedAt?: number
+  /**
    * Asks every engine for fix data (spec §11 step 1), capped at this tier. Absent on a plain
    * `sgate check`, which is what keeps an adapter that has to *derive* fixes by re-running itself
    * (see `@misaon/slop-gate-engine-oxlint`) from doing that work on the common path.
    */
   fixTier?: FixTier
   signal?: AbortSignal
+}
+
+/** One engine's share of the cache, reported alongside the strict per-file aggregate it can contradict. */
+export type EngineCacheStats = {
+  engine: EngineId
+  /** Files this engine's assignments claimed. Its own denominator, never `filesAnalysed`. */
+  filesAssigned: number
+  /** How many of them it did not have to examine. */
+  filesFromCache: number
 }
 
 export type CheckResult = {
@@ -83,7 +123,41 @@ export type CheckResult = {
      * `filesAnalysed` by construction, which is what a reporter printing "N analysed, M cached" needs.
      */
     filesFromCache: number
+    /**
+     * The same question asked per engine, because `filesFromCache` above answers it at a granularity
+     * that can badly misrepresent the run — and does, routinely, on any repository with a
+     * whole-program engine in the plan.
+     *
+     * A project-granularity engine (spec §8.1: `tsc`, `knip`) has one cache entry whose key hashes
+     * every input file's hash, so *any* edit anywhere misses it for the whole repository. Because
+     * `filesFromCache` requires every assignment for a file to hit, one such miss drags the aggregate
+     * to near zero while the per-file engines were served almost everything: a one-file change on this
+     * repository reported `353 analysed · 3 cached` with 351 of 353 files hitting for both oxlint and
+     * ast-grep. The number is not wrong — no file was untouched by every engine — but read aloud it
+     * says the cache did nothing, when it did almost all of it.
+     *
+     * So this is what a reporter needs to say something true, and it is deliberately *additional*
+     * rather than a replacement: `filesFromCache` keeps its strict all-or-nothing meaning, which is
+     * the only one that can be compared against `filesAnalysed`.
+     *
+     * One record per engine the plan gave work to, in `compareStrings` order so two runs over the same
+     * repository produce the same document. `filesAssigned` sums across assignments where a plan holds
+     * more than one for an engine, and an engine that failed reports `filesFromCache: 0` — nothing it
+     * was asked about was answered from cache, which is exactly what happened.
+     */
+    cacheByEngine: readonly EngineCacheStats[]
     enginesRun: number
+    /**
+     * Wall-clock milliseconds from `CheckOptions.startedAt` to the `done` event.
+     *
+     * **What it covers is the caller's choice, and getting it wrong is silent.** Left to its default it
+     * spans this function and nothing else, which on a one-shot CLI process under-reports the run by
+     * about 46%: node boot (~11 ms), the module graph (~40 ms) and `loadCliConfig` (~22 ms) all happen
+     * before `streamCheck` is entered, so a 170.6 ms run reported 112 ms — and a user who times it with
+     * a stopwatch and sees 190 ms has been given a reason to distrust every other number in the report.
+     * A caller that owns its process passes `startedAt: 0` and gets the whole of it; a long-lived host
+     * (the MCP server) must not, since `performance.now()` there measures server uptime.
+     */
     durationMs: number
   }
   ruleset: {
@@ -119,7 +193,13 @@ export async function runCheck(options: CheckOptions): Promise<CheckResult> {
 }
 
 export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEvent> {
-  const startedAt = performance.now()
+  // Two clocks, because they answer different questions and conflating them is what made `durationMs`
+  // wrong. `enteredAt` is this function's own span, which is all the `SGATE_TIMING` phase report can
+  // legitimately be a percentage of; `startedAt` is what the *caller* considers the run's start, and is
+  // what the user is told (see `CheckOptions.startedAt`).
+  const enteredAt = performance.now()
+  const startedAt = options.startedAt ?? enteredAt
+  const timing = process.env['SGATE_TIMING'] === '1' ? createTiming() : NO_TIMING
   const signal = options.signal ?? new AbortController().signal
   const cacheDir = options.cacheDir ?? join(options.rootDir, '.slop-gate', 'cache')
   const useCache = options.useCache ?? true
@@ -137,7 +217,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // invoked yet. Shared verbatim with `sgate rules`'s governance commands via `resolveRun`; see
   // that module's own doc comment for why this is the extraction boundary rather than the full
   // prepare/plan/schedule split M2 needs.
-  const { resolver, election, inventory, entries, frameworks, unavailableEngines } = await resolveRun({
+  const { resolver, election, inventory, entries, frameworks, unavailableEngines } = await timing.phase('resolve-run', () => resolveRun({
     rootDir: options.rootDir,
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),
@@ -145,7 +225,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     ...(options.entries === undefined ? {} : { entries: options.entries }),
     ...(options.fileSource === undefined ? {} : { fileSource: options.fileSource }),
     signal,
-  })
+  }))
 
   // Hashes the full entries, not just their ids: normalization bakes `concepts`, `classify`,
   // `severityDefault` and `docsUrl` into every cached diagnostic, so an upgrade that changes any of
@@ -182,13 +262,17 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   })
   const generatedPolicy = options.config.generated ?? 'skip'
   const statIndex = await openStatIndex(cacheDir)
+  // Bypassed entirely when `useCache` is false, by handing the engines no cache below: `--no-cache`
+  // means "believe nothing on disk", and a version served from disk is still a version served from
+  // disk even though nothing else this run will use it for.
+  const toolVersionCache = useCache ? await openToolVersionCache(cacheDir) : undefined
   const resultStore = openResultStore(cacheDir)
   // Project-granularity engines (spec §8.1: `tsc`, `knip`) cache one whole-program result per
   // engine against an aggregate input hash, never per file — a different shape from `resultStore`
   // above, not a special case of it. See `runProjectAssignment` below.
   const projectResultStore = openProjectResultStore(cacheDir)
   const engineById = new Map(options.engines.map((engine) => [engine.id, engine]))
-  const sources = new Map<string, string>()
+  const sources = options.sources ?? new Map<string, string>()
 
   const readSource = async (file: string): Promise<string> => {
     const cached = sources.get(file)
@@ -248,7 +332,9 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // `sgate check` on this repository printed `337 analysed · 1246 cached` — and left `pretty.ts`'s
   // "(all cached)" branch unreachable on any repository where one file reaches two engines.
   const assignmentsByFile = new Map<string, number>()
+  const assignedByEngine = new Map<EngineId, number>()
   for (const assignment of plan) {
+    assignedByEngine.set(assignment.engineId, (assignedByEngine.get(assignment.engineId) ?? 0) + assignment.files.length)
     for (const file of assignment.files) assignmentsByFile.set(file.path, (assignmentsByFile.get(file.path) ?? 0) + 1)
   }
   const filesAnalysed = assignmentsByFile.size
@@ -257,17 +343,27 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // engine that still had to examine it means something looked at the file this run, and an engine that
   // *failed* records no hit at all — so a run that fell over cannot report its files as cached, which
   // counting misses instead of hits would have allowed.
+  //
+  // Tallied per engine at the same time, from the same call, so the two counts cannot disagree about
+  // what a hit was — see `stats.cacheByEngine` for why the per-engine view has to exist at all.
   const cacheHitsByFile = new Map<string, number>()
-  const recordCacheHit = (path: string): void => {
+  const cacheHitsByEngine = new Map<EngineId, number>()
+  const recordCacheHit = (engineId: EngineId, path: string): void => {
     cacheHitsByFile.set(path, (cacheHitsByFile.get(path) ?? 0) + 1)
+    cacheHitsByEngine.set(engineId, (cacheHitsByEngine.get(engineId) ?? 0) + 1)
   }
 
   // `version()` is a cache-key component and nothing else, so nothing in the run depends on when it
   // resolves — yet four of the engines implement it as a `<tool> --version` subprocess spawn, and
-  // resolving one per assignment at the top of the loop below put all four *sequentially* in front of
-  // the first cache lookup: 66-105 ms of a 240-250 ms warm run, spent before a single file could be
-  // served from cache. Hoisted here and resolved concurrently instead, once per distinct engine (a
-  // plan can hold more than one assignment for the same engine).
+  // resolving one per assignment at the top of the loop below put all six *sequentially* in front of
+  // the first cache lookup. Hoisted here and resolved concurrently instead, once per distinct engine
+  // (a plan can hold more than one assignment for the same engine).
+  //
+  // Measured, on this repository, and narrower than the figures this comment first claimed: the
+  // serial sum of all six calls is 65.0 ms, and concurrency removes only the serialisation, so the
+  // saving is 32.2 ms of a 227.9 ms warm run — not the "66-105 ms of a 240-250 ms" first written here.
+  // `toolVersionCache` is what removes the rest: on any run whose binaries are the ones a previous run
+  // already asked, no probe is spawned at all.
   //
   // **Settled here, thrown in the loop.** An engine that cannot report its own version is that
   // engine's failure and has to stay one — the `catch` below turns it into an `engine-failed` event
@@ -281,7 +377,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       const engine = engineById.get(engineId)
       if (engine === undefined) return
       try {
-        planned.set(engineId, { engine, version: await engine.version() })
+        planned.set(engineId, { engine, version: await timing.phase(`version:${engineId}`, () => engine.version(toolVersionCache)) })
       } catch (error) {
         planned.set(engineId, { engine, error })
       }
@@ -309,7 +405,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           adjustments: engineAdjustmentsFor(engine.id, frameworks),
           ...(options.fixTier === undefined ? {} : { fixTier: options.fixTier }),
         }
-        const handle = await engine.materializeConfig(assignment.selection, runContext)
+        const handle = await timing.phase(`materialize:${engine.id}`, () => engine.materializeConfig(assignment.selection, runContext))
         enginesRun += 1
 
         // The one branch project-granularity forces (see `runProjectAssignment`'s own doc comment
@@ -342,6 +438,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
                 signal,
               },
               projectStats,
+              timing,
             )) {
               if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
               collected.push(diagnostic)
@@ -350,7 +447,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             // All-or-nothing, matching the cache entry itself: either every assigned file was
             // covered by one aggregate hit, or none were (a miss re-checks the whole program, not a
             // subset of it).
-            if (projectStats.cacheHit) for (const file of assignment.files) recordCacheHit(file.path)
+            if (projectStats.cacheHit) for (const file of assignment.files) recordCacheHit(engine.id, file.path)
           } finally {
             await handle.dispose()
           }
@@ -362,11 +459,19 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           // assigned file — 307 for oxlint on this repository and 307 again for ast-grep, so 614
           // round trips across the two file-granularity assignments — and awaiting them a file at a
           // time made the whole cache lookup serial for no reason: no probe depends on any other.
-          // `runProjectAssignment` below already hashes its files with `Promise.all` at the same
-          // breadth, which is the precedent for the concurrency being safe here (`statIndex.hashOf`
-          // touches one distinct path per call, and a warm one does no I/O at all).
-          const probes = await Promise.all(
-            assignment.files.map(async (file) => {
+          //
+          // **Bounded, not a bare `Promise.all` over `assignment.files`.** That fanned out over every
+          // assigned file at once, which on the 2,003-file corpus meant 2,003 half-finished probes
+          // holding 2,003 parsed diagnostics arrays live at one instant — peak RSS scaling with the
+          // repository, for throughput the fan-out cannot deliver: `readFile` runs on libuv's
+          // four-wide threadpool, so the extra 1,971 requests only queue. Capping at
+          // `PROBE_CONCURRENCY` keeps the parallelism's whole win (195 ms on that corpus) and takes
+          // peak RSS from 208.3 MB to 158.9 MB; at 8,003 files, from 449.2 MB to 305.3 MB and 41 ms
+          // faster. The sweep those come from is on `PROBE_CONCURRENCY` itself.
+          const probes = await timing.phase(`probe:${engine.id}`, () => mapWithLimit(
+            assignment.files,
+            PROBE_CONCURRENCY,
+            async (file) => {
               const components = {
                 engineId: engine.id,
                 engineVersion: version,
@@ -377,8 +482,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               }
               const key = deriveResultKey(components)
               return { file, components, key, hit: useCache ? await resultStore.get(key) : null }
-            }),
-          )
+            },
+          ))
 
           const pending: InventoryFile[] = []
           const keys = new Map<string, string>()
@@ -397,7 +502,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               pending.push(file)
               continue
             }
-            recordCacheHit(file.path)
+            recordCacheHit(engine.id, file.path)
             for (const diagnostic of hit) {
               if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
               collected.push(diagnostic)
@@ -409,14 +514,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           for (let index = 0; index < pending.length; index += batchSize) {
             const batch = pending.slice(index, index + batchSize)
             const raws: RawDiagnostic[] = []
-            for await (const raw of engine.run(
-              { files: batch },
-              handle,
-              runContext,
-              signal,
-            )) {
-              raws.push(raw)
-            }
+            await timing.phase(`run:${engine.id}`, async () => {
+              for await (const raw of engine.run({ files: batch }, handle, runContext, signal)) {
+                raws.push(raw)
+              }
+            })
 
             const byFile = new Map<string, RawDiagnostic[]>(batch.map((file) => [file.path, []]))
             for (const raw of raws) byFile.get(raw.file)?.push(raw)
@@ -430,8 +532,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               // source has to be read and scanned for directives regardless of whether it produced
               // any raw findings this run — `suppressionScanFiles` below is what makes
               // `normalizeDiagnostics` do that even with an empty `raws`.
-              const source = await readSource(path)
-              const normalized = normalizeDiagnostics({
+              const source = await timing.phase(`read-source:${engine.id}`, () => Promise.resolve(readSource(path)))
+              const normalized = timing.wrap(`normalize:${engine.id}`, () => normalizeDiagnostics({
                 engine: engine.id,
                 raws: fileRaws,
                 entries,
@@ -448,7 +550,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
                 levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
                 suppressionScanFiles: [path],
                 generated: generatedPolicy,
-              })
+              }))
 
               // `normalized` — the *complete* per-file array, suppressed findings included — is what
               // gets cached: `config.unused-suppression` is computed once, right here, from
@@ -456,7 +558,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               // same array rather than silently losing it (see `NormalizeInput.suppressionScanFiles`
               // and this file's own module doc comment). Only `collected`/the stream below decide
               // what the user actually sees.
-              if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
+              if (useCache) await timing.phase(`cache-write:${engine.id}`, () => resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!))
               for (const diagnostic of normalized) {
                 if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
                 collected.push(diagnostic)
@@ -465,7 +567,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             }
           }
         } finally {
-          await handle.dispose()
+          await timing.phase(`dispose:${engine.id}`, () => handle.dispose())
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -474,10 +576,14 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       }
     }
   } finally {
-    await statIndex.persist()
+    await timing.phase('stat-index-persist', () => statIndex.persist())
+    // Deferred to one write rather than written through on each miss: a cold run misses on every
+    // engine at once, and six concurrent atomic writes to one file would leave whichever landed last,
+    // silently discarding the other five so the next run probed them all over again.
+    if (toolVersionCache !== undefined) await timing.phase('tool-versions-persist', () => toolVersionCache.persist())
   }
 
-  collected.sort(
+  timing.wrap('sort-diagnostics', () => collected.sort(
     // A `null` file (an orchestrator-level diagnostic with nothing to attribute) sorts before any
     // real path — `''` is less than every non-empty string — surfacing configuration-level notices
     // ahead of per-file findings rather than placing them arbitrarily among the files by chance.
@@ -485,7 +591,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       compareStrings(a.file ?? '', b.file ?? '') ||
       a.range.start - b.range.start ||
       compareStrings(a.concept, b.concept),
-  )
+  ))
 
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 }
   for (const diagnostic of collected) counts[diagnostic.severity] += 1
@@ -494,6 +600,12 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   for (const [path, assignments] of assignmentsByFile) {
     if (cacheHitsByFile.get(path) === assignments) filesFromCache += 1
   }
+
+  const cacheByEngine: EngineCacheStats[] = [...assignedByEngine]
+    .map(([engine, filesAssigned]) => ({ engine, filesAssigned, filesFromCache: cacheHitsByEngine.get(engine) ?? 0 }))
+    .sort((a, b) => compareStrings(a.engine, b.engine))
+
+  writeTimingReport(timing, performance.now() - enteredAt)
 
   yield {
     type: 'done',
@@ -507,6 +619,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
         filesScanned: inventory.files.length,
         filesAnalysed,
         filesFromCache,
+        cacheByEngine,
         enginesRun,
         durationMs: Math.round(performance.now() - startedAt),
       },
@@ -596,10 +709,18 @@ async function* runProjectAssignment(
   version: string,
   ctx: ProjectAssignmentContext,
   stats: { cacheHit: boolean },
+  timing: Timing = NO_TIMING,
 ): AsyncGenerator<Diagnostic> {
-  const files = await Promise.all(
-    assignment.files.map(async (file) => ({ path: file.path, hash: await ctx.statIndex.hashOf(ctx.rootDir, file) })),
-  )
+  // Bounded for the reason the file-granularity probe loop is (see its own comment): on a cold run
+  // `hashOf` reads every assigned file, and a project engine's assignment is the whole program.
+  // `mapWithLimit` preserves input order, which this needs more sharply than that loop does — the
+  // hashes go straight into `deriveProjectResultKey`, so completion order would make the key differ
+  // between two runs over identical inputs and no run would ever hit.
+  const files = await timing.phase(`hash-files:${engine.id}`, () => mapWithLimit(
+    assignment.files,
+    PROBE_CONCURRENCY,
+    async (file) => ({ path: file.path, hash: await ctx.statIndex.hashOf(ctx.rootDir, file) }),
+  ))
   const components: ProjectResultKeyInput = {
     engineId: engine.id,
     engineVersion: version,
@@ -609,7 +730,7 @@ async function* runProjectAssignment(
   }
   const key = deriveProjectResultKey(components)
 
-  const cached = ctx.useCache ? await ctx.projectResultStore.get(engine.id, key) : null
+  const cached = ctx.useCache ? await timing.phase(`probe:${engine.id}`, () => ctx.projectResultStore.get(engine.id, key)) : null
   if (cached !== null) {
     stats.cacheHit = true
     yield* cached
@@ -618,14 +739,11 @@ async function* runProjectAssignment(
   stats.cacheHit = false
 
   const raws: RawDiagnostic[] = []
-  for await (const raw of engine.run(
-    { files: assignment.files },
-    handle,
-    ctx.runContext,
-    ctx.signal,
-  )) {
-    raws.push(raw)
-  }
+  await timing.phase(`run:${engine.id}`, async () => {
+    for await (const raw of engine.run({ files: assignment.files }, handle, ctx.runContext, ctx.signal)) {
+      raws.push(raw)
+    }
+  })
 
   // Pre-seeded with every assigned file (so a clean one is still scanned for suppressions), then
   // widened to any other file the engine actually reported against — see the module doc comment.
@@ -637,6 +755,7 @@ async function* runProjectAssignment(
   }
 
   const normalized: Diagnostic[] = []
+  await timing.phase(`normalize:${engine.id}`, async () => {
   for (const [path, fileRaws] of byFile) {
     const source = await ctx.readSource(path)
     normalized.push(
@@ -652,8 +771,9 @@ async function* runProjectAssignment(
       }),
     )
   }
+  })
 
-  if (ctx.useCache) await ctx.projectResultStore.set(engine.id, key, normalized, components)
+  if (ctx.useCache) await timing.phase(`cache-write:${engine.id}`, () => ctx.projectResultStore.set(engine.id, key, normalized, components))
   yield* normalized
 }
 

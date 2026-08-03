@@ -139,8 +139,8 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       }
     },
 
-    async version() {
-      return toolVersion(required(), /^Version\s+/i)
+    async version(cache) {
+      return toolVersion(required(), /^Version\s+/i, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection) {

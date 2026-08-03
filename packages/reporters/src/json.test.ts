@@ -8,7 +8,7 @@ const result: CheckResult = {
   engineFailures: [],
   unavailableEngines: [],
   baseline: null,
-  stats: { filesScanned: 1, filesAnalysed: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 },
+  stats: { filesScanned: 1, filesAnalysed: 1, filesFromCache: 0, cacheByEngine: [], enginesRun: 1, durationMs: 1 },
   ruleset: { enabledConcepts: 2, overlaps: 0, uncovered: [], unknownKeys: [] },
 }
 

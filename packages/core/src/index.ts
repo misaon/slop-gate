@@ -44,6 +44,7 @@ export { validateCatalogue } from './concepts/validate.ts'
 export { LANGUAGES, SCRIPT_LANGUAGES, type LanguageId } from './languages.ts'
 export { compareStrings } from './ordering.ts'
 export { isOneOf } from './guards.ts'
+export { mapWithLimit, PROBE_CONCURRENCY } from './concurrency.ts'
 export {
   ENGINE_PREFERENCE,
   parseRuleRefKey,
@@ -184,7 +185,8 @@ export {
   type ProjectResultKeyInput,
   type ResultKeyInput,
 } from './cache/keys.ts'
-export { openStatIndex, type StatIndex } from './cache/stat-index.ts'
+export { openStatIndex, RACY_WINDOW_MS, type StatIndex } from './cache/stat-index.ts'
+export { openToolVersionCache, type ToolVersionCache } from './cache/tool-versions.ts'
 export { openProjectResultStore, openResultStore, type ProjectResultStore, type ResultStore } from './cache/result-store.ts'
 
 export type {
@@ -208,7 +210,14 @@ export { parseSuppressions, type SuppressionDirective, type SuppressionKind } fr
 export { applySuppressions, type ApplySuppressionsResult } from './suppressions/apply.ts'
 
 export { buildPlan, type EngineAssignment, type PlanInput } from './planner/plan.ts'
-export { runCheck, streamCheck, type CheckEvent, type CheckOptions, type CheckResult } from './run/check.ts'
+export {
+  runCheck,
+  streamCheck,
+  type CheckEvent,
+  type CheckOptions,
+  type CheckResult,
+  type EngineCacheStats,
+} from './run/check.ts'
 
 // --- `sgate fix` (spec §11) ----------------------------------------------------------------------
 export {

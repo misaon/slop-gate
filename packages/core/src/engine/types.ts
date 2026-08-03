@@ -1,3 +1,4 @@
+import type { ToolVersionCache } from '../cache/tool-versions.ts'
 import type { ByteRange, Edit } from '../diagnostics/types.ts'
 import type { FixTier } from '../fix/types.ts'
 import type { InventoryFile } from '../discovery/types.ts'
@@ -180,7 +181,17 @@ export interface Engine {
    * does not include actionlint" from "actionlint is not installed here".
    */
   availability?(): Promise<EngineAvailability>
-  version(): Promise<string>
+  /**
+   * A cache-key component and nothing else: no reporter prints it and nothing in a run branches on
+   * it. It exists so that upgrading a tool invalidates the results the previous one produced, which
+   * is why it must report the *resolved* binary's version rather than any pinned constant.
+   *
+   * `cache` is optional because most implementations need nothing to answer — knip and `schema` read
+   * a bundled `package.json`, `deps-security` reports its snapshot date. An implementation that
+   * spawns `<tool> --version` must pass it through to `toolVersion`, which is where the spawn is
+   * elided; called with no cache it always spawns, which is what every direct test call gets.
+   */
+  version(cache?: ToolVersionCache): Promise<string>
   materializeConfig(selection: EngineRuleSelection, context: RunContext): Promise<EngineConfigHandle>
   run(
     batch: FileBatch,

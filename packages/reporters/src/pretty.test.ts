@@ -28,7 +28,7 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   engineFailures: [],
   unavailableEngines: [],
   baseline: null,
-  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
+  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, cacheByEngine: [], enginesRun: 1, durationMs: 42 },
   ruleset: { enabledConcepts: 5, overlaps: 1, uncovered: [], unknownKeys: [] },
   ...over,
 })
@@ -147,7 +147,7 @@ test('folds analysed and cached into one clause once every analysed file came fr
   // "127 analysed · 127 cached" reads like a coincidence rather than the whole story — "(all
   // cached)" says the same thing without repeating the number.
   const output = capture([
-    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 127, enginesRun: 1, durationMs: 83 } }) },
+    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 127, cacheByEngine: [], enginesRun: 1, durationMs: 83 } }) },
   ])
 
   expect(output).toContain('179 scanned')
@@ -160,7 +160,7 @@ test('does not claim anything was cached when nothing was analysed', () => {
   // analysed necessarily means 0 cached too, but saying so is redundant, not just crisp: "0
   // analysed" alone does not imply a cache failure the way "0 analysed · 0 cached" reads.
   const output = capture([
-    { type: 'done', result: result({ stats: { filesScanned: 5, filesAnalysed: 0, filesFromCache: 0, enginesRun: 0, durationMs: 3 } }) },
+    { type: 'done', result: result({ stats: { filesScanned: 5, filesAnalysed: 0, filesFromCache: 0, cacheByEngine: [], enginesRun: 0, durationMs: 3 } }) },
   ])
 
   expect(output).toContain('5 scanned')
@@ -170,13 +170,131 @@ test('does not claim anything was cached when nothing was analysed', () => {
 
 test('shows the analysed/cached split when they differ', () => {
   const output = capture([
-    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 90, enginesRun: 1, durationMs: 83 } }) },
+    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 90, cacheByEngine: [], enginesRun: 1, durationMs: 83 } }) },
   ])
 
   expect(output).toContain('179 scanned')
   expect(output).toContain('127 analysed')
   expect(output).toContain('90 cached')
   expect(output).not.toContain('analysed (all cached)')
+})
+
+test('names each engine when the aggregate cache count understates the run', () => {
+  // The reason `stats.cacheByEngine` exists: `filesFromCache` needs *every* engine that claimed a file
+  // to have hit, so one whole-program engine invalidating on any edit reports 3 out of 353 while the
+  // per-file engines were served 351 each. "3 cached" is not wrong, and on its own it is read as "the
+  // cache did nothing".
+  const output = capture([
+    {
+      type: 'done',
+      result: result({
+        stats: {
+          filesScanned: 373,
+          filesAnalysed: 353,
+          filesFromCache: 3,
+          cacheByEngine: [
+            { engine: 'astgrep', filesAssigned: 351, filesFromCache: 351 },
+            { engine: 'knip', filesAssigned: 12, filesFromCache: 0 },
+            { engine: 'oxlint', filesAssigned: 351, filesFromCache: 351 },
+            { engine: 'tsc', filesAssigned: 353, filesFromCache: 0 },
+          ],
+          enginesRun: 4,
+          durationMs: 1489,
+        },
+      }),
+    },
+  ])
+
+  expect(output).toContain('353 analysed')
+  expect(output).toContain('3 cached')
+  expect(output).toContain('cache ')
+  expect(output).toContain('oxlint 351/351')
+  expect(output).toContain('astgrep 351/351')
+  expect(output).toContain('tsc 0/353')
+  expect(output).toContain('knip 0/12')
+})
+
+test('keeps the per-engine breakdown off a run where it would add nothing', () => {
+  // Two cases, and the same predicate covers both: a cold run has every engine at zero, so no engine
+  // exceeds the aggregate; a fully warm one has nothing left to explain. Printing a breakdown either
+  // time would be footer noise on the two most common runs there are.
+  const cold = capture([
+    {
+      type: 'done',
+      result: result({
+        stats: {
+          filesScanned: 373,
+          filesAnalysed: 353,
+          filesFromCache: 0,
+          cacheByEngine: [
+            { engine: 'oxlint', filesAssigned: 351, filesFromCache: 0 },
+            { engine: 'tsc', filesAssigned: 353, filesFromCache: 0 },
+          ],
+          enginesRun: 2,
+          durationMs: 5750,
+        },
+      }),
+    },
+  ])
+  expect(cold).not.toContain('oxlint 0/351')
+
+  const warm = capture([
+    {
+      type: 'done',
+      result: result({
+        stats: {
+          filesScanned: 373,
+          filesAnalysed: 353,
+          filesFromCache: 353,
+          cacheByEngine: [
+            { engine: 'oxlint', filesAssigned: 351, filesFromCache: 351 },
+            { engine: 'tsc', filesAssigned: 353, filesFromCache: 353 },
+          ],
+          enginesRun: 2,
+          durationMs: 157,
+        },
+      }),
+    },
+  ])
+  expect(warm).toContain('353 analysed (all cached)')
+  expect(warm).not.toContain('oxlint 351/351')
+})
+
+test('wraps the per-engine breakdown rather than letting the frame truncate an engine off it', () => {
+  // The engines worth naming are the ones with the fewest hits, and they sort last — so truncating to
+  // the frame width would drop precisely the ones the block exists for.
+  const output = capture(
+    [
+      {
+        type: 'done',
+        result: result({
+          stats: {
+            filesScanned: 400,
+            filesAnalysed: 380,
+            filesFromCache: 1,
+            cacheByEngine: [
+              { engine: 'actionlint', filesAssigned: 14, filesFromCache: 14 },
+              { engine: 'astgrep', filesAssigned: 351, filesFromCache: 351 },
+              { engine: 'biome-css', filesAssigned: 9, filesFromCache: 9 },
+              { engine: 'knip', filesAssigned: 12, filesFromCache: 0 },
+              { engine: 'oxlint', filesAssigned: 351, filesFromCache: 350 },
+              { engine: 'schema', filesAssigned: 2, filesFromCache: 2 },
+              { engine: 'tsc', filesAssigned: 353, filesFromCache: 0 },
+            ],
+            enginesRun: 7,
+            durationMs: 1489,
+          },
+        }),
+      },
+    ],
+    { width: 60 },
+  )
+
+  expect(output).toContain('tsc 0/353')
+  expect(output).toContain('knip 0/12')
+  // Every framed line stays exactly one frame wide, breakdown lines included.
+  const framed = output.split('\n').filter((line) => line.includes('│') || line.includes('|'))
+  expect(new Set(framed.map((line) => line.length)).size).toBe(1)
 })
 
 test('pluralises the severity nouns a developer reads on every run', () => {

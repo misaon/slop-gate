@@ -137,11 +137,17 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
   const { rootDir, loaded } = ready
 
   const maxTokens = args.maxTokens ?? DEFAULT_MAX_TOKENS
+  // Shared with the reporter below for the reason `sgate check` shares it (see `CheckOptions.sources`):
+  // core already read every file it had to analyse, so the code frames should not read them a second
+  // time. `agent` memoises `readSource` itself, so unlike `pretty` this was never a per-frame re-read —
+  // it is the duplicate *copy* of the text that this removes.
+  const sources = new Map<string, string>()
   const result = await runCheck({
     rootDir,
     config: loaded.config,
     ...configFileOf(loaded),
     engines: enginesFor(rootDir, loaded),
+    sources,
     ...(context.signal === undefined ? {} : { signal: context.signal }),
   })
 
@@ -159,8 +165,12 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
     maxTokens,
     readSource: (file) => {
       if (file === null) return null
+      const held = sources.get(file)
+      if (held !== undefined) return held
       try {
-        return readFileSync(join(rootDir, file), 'utf8')
+        const content = readFileSync(join(rootDir, file), 'utf8')
+        sources.set(file, content)
+        return content
       } catch {
         return null
       }

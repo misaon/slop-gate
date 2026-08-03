@@ -199,7 +199,7 @@ const report = (maxTokens?: number): string => {
     engineFailures: [],
     unavailableEngines: [],
     baseline: null,
-    stats: { filesScanned: 232, filesAnalysed: 199, filesFromCache: 0, enginesRun: 1, durationMs: 155 },
+    stats: { filesScanned: 232, filesAnalysed: 199, filesFromCache: 0, cacheByEngine: [], enginesRun: 1, durationMs: 155 },
     ruleset: { enabledConcepts: 284, overlaps: 0, uncovered: [], unknownKeys: [] },
   }
   const reporter = createReporter('agent', {

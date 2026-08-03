@@ -53,8 +53,8 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
       fixes: true,
     },
 
-    async version() {
-      return toolVersion(required(), /^version:\s*/i)
+    async version(cache) {
+      return toolVersion(required(), /^version:\s*/i, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {

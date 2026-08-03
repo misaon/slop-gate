@@ -66,8 +66,8 @@ export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engi
       fixes: false,
     },
 
-    async version() {
-      return toolVersion(required(), /^ast-grep\s+/i)
+    async version(cache) {
+      return toolVersion(required(), /^ast-grep\s+/i, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {

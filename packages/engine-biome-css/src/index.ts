@@ -87,8 +87,8 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
       fixes: false,
     },
 
-    async version() {
-      return toolVersion(required(), /^version:\s*/i)
+    async version(cache) {
+      return toolVersion(required(), /^version:\s*/i, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {

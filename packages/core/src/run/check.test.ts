@@ -858,6 +858,68 @@ test('a file one engine still had to look at is not counted as served from cache
   expect(warm.stats.filesFromCache).toBe(0)
 })
 
+test('hands a spawning engine a version cache, and withholds it under --no-cache', async () => {
+  // `version()` is a cache-key component and nothing else, so an engine that answers it by spawning
+  // `<tool> --version` was paying for a subprocess on every run, warm or cold — measured at ~36 ms of a
+  // 111.6 ms internal warm run on this repository across four such engines. The cache is what elides
+  // that, and it can only do so if `streamCheck` actually passes it. `--no-cache` must not: it means
+  // believe nothing on disk, and a version read from disk is still read from disk.
+  const seen: Array<unknown> = []
+  const probing = (): Engine => ({
+    ...stubEngine({}),
+    version: async (cache) => {
+      seen.push(cache)
+      return '1.75.0'
+    },
+  })
+
+  await runCheck({ ...baseOptions(), engines: [probing()] })
+  expect(seen).toHaveLength(1)
+  expect(seen[0]).toBeDefined()
+
+  await runCheck({ ...baseOptions(), engines: [probing()], useCache: false })
+  expect(seen[1]).toBeUndefined()
+})
+
+test('reports each engine its own cache coverage, so the strict aggregate cannot be read as the whole story', async () => {
+  // The presentation defect `stats.cacheByEngine` exists for, reproduced at the smallest size that can
+  // hold it: oxlint hits, ast-grep's ruleset moved so it re-examines the file, and `filesFromCache`
+  // therefore reports 0 out of 1 — true, and read aloud it says the cache did nothing for a run where
+  // it served half the work. Per engine the answer is 1/1 and 0/1, which is what a reporter needs.
+  await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
+
+  await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'before' })]))
+  const warm = await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'after' })]))
+
+  expect(warm.stats.filesFromCache).toBe(0)
+  expect(warm.stats.cacheByEngine).toEqual([
+    { engine: 'astgrep', filesAssigned: 1, filesFromCache: 0 },
+    { engine: 'oxlint', filesAssigned: 1, filesFromCache: 1 },
+  ])
+})
+
+test('an engine that failed reports no cache coverage of its own', async () => {
+  // A failure records no hit, matching `filesFromCache`'s own rule that a run which fell over cannot
+  // report its files as cached. Counting misses instead of hits would have let a crashed engine's files
+  // look served.
+  await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
+  const broken = (): Engine => ({
+    ...stubEngine({ id: 'astgrep' }),
+    async materializeConfig() {
+      throw new Error('nope')
+    },
+  })
+
+  await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), broken()]))
+  const warm = await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), broken()]))
+
+  expect(warm.engineFailures).toHaveLength(1)
+  expect(warm.stats.cacheByEngine).toEqual([
+    { engine: 'astgrep', filesAssigned: 1, filesFromCache: 0 },
+    { engine: 'oxlint', filesAssigned: 1, filesFromCache: 1 },
+  ])
+})
+
 test('an engine whose version cannot be resolved fails alone, and the rest of the plan still runs', async () => {
   // `version()` is resolved for every planned engine before the plan loop, and concurrently, because
   // it is only ever a cache-key component — nothing in the run depends on when it lands. That hoist

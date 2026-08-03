@@ -99,7 +99,31 @@ export function hasWideOrFullwidthCharacter(text: string): boolean {
   return false
 }
 
+/**
+ * True when every code unit is printable ASCII (U+0020..U+007E), for which display width is exactly
+ * `length`: each is its own grapheme cluster, none is a combining mark, none is wide, and none is
+ * the ESC that `ANSI_ESCAPE_PATTERN` strips.
+ *
+ * The bound is deliberately printable ASCII rather than "< 0x80": `\r\n` is *one* grapheme cluster
+ * (UAX #29 keeps CRLF together) and so measures 1 through the general path but 2 through `length`,
+ * so admitting control characters here would change an existing answer rather than reach it faster.
+ *
+ * Worth the branch because the general path is the hottest function in a real run. `--cpu-prof` over
+ * a warm run on a 8,003-file / 1.0M-line corpus with 32,000 findings: `displayWidth` was 534 ms of
+ * self time in a 2,021 ms profile — 26.4%, ahead of every I/O frame — because `Intl.Segmenter` plus
+ * a `\p{M}` regex test *per cluster* ran over strings that are pure ASCII in almost every real case
+ * (source lines, repo-relative paths, English rule messages).
+ */
+function isPrintableAscii(text: string): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    if (code < 0x20 || code > 0x7e) return false
+  }
+  return true
+}
+
 export function displayWidth(text: string): number {
+  if (isPrintableAscii(text)) return text.length
   const visible = text.replace(ANSI_ESCAPE_PATTERN, '')
   let width = 0
   for (const { segment } of graphemeSegmenter.segment(visible)) width += clusterWidth(segment)

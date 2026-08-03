@@ -1,4 +1,4 @@
-import type { CheckEvent, CheckResult, Diagnostic, Position, Severity } from '@misaon/slop-gate-core'
+import { compareStrings, type CheckEvent, type CheckResult, type Diagnostic, type Position, type Severity } from '@misaon/slop-gate-core'
 import { displayWidth, padEndDisplay, padStartDisplay, truncateStart } from './display-width.ts'
 import { createFrameKit, plural } from './box.ts'
 import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_NOUN, SEVERITY_ORDER, SEVERITY_STYLE } from './severity.ts'
@@ -111,8 +111,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
   }
 
   function renderFrame(source: string, position: Position, severity: Severity): [string, string] {
-    const lines = source.split('\n')
-    const lineText = (lines[position.startLine - 1] ?? '').replace(/\r$/, '')
+    const lineText = lineAt(source, position.startLine).replace(/\r$/, '')
     const gutter = String(position.startLine)
     const endColumn = position.endLine === position.startLine ? position.endColumn : lineText.length + 1
     const underlineWidth = Math.max(1, endColumn - position.startColumn)
@@ -124,6 +123,32 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
       `${marginPrefix}${' '.repeat(displayWidth(gutter))} ${codeFrameBar}  ${underlineIndent}` +
       paint(SEVERITY_STYLE[severity], codeFrameUnderline.repeat(underlineWidth))
     return [codeLine, underline]
+  }
+
+  /**
+   * Lays `cells` out across as many footer lines as they need, under a `cache` label, joined by the
+   * same separator the stats line above uses.
+   *
+   * Packed rather than joined and left to `frameRow`, which truncates to the frame's inner width: the
+   * engines this block exists to name are the ones with the fewest hits, they sort last, and truncation
+   * would drop exactly them. The budget subtracts the caller's own two-space indent as well as the
+   * label, so a cell can never land in the border column at `MIN_FRAME_WIDTH`.
+   */
+  const packCacheCells = (cells: readonly string[]): string[] => {
+    const label = 'cache  '
+    const continuation = ' '.repeat(displayWidth(label))
+    const budget = Math.max(1, width - 4 - displayWidth(label))
+    const packed: string[] = []
+    let current = ''
+    for (const cell of cells) {
+      const candidate = current === '' ? cell : `${current}${statsSeparator}${cell}`
+      if (current !== '' && displayWidth(candidate) > budget) {
+        packed.push(current)
+        current = cell
+      } else current = candidate
+    }
+    if (current !== '') packed.push(current)
+    return packed.map((line, index) => `${index === 0 ? label : continuation}${line}`)
   }
 
   const writeSummary = (result: CheckResult): void => {
@@ -187,7 +212,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     // names that gap honestly. When every analysed file came from the cache (including the
     // vacuous case of zero analysed files), folding the two into one clause says so without
     // repeating the same number twice.
-    const { filesScanned, filesAnalysed, filesFromCache, durationMs } = result.stats
+    const { filesScanned, filesAnalysed, filesFromCache, cacheByEngine, durationMs } = result.stats
     const analysedPart =
       filesAnalysed === 0
         ? `${filesAnalysed} analysed`
@@ -195,6 +220,19 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
           ? `${filesAnalysed} analysed (all cached)`
           : `${filesAnalysed} analysed${statsSeparator}${filesFromCache} cached`
     lines.push(`  ${paint('dim', `${filesScanned} scanned${statsSeparator}${analysedPart}${statsSeparator}${durationMs} ms`)}`)
+
+    // `filesFromCache` above requires every engine that claimed a file to have hit, so a single
+    // whole-program engine invalidating on any edit takes it to near zero while the per-file engines
+    // were served nearly everything — `353 analysed · 3 cached`, with 351 of 353 hitting for two of the
+    // four engines. Shown exactly when that is happening, and never otherwise: the condition is that
+    // some engine's own coverage *exceeds* the aggregate, which is false on a cold run (every engine at
+    // zero) and false on a fully warm one (nothing to add), so the quiet cases stay quiet.
+    if (cacheByEngine.some((engine) => engine.filesFromCache > filesFromCache)) {
+      const ranked = [...cacheByEngine].sort((a, b) => b.filesFromCache - a.filesFromCache || compareStrings(a.engine, b.engine))
+      for (const line of packCacheCells(ranked.map((engine) => `${engine.engine} ${engine.filesFromCache}/${engine.filesAssigned}`))) {
+        lines.push(`  ${paint('dim', line)}`)
+      }
+    }
 
     // A footer this size is only worth it once there is enough noise to triage: three lines of
     // "most frequent" concepts help on a two-hundred-finding run and are just clutter on three.
@@ -259,4 +297,32 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
       }
     },
   }
+}
+
+/**
+ * The one line a code frame shows, without materialising the other n-1.
+ *
+ * `source.split('\n')` here allocated an array of every line in the file to read one element of it,
+ * once per frame rather than once per file — frames are deduped per (file, concept), so a repository
+ * where four concepts fire in each of two thousand files split eight thousand times.
+ *
+ * Justified on allocation, not on a demonstrated time win: hyperfine over a 2,003-file / 252k-line
+ * corpus with 8,000 findings put `--format=pretty` at 619.6 ms ± 22.2 before and 608.7 ms ± 12.7
+ * after, which is inside the noise. What that same corpus *does* show clearly is the reader behind
+ * this: the CLI used to hand `context.readSource` in unmemoised, so it re-read a file per frame.
+ *
+ * That is now fixed upstream rather than here, which is where it belonged: the CLI shares one map with
+ * `streamCheck` (see `CheckOptions.sources`), so a file is read once per run whether an engine or a
+ * code frame asked for it first. Re-measured on the same corpus with the cap of the sibling change in
+ * place, it is worth 73.7 ms — 417.6 ms ± 2.5 to 343.9 ms ± 5.9.
+ */
+function lineAt(source: string, line: number): string {
+  let start = 0
+  for (let seen = 1; seen < line; seen += 1) {
+    const next = source.indexOf('\n', start)
+    if (next === -1) return ''
+    start = next + 1
+  }
+  const end = source.indexOf('\n', start)
+  return end === -1 ? source.slice(start) : source.slice(start, end)
 }

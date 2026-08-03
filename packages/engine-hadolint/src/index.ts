@@ -1,12 +1,11 @@
-import { execFile } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import {
   absolutePrefixes,
   EngineError,
   hashJson,
   runEngineTool,
+  toolVersion,
   type Engine,
   type EngineAvailability,
   type EngineConfigHandle,
@@ -16,7 +15,6 @@ import {
   type RunContext,
 } from '@misaon/slop-gate-core'
 import { parseHadolintOutput, readHadolintFindings, stripPrefixes } from './parse.ts'
-import { HADOLINT_VERSION } from './release.ts'
 import { HADOLINT_PATH_ENV, resolveHadolintBinary, type HadolintResolution } from './resolve-binary.ts'
 
 export {
@@ -45,8 +43,6 @@ export {
   type HadolintResolution,
   type HadolintSource,
 } from './resolve-binary.ts'
-
-const run = promisify(execFile)
 
 /** 0 = clean, 1 = findings. Anything above is a real failure (bad option, unreadable file). */
 const MAX_FINDINGS_EXIT_CODE = 1
@@ -111,13 +107,15 @@ export function createHadolintEngine(options: { binaryPath?: string } = {}): Eng
       return { available: false, reason: unavailableReason(), install: 'sgate engines install hadolint' }
     },
 
-    async version() {
+    async version(cache) {
       // The *resolved* binary's version, not `HADOLINT_VERSION`: a `PATH` hadolint is frequently a
       // different release from the pin, and since this string is part of every cache key, reporting
       // the pin would serve one binary's results after the machine started running another.
-      const invocation = required()
-      const { stdout } = await run(invocation.command, ['--version'], { encoding: 'utf8' })
-      return stdout.trim().split('\n')[0]?.trim() ?? HADOLINT_VERSION
+      //
+      // No strip regex: hadolint prints `Haskell Dockerfile Linter <version>`, and the label is kept
+      // rather than stripped because this string is a cache-key component, not a display value —
+      // narrowing it now would invalidate every cached result for no gain.
+      return toolVersion({ command: required().command, prefixArgs: [] }, undefined, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
