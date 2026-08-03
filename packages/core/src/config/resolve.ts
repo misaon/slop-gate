@@ -177,6 +177,13 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   // explicit `'some.concept': 'off'`. Overrides are different — they apply to a subset of files, so
   // a rule any override enables must still be configured on the engine for the whole run, and
   // `forFile` narrows it back down during normalization.
+  //
+  // Path-scoped *framework* layers are maxed in on the same terms, with one consequence worth stating
+  // because it is not visible from here: they sit below the user's `rules`, so a scoped addition to a
+  // concept the user turned off globally still lands in `anyEnabledConcepts` — every file then resolves
+  // to `off` through `forFile` and nothing reports, but the engine is configured for a rule that cannot
+  // produce anything. Harmless, and no shipped profile does it; a future one that did would be paying
+  // for a rule it cannot use rather than beating the person who disabled it.
   const maxLevels = new Map<string, RuleLevel>()
   const ignoredOverrideOptions: Array<{ source: string; key: string }> = []
   for (const [key, resolution] of base.rules) maxLevels.set(key, resolution.level)
