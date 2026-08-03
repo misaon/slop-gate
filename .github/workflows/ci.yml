@@ -26,3 +26,10 @@ jobs:
         if: always()
       - run: pnpm test
         if: always()
+      # `pnpm dogfood`, not an inlined `sgate check`, so this step and the script a contributor runs
+      # locally cannot drift apart: there is only one definition of the invocation, in package.json.
+      # The script's own `pnpm build` is a turbo cache hit here, the `pnpm build` step above having
+      # already produced every `dist` — the dogfood runs the built CLI on purpose, because that is the
+      # artefact a user installs and the one thing `pnpm test`'s source alias cannot cover.
+      - run: pnpm dogfood
+        if: always()

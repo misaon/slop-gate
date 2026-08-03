@@ -12,7 +12,8 @@
     "typecheck": "turbo run typecheck",
     "generate:registry": "turbo run build --filter=@misaon/slop-gate-engine-oxlint && pnpm --filter @misaon/slop-gate-core generate:registry",
     "generate:registry:check": "turbo run build --filter=@misaon/slop-gate-engine-oxlint && pnpm --filter @misaon/slop-gate-core generate:registry:check",
-    "check": "pnpm typecheck && pnpm test"
+    "dogfood": "pnpm build --output-logs=errors-only && sgate check --max-warnings 0",
+    "check": "pnpm typecheck && pnpm test && pnpm dogfood"
   },
   "devDependencies": {
     "@misaon/slop-gate": "workspace:*",
