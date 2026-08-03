@@ -17,7 +17,9 @@ import type { ClassifyRule } from './types.ts'
  *   `no-eval` as `security.eval-usage` — keeps that name instead of reverting to the raw rule id.
  * - `severityDefault`: the mechanical default (`correctness` category → `error`, everything else →
  *   `warn`) is right for all but one seeded case (`no-unused-vars`, judged a hygiene issue rather
- *   than a certain bug despite being oxlint's `correctness` category).
+ *   than a certain bug despite being oxlint's `correctness` category). This field also outranks
+ *   `registry/upstream-severity.ts`'s cap, which is how a rule stays stricter than its own authors:
+ *   state the measurement here, or the cap applies.
  */
 export type RuleOverride = {
   readonly concepts?: readonly ConceptId[]

@@ -549,7 +549,7 @@ test('detects Next.js from a `next` dependency beside a `next.config.*`, and nam
 })
 
 /**
- * The whole point of the profile: every `nextjs` concept is already `error` repository-wide, and the
+ * The whole point of the profile: every `nextjs` concept is already enabled repository-wide, and the
  * only thing left to say about it is *where*. So the adjustments are subtractions, all path-scoped,
  * and they name the workspaces that cannot follow the advice rather than the app that can.
  */
@@ -574,9 +574,12 @@ test('the scoped subtraction reaches the sibling package and leaves the applicat
   })
   const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element' as never)?.level
 
+  // `warn`, not `error`, and that is Vercel's own level for this rule — see
+  // `registry/upstream-severity.ts`. What this test is about is the *scope*: the sibling package is
+  // `off` and the application keeps whatever `recommended` set.
   expect(level('packages/ui/src/Logo.tsx')).toBe('off')
-  expect(level('apps/web/app/page.tsx')).toBe('error')
-  expect(resolver.base.rules.get('correctness.no-img-element' as never)?.level).toBe('error')
+  expect(level('apps/web/app/page.tsx')).toBe('warn')
+  expect(resolver.base.rules.get('correctness.no-img-element' as never)?.level).toBe('warn')
 })
 
 /**
