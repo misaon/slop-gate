@@ -1,11 +1,6 @@
-# LF in the repository on every platform.
-#
-# Windows CI runners default to core.autocrlf=true, which rewrites checked-out
-# files to CRLF. The registry generator writes LF and byte-compares its output
-# against what is committed, so without this the freshness check fails on
-# Windows and only on Windows — which is exactly how it was found.
-#
-# Making that comparison line-ending-insensitive would have hidden real drift,
-# so the repository enforces the invariant instead of the check tolerating its
-# absence. Golden reporter output and code-frame fixtures depend on it too.
-* text=auto eol=lf
+# Two source files reached `main` with a stray NUL byte where a space belonged (a `Map` key separator
+# in a template literal), which makes git classify them as binary and print "Binary files differ"
+# instead of a reviewable diff. `diff` forces the textual comparison regardless of byte values; the
+# two occurrences this branch touched are also fixed at the source.
+*.ts diff
+*.tsx diff

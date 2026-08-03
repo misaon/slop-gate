@@ -76,6 +76,13 @@ type FrameworkReason = {
   reason: string
   /** `off` for a subtraction, otherwise the level this profile asked for. */
   setting: RuleLevel
+  /**
+   * The globs this profile confined its level to, when it named any. Rendered rather than folded into
+   * the provenance table alone, because "off, because nextjs" and "off under `packages/ui/**`,
+   * because nextjs" are different answers, and a reader looking at a finding *outside* those globs
+   * needs to see at a glance that the profile is not the reason they still have it.
+   */
+  paths?: readonly string[]
   /** The count that earned an addition (`FrameworkMeasurement`). Absent for a subtraction. */
   measured?: FrameworkMeasurement
   evidence: readonly FrameworkEvidence[]
@@ -109,6 +116,7 @@ export function explainConcept(concept: string, resolved: ResolvedRun): ConceptW
             summary: application.summary,
             reason: adjustment.reason,
             setting: adjustment.kind === 'disable-concept' ? ('off' as const) : adjustment.level,
+            ...(adjustment.paths === undefined ? {} : { paths: adjustment.paths }),
             ...(adjustment.kind === 'enable-concept' ? { measured: adjustment.measured } : {}),
             evidence: application.evidence,
           },

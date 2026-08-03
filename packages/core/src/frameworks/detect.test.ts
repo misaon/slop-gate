@@ -1,9 +1,10 @@
 import { expect, test } from 'vitest'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
-import { engineAdjustmentsFor, frameworkRuleLayers } from './adjustments.ts'
+import { createRuleSetResolver } from '../config/resolve.ts'
+import { engineAdjustmentsFor, frameworkOverrideLayers, frameworkRuleLayers } from './adjustments.ts'
 import { detectFrameworks } from './detect.ts'
-import { dualFiringConcepts } from './profiles.ts'
+import { dualFiringConcepts, scopeConcepts } from './profiles.ts'
 import type { FrameworkDetection } from './types.ts'
 
 const inventoryFile = (path: string, workspace = ''): InventoryFile => ({
@@ -518,4 +519,120 @@ test('detection reads no manifest the inventory did not list', async () => {
     },
   })
   expect(read).toEqual(['package.json'])
+})
+
+// --- nextjs -----------------------------------------------------------------------------------
+
+const NEXT_MONOREPO = {
+  'package.json': manifest({ turbo: '^2.0.0' }, 'devDependencies'),
+  'apps/web/package.json': manifest({ next: '^16.0.0' }),
+  'apps/web/next.config.ts': 'export default {}',
+  'apps/web/app/page.tsx': 'export default function Page() { return null }',
+  'packages/ui/package.json': manifest({ react: '^19.0.0' }),
+  'packages/ui/src/Logo.tsx': 'export const Logo = () => null',
+}
+
+const NEXT_WORKSPACES = {
+  'apps/web/package.json': 'apps/web',
+  'apps/web/next.config.ts': 'apps/web',
+  'apps/web/app/page.tsx': 'apps/web',
+  'packages/ui/package.json': 'packages/ui',
+  'packages/ui/src/Logo.tsx': 'packages/ui',
+}
+
+test('detects Next.js from a `next` dependency beside a `next.config.*`, and names both', async () => {
+  const nextjs = applied(await detect(NEXT_MONOREPO, NEXT_WORKSPACES), 'nextjs')
+  expect(nextjs?.evidence).toEqual([
+    { kind: 'manifest-dependency', file: 'apps/web/package.json', workspace: 'apps/web', name: 'next', field: 'dependencies' },
+    { kind: 'path-present', file: 'apps/web/next.config.ts' },
+  ])
+})
+
+/**
+ * The whole point of the profile: every `nextjs` concept is already `error` repository-wide, and the
+ * only thing left to say about it is *where*. So the adjustments are subtractions, all path-scoped,
+ * and they name the workspaces that cannot follow the advice rather than the app that can.
+ */
+test('scopes every nextjs concept off in the workspaces that declare no `next`', async () => {
+  const nextjs = applied(await detect(NEXT_MONOREPO, NEXT_WORKSPACES), 'nextjs')
+  const scoped = scopeConcepts('nextjs')
+
+  expect(scoped).toContain('correctness.no-img-element')
+  expect(nextjs?.adjustments).toHaveLength(scoped.length)
+  expect(nextjs?.adjustments.map((adjustment) => adjustment.kind)).toEqual(scoped.map(() => 'disable-concept'))
+  for (const adjustment of nextjs?.adjustments ?? []) {
+    expect(adjustment).toMatchObject({ paths: ['packages/ui/**'] })
+  }
+})
+
+test('the scoped subtraction reaches the sibling package and leaves the application alone', async () => {
+  const detection = await detect(NEXT_MONOREPO, NEXT_WORKSPACES)
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+  const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element' as never)?.level
+
+  expect(level('packages/ui/src/Logo.tsx')).toBe('off')
+  expect(level('apps/web/app/page.tsx')).toBe('error')
+  expect(resolver.base.rules.get('correctness.no-img-element' as never)?.level).toBe('error')
+})
+
+/**
+ * The common case, and the one where the apparatus has to be invisible: a repository that *is* the
+ * application has no sibling to scope against, so the profile applies, records its evidence, and
+ * contributes nothing.
+ */
+test('a single-app repository gets evidence and no adjustments at all', async () => {
+  const nextjs = applied(
+    await detect({ 'package.json': manifest({ next: '^16.0.0' }), 'next.config.mjs': 'export default {}' }),
+    'nextjs',
+  )
+  expect(nextjs?.evidence).toHaveLength(2)
+  expect(nextjs?.adjustments).toEqual([])
+})
+
+/**
+ * A glob must never reach past a nested workspace that *does* declare `next`, so an ancestor of one
+ * is dropped from the scope rather than carved around it. The cost is that files sitting directly in
+ * the ancestor keep the rules on, which is the direction it is safe to be wrong in.
+ */
+test('an ancestor of a workspace that declares `next` is left out of the scope entirely', async () => {
+  const nextjs = applied(
+    await detect(
+      {
+        'package.json': manifest({ turbo: '^2.0.0' }, 'devDependencies'),
+        'apps/package.json': manifest({ typescript: '^5.0.0' }, 'devDependencies'),
+        'apps/web/package.json': manifest({ next: '^16.0.0' }),
+        'apps/web/next.config.ts': 'export default {}',
+        'packages/ui/package.json': manifest({ react: '^19.0.0' }),
+      },
+      {
+        'apps/package.json': 'apps',
+        'apps/web/package.json': 'apps/web',
+        'apps/web/next.config.ts': 'apps/web',
+        'packages/ui/package.json': 'packages/ui',
+      },
+    ),
+    'nextjs',
+  )
+  expect(nextjs?.adjustments[0]).toMatchObject({ paths: ['packages/ui/**'] })
+})
+
+/**
+ * `next` without a config is a package that *imports from* Next.js, not one that *is* a Next.js
+ * application — a shared UI library using `next/image` is the ordinary case. Guessing would aim the
+ * plugin at whichever answer was convenient; standing down leaves the status quo visible instead.
+ */
+test('a `next` dependency with no config anywhere stands the profile down and says why', async () => {
+  const detection = await detect({ 'package.json': manifest({ next: '^16.0.0' }) })
+  expect(applied(detection, 'nextjs')).toBeUndefined()
+  expect(detection.inapplicable.find((entry) => entry.id === 'nextjs')?.blocked).toContain('next.config.*')
+})
+
+test('does not detect Next.js in a repository that never declares it', async () => {
+  const detection = await detect({ 'package.json': manifest({ react: '^19.0.0' }) })
+  expect(applied(detection, 'nextjs')).toBeUndefined()
+  expect(detection.inapplicable.map((entry) => entry.id)).not.toContain('nextjs')
 })

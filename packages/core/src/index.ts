@@ -109,9 +109,11 @@ export { toPosix } from './paths.ts'
 // --- Framework awareness (spec §23): one detection pass, two consumers ---------------------------
 export {
   engineAdjustmentsFor,
+  frameworkOverrideLayers,
   frameworkRuleLayers,
   settingValues,
   settingValuesFor,
+  type FrameworkOverrideLayer,
   type FrameworkRuleLayer,
 } from './frameworks/adjustments.ts'
 export {

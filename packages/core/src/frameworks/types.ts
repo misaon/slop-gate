@@ -8,6 +8,7 @@ export type FrameworkId =
   | 'mikro-orm'
   | 'nestjs'
   | 'nestjs-express'
+  | 'nextjs'
   | 'react-jsx-transform'
   | 'test-framework'
   | 'vitepress'
@@ -66,15 +67,38 @@ export type FrameworkMeasurement = {
  * - the level is a *floor*, never a ceiling: the cascade drops an addition that would lower what an
  *   earlier layer already set (`materialize`), so this variant cannot subtract by accident.
  */
+/**
+ * Repo-relative POSIX globs the adjustment's level is confined to, matched by the *same* `picomatch`
+ * pass `overrides` already runs (`config/resolve.ts`) — a profile adjustment carrying this becomes
+ * another entry in that list with its own `source`, rather than a second path matcher with its own
+ * rounding errors.
+ *
+ * **Present on the two level-bearing variants and absent from `engine-setting`, which is the
+ * constraint rather than an omission.** A level can be path-scoped because it is re-graded per file
+ * *after* the run: the engine is configured at the strongest level any scope asks for, and
+ * `forFile` narrows each finding against its own file during normalization. An engine setting cannot,
+ * for exactly the reason `RuleSetResolver.optionsOf` gives for rule options: it decides whether a
+ * finding exists at all, and an engine is configured once for the whole run — so honouring a
+ * path-scoped one would mean applying it to every file or to none, and both are wrong. Making it
+ * unspeakable here is cheaper than a runtime refusal nobody reads: `engine-setting` already carries
+ * `workspace`, which is the coarser scoping an engine *can* honour.
+ *
+ * Plain inclusion globs, with no negation semantics. Verified against picomatch 4.0.5: in the array
+ * form a negated pattern does not subtract from its siblings — `['**', '!apps/web/**']` matches
+ * `apps/web/x.tsx` — so a profile that wants "everywhere except here" has to enumerate *here*, which
+ * is what the `nextjs` profile does with the workspace list it already had to read.
+ */
+type PathScope = { readonly paths?: readonly string[] }
+
 export type FrameworkAdjustment =
-  | { readonly kind: 'disable-concept'; readonly concept: ConceptId; readonly reason: string }
-  | {
+  | ({ readonly kind: 'disable-concept'; readonly concept: ConceptId; readonly reason: string } & PathScope)
+  | ({
       readonly kind: 'enable-concept'
       readonly concept: ConceptId
       readonly level: EnabledLevel
       readonly reason: string
       readonly measured: FrameworkMeasurement
-    }
+    } & PathScope)
   | {
       readonly kind: 'engine-setting'
       readonly engine: EngineId

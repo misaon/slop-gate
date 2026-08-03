@@ -1838,8 +1838,8 @@ type FrameworkProfile = {
 }
 
 type FrameworkAdjustment =
-  | { kind: 'disable-concept'; concept: ConceptId; reason: string }
-  | { kind: 'enable-concept'; concept: ConceptId; level: EnabledLevel; reason: string; measured: FrameworkMeasurement }
+  | { kind: 'disable-concept'; concept: ConceptId; reason: string; paths?: readonly string[] }
+  | { kind: 'enable-concept'; concept: ConceptId; level: EnabledLevel; reason: string; measured: FrameworkMeasurement; paths?: readonly string[] }
   | { kind: 'engine-setting'; engine: EngineId; key: string; values: readonly string[]; reason: string }
 ```
 
@@ -1890,7 +1890,7 @@ one migrations glob must therefore not produce a config that silently un-registe
 entry point. The profile says "add this pattern"; `materializeKnipConfig` is what knows it must write
 the defaults alongside it.
 
-The six profiles, and what each is for:
+The seven profiles, and what each is for:
 
 | Profile | Detected by | Parameter | Consequence |
 |---|---|---|---|
@@ -1900,6 +1900,7 @@ The six profiles, and what each is for:
 | `mikro-orm` | `@mikro-orm/core` (`dependency`) | migrations directory, via `literal` on the ORM config then `path` on the inventory | knip `entry += <dir>/*.ts` in the owning workspace |
 | `vitepress` | `vitepress` (`dependency`) + a `.vitepress/` directory (`path`) | the site root that directory sits in | knip `workspaces[ws].vitepress.entry += <root>/.vitepress/config.*` |
 | `test-framework` | `jest` and/or `vitest` (`dependency`) | which of the two are present | disable the **shared** concepts of every scope that is not the unique installed one |
+| `nextjs` | `next` (`dependency`) + a `next.config.*` beside it (`path`) | the app roots, and the workspaces declaring no `next` | disable all 21 `nextjs` concepts **under the non-Next workspaces' globs only** (§23.6) |
 
 `nestjs` and `nestjs-express` are two profiles rather than one because they are two facts. A NestJS
 project on Fastify has the first and not the second, and merging them would make the `express`
@@ -2046,7 +2047,7 @@ ruleset drift, and `--frozen-rules` must fail on it.
 - **Profiles whose *effect* is unmeasured**, with one explicitly narrower warrant that is worth
   stating precisely, because the distinction is easy to collapse and the rule is easy to hollow out.
 
-  The bar is a measured false-positive count against a real repository. Five of the six profiles
+  The bar is a measured false-positive count against a real repository. Six of the seven profiles
   clear it. `angular` does not: no Angular codebase was checked. It ships on **mechanism identity
   with an already-measured framework** — `@NgModule({...}) export class AppModule {}` is not similar
   to the NestJS case that was measured 11/11 false, it is the same construct, empty for the same
@@ -2061,18 +2062,84 @@ ruleset drift, and `--frozen-rules` must fail on it.
   fires 100% falsely on every Angular repository that contains an NgModule. A profile that cannot
   point to either a measurement or an identity this specific does not ship.
 - **Executing any repository code**, including a framework's own config file. See §23.1.
-- **Per-file profiles.** Adjustments are workspace-scoped where the engine supports it, and that is as
-  fine-grained as this gets. §6.2's `overrides` already scope rules by path, declared by a human who
-  knows why.
+- **Per-file profiles.** A *level* may now name globs (§23.6), because a level is re-graded per file
+  after the run. An *engine setting* still may not: it is workspace-scoped where the engine supports
+  it, and that is as fine-grained as it gets, because an engine is configured once.
 - **Framework versions.** No profile branches on NestJS 9 versus 11. No measured case needs it, and
   the version is already in the evidence for whoever finds one that does.
 - **Choosing engines, or writing a user's config for them.** Those are `extends` and `engines`
   respectively, and both are things a user says out loud. Adding *rules* is no longer on this list —
   see `enable-concept` in §23.2 and its bar above.
+- **Borrowing the React rules `eslint-config-next` ships that `recommended` does not.** Vercel's own
+  config is `eslint-plugin-react`'s `recommended` plus `eslint-plugin-react-hooks`'s `recommended` plus
+  `@next/next`'s, minus four rules it explicitly turns *off*. Subtracting what slop-gate already ships
+  leaves five candidates, and **all five were measured and refused** (oxlint 1.76.0, the five
+  repositories named in §23.6):
+
+  | Candidate | Vercel's level | Measured | Refused because |
+  |---|---|---|---|
+  | `react/rules-of-hooks` | `error` | 24 findings, 15 false | all 15 are `await use(fixture)` inside Playwright/Vitest `test.extend` callbacks — `use` is a fixture provider, not React 19's hook |
+  | `react/display-name` | `error` | 43 findings, 43 false | every one is `const X = memo(({…}) => …)`, the exact form React's own `memo` documentation uses |
+  | `react/no-unescaped-entities` | `error` | 429 findings | 183 of one repository's 203 are apostrophes in English prose, which JSX permits and React's docs use |
+  | `react/require-render-return` | `error` | 0 findings | nothing was measured; also `nursery` in oxlint |
+  | `import/no-anonymous-default-export` | `warn` | 21 findings, 21 false | every one is a config file (`tailwind.config.*`, `postcss.config.mjs`, `next.config.ts`) or a k6 script whose own tooling requires the anonymous default |
+
+  The three highest-volume rules *not* in Vercel's config were refused on the same criterion and are
+  worth naming, because volume is what would otherwise have argued for them: `react-perf/*` (four
+  rules, **14,325 findings**) fires on the inline props React's documentation uses throughout;
+  `react/only-export-components` (1,333) fires on the `metadata` and `generateStaticParams` exports the
+  App Router mandates beside a `page.tsx` component; `react/no-unknown-property` (202) and
+  `react/jsx-no-target-blank` (66) are both set to `'off'` by `eslint-config-next` itself.
+
+  **A corpus measures conformance, not correctness.** "Fires a lot on real code" is equally consistent
+  with the real code being wrong and with the rule being wrong, and the only thing that separates them
+  is whether the framework's own documentation endorses what fired.
 - **A `sgate frameworks` command.** Detection surfaces through `rules why`, where the question is
   already being asked. A standalone listing is easy to add later and answers nothing yet.
 
 ---
+
+### 23.6 Path-scoped levels
+
+**A level can be path-scoped; options and engine settings cannot.** This is not a policy choice, it
+falls out of when each one is consumed. A level is re-graded per file *after* the run — the engine is
+configured at the strongest level any scope asks for, and `forFile` narrows each finding against its
+own file during normalization. Options decide whether the engine reports the finding at all, and an
+engine is configured once for the whole run, so a path-scoped option would have to apply everywhere or
+nowhere; §6.2 already says this about a user's own `overrides` (`ignoredOverrideOptions`) and the same
+sentence decides it here. So `paths` exists on `disable-concept` and `enable-concept` and is
+*unspeakable* on `engine-setting` — a type error rather than a runtime refusal nobody reads. An
+engine setting that needs narrowing already carries `workspace`, which is the granularity an engine can
+actually honour.
+
+**One path matcher, not two.** A `paths`-carrying adjustment becomes another entry in the very
+`overrides` list a user's blocks go into, compiled by the same `picomatch` pass, with its own `source`
+label (`framework nextjs (packages/ui/**)`) — so `sgate rules why` prints it as a `path-scoped
+framework` step next to the preset that set the base level.
+
+**It is spliced in at the framework position, not appended after the user's overrides.** A user's
+`overrides` block exists to beat their own base `rules`, so it comes last. A profile that came last
+would beat the user, which is the one thing §23.2's precedence rule forbids. Above the presets, below
+`rules`: identical placement to the unscoped framework layer, and both are held to the floor-never-a-
+ceiling rule, so confining `warn` to a glob cannot lower an `error` a preset already set there.
+
+**Inclusion globs only, with no negation semantics — verified rather than assumed.** The natural way to
+write "everywhere except the application" is `['**', '!apps/web/**']`, and in picomatch 4.0.5's array
+form a negated pattern does not subtract from its siblings: that list matches `apps/web/x.tsx`. A
+profile that wants a complement therefore enumerates it. `nextjs` does exactly that from
+`DetectionContext.manifests`, the list detection already read, and drops any workspace with a nested
+one that *does* declare `next` rather than trying to carve a glob around it — files directly in the
+parent keep the rules on, which is the safe direction to be wrong in.
+
+**Why `nextjs` needed it.** All 21 rules in oxlint's `nextjs` scope are `correctness`, so `recommended`
+already holds every one at `error`; there was nothing for an addition to add, and Vercel's own
+`eslint-config-next` is in fact milder (15 of the 21 at `warn`). What the plugin lacked was a scope.
+Measured with oxlint 1.76.0 across `shadcn-ui/ui`, `dubinc/dub`, `documenso/documenso`, `unkeyed/unkey`
+and `calcom/cal.com`: **389 findings, 67 in workspaces declaring no `next` dependency at all** — 8 of
+them in `calcom/cal.com`'s `packages/emails`, where `<img>` is the only thing an email client renders,
+and 6 in `apps/api/v2`, a NestJS service with no Next.js bundler for `no-assign-module-variable` to
+protect. Every one of the 21 resolves to *import from `next/…` instead*, which a workspace that does
+not declare `next` cannot do without trading the finding for an unlisted-dependency one.
 
 ## 24. References
 

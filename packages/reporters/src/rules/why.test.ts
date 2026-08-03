@@ -454,3 +454,48 @@ test('an absent better owner is one extra line inside the owners block', () => {
   // One header, two owners, one displaced note. Four lines for the whole ownership story.
   expect(block).toHaveLength(4)
 })
+
+/**
+ * The path-scoped case, which has to read differently from the repository-wide one in two places: the
+ * profile line has to say *where*, and the "a profile is a default" note must not fire. That note
+ * compares the profile's level against `maxLevelOf` — the strongest level anywhere in the repository —
+ * and a profile that only ever claimed its own globs was not overruled by a level outside them.
+ */
+test('a path-scoped framework level names its globs and is not reported as overruled', () => {
+  const output = flat(
+    capture(
+      explanation({
+        concept: 'correctness.no-img-element',
+        enablement: {
+          enabled: true,
+          level: 'error',
+          options: [],
+          optionsFrom: undefined,
+          baseProvenance: [{ layer: 'preset', source: 'recommended', setting: 'error' }],
+          overrides: [
+            {
+              layer: 'framework-override',
+              source: 'framework nextjs (packages/emails/**, packages/ui/**)',
+              setting: 'off',
+            },
+          ],
+        },
+        frameworks: [
+          {
+            id: 'nextjs',
+            summary: 'Next.js — scoped to the applications it describes',
+            reason: 'These workspaces declare no `next` dependency.',
+            setting: 'off',
+            paths: ['packages/emails/**', 'packages/ui/**'],
+            evidence: [
+              { kind: 'manifest-dependency', file: 'apps/web/package.json', workspace: 'apps/web', name: 'next', field: 'dependencies' },
+            ],
+          },
+        ],
+      }),
+    ),
+  )
+  expect(output).toContain('path-scoped framework framework nextjs (packages/emails/**, packages/ui/**) -> off')
+  expect(output).toContain('nextjs turns this off under `packages/emails/**`, `packages/ui/**`')
+  expect(output).not.toContain('A profile is a default')
+})

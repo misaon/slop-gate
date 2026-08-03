@@ -4,7 +4,7 @@ import type { SlopGateConfig } from '../config/types.ts'
 import { buildInventory, type FileSource } from '../discovery/inventory.ts'
 import type { FileInventory } from '../discovery/types.ts'
 import type { Engine } from '../engine/types.ts'
-import { frameworkRuleLayers } from '../frameworks/adjustments.ts'
+import { frameworkOverrideLayers, frameworkRuleLayers } from '../frameworks/adjustments.ts'
 import { detectFrameworks } from '../frameworks/detect.ts'
 import type { FrameworkDetection } from '../frameworks/types.ts'
 import { electOwners, type DisplacedOwner, type ElectionResult } from '../registry/elect.ts'
@@ -107,6 +107,7 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),
     frameworks: frameworkRuleLayers(frameworks),
+    frameworkOverrides: frameworkOverrideLayers(frameworks),
   })
 
   // Probed before the election, because availability decides who *can* own a concept (see

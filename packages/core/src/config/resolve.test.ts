@@ -197,7 +197,7 @@ test('reports every override block that mentions a concept, regardless of which 
     },
   })
 
-  expect(resolver.overridesFor('style.no-var')).toEqual([
+  expect(resolver.overridesFor('style.no-var').map(({ source, setting }) => ({ source, setting }))).toEqual([
     { source: 'overrides[0] (**/*.test.ts)', setting: 'off' },
     { source: 'overrides[1] (legacy/**)', setting: 'warn' },
   ])

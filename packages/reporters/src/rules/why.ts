@@ -22,6 +22,7 @@ export const RULES_WHY_JSON_VERSION = 1
 const LAYER_LABEL: Readonly<Record<ProvenanceLayer, string>> = {
   preset: 'preset',
   framework: 'framework',
+  'framework-override': 'path-scoped framework',
   'root-config': 'root config',
   'workspace-config': 'workspace config',
   override: 'override',
@@ -92,10 +93,10 @@ function enablementSummary(enablement: ConceptEnablement): string {
 function provenanceLines(enablement: ConceptEnablement): string[] {
   const lines: string[] = []
   for (const step of enablement.baseProvenance) {
-    lines.push(`      ${LAYER_LABEL[step.layer].padEnd(17)} ${step.source} -> ${settingText(step.setting)}`)
+    lines.push(`      ${LAYER_LABEL[step.layer].padEnd(21)} ${step.source} -> ${settingText(step.setting)}`)
   }
   for (const override of enablement.overrides) {
-    lines.push(`      ${'override'.padEnd(17)} ${override.source} -> ${settingText(override.setting)}`)
+    lines.push(`      ${LAYER_LABEL[override.layer].padEnd(21)} ${override.source} -> ${settingText(override.setting)}`)
   }
   return lines
 }
@@ -224,7 +225,8 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     const lines: string[] = []
     for (const framework of explanation.frameworks) {
       const verb = framework.setting === 'off' ? 'turns this off' : `asks for \`${framework.setting}\``
-      lines.push(`  ${paint('bold', 'Framework')}: ${framework.id} ${verb} — ${framework.summary}`)
+      const where = framework.paths === undefined ? '' : ` under ${framework.paths.map((glob) => `\`${glob}\``).join(', ')}`
+      lines.push(`  ${paint('bold', 'Framework')}: ${framework.id} ${verb}${where} — ${framework.summary}`)
       for (const evidence of framework.evidence) lines.push(`      detected via ${evidenceText(evidence)}`)
       for (const line of wrapText(framework.reason, Math.max(1, width - 6))) lines.push(`      ${line}`)
       // The count is the whole warrant for an addition (spec §23.5), so it is rendered next to the
@@ -239,8 +241,12 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     // clause that decided *this* concept. Printed only when a profile asked for something the
     // cascade did not grant, which is the sole case where the model is not self-evident from the
     // provenance table directly above.
+    // A path-scoped profile is excluded even when its level differs from `enablement.level`: that
+    // level is `maxLevelOf`, the strongest anywhere in the repository, and a profile that asked for
+    // something *only under its globs* got exactly what it asked for there. Calling it overruled
+    // would report a defeat that did not happen — and hide the real one if it ever did.
     const overruled = explanation.frameworks.filter(
-      (framework) => framework.setting !== explanation.enablement.level,
+      (framework) => framework.paths === undefined && framework.setting !== explanation.enablement.level,
     )
     if (overruled.length > 0) {
       const settled = explanation.enablement.baseProvenance.at(-1)

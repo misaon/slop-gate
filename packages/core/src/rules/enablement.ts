@@ -2,7 +2,13 @@ import type { ProvenanceLayer, ProvenanceStep, RuleSetResolver } from '../config
 import type { RuleLevel, RuleOptions, RuleSetting } from '../config/types.ts'
 import { splitRuleSetting } from '../config/types.ts'
 
-export type OverrideMention = { source: string; setting: RuleSetting }
+/**
+ * `layer` because two kinds of block now land in the same list: a user's own `overrides` entry, and a
+ * framework profile's path-scoped adjustment. They are not interchangeable — one beats the base
+ * config and one is beaten by it — so a renderer that could not tell them apart would print the same
+ * word for both and mislead about precedence.
+ */
+export type OverrideMention = { layer: ProvenanceLayer; source: string; setting: RuleSetting }
 
 export type ConceptEnablement = {
   /** `resolver.anyEnabledConcepts.has(concept)` — enabled anywhere in this run, base or override. */
