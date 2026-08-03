@@ -4,15 +4,11 @@ import { defaultEngines } from '../../engine-registry.ts'
 import { EXIT_CODES } from '../../exit-codes.ts'
 
 /**
- * Loads config and resolves the effective ruleset, election outcome and file inventory for a
- * `rules` governance command — `resolveRun`, the same engine-free boundary `streamCheck` (and so
- * `check`) uses internally, given the same default config and the same engine list `check`
- * registers (see `../../engines.ts`). No engine is ever invoked: `rules why` has no business
- * spawning oxlint.
- *
- * Returns `null` after a config error has already been written to stderr and
- * `process.exitCode` already set to `EXIT_CODES.config` — the caller's only job at that point is
- * to return without rendering anything.
+ * Loads config and resolves the effective ruleset, election outcome and file inventory for a `rules` governance
+ * command — `resolveRun`, the same engine-free boundary `streamCheck` (and so `check`) uses internally, given the
+ * same default config and the same engine list `check` registers. No engine is ever invoked: `rules why` has no
+ * business spawning oxlint. Returns `null` after the config error has already been written to stderr and
+ * `process.exitCode` set, so the caller's only job is to return without rendering anything.
  */
 export async function prepareRulesRun(rootDir: string): Promise<ResolvedRun | null> {
   const loaded = await loadCliConfig(rootDir, DEFAULT_CONFIG)

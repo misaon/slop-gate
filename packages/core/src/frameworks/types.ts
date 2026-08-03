@@ -16,10 +16,9 @@ export type FrameworkId =
 export type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
 
 /**
- * Why a framework was considered present, always naming the file it was read from. Detection returns
- * this rather than a boolean because a boolean fixes none of the measured cases (spec §23.1): it
- * cannot tell knip *where* a VitePress site is, and it cannot let `sgate rules why` say more than
- * "off, because reasons".
+ * Why a framework was considered present, always naming the file it was read from. Not a boolean: a
+ * boolean fixes none of the measured cases (spec §23.1) — it cannot tell knip *where* a VitePress site
+ * is, and it cannot let `sgate rules why` say more than "off, because reasons".
  */
 export type FrameworkEvidence =
   | {
@@ -36,14 +35,12 @@ export type FrameworkEvidence =
 export type EnabledLevel = Exclude<RuleLevel, 'off'>
 
 /**
- * The count behind an `enable-concept`, required by the type because a profile that turns a rule
- * *on* is asking to produce findings on code that passed yesterday, and "it seemed right" is not a
- * reason to do that to somebody's build. Spec §23.5's bar for a subtraction is a measured
- * false-positive count; this is the same bar pointed the other way, and `refuseEnable` is where the
- * arithmetic lives.
+ * The count behind an `enable-concept`, required by the type because a profile that turns a rule *on*
+ * is asking to produce findings on code that passed yesterday, and "it seemed right" is not a reason to
+ * do that to somebody's build. Spec §23.5's bar for a subtraction is a measured false-positive count;
+ * this is the same bar pointed the other way, and `refuseEnable` is where the arithmetic lives.
  */
 export type FrameworkMeasurement = {
-  /** Where the count came from, named so a reader can go and disagree with it. */
   readonly repository: string
   /** Findings the concept produced there. Zero measures nothing — see `refuseEnable`. */
   readonly findings: number
@@ -54,39 +51,31 @@ export type FrameworkMeasurement = {
 /**
  * A framework's consequence for one of the two consumers.
  *
- * `disable-concept` and `engine-setting` are **set contributions** — a concept removed, or values
- * added to a named list — and neither can express a conflict (spec §23.3). `enable-concept` can:
- * two profiles may name the same concept at different levels, and a union has no meaning for a
- * scalar. It is admitted anyway, because a profile that can only subtract cannot say the one thing
- * a framework most often has to say, and it is made safe by two properties rather than by a
- * precedence table:
- *
- * - the merge is still a join, just over the level chain rather than the powerset — `off` absorbs,
- *   and otherwise the strictest wins, which is commutative, associative and idempotent exactly as
- *   the union was (`frameworkRuleLayers`);
- * - the level is a *floor*, never a ceiling: the cascade drops an addition that would lower what an
- *   earlier layer already set (`materialize`), so this variant cannot subtract by accident.
+ * `disable-concept` and `engine-setting` are **set contributions** and neither can express a conflict
+ * (spec §23.3). `enable-concept` can — two profiles may name the same concept at different levels, and
+ * a union has no meaning for a scalar — and is admitted anyway, made safe by two properties rather than
+ * by a precedence table: the merge is still a join, over the level chain rather than the powerset (`off`
+ * absorbs, otherwise the strictest wins — commutative, associative and idempotent exactly as the union
+ * was, `frameworkRuleLayers`), and the level is a *floor*, never a ceiling, because the cascade drops an
+ * addition that would lower what an earlier layer already set (`materialize`).
  */
 /**
  * Repo-relative POSIX globs the adjustment's level is confined to, matched by the *same* `picomatch`
- * pass `overrides` already runs (`config/resolve.ts`) — a profile adjustment carrying this becomes
- * another entry in that list with its own `source`, rather than a second path matcher with its own
- * rounding errors.
+ * pass `overrides` already runs (`config/resolve.ts`), as another entry in that list with its own
+ * `source` rather than a second path matcher with its own rounding errors.
  *
- * **Present on the two level-bearing variants and absent from `engine-setting`, which is the
- * constraint rather than an omission.** A level can be path-scoped because it is re-graded per file
- * *after* the run: the engine is configured at the strongest level any scope asks for, and
- * `forFile` narrows each finding against its own file during normalization. An engine setting cannot,
- * for exactly the reason `RuleSetResolver.optionsOf` gives for rule options: it decides whether a
- * finding exists at all, and an engine is configured once for the whole run — so honouring a
- * path-scoped one would mean applying it to every file or to none, and both are wrong. Making it
- * unspeakable here is cheaper than a runtime refusal nobody reads: `engine-setting` already carries
+ * **Present on the two level-bearing variants and absent from `engine-setting`, which is the constraint
+ * rather than an omission.** A level can be path-scoped because it is re-graded per file *after* the
+ * run: the engine is configured at the strongest level any scope asks for, and `forFile` narrows each
+ * finding against its own file during normalization. An engine setting cannot — it decides whether a
+ * finding exists at all and an engine is configured once for the whole run, so honouring a path-scoped
+ * one would mean applying it to every file or to none, and both are wrong. `engine-setting` carries
  * `workspace`, which is the coarser scoping an engine *can* honour.
  *
- * Plain inclusion globs, with no negation semantics. Verified against picomatch 4.0.5: in the array
- * form a negated pattern does not subtract from its siblings — `['**', '!apps/web/**']` matches
- * `apps/web/x.tsx` — so a profile that wants "everywhere except here" has to enumerate *here*, which
- * is what the `nextjs` profile does with the workspace list it already had to read.
+ * Plain inclusion globs, with no negation semantics. Verified against picomatch 4.0.5: in the array form
+ * a negated pattern does not subtract from its siblings — `['**', '!apps/web/**']` matches
+ * `apps/web/x.tsx` — so a profile that wants "everywhere except here" has to enumerate *here*, which is
+ * what the `nextjs` profile does with the workspace list it already had to read.
  */
 type PathScope = { readonly paths?: readonly string[] }
 
@@ -129,14 +118,12 @@ export type DetectionContext = {
   readText(path: string): Promise<string | null>
 }
 
-/** What `detect` hands `consequences`: the parameters, plus the evidence that produced them. */
 type Detected<P> = { readonly evidence: readonly FrameworkEvidence[]; readonly parameters: P }
 
 /**
- * `null` means "this framework is not here", which is recorded nowhere — a repository without NestJS
- * should not carry a note saying so. `blocked` means "it is here, but a parameter could not be
- * resolved", which *is* recorded, because the user sees the status-quo false positive and deserves to
- * be told why the profile that would have fixed it stood down (spec §23.1).
+ * `null` means "this framework is not here", which is recorded nowhere. `blocked` means "it is here, but
+ * a parameter could not be resolved", which *is* recorded: the user sees the status-quo false positive
+ * and deserves to be told why the profile that would have fixed it stood down (spec §23.1).
  */
 type DetectOutcome<P> = Detected<P> | { readonly blocked: string; readonly evidence: readonly FrameworkEvidence[] } | null
 
@@ -157,11 +144,10 @@ export type AnyFrameworkProfile = {
 }
 
 /**
- * An addition this profile asked for and did not get, with the sentence `refuseEnable` refused it
- * with. Recorded rather than dropped for the reason every other near-miss in this codebase is
- * (`ignoredOverrideOptions`, `displaced`, `ineligible`): a profile author whose measurement does not
- * clear the bar has to be told which number was short, and a reader looking at a concept the profile
- * claims to cover has to be able to see that it does not.
+ * An addition this profile asked for and did not get, with the sentence `refuseEnable` refused it with.
+ * Recorded rather than dropped for the reason every other near-miss in this codebase is (`displaced`,
+ * `ineligible`): a profile author whose measurement does not clear the bar has to be told which number
+ * was short.
  */
 export type RejectedAdjustment = {
   readonly concept: ConceptId

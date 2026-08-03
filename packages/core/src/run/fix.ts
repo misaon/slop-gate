@@ -36,7 +36,6 @@ export type FixOptions = {
   tier?: FixTier
   /** Print a diff, write nothing. Skips the worktree rail — there is nothing to protect. */
   dryRun?: boolean
-  /** Proceed even though the git worktree has uncommitted changes. */
   allowDirty?: boolean
   maxPasses?: number
   signal?: AbortSignal
@@ -68,11 +67,7 @@ export type FixResult = {
   /** `config.fix-oscillation` diagnostics, one per file that had to stop (spec §11 step 5). */
   readonly oscillations: readonly Diagnostic[]
   readonly passes: number
-  /**
-   * True when the loop stopped without reaching a fixed point — either `--dry-run` (which can only
-   * ever see one pass, because a second needs the engines to read changed files back off disk) or
-   * `maxPasses` exhausted. A caller must not report the run as complete when this is set.
-   */
+  /** Stopped short of a fixed point — `--dry-run`, or `maxPasses` exhausted. **Not a complete run.** */
   readonly truncated: boolean
   /** What the first pass saw, before anything was applied — the honest "how much of this is fixable". */
   readonly initial: {
@@ -99,26 +94,21 @@ type FileState = {
 }
 
 /**
- * `sgate fix` — spec §11.
+ * `sgate fix` — spec §11. The only command in the repository that writes to a user's source, so the
+ * order is refuse-first: every step that could put wrong bytes on disk has one above it that would
+ * rather do nothing.
  *
- * Everything here is arranged around one fact: this is the only command in the repository that
- * writes to a user's source. So the order is refuse-first, and every step that could put wrong bytes
- * on disk has something above it that would rather do nothing.
+ * **Spec §11 step 6, "formatting runs last, always", is not implemented and must not be assumed** — it
+ * needs a formatter engine owning `formatting.*` (§5.3) and none exists (`oxfmt` is a known engine id
+ * with nothing behind it). So **nothing here stops a fix leaving formatting the repository's own
+ * formatter would undo**: an edit is written exactly as the engine produced it, long lines and wrong
+ * quote style included. Run your formatter afterwards.
  *
- * **What is not implemented, and must not be assumed:** spec §11 step 6, "formatting runs last,
- * always". It rests on a formatter engine owning `formatting.*` (§5.3), and no formatter adapter
- * exists — `oxfmt` is a known engine id with nothing behind it. The consequence is concrete and worth
- * stating where the code is rather than only in the spec: **nothing here guarantees a fix cannot
- * leave formatting the repository's own formatter would undo.** An edit that produces a long line, a
- * different quote style or an import in the wrong position is written exactly as the engine produced
- * it. Run your formatter after `sgate fix` until that step exists.
- *
- * The loop is: check → gather → arbitrate → apply → write → repeat. Passes exist because dropping an
- * overlap loser (step 2) is only safe if it gets another chance, and because a fix can expose a
- * finding that was previously hidden. Convergence is by fixed point, bounded by `maxPasses`, with
- * `createOscillationLedger` catching the specific non-convergence — two rules rewriting each other —
- * that the bound alone would turn into "we stopped after ten passes, the file is in one of two
- * states, good luck".
+ * Passes exist because dropping an overlap loser (step 2) is only safe if it gets another chance, and
+ * because a fix can expose a previously hidden finding. Convergence is by fixed point bounded by
+ * `maxPasses`, with `createOscillationLedger` catching the one non-convergence the bound alone would
+ * leave as "we stopped after ten passes, the file is in one of two states" — two rules rewriting each
+ * other.
  */
 export async function runFix(options: FixOptions): Promise<FixResult> {
   const tier = options.tier ?? 'safe'
@@ -140,8 +130,7 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
   } satisfies FixResult
 
   // Rail 1, before anything is read or run. `--dry-run` is exempt: the rail exists so a user can
-  // `git diff` the tool's edits apart from their own and revert them, and a run that writes nothing
-  // has no edits to separate.
+  // `git diff` the tool's edits apart from their own, and a run that writes nothing has none.
   if (!dryRun && options.allowDirty !== true) {
     const state = await inspectWorktree(options.rootDir, options.worktree ?? {})
     const refusal = refuseFor(state)
@@ -149,13 +138,12 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
   }
 
   // Discovery is run once here, ahead of the loop, purely to build the write allowlist — `runCheck`
-  // does its own each pass and does not hand the inventory back. It is the enforcement point for
-  // spec §11's "files outside the inventory or matched by `ignore` are never touched": the inventory
-  // has already had `.gitignore`, `.slopignore` and config `ignore` applied to it (§7), so
-  // membership in this set *is* the ignore check, rather than a second reimplementation of it that
-  // could disagree. It is genuinely load-bearing rather than belt-and-braces — a project-granularity
-  // engine is explicitly allowed to report against files the inventory never contained (see
-  // `runProjectAssignment`), and a fix attached to one of those must not be applied.
+  // does its own each pass and does not hand the inventory back. The inventory has already had
+  // `.gitignore`, `.slopignore` and config `ignore` applied (§7), so membership in this set *is* spec
+  // §11's "files outside the inventory or matched by `ignore` are never touched", rather than a second
+  // reimplementation that could disagree. **Not belt-and-braces:** a project-granularity engine is
+  // allowed to report against files the inventory never contained (see `runProjectAssignment`), and a
+  // fix attached to one of those must not be applied.
   const { inventory, resolver, entries, frameworks, election } = await resolveRun({
     rootDir: options.rootDir,
     config: options.config,
@@ -167,12 +155,10 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
   })
   const writable = new Set(inventory.files.map((file) => file.path))
   // The same per-engine selection `streamCheck` hands each adapter, rebuilt here because
-  // `withDerivedFixes` runs *outside* `runCheck` and would otherwise re-materialise the engine's
-  // config with the engine's own defaults. That is not a cosmetic difference for an engine that
-  // derives fixes by re-running itself over a whole file: oxlint's `--fix` pass rewrites every
-  // occurrence the rule finds, so a fix run configured with `eqeqeq`'s default `always` would
-  // rewrite the `== null` comparisons the check run deliberately exempted with `smart` — edits for
-  // findings the user was never shown.
+  // `withDerivedFixes` runs *outside* `runCheck` and would otherwise re-materialise the engine's config
+  // with the engine's own defaults. An engine that derives fixes by re-running itself over a whole file
+  // rewrites every occurrence the rule finds, so a fix run on `eqeqeq`'s default `always` would rewrite
+  // the `== null` comparisons the check run exempted with `smart` — edits for findings never shown.
   const selectionByEngine = new Map(
     buildPlan({ engines: options.engines, inventory, election, resolver }).map((assignment) => [
       assignment.engineId,
@@ -180,9 +166,8 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
     ]),
   )
   // Spec §11 step 2's first tiebreak. Read off the registry rather than carried on the diagnostic:
-  // `RuleEntry.priority` is the reviewable, committed declaration of how a rule's fixes rank against
-  // another's, and widening `Diagnostic` to ferry it would put a second copy of that number in the
-  // per-file cache where it could go stale against the registry that produced it.
+  // widening `Diagnostic` to ferry `priority` would put a second copy of that number in the per-file
+  // cache, where it could go stale against the registry that produced it.
   const priorities = new Map(entries.map((entry) => [ruleRefKey(entry), entry.priority]))
 
   const ledger = createOscillationLedger()
@@ -205,17 +190,16 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       engines: options.engines,
       ...(options.entries === undefined ? {} : { entries: options.entries }),
       ...(options.fileSource === undefined ? {} : { fileSource: options.fileSource }),
-      // Never cached. The loop rewrites files between passes, so a cache entry keyed on the previous
-      // content is stale by construction; and a `fix` run has no business leaving entries behind for
-      // intermediate buffer states no `check` will ever see again.
+      // Never cached: the loop rewrites files between passes, so an entry keyed on the previous content
+      // is stale by construction, and no `check` will ever see these intermediate buffers again.
       useCache: false,
       fixTier: tier,
       signal,
     })
 
-    // Rail 2. An engine that failed contributed nothing to this pass's candidate set, which means
-    // arbitration made overlap decisions without seeing edits that might have won them. Fewer fixes
-    // would be tolerable; *differently chosen* fixes are not, so nothing from this pass is written.
+    // Rail 2. An engine that failed contributed nothing to this pass's candidate set, so arbitration
+    // made overlap decisions without seeing edits that might have won them. Fewer fixes would be
+    // tolerable; *differently chosen* fixes are not, so nothing from this pass is written.
     if (check.engineFailures.length > 0) {
       engineFailures = check.engineFailures
       return {
@@ -241,10 +225,9 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       signal,
     })
 
-    // Measured *after* the derivation, not before it: an engine that has to re-run itself to produce
-    // a fix (oxlint) attaches nothing during `runCheck`, so summarising `check.diagnostics` would
-    // report every oxlint-fixable finding as unfixable — and that number is exactly what a user reads
-    // to decide whether `--suggest` or `--unsafe` would help.
+    // Measured *after* the derivation: an engine that re-runs itself to produce a fix (oxlint) attaches
+    // nothing during `runCheck`, so summarising `check.diagnostics` would report every oxlint-fixable
+    // finding as unfixable — the number a user reads to decide whether `--suggest` would help.
     if (pass === 1) initial = summariseFindings(diagnostics)
 
     const byFile = gather(diagnostics, { tier, writable, rootDir: options.rootDir, ledger, priorities, skipped })
@@ -262,10 +245,9 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       const next = applyEdits(state.current, applied)
       const rules = [...new Set(applied.map((edit) => edit.ruleRefKey))].sort(compareStrings)
 
-      // Recorded *before* the write, and the write is skipped when it fires: the buffer being
-      // recorded is one this file has already been in, so putting it on disk is the step that makes
-      // the cycle permanent. The file stays at the previous pass's content — a state the pipeline
-      // did choose — rather than at an arbitrary point in the loop.
+      // Recorded *before* the write, and the write is skipped when it fires: the buffer is one this file
+      // has already been in, so putting it on disk is what makes the cycle permanent. The file stays at
+      // the previous pass's content — a state the pipeline did choose.
       const oscillation = ledger.record(file, next, rules)
       if (oscillation !== null) {
         const diagnostic = oscillationDiagnostic(file, oscillation.rules, oscillation.passes, resolver)
@@ -286,9 +268,9 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
 
     if (!changedThisPass) break
 
-    // A dry run cannot have a second pass: the next `runCheck` would read the *unmodified* files off
-    // disk and re-derive exactly the edits just simulated, forever. Reported via `truncated` rather
-    // than quietly presented as a finished result, because a real run genuinely may go further.
+    // A dry run cannot have a second pass: the next `runCheck` would read the *unmodified* files off disk
+    // and re-derive exactly the edits just simulated, forever. Reported via `truncated` because a real
+    // run genuinely may go further.
     if (dryRun) {
       truncated = true
       break
@@ -332,23 +314,17 @@ type DeriveContext = {
 }
 
 /**
- * Asks every engine implementing `Engine.deriveFixes` for edits covering the diagnostics it owns
- * that arrived without one, and merges the answers back onto those diagnostics.
+ * Asks every engine implementing `Engine.deriveFixes` for edits covering the diagnostics it owns that
+ * arrived without one. Running here rather than inside the engine's own `run()` makes the targets
+ * *earned* — arbitration elected the rule, the resolved level kept it, and `runCheck` already dropped
+ * suppressed findings — so an engine never spawns itself again for work the pipeline would discard.
  *
- * Running here rather than inside the engine's own `run()` is what makes the targets *earned*: a
- * diagnostic only reaches this point if arbitration elected its rule, the resolved level kept it,
- * and it was not suppressed (`runCheck` drops suppressed findings from `diagnostics`). An engine
- * that has to spawn itself again to produce a fix therefore never does so for work the pipeline was
- * going to discard.
- *
- * **A file containing any inline suppression directive is excluded outright**, and that is the one
- * deliberately blunt rule here. A derived fix comes from re-running the engine over a whole file, so
- * it rewrites *every* occurrence the rule finds there — including one the user silenced, which the
- * engine has no way to know about. Judging that per occurrence would mean matching hunks back to
- * individual findings by proximity, a guess that is wrong exactly when it matters. Skipping the file
- * costs a few unfixed findings in the rare file that carries a directive, and never applies a fix
- * somebody explicitly said not to. Engine-*reported* fixes (ast-grep) are unaffected: they ride on
- * an individual diagnostic and disappear with it when it is suppressed.
+ * **A file containing any inline suppression directive is excluded outright**, deliberately bluntly. A
+ * derived fix comes from re-running the engine over a whole file, so it rewrites *every* occurrence the
+ * rule finds there, including one the user silenced and the engine cannot know about. Judging that per
+ * occurrence would mean matching hunks back to individual findings by proximity, a guess that is wrong
+ * exactly when it matters. Engine-*reported* fixes (ast-grep) are unaffected: they ride on an individual
+ * diagnostic and disappear with it when it is suppressed.
  */
 async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveContext): Promise<Diagnostic[]> {
   const providers = ctx.engines.filter((engine) => engine.deriveFixes !== undefined)
@@ -401,10 +377,9 @@ async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveC
     }
   }
 
-  // The whole `(file, rule)` edit set is attached to the *first* diagnostic of that pair, not copied
-  // onto each: `gather` flattens every diagnostic's edits into the same candidate pool, so attaching
-  // them n times would hand arbitration n identical copies of each edit, all conflicting with each
-  // other, and n-1 of them would be dropped as overlaps for no reason.
+  // The whole `(file, rule)` edit set is attached to the *first* diagnostic of that pair, not copied onto
+  // each: `gather` flattens every diagnostic's edits into one candidate pool, so attaching them n times
+  // would hand arbitration n identical copies of each edit, all conflicting, n-1 dropped as overlaps.
   const claimed = new Set<string>()
   return diagnostics.map((diagnostic) => {
     if (diagnostic.fix !== undefined || diagnostic.file === null) return diagnostic
@@ -463,11 +438,9 @@ type GatherContext = {
 /**
  * Spec §11 step 1, plus the two rails that decide whether an edit is even a candidate.
  *
- * `isWithinRoot` is a second check on top of inventory membership rather than a redundant one: the
- * inventory holds repo-relative POSIX paths, and a `..` segment or an absolute path arriving from an
- * engine would fail membership anyway — but it would fail it *by accident*, and the day something
- * normalises paths differently the accident stops holding. Containment is the property that actually
- * matters, so it is asserted directly.
+ * `isWithinRoot` is not redundant against inventory membership: a `..` segment or an absolute path from
+ * an engine would fail membership anyway, but *by accident* — and the day something normalises paths
+ * differently the accident stops holding. Containment is asserted directly instead.
  */
 function gather(diagnostics: readonly Diagnostic[], ctx: GatherContext): Map<string, CandidateEdit[]> {
   const byFile = new Map<string, CandidateEdit[]>()
@@ -533,22 +506,19 @@ async function ensureState(
   const original: Uint8Array = await readFile(join(rootDir, file))
   const state: FileState = { original, current: original, rules: new Set(), edits: 0 }
   states.set(file, state)
-  // Seeded on first edit rather than up front: a file only reaches here because a pass produced an
-  // edit for it, and nothing but this loop rewrites files during a run — so its content now is still
-  // its content at pass 1, which is the state a cycle has to return to in order to be a cycle.
+  // Seeded on first edit rather than up front: nothing but this loop rewrites files during a run, so the
+  // content now is still the content at pass 1 — the state a cycle has to return to in order to be one.
   ledger.seed(file, original)
   return state
 }
 
 /**
- * Builds the `config.fix-oscillation` diagnostic (spec §11 step 5), following the same conventions
- * as `check.ts`'s `configDiagnostics`: `slop-gate/<concept>` rule id, and no diagnostic at all when
- * the concept resolves to no level.
+ * The `config.fix-oscillation` diagnostic (spec §11 step 5), following `check.ts`'s `configDiagnostics`
+ * conventions: `slop-gate/<concept>` rule id, nothing at all when the concept resolves to no level.
  *
- * Returning `null` suppresses the *report*, never the *mechanism* — the caller has already stopped
- * fixing the file by the time it asks. Silencing `config.fix-oscillation` is a statement about
- * output, and letting it also re-enable a loop that provably does not converge would turn a
- * severity preference into a way to corrupt a file.
+ * `null` suppresses the *report*, never the *mechanism* — the caller has already stopped fixing the file
+ * by the time it asks. Letting a severity preference also re-enable a loop that provably does not
+ * converge would turn it into a way to corrupt a file.
  */
 function oscillationDiagnostic(
   file: string,

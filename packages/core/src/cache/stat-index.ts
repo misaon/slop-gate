@@ -7,31 +7,17 @@ import { hashContent } from './keys.ts'
 type StatEntry = { size: number; mtimeMs: number; hash: string }
 
 /**
- * How recently a file may have been written before its `(size, mtimeMs)` pair stops being trusted as
- * proof that the content is unchanged.
+ * How recently a file may have been written before its `(size, mtimeMs)` pair stops being trusted as proof
+ * the content is unchanged. The stat fast path assumes a write always moves `mtimeMs`; it does not, and
+ * when the replacement is the same length too — `const a = 1` to `const a = 2` — the index hands back the
+ * *previous* file's hash, so every downstream lookup is keyed on content no longer on disk: **silently
+ * wrong, in the direction that hides findings.** Git calls such entries "racily clean"; this is its fix.
  *
- * The stat fast path assumes a write always moves `mtimeMs`. It does not: filesystem timestamp
- * granularity is coarse (2s on FAT, and Windows updates last-write-time lazily), so two writes close
- * enough together can leave `mtimeMs` identical. When the replacement content also happens to be the
- * same length — `const a = 1` to `const a = 2`, flipping a boolean, fixing an equal-length typo, the
- * single most ordinary edit there is — `size` matches too, and the index hands back the *previous*
- * file's hash. Every downstream cache lookup is then keyed on content that is no longer on disk, so a
- * run reports the last version's diagnostics for a file the developer just changed: silently wrong,
- * and wrong in the direction that hides findings rather than inventing them.
- *
- * Git has the same exposure in its own index and calls such entries "racily clean"; the fix here is
- * its fix. An entry is trusted only once the file's mtime is comfortably in the past, which a file
- * being actively edited never is, so a just-written file is re-read until it settles. The cost is
- * bounded to files touched within the window — in practice the handful the developer just saved —
- * and it is self-healing: no state has to be invalidated for a file to become cacheable again.
- *
- * 2s is the calibrated value, not a round one. FAT is the binding case at two-second write-time
- * accuracy (NTFS resolves to 100ns), and it truncates to the granule rather than rounding, so a file
- * reporting mtime `T` may have been written as late as `T + 2000` — past which no write can still
- * share that timestamp. Halving this would leave half of FAT's granule exposed.
- *
- * Exported because `ToolVersionCache` needs the same number for the same filesystem reason, on a
- * different kind of file. Shared rather than restated so the two cannot drift apart from one edit.
+ * 2s is calibrated, not round. FAT is the binding case at two-second write-time accuracy (NTFS resolves to
+ * 100ns) and it **truncates to the granule rather than rounding**, so a file reporting mtime `T` may have
+ * been written as late as `T + 2000` — past which no write can share that timestamp. Halving this leaves
+ * half of FAT's granule exposed. Exported because `ToolVersionCache` needs the same number for the same
+ * reason, shared rather than restated so the two cannot drift.
  */
 export const RACY_WINDOW_MS = 2_000
 

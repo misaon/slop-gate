@@ -11,15 +11,12 @@ const INSTALLABLE = ['actionlint', 'advisories', 'hadolint'] as const
  * The only command that downloads anything, and the reason it exists as a command at all.
  *
  * D3 says an exotic engine is "downloaded lazily into a checksum-verified local cache", and
- * `Engine.availability` says the availability probe may touch the filesystem and nothing else. Those
- * cannot both be honoured by a download triggered on first use, because availability is what decides
- * whether a first use ever happens — an engine reported absent is never elected and its `run` is
- * never called. So the download moves here: explicit, verified against the digest upstream published,
- * cached under a version-scoped path, and never on the path of a `sgate check`.
- *
- * The upshot for a user is that `sgate check` never reaches the network, an air-gapped CI image gets
- * a clean coverage gap rather than an engine error mid-run, and `--require-engines` means what it
- * says. The cost is one command to run once, which the coverage gap itself names.
+ * `Engine.availability` says the availability probe may touch the filesystem and nothing else. **A download
+ * triggered on first use cannot honour both, because availability is what decides whether a first use ever
+ * happens** — an engine reported absent is never elected and its `run` is never called. So the download moves
+ * here: explicit, verified against the digest upstream published, cached under a version-scoped path, and never
+ * on the path of a `sgate check`. Which is what lets `sgate check` never reach the network, an air-gapped CI
+ * image get a clean coverage gap rather than an engine error mid-run, and `--require-engines` mean what it says.
  */
 export const engines = defineCommand({
   meta: { name: 'engines', description: 'Manage optional engines that are downloaded rather than bundled' },
@@ -44,8 +41,8 @@ export const engines = defineCommand({
         try {
           process.stdout.write(await runInstall(target))
         } catch (error) {
-          // An install error is a configuration problem, not a findings count — a checksum mismatch in
-          // particular must not be reportable as "the check found something".
+          // An install error is a configuration problem, not a findings count — a checksum mismatch in particular
+          // must not be reportable as "the check found something".
           const known =
             error instanceof ActionlintInstallError ||
             error instanceof AdvisoryInstallError ||
@@ -72,9 +69,9 @@ async function runActionlintInstall(): Promise<string> {
 }
 
 /**
- * hadolint publishes the executable itself rather than an archive, so unlike actionlint's install
- * there is nothing to unpack here — and, for the same reason, Windows x86_64 is supported. The one
- * platform that resolves to nothing is Windows arm64, which upstream does not build.
+ * hadolint publishes the executable itself rather than an archive, so unlike actionlint's install there is
+ * nothing to unpack — and, for the same reason, Windows x86_64 is supported. The one platform that resolves to
+ * nothing is Windows arm64, which upstream does not build.
  */
 async function runHadolintInstall(): Promise<string> {
   const result = await installHadolint()
@@ -84,10 +81,10 @@ async function runHadolintInstall(): Promise<string> {
 }
 
 /**
- * Unconditionally refetched, unlike actionlint's cached-binary short-circuit, and that asymmetry is
- * the point: a pinned binary at a known digest is the same file every time, while this is a snapshot
- * of a database that changed since the last run. "Already installed" is never the useful answer to
- * someone who just asked for the advisory data.
+ * Unconditionally refetched, unlike actionlint's cached-binary short-circuit, and that asymmetry is the point: a
+ * pinned binary at a known digest is the same file every time, while this is a snapshot of a database that
+ * changed since the last run. "Already installed" is never the useful answer to someone who just asked for the
+ * advisory data.
  */
 async function runAdvisoryInstall(): Promise<string> {
   const { directory, manifest, vulnerablePackages, maliciousPackages } = await installAdvisorySnapshot()

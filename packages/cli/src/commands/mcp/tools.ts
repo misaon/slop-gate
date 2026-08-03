@@ -9,13 +9,10 @@ import { checkOutcome, coverageGaps } from './coverage.ts'
 import { resolveToolRoot } from './root.ts'
 
 /**
- * The report is bounded by default, unlike `sgate check --format agent`, which is not.
- *
- * The divergence is the destination. A CLI's stdout goes to a terminal that scrolls; a tool result
- * goes straight into a model's context window, and a first call against an unfamiliar repository
- * should not be able to spend all of it. The bound is safe to apply silently only because the report
- * is not silent about it: the `coverage:` block states the budget, lists the omitted count per
- * concept, and `concepts` below carries every true count regardless.
+ * Bounded by default, unlike `sgate check --format agent`: a tool result goes straight into a model's context
+ * window, and a first call against an unfamiliar repository should not be able to spend all of it. Safe to apply
+ * silently only because the report is not silent about it — the `coverage:` block states the budget and the
+ * omitted count per concept, and `concepts` below carries every true count regardless.
  */
 const DEFAULT_MAX_TOKENS = 25_000
 
@@ -47,12 +44,10 @@ type PreflightResult =
   | { readonly kind: 'failed'; readonly result: ToolResult }
 
 /**
- * Everything the three tools need before they diverge: a root they are allowed to look at, and a
- * configuration that loaded.
- *
- * Both failures are tool execution errors rather than JSON-RPC errors. They are exactly the class
- * the spec reserves `isError` for — something the caller can read, understand and correct — where a
- * protocol error would reach the model as a transport fault it has no way to act on.
+ * Everything the three tools need before they diverge: a root they are allowed to look at, and a configuration
+ * that loaded. Both failures are **tool execution errors rather than JSON-RPC errors** — exactly the class the
+ * spec reserves `isError` for, something the caller can read and correct, where a protocol error would reach
+ * the model as a transport fault it has no way to act on.
  */
 async function preflight(args: { rootDir?: string | undefined }, context: ToolContext): Promise<PreflightResult> {
   const root = resolveToolRoot(context.serverRoot, args.rootDir)
@@ -137,10 +132,8 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
   const { rootDir, loaded } = ready
 
   const maxTokens = args.maxTokens ?? DEFAULT_MAX_TOKENS
-  // Shared with the reporter below for the reason `sgate check` shares it (see `CheckOptions.sources`):
-  // core already read every file it had to analyse, so the code frames should not read them a second
-  // time. `agent` memoises `readSource` itself, so unlike `pretty` this was never a per-frame re-read —
-  // it is the duplicate *copy* of the text that this removes.
+  // Shared with the reporter below for the reason `sgate check` shares it (see `CheckOptions.sources`): core
+  // already read every file it had to analyse, so the code frames need not hold a second copy of the text.
   const sources = new Map<string, string>()
   const result = await runCheck({
     rootDir,
@@ -151,10 +144,9 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
     ...(context.signal === undefined ? {} : { signal: context.signal }),
   })
 
-  // The `agent` reporter, rendered verbatim — not a second format for the same data. Everything that
-  // makes that report safe to act on (the INCOMPLETE block, `coverage:` leading with the correction,
-  // the automated/judgement split, `nextActions`) is a property of this renderer, and re-deriving any
-  // of it here would be re-deriving the part that matters.
+  // The `agent` reporter, rendered verbatim — not a second format for the same data. Everything that makes that
+  // report safe to act on (the INCOMPLETE block, the automated/judgement split, `nextActions`) is a property of
+  // this renderer, not of the data.
   let report = ''
   createAgentReporter({
     write: (chunk) => (report += chunk),
@@ -190,9 +182,8 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
       filesAnalysed: result.stats.filesAnalysed,
       uncoveredConcepts: result.ruleset.uncovered,
       unknownConfigKeys: result.ruleset.unknownKeys.length,
-      // Read off the report the caller is actually being handed, not predicted from the budget: the
-      // reporter tries the complete document first and prints it whole when it fits, so a budget
-      // being set is not the same fact as something having been dropped.
+      // Read off the report the caller is handed, not predicted from the budget: the reporter prints the complete
+      // document when it fits, so a budget being set is not the same fact as something having been dropped.
       reportTruncated: report.includes('\nomitted:\n'),
     },
   }
@@ -222,10 +213,9 @@ export const EXPLAIN_OUTPUT = z.object({
 })
 
 /**
- * Every finding carries both a `concept` and a `ruleRefKey`, and only one of them is the argument here.
- * Handing the wrong one over is the single most likely misuse of this tool, so it is answered rather
- * than refused: the registry already knows which concepts a rule declares, and saying so costs one
- * lookup and turns a dead end into a retry the model can make on its own.
+ * Every finding carries both a `concept` and a `ruleRefKey`, and only one of them is the argument here. Handing
+ * the wrong one over is the single most likely misuse of this tool, so it is answered rather than refused: one
+ * registry lookup turns a dead end into a retry the model can make on its own.
  */
 function conceptsForRuleId(candidate: string): string[] {
   return RULE_ENTRIES.filter((entry) => ruleRefKey(entry) === candidate).flatMap((entry) => [...entry.concepts])
@@ -284,9 +274,8 @@ export async function callExplain(args: z.infer<typeof EXPLAIN_INPUT>, context: 
         reason: entry.reason,
       })),
     },
-    // An unknown concept id is a typo, and the same class of mistake as passing a rule id above. Left
-    // as a success it reads as "the concept exists and is quiet", which is the one answer that is
-    // both wrong and reassuring.
+    // An unknown concept id is a typo, the same class of mistake as passing a rule id above. Left as a success it
+    // reads as "the concept exists and is quiet", the one answer that is both wrong and reassuring.
     ...(why.isKnownConcept ? {} : { isError: true }),
   }
 }

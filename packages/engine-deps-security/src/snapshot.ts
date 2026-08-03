@@ -7,9 +7,8 @@ export const SNAPSHOT_PATH_ENV = 'SLOP_GATE_ADVISORIES_PATH'
 export const CACHE_DIR_ENV = 'SLOP_GATE_CACHE_DIR'
 
 /**
- * Bumped when the on-disk shape changes. It scopes the cache directory, so an older slop-gate never
- * reads a newer snapshot and a newer one never misreads an older — the same trick
- * `actionlintCacheDir` plays with the pinned version, for the same reason.
+ * Bumped when the on-disk shape changes. It scopes the cache directory, so an older slop-gate never reads a newer
+ * snapshot and a newer one never misreads an older — the same trick `actionlintCacheDir` plays with its pin.
  */
 export const SNAPSHOT_FORMAT_VERSION = 1
 
@@ -25,10 +24,10 @@ export type SnapshotManifest = {
   readonly source: string
   readonly fetchedAt: string
   /**
-   * SHA-256 of the archive as downloaded. **This is not a verification against the publisher** — OSV
-   * regenerates `npm/all.zip` daily and publishes no per-release digest, so there is nothing to
-   * compare against at fetch time (spec §19). What it buys is after the fact: two machines can prove
-   * they built from the same bytes, and a snapshot altered on disk stops matching what it claims.
+   * SHA-256 of the archive as downloaded. **Not a verification against the publisher** — OSV regenerates
+   * `npm/all.zip` daily and publishes no per-release digest, so there is nothing to compare against at fetch time
+   * (spec §19). What it buys is after the fact: two machines can prove they built from the same bytes, and a
+   * snapshot altered on disk stops matching what it claims.
    */
   readonly digest: string
   readonly vulnerableAdvisories: number
@@ -49,9 +48,8 @@ export type SnapshotLocationOptions = {
 }
 
 /**
- * Where the snapshot lives. `SLOP_GATE_ADVISORIES_PATH` names a directory outright — the escape hatch
- * for an air-gapped image that ships the snapshot in the container rather than fetching it, which is
- * the only way this engine can run somewhere with no egress at all.
+ * `SLOP_GATE_ADVISORIES_PATH` names a directory outright — the escape hatch for an air-gapped image that ships the
+ * snapshot in the container, which is the only way this engine can run somewhere with no egress at all.
  */
 export function advisorySnapshotDir(options: SnapshotLocationOptions = {}): string {
   const env = options.env ?? process.env
@@ -77,10 +75,9 @@ export function advisorySnapshotDir(options: SnapshotLocationOptions = {}): stri
 }
 
 /**
- * Reads just the manifest — the whole of `availability()`'s budget, which `Engine.availability` caps
- * at filesystem access. Deliberately synchronous and deliberately not loading the tables: `sgate
- * rules why` calls availability, and parsing 16 MB of malicious-package data to answer "is it
- * installed" would make an explain-only command do the engine's work.
+ * The whole of `availability()`'s budget, which `Engine.availability` caps at filesystem access. Deliberately not
+ * loading the tables: `sgate rules why` calls availability, and parsing 16 MB of malicious-package data to answer
+ * "is it installed" would make an explain-only command do the engine's work.
  */
 export function readSnapshotManifest(directory: string): SnapshotManifest | undefined {
   const path = join(directory, SNAPSHOT_MANIFEST_FILENAME)
@@ -100,9 +97,9 @@ export function readSnapshotManifest(directory: string): SnapshotManifest | unde
       maliciousAdvisories: parsed.maliciousAdvisories ?? 0,
     }
   } catch {
-    // A half-written or hand-edited manifest reads as "no snapshot", which surfaces as the ordinary
-    // coverage gap naming the install command. The alternative — throwing from an availability probe —
-    // would turn a corrupt cache into a failed run of a command that only meant to explain itself.
+    // A half-written or hand-edited manifest reads as "no snapshot" and surfaces as the ordinary coverage gap.
+    // Throwing from an availability probe would turn a corrupt cache into a failed run of a command that only
+    // meant to explain itself.
     return undefined
   }
 }
@@ -119,10 +116,9 @@ export const STALE_AFTER_DAYS = 7
 export type StalenessBand = 'fresh' | 'ageing' | 'stale' | 'abandoned'
 
 /**
- * The measured publication rate for npm is roughly 35 new GitHub advisories a week and 243 a month,
- * so these bands are not round numbers picked for looks: a fortnight-old snapshot is missing a
- * handful, a quarter-old one is missing around a thousand and is no longer a security check in any
- * meaningful sense. The wording has to move with them, because a message that reads identically at
+ * npm gains roughly 35 GitHub advisories a week and 243 a month, so these bands are not round numbers picked for
+ * looks: a fortnight-old snapshot is missing a handful, a quarter-old one around a thousand and is no longer a
+ * security check in any meaningful sense. The wording moves with them, because a message that reads identically at
  * three days and three months trains people to skip it.
  */
 export function stalenessBand(days: number): StalenessBand {

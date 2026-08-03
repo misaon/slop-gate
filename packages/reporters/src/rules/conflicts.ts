@@ -8,9 +8,8 @@ import type { RulesReporterContext } from './context.ts'
  *  as a run with no overlaps at all. */
 export const RULES_CONFLICTS_JSON_VERSION = 2
 
-/** Matches the message `run/check.ts`'s `configDiagnostics` builds for the same
- *  `config.dead-override` case — the same words a user already sees inline in `sgate check`'s own
- *  output, not a second, independently-worded description of the same fact. */
+/** Matches the message `run/check.ts`'s `configDiagnostics` builds for the same `config.dead-override` case —
+ *  the words a user already sees inline in `sgate check`, not a second wording of the same fact. */
 function deadOverrideText(key: string): string {
   return `\`${key}\` does not name a known concept or a rule any engine provides.`
 }

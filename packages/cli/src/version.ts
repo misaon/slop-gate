@@ -3,16 +3,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /**
- * Reads this CLI package's own `version` field.
- *
- * `import.meta.url` refers to *this module's own* location, not the caller's — so as long as this
- * file lives directly under `packages/cli/src/` (one level below the package root, the same depth
- * `main.ts` sits at), `../package.json` resolves correctly both as source (`src/version.ts`, ts-dev
- * and vitest run files in place) and once bundled: tsdown flattens every chunk — entry or lazily
- * `import()`-ed — directly under `dist/`, never into a `dist/commands/` subdirectory, so a bundled
- * chunk sits at the same one-level depth regardless of which source directory it was authored in.
- * The `../../package.json` fallback exists only in case that flattening assumption ever stops
- * holding for some future build configuration; it is not expected to be the one that resolves.
+ * Reads this CLI package's own `version` field. `import.meta.url` is *this module's* location, so `../package.json`
+ * resolves only while this file stays directly under `packages/cli/src/` — one level below the package root, which
+ * is also the depth a bundled chunk sits at, since tsdown flattens every chunk (entry or lazily `import()`-ed)
+ * directly under `dist/` rather than into a `dist/commands/` subdirectory. The `../../package.json` fallback
+ * covers that flattening ever stopping; it is not expected to be the one that resolves.
  */
 export function readCliVersion(): string {
   const startDir = dirname(fileURLToPath(import.meta.url))

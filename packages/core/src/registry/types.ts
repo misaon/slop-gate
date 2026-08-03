@@ -17,10 +17,8 @@ export type EngineId =
   | 'deps-security'
   | 'eslint'
 
-/**
- * Ordered fastest-capable-first. Arbitration consults this only after tier, so a
- * slower engine still wins a concept no faster engine can detect (§5.3).
- */
+/** Ordered fastest-capable-first. Arbitration consults this only after tier, so a slower engine still
+ *  wins a concept no faster engine can detect (§5.3). */
 export const ENGINE_PREFERENCE: readonly EngineId[] = [
   'oxfmt',
   'oxlint',
@@ -33,9 +31,8 @@ export const ENGINE_PREFERENCE: readonly EngineId[] = [
   'zizmor',
   'hadolint',
   'knip',
-  // Last but for `eslint`, and uncontested there: it owns four concepts nothing else covers, so its
-  // rank never decides anything. It sits here rather than higher because a project engine that reads
-  // a lockfile and a 16 MB index is not the "fastest capable engine" for anything.
+  // Uncontested: it owns four concepts nothing else covers, so its rank never decides anything. Not
+  // higher because a project engine reading a lockfile and a 16 MB index is fastest at nothing.
   'deps-security',
   'eslint',
 ]
@@ -48,10 +45,9 @@ export type FixDomain = 'imports' | 'statements' | 'expressions' | 'jsx' | 'form
 export type EngineTier = 0 | 1 | 2
 
 /**
- * Attributes one finding of a multi-concept rule to a single concept.
- * `concepts` says what a rule may *claim* during arbitration; this says what an individual
- * finding *is*. Without it, a rule covering two concepts would emit two diagnostics for one
- * finding — the double reporting arbitration exists to prevent.
+ * Attributes one finding of a multi-concept rule to a single concept. `concepts` says what a rule may
+ * *claim* during arbitration; this says what an individual finding *is*. Without it, a rule covering
+ * two concepts would emit two diagnostics for one finding — the double reporting arbitration prevents.
  */
 export type ClassifyRule = {
   readonly messagePattern: string
@@ -85,11 +81,9 @@ export function ruleRefKey(ref: RuleRef): string {
 /**
  * Splits on the **first** `/` only: an `engineRuleId` may contain more of them
  * (`eslint/@typescript-eslint/no-unused-vars`), so splitting on the last or on all of them would
- * silently truncate the rule.
- *
- * `engine` is a plain string rather than `EngineId` because not every key names an engine:
- * `slop-gate/<concept>` marks a diagnostic the orchestrator emitted itself, and an unqualified key
- * yields an empty engine.
+ * silently truncate the rule. `engine` is a plain string rather than `EngineId` because not every key
+ * names an engine: `slop-gate/<concept>` marks a diagnostic the orchestrator emitted itself, and an
+ * unqualified key yields an empty engine.
  */
 export function parseRuleRefKey(key: string): { readonly engine: string; readonly engineRuleId: string } {
   const slash = key.indexOf('/')

@@ -2,9 +2,9 @@ import type { CheckResult } from '@misaon/slop-gate-core'
 import { isCoverageGap } from '@misaon/slop-gate-reporters'
 
 /**
- * Why a run did not see everything it was configured to see. One entry per cause, mirroring the
- * order and the vocabulary of the `agent` reporter's own incompleteness block so the prose and the
- * structure of a single `check` result cannot tell different stories.
+ * Why a run did not see everything it was configured to see. One entry per cause, mirroring the order and the
+ * vocabulary of the `agent` reporter's own incompleteness block so the prose and the structure of a single
+ * `check` result cannot tell different stories.
  */
 export type CoverageGap = {
   readonly kind: 'engine-failed' | 'engine-unavailable' | 'baseline-accepted'
@@ -13,37 +13,26 @@ export type CoverageGap = {
   readonly detail: string
   /** What the caller can do about it, when there is anything. Absent means there is nothing to run. */
   readonly remedy?: string
-  /** Concepts this gap left unchecked or handed to a lower-ranked rule. Empty for an engine failure,
-   *  which loses whatever it would have found without arbitration ever recording what that was. */
+  /** Concepts this gap left unchecked or handed to a lower-ranked rule. Empty for an engine failure, which
+   *  loses whatever it would have found without arbitration ever recording what that was. */
   readonly concepts: readonly string[]
 }
 
 /**
- * `clean` is reachable only from a run with no findings **and** no gaps.
- *
- * There is deliberately no value that means "nothing found" on its own. The failure this tool
- * surface exists to prevent is a caller reading a `check` result as a pass when an engine was
- * missing, and the cheapest way to prevent it is to make the reassuring word unreachable in that
- * state: a partial run is `incomplete` or `incomplete-with-findings`, and both lead with the
- * correction in the first token a reader sees.
+ * `clean` is reachable only from a run with no findings **and** no gaps — there is deliberately no value that
+ * means "nothing found" on its own. The failure this tool surface exists to prevent is a caller reading a
+ * `check` result as a pass when an engine was missing, and the cheapest way to prevent it is to make the
+ * reassuring word unreachable in that state.
  */
 export type CheckOutcome = 'clean' | 'findings' | 'incomplete' | 'incomplete-with-findings'
 
 /**
- * `result.ruleset.uncovered` is deliberately **not** one of these, and the reason is worth stating
- * because it looks like an omission.
- *
- * The `agent` reporter's `coverage:` line — the sentence the whole honesty design is arranged around
- * — counts engine gaps and nothing else, while printing `uncovered:` separately as a notice. Driving
- * `outcome` off `uncovered` too would put the structure and the prose of one result in
- * contradiction, which is worse than either rule on its own.
- *
- * It would also cry wolf. `uncovered` is "no *capable* candidate", and an engine that is registered
- * but not installed is not capable — so every concept an absent optional engine owns lands there
- * whether or not the repository contains a single file of the language it applies to. On a fixture
- * with no workflows and no actionlint, that is thirteen concepts none of which had anything to
- * check, and `unavailableEngines` already reports that engine correctly as having cost the run
- * nothing. The count is still surfaced beside these gaps, just not as one.
+ * `result.ruleset.uncovered` is deliberately **not** one of these, because it looks like an omission. The
+ * `agent` reporter's `coverage:` line counts engine gaps and nothing else, printing `uncovered:` separately as
+ * a notice, so driving `outcome` off `uncovered` too would put the structure and the prose of one result in
+ * contradiction. It would also cry wolf: `uncovered` is "no *capable* candidate" and a registered-but-absent
+ * engine is not capable, so every concept it owns lands there whether or not the repository contains a single
+ * file of the language it applies to. The count is still surfaced beside these gaps, just not as one.
  */
 export function coverageGaps(result: CheckResult): CoverageGap[] {
   const gaps: CoverageGap[] = []
@@ -57,10 +46,9 @@ export function coverageGaps(result: CheckResult): CoverageGap[] {
     })
   }
 
-  // `isCoverageGap`, not `unavailableEngines.length`. An absent engine that would have lost every
-  // contest anyway cost this run nothing, and calling that incomplete would teach a caller to
-  // discount the word on the run where it matters — the reporter's argument, read from the
-  // reporter's own predicate rather than restated here.
+  // `isCoverageGap`, not `unavailableEngines.length`. An absent engine that would have lost every contest
+  // anyway cost this run nothing, and calling that incomplete would teach a caller to discount the word on the
+  // run where it matters. Read from the reporter's own predicate rather than restated here.
   for (const engine of result.unavailableEngines.filter(isCoverageGap)) {
     gaps.push({
       kind: 'engine-unavailable',
@@ -73,16 +61,11 @@ export function coverageGaps(result: CheckResult): CoverageGap[] {
     })
   }
 
-  // A baseline is not a *coverage* gap in the literal sense — every engine ran and saw everything — and
-  // it is one here anyway, because this type's job is not to classify causes but to make `clean`
-  // unreachable when the result is not the whole truth. A run whose findings were all accepted returns
-  // an empty `diagnostics` array, and that is exactly the state a caller must not read as a pass.
-  // Reusing the mechanism rather than adding an `outcome` member keeps one definition of "partial":
-  // `checkOutcome` and the `agent` reporter's `coverage:` line stay in agreement by construction, and
-  // the declared `outputSchema` already requires `gaps`, so this cannot be dropped by an edit.
-  //
-  // `--require-engines` is unaffected: `resolveExitCode` reads `unavailableEngines`, not `gaps`, so a
-  // baselined run does not become exit 3.
+  // A baseline is not a *coverage* gap in the literal sense — every engine ran and saw everything — and it is
+  // one here anyway, because this type's job is not to classify causes but to make `clean` unreachable when the
+  // result is not the whole truth. A run whose findings were all accepted returns an empty `diagnostics` array,
+  // and that is exactly the state a caller must not read as a pass. `--require-engines` is unaffected:
+  // `resolveExitCode` reads `unavailableEngines`, not `gaps`, so a baselined run does not become exit 3.
   const baseline = result.baseline
   if (baseline !== null && baseline.accepted > 0) {
     gaps.push({

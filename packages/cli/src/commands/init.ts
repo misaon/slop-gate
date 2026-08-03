@@ -29,14 +29,12 @@ competing config file will be ignored.
 `
 
 /**
- * `.slop-gate/` holds the cache and the engines' scratch directory, neither of which belongs in git —
- * hence `*`. Two files in it are exceptions and both have to be named, because `*` matches them too:
- *
- * - **`.gitignore` itself.** Without the negation the file ignores itself, so `sgate init`'s own
- *   output cannot be committed and every teammate's first run re-creates it untracked.
- * - **`baseline.json`.** A baseline that is not committed is not a baseline: CI clones the repository
- *   and would read none, so the build a team just agreed to make green fails on the first push.
- *   `sgate baseline create` checks this negation is present and says so when it is not.
+ * `.slop-gate/` holds the cache and the engines' scratch directory, neither of which belongs in git — hence `*`.
+ * Two files have to be named as exceptions, because `*` matches them too: **`.gitignore` itself**, or `sgate
+ * init`'s own output cannot be committed and every teammate's first run re-creates it untracked; and
+ * **`baseline.json`**, because a baseline that is not committed is not a baseline — CI clones the repository and
+ * would read none, so the build a team just agreed to make green fails on the first push. `sgate baseline create`
+ * checks this negation is present and says so when it is not.
  */
 export const SLOP_GATE_GITIGNORE = '*\n!.gitignore\n!baseline.json\n'
 
@@ -47,12 +45,11 @@ const readIfPresent = async (path: string): Promise<string | null> =>
   )
 
 /**
- * `slop-gate.config.ts` is ESM. Without `"type": "module"` in the target's `package.json`, Node
- * tries to load it as CommonJS first, fails, and prints a four-line `MODULE_TYPELESS_PACKAGE_JSON`
- * warning to stderr on every run (`loadConfig` dynamically imports the file). `.mts` is unambiguous
- * — Node never guesses at its module system — so it never reparses and never warns, regardless of
- * the target's `package.json`. A malformed or unreadable `package.json` is treated the same as an
- * absent `type` field: `.mts` is always safe, where guessing `.ts` is only safe half the time.
+ * `slop-gate.config.ts` is ESM. Without `"type": "module"` in the target's `package.json`, Node tries to load it
+ * as CommonJS first, fails, and prints a four-line `MODULE_TYPELESS_PACKAGE_JSON` warning to stderr on every run
+ * (`loadConfig` dynamically imports the file). `.mts` is unambiguous, so it never reparses and never warns — which
+ * is why a malformed or unreadable `package.json` is treated the same as an absent `type` field: `.mts` is always
+ * safe, where guessing `.ts` is only safe half the time.
  */
 async function targetsEsm(rootDir: string): Promise<boolean> {
   const raw = await readIfPresent(join(rootDir, 'package.json'))
@@ -86,9 +83,8 @@ export async function runInit(options: {
   if (existingConfigName !== null && options.force !== true) {
     skipped.push(existingConfigName)
   } else {
-    // Force overwrites whichever config already exists, in place — it does not change a working
-    // config's extension to match the project's current module type. Only a first-time write (no
-    // existing config, forced or not) picks the extension fresh, from `targetsEsm`.
+    // Force overwrites whichever config already exists, in place — it does not change a working config's extension
+    // to match the project's current module type. Only a first-time write picks the extension fresh.
     const targetName = existingConfigName ?? preferredConfigName
     await writeFile(join(options.rootDir, targetName), CONFIG_TEMPLATE, 'utf8')
     created.push(targetName)

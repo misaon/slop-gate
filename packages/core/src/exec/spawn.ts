@@ -11,14 +11,12 @@ const run = promisify(execFile)
  * The shape `promisify(execFile)` rejects with: Node's own `ExecFileException`, plus the `stdout` and
  * `stderr` the promisified wrapper attaches to it before rejecting.
  *
- * **`code` is `unknown` on purpose.** It is the exit status on a normal non-zero exit, but a string
- * errno (`'ENOENT'`) when the binary could not be launched, `'ABORT_ERR'` on an aborted run, and
- * `null` for a child killed by a signal. Every reader has to test it, and typing it as a number would
- * make "exit code 1, so those were findings" a claim the type system waves through for all four.
- *
- * `stdout` and `stderr` are strings because every caller here passes `encoding: 'utf8'` — and the
- * guard verifies it rather than asserting it, since without that option Node resolves Buffers and
- * `.trim()` does not exist on one.
+ * **`code` is `unknown` on purpose.** It is the exit status on a normal non-zero exit, but a string errno
+ * (`'ENOENT'`) when the binary could not be launched, `'ABORT_ERR'` on an aborted run, and `null` for a child
+ * killed by a signal. Typing it as a number would make "exit code 1, so those were findings" a claim the type
+ * system waves through for all four. `stdout` and `stderr` are strings because every caller here passes
+ * `encoding: 'utf8'` — the guard verifies that rather than asserting it, since without the option Node
+ * resolves Buffers and `.trim()` does not exist on one.
  */
 export type ExecFileFailure = {
   readonly code?: unknown
@@ -50,18 +48,16 @@ export type RunEngineToolOptions = {
 }
 
 /**
- * Spawns an engine's tool and returns its output, tolerating exactly the exit codes that mean
- * "findings" for that tool and turning everything else into an `EngineError`.
+ * Spawns an engine's tool and returns its output, tolerating exactly the exit codes that mean "findings" for
+ * that tool and turning everything else into an `EngineError`. Easy to get backwards in both directions:
+ * treating a findings exit as a failure makes a repository with defects look like a broken installation, and
+ * treating a real failure as findings makes a tool that could not run at all — a rejected option, an
+ * unreadable file, a killed process — report the repository as clean, which is the one answer a gate must
+ * never give by accident.
  *
- * The distinction is the entire point and it is easy to get backwards in both directions. Treating a
- * findings exit as a failure makes a repository with defects look like a broken installation; treating
- * a real failure as findings makes a tool that could not run at all — a rejected option, an unreadable
- * file, a killed process — report the repository as clean, which is the one answer a gate must never
- * give by accident.
- *
- * **Not for every adapter.** `engine-knip` passes `--no-exit-code` and so tolerates nothing, and
- * `engine-biome-css` resolves an ambiguous exit code against the report file it was told to write.
- * Both deliberately handle their own, for reasons recorded at those call sites.
+ * **Not for every adapter.** `engine-knip` passes `--no-exit-code` and tolerates nothing; `engine-biome-css`
+ * resolves an ambiguous exit code against the report file it was told to write. Both handle their own
+ * deliberately, for reasons recorded at those call sites.
  */
 export async function runEngineTool(options: RunEngineToolOptions): Promise<{ stdout: string; stderr: string }> {
   try {
@@ -84,24 +80,19 @@ export async function runEngineTool(options: RunEngineToolOptions): Promise<{ st
 }
 
 /**
- * What `<tool> --version` reports, with the tool's own label stripped off the front — oxlint and Biome
- * print `version: 1.2.3`, tsc prints `Version 5.9.0`, ast-grep prints `ast-grep 0.45.0`. The regex is
- * the parameter because that prefix is the only thing that differs, and it is optional because
- * actionlint and hadolint print no label to strip.
+ * What `<tool> --version` reports, with the tool's own label stripped off the front — oxlint and Biome print
+ * `version: 1.2.3`, tsc prints `Version 5.9.0`, ast-grep prints `ast-grep 0.45.0`. The regex is the parameter
+ * because that prefix is the only thing that differs, and it is optional because actionlint and hadolint print
+ * no label to strip.
  *
  * **The resolved binary's version, never the pinned one.** This string is part of every cache key, so
  * reporting the pin would keep serving one binary's results after the machine started running another.
  *
- * The first line only. Every tool here prints one, but actionlint prints three (a build banner follows
- * the number), and a cache key is not the place to discover that a tool became chatty on upgrade.
- *
- * `prefixArgs` come first, because a `ScriptBinInvocation` may be `node <script>` — appending
- * `--version` to the wrong end asks Node for its own version instead.
- *
- * `cache` is the whole reason this helper is the single choke point for every spawning `version()`:
- * with one passed in, the spawn happens only when the resolved binary is not the one a previous run
- * already asked. Absent — every direct call in a test — it always spawns, which is what keeps those
- * tests hermetic. See `ToolVersionCache` for what "the same binary" means and what it does not.
+ * The first line only: actionlint prints three, a build banner following the number, and a cache key is not
+ * the place to discover that a tool became chatty on upgrade. `prefixArgs` come first, because a
+ * `ScriptBinInvocation` may be `node <script>` — appending `--version` to the wrong end asks Node for its own
+ * version instead. With a `cache` passed in the spawn happens only when the resolved binary is not the one a
+ * previous run already asked; absent, it always spawns, which is what keeps direct calls in tests hermetic.
  */
 export async function toolVersion(
   invocation: ScriptBinInvocation,

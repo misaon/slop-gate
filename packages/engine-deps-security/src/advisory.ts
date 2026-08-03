@@ -1,9 +1,9 @@
 import { compareStrings, isOneOf } from '@misaon/slop-gate-core'
 
 /**
- * One affected-version window, flattened out of OSV's event stream. `bound` is `null` for a range
- * upstream never closed — "every version from `introduced` onwards", which is what a package that
- * exists only to be malicious looks like.
+ * One affected-version window, flattened out of OSV's event stream. `bound` is `null` for a range upstream never
+ * closed — every version from `introduced` onwards, which is what a package that exists only to be malicious
+ * looks like.
  */
 export type AdvisoryRange = {
   readonly introduced: string
@@ -48,23 +48,17 @@ type OsvAdvisory = {
 }
 
 /**
- * Turns one OSV document into the per-package records the matcher consumes.
+ * **`affected[].versions` is read, and getting that wrong is the expensive mistake this engine could have made.**
+ * OSV records a compromised release of a *legitimate* package as an explicit version enumeration, so `chalk`'s
+ * MAL-2025-46969 carries `versions: ["5.6.1"]` and no range at all. Reading only `ranges` and treating an entry
+ * with none as unbounded produced **242 findings naming `chalk`, `debug`, `ansi-styles`, `color-name` and
+ * `supports-color` as malware** across six real lockfiles; reading `versions` brings that to zero while still
+ * firing on the genuinely compromised releases. It matters the other way too — 148 npm GHSA entries are
+ * versions-only, and a range-only reader loses every one silently.
  *
- * **`affected[].versions` is read, and getting that wrong is the expensive mistake this whole engine
- * could have made.** A first cut of this code read only `affected[].ranges` and treated an entry
- * with none as unbounded. That is exactly backwards for the malicious feed: OSV records a compromised
- * release of a *legitimate* package as an explicit version enumeration, so `chalk`'s MAL-2025-46969
- * carries `versions: ["5.6.1"]` and no range at all. Measured against six real lockfiles, the range-only
- * reading produced **242 findings naming `chalk`, `debug`, `ansi-styles`, `color-name` and
- * `supports-color` as malware**; reading `versions` brings that to zero while still firing on the
- * genuinely compromised releases. It matters in the other direction too — 148 npm GHSA entries are
- * versions-only, and a range-only reader loses every one of them silently.
- *
- * A withdrawn advisory is dropped: upstream retracted it, and 646 of them are in the npm feed.
- *
- * An affected entry with neither versions nor ranges is also dropped rather than stored. It can match
- * nothing, and a record that reaches the matcher with both fields empty is one refactor away from
- * being read as "matches everything" — which is the 242-finding bug again, wearing a different hat.
+ * A withdrawn advisory is dropped — upstream retracted it, and 646 of them are in the npm feed. So is an affected
+ * entry with neither versions nor ranges: it can match nothing, and a record reaching the matcher with both fields
+ * empty is one refactor away from being read as "matches everything", which is the 242-finding bug again.
  */
 export function distillAdvisory(document: unknown): readonly DistilledAffected[] {
   const advisory = document as OsvAdvisory
@@ -93,14 +87,13 @@ export function distillAdvisory(document: unknown): readonly DistilledAffected[]
 }
 
 /**
- * OSV expresses affected versions as an ordered event stream rather than intervals: an `introduced`
- * opens a window and the next `fixed` or `last_affected` closes it. An unclosed window at the end of
- * the stream stays open, which is a real and common state rather than malformed input.
+ * OSV expresses affected versions as an ordered event stream rather than intervals: an `introduced` opens a window
+ * and the next `fixed` or `last_affected` closes it. An unclosed window at the end of the stream stays open, which
+ * is a real and common state rather than malformed input.
  *
- * Only `SEMVER` ranges are read. `ECOSYSTEM` ranges enumerate versions in the registry's own order,
- * which cannot be evaluated without the registry — and `GIT` ranges are commit ids. Both would need
- * data this engine deliberately does not have at check time, so they are skipped rather than
- * approximated with a semver comparison that would be wrong in both directions.
+ * Only `SEMVER` ranges are read. `ECOSYSTEM` ranges enumerate versions in the registry's own order and `GIT` ranges
+ * are commit ids — both need data this engine deliberately does not have at check time, so they are skipped rather
+ * than approximated with a semver comparison that would be wrong in both directions.
  */
 function flattenRanges(ranges: readonly OsvRange[]): readonly AdvisoryRange[] {
   const out: AdvisoryRange[] = []
@@ -128,12 +121,10 @@ export type AdvisoryTable = Record<string, readonly AdvisoryRecord[]>
 export type AdvisoryTables = { readonly vulnerable: AdvisoryTable; readonly malicious: AdvisoryTable }
 
 /**
- * Both tables in one pass, because the caller is streaming 224,000 documents and holding them to
- * filter twice is the difference between a working install and an out-of-memory one.
- *
- * Package names and ids are put in `compareStrings` order so rebuilding a snapshot from unchanged
- * upstream data produces byte-identical files — which is the only thing that makes the digest in the
- * manifest worth recording.
+ * Both tables in one pass, because the caller is streaming 224,000 documents and holding them to filter twice is
+ * the difference between a working install and an out-of-memory one. Names and ids go in `compareStrings` order so
+ * a rebuild from unchanged upstream data produces byte-identical files — the only thing that makes the manifest's
+ * digest worth recording.
  */
 export function buildAdvisoryTables(entries: Iterable<DistilledAffected>): AdvisoryTables {
   const grouped: Record<AdvisoryKind, Map<string, AdvisoryRecord[]>> = { vulnerable: new Map(), malicious: new Map() }

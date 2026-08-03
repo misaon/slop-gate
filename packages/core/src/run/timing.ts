@@ -2,7 +2,7 @@ import type { Diagnostic } from '../diagnostics/types.ts'
 import { compareStrings } from '../ordering.ts'
 
 /**
- * Where a run's time went — the measurement half of `--timing` (spec §12, §15). Core measures and puts
+ * Where a run's time went — the measurement half of `--timing` (spec §12.4, §15). Core measures and puts
  * the report on `CheckResult`; the reporters decide whether and how to print it. Nothing here writes to
  * a stream, and nothing here reads an environment variable: a run is instrumented because the caller
  * asked (`CheckOptions.timing`), which is the only thing a `--timing` flag can honestly mean.
@@ -10,17 +10,21 @@ import { compareStrings } from '../ordering.ts'
  * `performance.mark`/`measure` rather than bare `performance.now()` subtraction, so an instrumented run
  * also shows up in `--cpu-prof` traces and in anything else reading the Node performance timeline.
  *
- * **Off, this costs one indirect call through `NO_TIMING` per instrumentation point** — and there are
- * about 1,300 of them on a cold run of this repository, because `read-source`, `normalize` and
- * `cache-write` are measured per *file* rather than per assignment. Measured on this repository with
- * hyperfine (30 runs warm, 6 cold), instrumentation absent vs. present with the flag off: warm
- * 155.5 ms ± 2.2 -> 155.8 ms ± 2.5 (+0.2%, well inside 1σ), cold 5.949 s ± 0.055 -> 5.984 s ± 0.077
- * (+0.6%, inside 1σ). Free enough not to need a compile-time switch.
+ * **Off, this costs one indirect call through `NO_TIMING` per span** — and there are 3,307 of them on a
+ * cold run of this repository, because `read-source`, `normalize` and `cache-write` are measured per
+ * *file* rather than per assignment. Measured, not assumed: `packages/core` built twice from one tree,
+ * once with all 22 wrapper call sites removed, swapping only its `dist` between hyperfine benchmarks in
+ * a single invocation. Warm, both orders: absent 156.8 ms ± 1.8 / 156.4 ms ± 1.7, present-and-off
+ * 155.3 ms ± 2.0 / 157.1 ms ± 3.5. Cold: absent 6.123 s ± 0.080, present-and-off 6.101 s ± 0.107.
+ *
+ * The instrumented build was *faster* on minima in both warm rounds, which is the only honest reading:
+ * the cost is below this machine's run-to-run drift and no percentage can be claimed for it. Free enough
+ * not to need a compile-time switch; see spec §12.4 for the table.
  */
 export type MeasuredPhase = {
   /**
    * `discover`, `run:oxlint`, `normalize:tsc` — the phase, with the engine it belongs to where one
-   * does. Engine-suffixed names are what makes the report "per engine" in the sense §12 promises.
+   * does. Engine-suffixed names are what makes the report "per engine" in the sense §12.4 promises.
    */
   name: string
   durationMs: number
@@ -37,7 +41,7 @@ export type MeasuredPhase = {
  * what comes back — and neither reports how long any one of its own rules took, so any per-rule
  * millisecond figure slop-gate printed would be invented. The count is what the boundary genuinely
  * knows, and the time our own share of a rule's cost lands in is the `normalize:<engine>` and
- * `arbitrate` phases above. See §12 for the amended promise.
+ * `arbitrate` phases above. See §12.4 for the amended promise.
  */
 export type RuleFindings = { ruleRefKey: string; findings: number }
 

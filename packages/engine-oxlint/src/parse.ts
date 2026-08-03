@@ -17,32 +17,27 @@ type OxlintPayload = { diagnostics?: OxlintDiagnostic[]; number_of_rules?: numbe
 const CODE_PATTERN = /^([a-z0-9-]+)\(([^)]+)\)$/
 
 /**
- * The synthetic rule id the adapter assigns a code-less, error-severity diagnostic — oxlint's own
- * shape for "this file does not parse". Matched to the `oxlint/parse-error` entry in the registry
- * (packages/core/src/registry/entries.ts), which maps it to `correctness.parse-error`. Scoped to
- * error severity only: a code-less diagnostic at any other severity is unobserved behaviour today,
- * so it is left alone rather than guessed at.
+ * The synthetic rule id the adapter assigns a code-less, error-severity diagnostic — oxlint's own shape for
+ * "this file does not parse". Matched to the `oxlint/parse-error` entry in the registry
+ * (packages/core/src/registry/entries.ts), which maps it to `correctness.parse-error`. Scoped to error
+ * severity only: a code-less diagnostic at any other severity is unobserved behaviour today.
  */
 export const PARSE_ERROR_RULE_ID = 'parse-error'
 
 /**
- * Diagnostic scope → the scope `oxlint --rules` spells the same rule with, for the two plugins where
- * the two disagree on more than punctuation. The registry is generated from `--rules`, and
- * `normalizeDiagnostics` looks entries up by exact `engineRuleId`, dropping anything it cannot find —
- * so without this every finding from these plugins is silently discarded. Measured against oxlint
- * 1.76.0 on five public Next.js repositories: **389 `next(...)` findings, all dropped**, from 21
- * rules `recommended` holds at `error`.
+ * Diagnostic scope → the scope `oxlint --rules` spells the same rule with, for the two plugins where the two
+ * disagree on more than punctuation. The registry is generated from `--rules`, and `normalizeDiagnostics`
+ * looks entries up by exact `engineRuleId`, dropping anything it cannot find — so without this every finding
+ * from these plugins is silently discarded. Measured against oxlint 1.76.0 on five public Next.js
+ * repositories: **389 `next(...)` findings, all dropped**, from 21 rules `recommended` holds at `error`.
  *
- * This is the mirror of the generator's `HYPHENATED_SCOPE` (`jsx_a11y` → `jsx-a11y`, `react_perf` →
- * `react-perf`), and it lives here rather than there because these two cannot be fixed at generation
- * time: oxlint's *config* parser rejects `plugins: ["next"]` outright (*Unknown plugin: 'next'*), so
- * `nextjs` is the only spelling that can be written into a config, while `next` is the only spelling
- * that ever comes back out of a diagnostic. `react-hooks` is accepted by both, and is mapped here
- * anyway so one table holds every case rather than the knowledge being split across two packages.
- *
- * Derived, not guessed: every scope in `--rules` was compared against every `code` prefix oxlint
- * emitted across two large monorepos with all seven categories enabled. `next` and `react-hooks` are
- * the only two prefixes with no catalogue counterpart.
+ * The mirror of the generator's `HYPHENATED_SCOPE` (`jsx_a11y` → `jsx-a11y`, `react_perf` → `react-perf`),
+ * living here rather than there because these two cannot be fixed at generation time: oxlint's *config*
+ * parser rejects `plugins: ["next"]` outright (*Unknown plugin: 'next'*), so `nextjs` is the only spelling
+ * that can be written into a config while `next` is the only spelling that ever comes back out of a
+ * diagnostic. `react-hooks` is accepted by both and mapped anyway, so one table holds every case. Complete,
+ * not guessed: across two large monorepos with all seven categories enabled, these are the only two `code`
+ * prefixes with no counterpart in `--rules`.
  */
 const CATALOGUE_SCOPE: Readonly<Record<string, string>> = {
   next: 'nextjs',
@@ -59,37 +54,30 @@ export function toEngineRuleId(code: string): string | null {
 }
 
 /**
- * engineRuleId → the text of the label that marks the **offending** node, for the rules where that
- * is not the first label oxlint emits.
+ * engineRuleId → the text of the label that marks the **offending** node, for the rules where that is not
+ * the first label oxlint emits.
  *
- * A diagnostic's range is what everything downstream anchors to: the position a reporter prints, and
- * — through `normalizedWindow` — the fingerprint a baseline is keyed on (spec §10.1). Anchoring on a
- * node the finding is merely *about* rather than the one that is wrong therefore costs more than a
- * misleading line number: the fingerprint then tracks a line the user has no reason to touch, and
- * two findings sharing one enclosing scope collapse onto the same window, distinguishable only by
- * `occurrenceIndex` — so adding a third shifts the other two and churns the baseline.
+ * A diagnostic's range is what everything downstream anchors to: the position a reporter prints, and —
+ * through `normalizedWindow` — the fingerprint a baseline is keyed on (spec §10.1). Anchoring on a node the
+ * finding is merely *about* therefore costs more than a misleading line number: the fingerprint then tracks
+ * a line the user has no reason to touch, and two findings sharing one enclosing scope collapse onto the
+ * same window, distinguishable only by `occurrenceIndex` — so adding a third shifts the other two and churns
+ * the baseline.
  *
- * `unicorn/consistent-function-scoping` is the case. It emits `Outer scope where this function is
- * defined` first whenever the enclosing scope is nameable, and the offending inner function second;
- * oxlint's own `json`, `unix`, `github` and `checkstyle` reporters all print the first label's
- * position, and its `default` (graphical) reporter prints the second.
+ * `unicorn/consistent-function-scoping` is the case. It emits `Outer scope where this function is defined`
+ * first whenever the enclosing scope is nameable, and the offending inner function second; oxlint's own
+ * `json`, `unix`, `github` and `checkstyle` reporters all print the first label's position, and its
+ * `default` (graphical) reporter prints the second.
  *
- * **Additive by construction, which is the whole point of the shape.** A rule absent from this table
- * keeps `labels[0]`, and a rule *in* it whose declared text is not among the labels — an oxc reword —
- * falls back to `labels[0]` too. So the blast radius is exactly the rules named here, and no
- * measurement of any other rule can be invalidated by this table growing.
+ * **Additive by construction**, which is the whole point of the shape: a rule absent from this table keeps
+ * `labels[0]`, and a rule *in* it whose declared text is not among the labels — an oxc reword — falls back
+ * to `labels[0]` too, so the blast radius is exactly the rules named here. Keyed on the label *text* rather
+ * than on an index because oxlint's label array is not sorted by offset (`eslint/no-duplicate-imports` emits
+ * 4:40 before 3:31), so an index would be a bet on an ordering nothing upstream promises.
  *
- * Keyed on the label *text* rather than on an index for the same reason: oxlint's label array is not
- * sorted by offset (`eslint/no-duplicate-imports` emits 4:40 before 3:31), so an index would be a
- * bet on an ordering nothing upstream promises.
- *
- * Derived, not guessed. `-D all` plus all eleven plugins over this repository's own sources and
- * fixtures produced 27,966 diagnostics from 162 rules, of which **453 were multi-label across eight
- * rules** — `eslint/no-use-before-define`, `vitest/no-importing-vitest-globals`, `jsdoc/require-param`,
- * `eslint/no-duplicate-imports`, `unicorn/prefer-export-from`, `oxc/no-map-spread`,
- * `eslint/no-useless-catch`, `eslint/no-dupe-keys` — and for **all eight the first label is the
- * offending node**. Both index-free heuristics were measured against that set and rejected on it:
- * "take the last label" moves all 453, and "take the narrowest span" moves 234.
+ * Measured over this repository with `-D all` and all eleven plugins: of 453 multi-label diagnostics across
+ * eight rules, **the first label is the offending node in all eight**. Both index-free heuristics were
+ * rejected on that set — "take the last label" moves all 453, "take the narrowest span" moves 234.
  */
 export const ANCHOR_LABELS: Readonly<Record<string, string>> = {
   'unicorn/consistent-function-scoping': 'This function does not use any variables from the parent function',
@@ -111,9 +99,9 @@ export function parseOxlintOutput(
   const trimmed = stdout.trim()
   if (trimmed === '') return []
 
-  // oxlint can print a plain-text preamble before the JSON — notably `No files found to lint.`
-  // when a batch path no longer exists, which is routine in a caching linter. Parsing from the
-  // first brace keeps a vanished file from destroying the whole batch under a misdiagnosing error.
+  // oxlint can print a plain-text preamble before the JSON — notably `No files found to lint.` when a batch
+  // path no longer exists, which is routine in a caching linter. Parsing from the first brace keeps a
+  // vanished file from destroying the whole batch under a misdiagnosing error.
   const jsonStart = trimmed.indexOf('{')
   if (jsonStart === -1) {
     throw new EngineError('oxlint', `oxlint produced no json output: ${trimmed.slice(0, 200)}`)
@@ -130,8 +118,8 @@ export function parseOxlintOutput(
   }
 
   // Every payload reports how many rules actually ran. Comparing it to the elected count turns two
-  // otherwise-silent failures loud: a category we forgot to disable leaking rules in (count too
-  // high), and an elected rule oxlint never activated (count too low).
+  // otherwise-silent failures loud: a category we forgot to disable leaking rules in (count too high), and
+  // an elected rule oxlint never activated (count too low).
   if (expected !== undefined && parsed.number_of_rules !== expected.ruleCount) {
     throw new EngineError(
       'oxlint',
@@ -143,9 +131,8 @@ export function parseOxlintOutput(
   const results: RawDiagnostic[] = []
   for (const diagnostic of parsed.diagnostics) {
     const severity = SEVERITIES[diagnostic.severity] ?? 'warning'
-    // A parse error has no rule to name, so `code` is absent rather than unparseable. Dropping it
-    // silently (the pre-existing behaviour for `toEngineRuleId(undefined)`) means a file that fails
-    // to parse produces zero diagnostics and is then cached as clean. See PARSE_ERROR_RULE_ID.
+    // Dropping a code-less diagnostic silently would mean a file that fails to parse produces zero
+    // diagnostics and is then cached as clean. See PARSE_ERROR_RULE_ID.
     const engineRuleId =
       diagnostic.code === undefined
         ? severity === 'error'

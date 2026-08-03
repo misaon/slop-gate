@@ -8,6 +8,9 @@ one interface, one config file and one diagnostic model.
 The authoritative design is `docs/superpowers/specs/2026-07-30-slop-gate-design.md`. It records every
 architectural decision and why it was made. Do not redesign a subsystem before reading its section.
 
+`docs/measurements.md` holds the figures behind decisions the source states only as a conclusion — the
+benchmark, the corpus and the method. Read it before re-tuning a constant or removing a bound.
+
 ## Commands
 
 - `pnpm check` — typecheck, test, and run the gate on ourselves. Run this before claiming anything works.

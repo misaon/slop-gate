@@ -6,32 +6,23 @@ import { createPrettyReporter } from './pretty.ts'
 export type ReporterContext = {
   write(chunk: string): void
   color: boolean
-  /**
-   * True to draw Unicode box-drawing characters and emoji severity markers; false to fall back to
-   * ASCII (`TERM=dumb`). Independent of `color` — a colourless run still gets Unicode by default,
-   * and in principle an ASCII run could still be coloured, so the two are never conflated.
-   */
+  /** Unicode box-drawing characters and emoji severity markers, or the ASCII fallback (`TERM=dumb`).
+   *  **Independent of `color`** — a colourless run still gets Unicode by default, and an ASCII run could
+   *  still be coloured, so the two are never conflated. */
   unicode: boolean
-  /**
-   * Terminal width in columns (the CLI supplies `process.stdout.columns ?? 80`). Read here rather
-   * than from `process.stdout` inside the reporter so frame width is deterministic in tests. The
-   * `pretty` reporter clamps this to its own drawable range; other reporters may ignore it.
-   */
+  /** Terminal width in columns (the CLI supplies `process.stdout.columns ?? 80`). Read here rather than from
+   *  `process.stdout` inside the reporter so frame width is deterministic in tests; `pretty` clamps it to
+   *  its own drawable range and other reporters may ignore it. */
   width: number
   /** The CLI package version, shown in the `pretty` reporter's header. */
   version: string
-  /**
-   * Returns the file's content for code frames, or null when it cannot be read. `file` is `null`
-   * for an orchestrator-level diagnostic with no file to point at (see `Diagnostic.file`) —
-   * implementations must return `null` for that case rather than attempt to resolve a path.
-   */
+  /** The file's content for code frames, or null when it cannot be read. `file` is `null` for an
+   *  orchestrator-level diagnostic with no file to point at (see `Diagnostic.file`) — implementations must
+   *  return `null` for that case rather than attempt to resolve a path. */
   readSource(file: string | null): string | null
-  /**
-   * Upper bound on the `agent` reporter's output, in estimated tokens (`--max-tokens`). Absent means
-   * no bound. Read here for the same reason `width` is — a reporter must not reach into `process`
-   * for something a test needs to pin — and ignored by every other reporter: `pretty` is bounded by
-   * a terminal, and truncating `json` would produce an invalid document rather than a smaller one.
-   */
+  /** Upper bound on the `agent` reporter's output, in estimated tokens (`--max-tokens`); absent means no
+   *  bound. Ignored by every other reporter: `pretty` is bounded by a terminal, and truncating `json` would
+   *  produce an invalid document rather than a smaller one. */
   maxTokens?: number
 }
 
@@ -68,9 +59,8 @@ export {
 } from './display-width.ts'
 export { wrapText } from './wrap-text.ts'
 
-// --- Shared rendering primitives (box frames, severity vocabulary) — used by both the `check`
-// reporter (`pretty.ts`) and the `sgate rules` governance commands' renderers, so there is exactly
-// one implementation of each rather than a second copy growing alongside the new commands.
+// --- Shared rendering primitives (box frames, severity vocabulary), used by both `pretty.ts` and the
+// `sgate rules` renderers.
 export {
   ASCII_BOX,
   createFrameKit,
@@ -90,8 +80,7 @@ export {
   SEVERITY_STYLE,
 } from './severity.ts'
 
-// --- `sgate rules` governance commands: one pretty + one json renderer per command, each
-// versioned like `JSON_REPORT_VERSION` above.
+// --- `sgate rules` commands: one pretty + one json renderer each, versioned like `JSON_REPORT_VERSION`.
 export type { RulesReporterContext } from './rules/context.ts'
 export { renderRulesListJson, renderRulesListPretty, RULES_LIST_JSON_VERSION } from './rules/list.ts'
 export { renderRulesWhyJson, renderRulesWhyPretty, RULES_WHY_JSON_VERSION } from './rules/why.ts'

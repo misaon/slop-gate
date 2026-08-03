@@ -780,6 +780,20 @@ test('folds the phases too small to matter into one row rather than dropping the
   expect(output).toMatch(/12 smaller phases\s+1\.2 ms/)
 })
 
+test('keeps a phase worth naming on a run one engine dominates, where a share alone would fold it away', () => {
+  // 26 ms of a 6-second cold run is 0.4% — under the share floor, and exactly the row someone timing
+  // the run wants to compare against the engine that took the other 83%.
+  const phases = [
+    { name: 'run:tsc', durationMs: 5039, count: 1 },
+    { name: 'discover', durationMs: 26, count: 1 },
+    { name: 'dispose:tsc', durationMs: 0.1, count: 1 },
+  ]
+  const output = capture([timed({ phases }, 6050)])
+
+  expect(output).toContain('discover')
+  expect(output).not.toContain('dispose:tsc')
+})
+
 test('names what the two rows core cannot itemise are actually made of', () => {
   const output = capture([timed()])
 

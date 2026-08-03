@@ -7,10 +7,10 @@ import type { EngineSettings, EngineSetting, FrameworkAdjustment, FrameworkDetec
 export type FrameworkRuleLayer = { readonly source: FrameworkId; readonly rules: RuleMap }
 
 /**
- * One profile's path-scoped levels for one glob set. Deliberately shaped like `OverrideBlock` minus
- * the config-authored parts, because that is what it becomes: `createRuleSetResolver` pushes it into
- * the very `overrides` list a user's own blocks go into, and it is matched by the same `picomatch`
- * pass. `files` is never empty — a scope that matches nothing is dropped rather than emitted.
+ * One profile's path-scoped levels for one glob set. Shaped like `OverrideBlock` minus the
+ * config-authored parts because that is what it becomes: `createRuleSetResolver` pushes it into the very
+ * `overrides` list a user's own blocks go into. `files` is never empty — a scope that matches nothing is
+ * dropped rather than emitted.
  */
 export type FrameworkOverrideLayer = {
   readonly source: FrameworkId
@@ -18,15 +18,12 @@ export type FrameworkOverrideLayer = {
   readonly rules: RuleMap
 }
 
-/**
- * The glob set an adjustment is confined to, sorted — `[]` for one that applies repository-wide. The
- * sort is what makes two profiles naming the same globs in different orders one scope rather than two.
- */
+/** The glob set an adjustment is confined to, sorted — `[]` for one that applies repository-wide. The
+ *  sort makes two profiles naming the same globs in different orders one scope rather than two. */
 function scopePaths(paths: readonly string[] | undefined): readonly string[] {
   return paths === undefined ? [] : [...paths].sort(compareStrings)
 }
 
-/** `off` for a subtraction, the requested level for an addition, `null` for the other consumer. */
 function ruleSetting(
   adjustment: FrameworkAdjustment,
 ): { concept: ConceptId; level: RuleLevel; paths: readonly string[] } | null {
@@ -39,30 +36,20 @@ function ruleSetting(
   return null
 }
 
-/**
- * One `Map` key for one glob set. A newline, because it cannot occur in a repo-relative POSIX path and
- * so cannot make two different scopes collide on one key; the globs themselves are never recovered
- * from it — `FrameworkOverrideLayer.files` carries the array verbatim.
- */
+/** One `Map` key for one glob set. A newline, because it cannot occur in a repo-relative POSIX path and
+ *  so cannot make two different scopes collide on one key; the globs are never recovered from it. */
 function scopeKey(paths: readonly string[]): string {
   return paths.join('\n')
 }
 
 /**
- * **The whole conflict story, in one function.** Spec §23.3 used to be able to say framework
- * conflicts were inexpressible, because every adjustment was a set contribution and the merge was a
- * sorted union. `enable-concept` breaks that — two profiles can name one concept at two levels, and
- * union means nothing for a scalar — so the merge becomes a join over a different lattice instead of
- * ceasing to be a join:
+ * **The whole conflict story, in one function: `off` from any profile absorbs; otherwise the strictest
+ * wins.** A join, so commutative, associative and idempotent — the result does not depend on detection
+ * order, profile order, or how many profiles said the same thing (spec §23.3).
  *
- * **`off` from any profile absorbs; otherwise the strictest wins.**
- *
- * Commutative, associative and idempotent exactly as the union was, so the result still does not
- * depend on detection order, profile order, or how many profiles said the same thing. And it is not
- * an arbitrary choice of direction: `off` absorbing is the design's asymmetry made algebraic. A
- * profile subtracts because a rule is *wrong* about this framework's code, and no other profile
- * asking for it louder can make it right — while an addition that loses to a subtraction costs
- * nothing but the coverage a wrong subtraction was always allowed to cost.
+ * The direction is not arbitrary: a profile subtracts because a rule is *wrong* about this framework's
+ * code, and no other profile asking for it louder can make it right, while an addition that loses to a
+ * subtraction costs nothing but the coverage a wrong subtraction was always allowed to cost.
  */
 function joinLevels(a: RuleLevel, b: RuleLevel): RuleLevel {
   if (a === 'off' || b === 'off') return 'off'
@@ -71,12 +58,9 @@ function joinLevels(a: RuleLevel, b: RuleLevel): RuleLevel {
 
 /**
  * Every applied profile's opinion about every concept, already joined — keyed by `(concept, scope)`
- * rather than by concept alone.
- *
- * The scope is part of the key because a repository-wide opinion and a path-scoped one are two facts,
+ * rather than by concept alone, because a repository-wide opinion and a path-scoped one are two facts,
  * not two votes on one. Joining them would let a subtraction confined to `packages/ui/**` absorb a
- * repository-wide addition it was never asked about, which is the exact opposite of what a narrower
- * claim should be able to do.
+ * repository-wide addition it was never asked about.
  */
 function settledLevels(detection: FrameworkDetection): Map<string, Map<ConceptId, RuleLevel>> {
   const settled = new Map<string, Map<ConceptId, RuleLevel>>()

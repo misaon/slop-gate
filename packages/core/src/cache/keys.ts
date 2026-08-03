@@ -3,13 +3,9 @@ import { compareStrings } from '../ordering.ts'
 
 /**
  * The shape of a cached `Diagnostic`, not of the cache key. A stale entry is discarded rather than
- * migrated, so this has to change whenever a field of `Diagnostic` is added, removed or **renamed** —
- * a renamed field reads back as `undefined`, and a warm run would then quietly lose whatever depends
- * on it rather than recompute.
- *
- * Bumped to 2 by `Diagnostic.ruleId` becoming `ruleRefKey`: an entry from before that rename would
- * have left `run/fix.ts` unable to look up a rule's fix kind and `suppressions/apply.ts` unable to
- * match a `<engine>/<engineRuleId>`-targeted directive — both silently, and only on a warm cache.
+ * migrated, so this has to change whenever a field of `Diagnostic` is added, removed or **renamed** — a
+ * renamed field reads back as `undefined`, and a warm run would then quietly lose whatever depends on it
+ * rather than recompute.
  */
 export const RESULT_SCHEMA_VERSION = 2
 
@@ -41,28 +37,24 @@ export type ResultKeyInput = {
   engineId: string
   engineVersion: string
   engineRulesetHash: string
-  /** Repo-relative, POSIX. Without it, two byte-identical files share one cache entry even though
-   *  the cached `Diagnostic[]` bakes in a path-dependent `file`, `fingerprint` and (via per-file
-   *  override resolution) `severity` — whichever file is processed last silently overwrites the
-   *  other's cached result. */
+  /** Repo-relative, POSIX. Without it two byte-identical files share one entry, even though the cached
+   *  `Diagnostic[]` bakes in a path-dependent `file`, `fingerprint` and `severity` — whichever file is
+   *  processed last silently overwrites the other's result. */
   filePath: string
   fileHash: string
   configHash: string
 }
 
 export function deriveResultKey(input: ResultKeyInput): string {
-  // `input` is nested, not spread, so a future `ResultKeyInput` field named `schema` cannot
-  // silently shadow `RESULT_SCHEMA_VERSION`.
+  // `input` is nested, not spread, so a future `ResultKeyInput` field named `schema` cannot shadow this.
   return hashJson({ schema: RESULT_SCHEMA_VERSION, input })
 }
 
 /**
- * The cache key components for a **project-granularity** engine (spec §8.1: `tsc`, `knip` — whole-
- * program analysis, not cacheable per file). `ResultKeyInput` above is keyed by one file's path and
- * content hash; a project engine has no single file to key against, so this instead folds in every
- * file the planner assigned it, each with its own content hash — spec §9's "aggregate input hash".
- * Sorting by path before hashing (see `deriveProjectResultKey`) is what makes the result independent
- * of the inventory's own file ordering, the same concern `hashRuleSelection` exists for.
+ * Cache key components for a **project-granularity** engine (spec §8.1: `tsc`, `knip` — whole-program
+ * analysis, not cacheable per file). With no single file to key against, this folds in every file the
+ * planner assigned it, each with its own hash — spec §9's "aggregate input hash". Sorting by path first
+ * (see `deriveProjectResultKey`) makes the key independent of the inventory's own file ordering.
  */
 export type ProjectResultKeyInput = {
   engineId: string

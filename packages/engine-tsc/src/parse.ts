@@ -3,35 +3,27 @@ import { join } from 'node:path'
 import { createLineIndex, EngineError, toRepoRelative, type LineIndex, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
 
 /**
- * The single synthetic engine rule id every `tsc` diagnostic is attributed to, regardless of its own
- * TS error code (TS2307, TS2322, ...). See the `tsc/type-error` entry in
- * `packages/core/src/registry/entries.uncatalogued.ts` for why one rule id — and one concept,
- * `types.type-error` — covers the whole domain rather than mapping each code to its own concept.
+ * The single synthetic rule id every `tsc` diagnostic is attributed to, whatever its own TS error code. Why one
+ * id — and one concept, `types.type-error` — covers the whole domain rather than a concept per code is in the
+ * `tsc/type-error` entry in `packages/core/src/registry/entries.uncatalogued.ts`.
  */
 export const TYPE_ERROR_RULE_ID = 'type-error'
 
 /**
- * `tsc`'s plain-text (non-`--pretty`) diagnostic format, reverse-engineered against the real 5.9.3
- * binary rather than assumed (see `.superpowers/engine-tsc-report.md` for the full captured-output
- * log). Two shapes:
+ * `tsc`'s plain-text (non-`--pretty`) diagnostic format, reverse-engineered against the real 5.9.3 binary rather
+ * than assumed (`.superpowers/engine-tsc-report.md` holds the captured-output log). Two shapes:
  *
  * - **Located**: `<file>(<line>,<column>): error TS<code>: <message>` — a real source position.
- * - **Global**: `error TS<code>: <message>` — no location at all. Observed for "the tsconfig itself
- *   could not be found or read" (TS5058, TS5057) and "the resolved tsconfig matches zero input files"
- *   (TS18003) — `tsc` could not productively check *anything* under this configuration, which is a
- *   different kind of failure than "here is a type error in one specific file". Since `RawDiagnostic.file`
- *   is a required, non-optional `string` (there is no file to attribute one of these to), a global
- *   diagnostic cannot become a `RawDiagnostic` at all — it is surfaced as an `EngineError` instead,
- *   the same way oxlint's own parser throws when it cannot find any parseable output.
+ * - **Global**: `error TS<code>: <message>` — no location at all, observed for an unreadable tsconfig (TS5058,
+ *   TS5057) and for one matching zero input files (TS18003). `RawDiagnostic.file` is a required `string` and
+ *   there is no file to attribute these to, so they become an `EngineError` rather than a diagnostic.
  *
- * **A located diagnostic is not always one line.** Confirmed directly: `TS2769` (overload mismatch)
- * and other multi-candidate diagnostics continue onto further lines, each indented two or four spaces
- * with **no** `file(line,col):` prefix of their own — indentation is the only signal that a line
- * belongs to the diagnostic above it rather than starting a new one. Every line that does not match
- * either shape above is folded into the currently-open diagnostic's message, trimmed and newline-
- * joined; a line before any diagnostic has opened (stray banner/debug output, if anything ever writes
- * one to stdout) is silently ignored rather than thrown on — the caller only reaches this parser after
- * its own exit-code check already decided this was a legitimate run, not a crash.
+ * **A located diagnostic is not always one line.** Confirmed directly: `TS2769` (overload mismatch) and other
+ * multi-candidate diagnostics continue onto further lines indented two or four spaces with **no**
+ * `file(line,col):` prefix of their own — indentation is the only signal that a line belongs to the diagnostic
+ * above it. Anything matching neither shape is folded into the currently-open diagnostic's message; a line before
+ * any diagnostic has opened is ignored rather than thrown on, since the caller's exit-code check has already
+ * decided this was a legitimate run.
  */
 const LOCATED = /^(.*)\((\d+),(\d+)\): (error|warning) (TS\d+): (.*)$/
 const GLOBAL = /^(error|warning) (TS\d+): (.*)$/
@@ -52,19 +44,13 @@ type LocatedDiagnostic = {
 }
 
 /**
- * Parses `tsc`'s plain-text stdout into `RawDiagnostic`s, reading each referenced file's own source
- * (relative to `rootDir`) to convert `tsc`'s 1-based (line, column) — already UTF-16 code units, spec
- * §10's own convention — into the byte offsets `RawDiagnostic.range` requires. This is the one thing
- * oxlint's parser never needs: oxlint hands back byte spans directly.
+ * Each referenced file is read back (relative to `rootDir`) to convert `tsc`'s 1-based (line, column) — already
+ * UTF-16 code units, spec §10's own convention — into the byte offsets `RawDiagnostic.range` requires. oxlint's
+ * parser never needs this: it hands back byte spans directly.
  *
- * `tsc`'s plain-text output carries no *length* for a diagnostic, only its starting position — unlike
- * oxlint's `{ offset, length }` span. `--pretty` mode's code frame does show an underline width, but
- * parsing two different tsc output shapes to reconcile one position is worse than the alternative:
- * every diagnostic here gets a deliberate one-character range at its reported column. Documented, not
- * hidden — a future improvement could shell out to `--pretty` as well purely to recover underline
- * widths, at the cost of a second invocation.
- *
- * @yields One `RawDiagnostic` per located diagnostic tsc reported, in the order tsc printed them.
+ * tsc's plain-text output carries no *length*, only a starting position, so **every diagnostic gets a deliberate
+ * one-character range** at its reported column. `--pretty`'s code frame does show an underline width, but parsing
+ * two output shapes to reconcile one position is the worse trade.
  */
 export async function* parseTscOutput(stdout: string, rootDir: string): AsyncGenerator<RawDiagnostic> {
   const trimmed = stdout.trim()
@@ -154,10 +140,8 @@ export async function* parseTscOutput(stdout: string, rootDir: string): AsyncGen
 
     yield {
       engineRuleId: TYPE_ERROR_RULE_ID,
-      // The TS code is folded into the message, not dropped: there is nowhere else for it to go
-      // (`RawDiagnostic` has no separate code field, unlike oxlint's rule ids), and keeping it is what
-      // makes the reported message greppable against the identical text the user's own editor or CI
-      // already shows for the same error.
+      // The TS code is folded into the message rather than dropped: `RawDiagnostic` has no code field, and
+      // keeping it is what makes the message greppable against what the user's own editor or CI already shows.
       message: `${diagnostic.code}: ${diagnostic.message}`,
       severity: diagnostic.severity,
       file: diagnostic.file,

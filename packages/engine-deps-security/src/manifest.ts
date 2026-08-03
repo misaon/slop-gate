@@ -3,17 +3,12 @@ import type { ByteRange } from '@misaon/slop-gate-core'
 const DEPENDENCY_KEYS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
 
 /**
- * The byte range of one dependency's key inside a `package.json`.
+ * The byte range of one dependency's key inside a `package.json`. A finding that points at byte zero is one nobody
+ * can act on, and the dependency is a named key in a file already read — but a general position-preserving JSON
+ * parser is real unstarted work, so this does the bounded thing and returns nothing rather than guess at an offset.
  *
- * A finding that points at byte zero is a finding nobody can act on, and there is no excuse for one
- * here: the dependency is a named key in a file this engine has already read. What there is no
- * excuse *for* either is a general position-preserving JSON parser, which the schema engine records
- * as real unstarted work — so this does the bounded thing instead. It locates a dependency group at
- * the top level, then the quoted name inside that group's braces, and returns nothing at all if
- * either search fails rather than guessing at an offset.
- *
- * Quotes are tracked while counting braces so a value containing `{` or `}` cannot end the group
- * early — `"start": "node -e '{}'"` is ordinary in a scripts block and would otherwise close it.
+ * Quotes are tracked while counting braces so a value containing `{` or `}` cannot end the group early —
+ * `"start": "node -e '{}'"` is ordinary in a scripts block and would otherwise close it.
  */
 export function findDependencyRange(source: string, name: string): ByteRange | undefined {
   const needle = JSON.stringify(name)
@@ -72,9 +67,9 @@ function skipSpace(source: string, from: number): number {
 }
 
 /**
- * Spec §10: `RawDiagnostic.range` is UTF-8 bytes while a JavaScript string index counts UTF-16 code
- * units. They agree on the ASCII a package name is made of, and diverge the moment anything above
- * the manifest holds a non-ASCII character — an author's name or a description, both routine.
+ * Spec §10: `RawDiagnostic.range` is UTF-8 bytes while a JavaScript string index counts UTF-16 code units. They
+ * agree on the ASCII a package name is made of, and diverge the moment anything *above* it in the manifest holds a
+ * non-ASCII character — an author's name or a description, both routine.
  */
 function byteOffset(source: string, index: number): number {
   return new TextEncoder().encode(source.slice(0, index)).length

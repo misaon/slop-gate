@@ -952,9 +952,9 @@ What *is* measured, and how the rows add up:
   subtracting to find the rest of their own run. It adds up instead.
 - **`startup`** is everything before core was called: node boot, the ESM module graph and
   `loadCliConfig`. It is one row and not three, because core cannot split what it was not running for —
-  all it sees is the gap between the `startedAt` the caller claimed and its own first statement. On a
-  warm run of this repository it is the second-largest row. A long-lived host (§12.1) reports `0` here:
-  its process start has nothing to do with this run.
+  all it sees is the gap between the `startedAt` the caller claimed and its own first statement. **On a
+  warm run of this repository it is 54% of the whole run**, and nothing an engine does explains it. A
+  long-lived host (§12.1) reports `0` here: its process start has nothing to do with this run.
 - **The inventory walk is `discover`; rule-registry arbitration is `arbitrate`.** Both are ours, both
   are phases, neither is engine work — which is the distinction someone reaching for this flag is
   usually trying to draw.
@@ -968,17 +968,30 @@ What *is* measured, and how the rows add up:
   `pretty` renders a code frame the run is suspended inside a `yield` and the clock is still running.
   The row is labelled with what it contains rather than left to be read as slack in the orchestrator.
 
-**Off costs nothing, and that is measured rather than assumed.** Instrumentation is compiled in
-unconditionally and inert unless `--timing` asked for it — one indirect call through a no-op collector
-per point, about 1 300 of them on a cold run of this repository, since `read-source`, `normalize` and
-`cache-write` are measured per file. hyperfine 1.20.0, instrumentation absent vs. present with the flag
-off: warm 155.5 ms ± 2.2 → 155.8 ms ± 2.5, cold 5.949 s ± 0.055 → 5.984 s ± 0.077. Both inside 1σ, so
-no compile-time switch.
+**Off costs nothing measurable, and that is measured rather than assumed.** Instrumentation is compiled
+in unconditionally and inert unless `--timing` asked for it — one indirect call through a no-op
+collector per span, 3 307 of them on a cold run of this repository, since `read-source`, `normalize` and
+`cache-write` are measured per file. Measured by building `packages/core` twice from the same tree, once
+with all 22 wrapper call sites removed, and swapping only its `dist` between hyperfine benchmarks in one
+invocation (§16.4's terms: minima, ≥ 3 warmups, ≥ 10 runs, both orders):
 
-**The terminal folds, `json` does not.** A real run of this repository measures 44 phases and 30 of them
-are under a millisecond, so `pretty` prints the rows worth ≥ 0.5% of the run and sums the rest into one
-labelled row — the column still adds to the total, and `--format=json` carries every phase and every
-rule uncapped.
+| | absent | present, flag off |
+|---|---|---|
+| warm, order A→B | 156.8 ms ± 1.8 (min 152.2) | 155.3 ms ± 2.0 (min 151.5) |
+| warm, order B→A | 156.4 ms ± 1.7 (min 153.3) | 157.1 ms ± 3.5 (min 153.0) |
+| cold | 6.123 s ± 0.080 (min 6.017) | 6.101 s ± 0.107 (min 6.029) |
+
+**The instrumented build posted the lower minimum in both warm rounds and the lower mean cold**, which
+is only possible if the real difference is smaller than the machine's own drift — the same drift §16.4
+already documents. So: no compile-time switch, and no claim of a specific percentage either, because
+this measurement cannot support one.
+
+**The terminal folds, `json` does not.** A cold run of this repository measures 51 phases, most under a
+millisecond, so `pretty` prints the rows worth ≥ 10 ms or ≥ 0.5% of the run and sums the rest into one
+labelled row. Two criteria because either alone is blind where the other holds: on a cold run `run:tsc`
+is 83% of the wall clock, which puts a 26 ms inventory walk under the share floor and would drop exactly
+the row a reader asked for; on a 140 ms warm run, 10 ms is 7% of everything. The column adds to the
+total either way, and `--format=json` carries every phase and every rule uncapped.
 
 ---
 

@@ -11,10 +11,7 @@ export type Oscillation = {
 export type OscillationLedger = {
   /** Records a file's starting buffer. Must be called once per file before any `record`. */
   seed(file: string, buffer: Uint8Array): void
-  /**
-   * Records the buffer a pass produced and the rules that produced it. Returns `null` while the file
-   * is still converging, or the rules to name once a hash repeats.
-   */
+  /** `null` while the file is still converging, or the rules to name once a hash repeats. */
   record(file: string, buffer: Uint8Array, rules: readonly string[]): Oscillation | null
   /** True once `record` has reported an oscillation for this file. */
   isStopped(file: string): boolean
@@ -29,22 +26,16 @@ type FileLedger = {
 }
 
 /**
- * Spec §11 step 5: per-file, per-pass buffer hashes, and the `config.fix-oscillation` a repeat
- * produces.
+ * Spec §11 step 5: per-file, per-pass buffer hashes, and the `config.fix-oscillation` a repeat produces. A
+ * repeated hash means the file re-entered a state it was already in, so continuing would reproduce the same
+ * sequence forever. The fix loop's pass cap is a second, blunter guard for a cycle longer than the cap;
+ * **this is the precise one.**
  *
- * A repeated hash means the file has re-entered a state it was already in, so continuing would
- * reproduce the same sequence forever — the failure this exists to convert from a hang (or a file
- * left in whichever of two states the pass limit happened to stop on) into a named, actionable
- * diagnostic. The pass cap in the fix loop is a second, blunter guard for a cycle longer than the
- * cap; this is the precise one.
- *
- * **Naming both rules is the requirement, and the naive answer is wrong.** "The rule that produced
- * this pass, plus the rule that produced the matching hash" misses everything in between and is
- * simply empty when the match is the seed, which nobody produced. So the report is every rule that
- * applied an edit from the repeated state onwards — for the modal two-rule cycle that is exactly the
- * two rules, and for a longer cycle it is every participant rather than an arbitrary two of them.
- * Rules from passes *before* the cycle began are deliberately excluded: they changed the file and
- * settled, and blaming them for someone else's fight is how a user ends up disabling the wrong rule.
+ * **Naming both rules is the requirement, and the naive answer is wrong.** "The rule that produced this
+ * pass, plus the rule that produced the matching hash" misses everything in between, and is empty when the
+ * match is the seed, which nobody produced. So the report is every rule that applied an edit from the
+ * repeated state onwards. Rules from passes *before* the cycle began are deliberately excluded: they
+ * changed the file and settled, and blaming them is how a user disables the wrong rule.
  */
 export function createOscillationLedger(): OscillationLedger {
   const files = new Map<string, FileLedger>()

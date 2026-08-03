@@ -1,18 +1,13 @@
 /**
  * The trimmed line alignment both of the fix pipeline's line differs are built on: `unifiedDiff`
- * (`fix/diff.ts`), which renders what a fix *would* do, and `editsFromRewrite` (`fix/derive.ts`),
- * which recovers the byte ranges a fix actually did.
+ * (`fix/diff.ts`), which renders what a fix *would* do, and `editsFromRewrite` (`fix/derive.ts`), which
+ * recovers the byte ranges a fix actually did. The trim is what makes an O(n·m) table affordable: a fix
+ * changes a handful of lines, so the window that differs is tiny even in a thousand-line file.
  *
- * One implementation rather than two, and that is a correctness requirement rather than tidiness.
- * The two are the preview and the applied edit of the *same* rewrite, on the one code path that
- * writes a user's source — and while each carried its own copy of this algorithm they also carried
- * their own `MAX_CELLS`, 4,000,000 in one and 1,000,000 in the other. A rewrite whose window product
- * landed between the two got a minimal diff from `sgate fix --dry-run` and a coarse whole-window
- * replacement from the fix that ran: the two disagreeing in shape, with nothing on either side able
- * to notice. `align.test.ts` pins that band.
- *
- * The trim is what makes an O(n·m) table affordable on a real source file: a fix changes a handful of
- * lines, so the window that actually differs is tiny even in a thousand-line file.
+ * **One implementation, as a correctness requirement rather than tidiness.** While each carried its own
+ * copy they also carried their own `MAX_CELLS`, so a rewrite whose window product landed between the two
+ * bounds got a minimal diff from `sgate fix --dry-run` and a coarse whole-window replacement from the fix
+ * that ran — disagreeing in shape, with nothing able to notice. `align.test.ts` pins that band.
  */
 
 export type AlignKind = 'same' | 'removed' | 'added'
@@ -32,45 +27,33 @@ type Alignment<T> = {
   readonly newWindow: readonly T[]
   /**
    * The minimal alignment of the two windows, or `null` when the window was too large to align (see
-   * `MAX_CELLS`) and the caller has to fall back to replacing the whole of it. Deliberately not a
-   * degenerate all-removed-then-all-added step list: the two callers' fallbacks are genuinely
-   * different — one prints a verbose diff, the other emits a single edit — so the type makes each of
-   * them say which it wants rather than letting one silently mishandle it.
+   * `MAX_CELLS`) and the caller has to replace the whole of it. Deliberately not a degenerate
+   * all-removed-then-all-added step list: the two callers' fallbacks genuinely differ — one prints a
+   * verbose diff, the other emits a single edit — so the type makes each say which it wants.
    */
   readonly steps: readonly AlignStep<T>[] | null
 }
 
 /**
- * The largest table this will build, in cells. Past it the window is reported unaligned and the
- * caller replaces it wholesale — correct output, just not a minimal one.
+ * The largest table this will build, in cells. Past it the window is reported unaligned and the caller
+ * replaces it wholesale — correct output, just not a minimal one.
  *
- * **4,000,000, the higher of the two bounds this replaces**, for two reasons.
- *
- * The fallbacks are not equally lossy. `unifiedDiff` falling back prints a verbose but faithful diff.
- * `editsFromRewrite` falling back collapses the whole window into *one* edit, and a single edit
- * spanning hundreds of lines makes every other rule's edit inside those lines an overlap loser — a
- * file then converges one rule per pass, if at all inside the pass limit (see that function's own
- * doc comment, where tight ranges are called the point rather than a nicety). So the higher bound is
- * the one whose exceeded case costs something real, and taking it is also what leaves every input
- * that got a minimal result before still getting one.
- *
- * And the higher bound is now cheaper than the lower one was. Measured on this machine over a
- * fully-rewritten window of equal-length lines, filling the table: 1,002,001 cells as the
- * `number[][]` both files used to build took 29-32 ms, where 4,004,001 cells as the flat
- * `Int32Array` below takes 22 ms. The worst case that 1,000,000 was chosen to bound therefore got
- * faster while the band it covers grew fourfold. The cost that did rise is peak memory —
- * `(n+1)·(m+1)·4` bytes, so 16 MB at the bound against roughly 8 MB at the old one — transient, and
- * on a path only a whole-file rewrite of a two-thousand-line file reaches.
+ * **4,000,000, the higher of the two bounds this replaces**, because the fallbacks are not equally lossy.
+ * `unifiedDiff` falling back still prints a faithful diff; `editsFromRewrite` falling back collapses the
+ * window into *one* edit, and a single edit spanning hundreds of lines makes every other rule's edit in
+ * those lines an overlap loser — the file then converges one rule per pass, if at all inside the pass
+ * limit. Taking the higher bound also leaves every input that got a minimal result before still getting
+ * one, and the flat `Int32Array` below fills it faster than the lower bound filled as a `number[][]`.
+ * Peak memory is `(n+1)·(m+1)·4` bytes, so 16 MB here — transient, and reached only by a whole-file
+ * rewrite of a two-thousand-line file.
  */
 const MAX_CELLS = 4_000_000
 
 /**
  * Aligns two line sequences by longest common subsequence, after trimming the common head and tail.
- *
- * `same` is passed rather than a key function because the two callers compare different things — one
- * on line text alone, the other on text *and* trailing-newline status, which is what makes a file
- * gaining or losing its final newline a visible change — and a predicate states that without either
- * of them having to reason about whether their key encoding is unambiguous.
+ * `same` is a predicate because the two callers compare different things: one line text alone, the other
+ * text *and* trailing-newline status — which is what makes a file gaining or losing its final newline a
+ * visible change.
  */
 export function alignLines<T>(before: readonly T[], after: readonly T[], same: (a: T, b: T) => boolean): Alignment<T> {
   let head = 0
@@ -89,18 +72,16 @@ export function alignLines<T>(before: readonly T[], after: readonly T[], same: (
   const newWindow = after.slice(head, after.length - tail)
   if (oldWindow.length * newWindow.length > MAX_CELLS) return { head, tail, oldWindow, newWindow, steps: null }
 
-  // `table[i * width + j]` is the LCS length of `oldWindow[i..]` against `newWindow[j..]`. Flat and
-  // `Int32Array` rather than a `number[][]`: one contiguous allocation instead of n+1 separate
-  // arrays, no pointer chase per row, and five to eight times faster to fill (see `MAX_CELLS`).
+  // `table[i * width + j]` is the LCS length of `oldWindow[i..]` against `newWindow[j..]`. Flat `Int32Array`
+  // rather than `number[][]`: one contiguous allocation, no pointer chase, five to eight times faster to fill.
   const width = newWindow.length + 1
   const table = new Int32Array((oldWindow.length + 1) * width)
   for (let i = oldWindow.length - 1; i >= 0; i -= 1) {
     const oldLine = oldWindow[i]!
     const row = i * width
     const below = row + width
-    // Two of the three neighbours each cell needs were computed by the previous iteration of this
-    // same loop, so carrying them costs one table read per cell instead of three. `right` is the cell
-    // at j+1 in this row, `belowRight` the one at j+1 in the row below; both are 0 past the end.
+    // Two of the three neighbours each cell needs came from the previous iteration, so carrying them costs
+    // one table read per cell instead of three. `right` is j+1 in this row, `belowRight` j+1 in the row below.
     let right = 0
     let belowRight = 0
     for (let j = newWindow.length - 1; j >= 0; j -= 1) {
