@@ -31,6 +31,9 @@
  *      slop-gate today provides the `types` capability, so arbitration can never elect one — see
  *      docs/superpowers/specs/2026-07-31-m0-followups.md, "Blocks M2".
  *   5. This output is committed, reviewable, and diffable — not regenerated silently at runtime.
+ *   6. `severityDefault` follows the rule's own authors where they are milder than the category
+ *      mapping (`registry/upstream-severity.ts`) — `error` fails a build with no opt-in, so being
+ *      stricter than the people who wrote the rule needs its own reason.
  *
  * Resolving the oxlint binary itself (`resolveOxlintBinary`, below) is imported from
  * `@misaon/slop-gate-engine-oxlint` rather than duplicated here — the adapter owns oxlint-specific
@@ -59,6 +62,7 @@ import { compareStrings } from '../src/ordering.ts'
 import { RULE_EXCLUSIONS } from '../src/registry/exclusions.ts'
 import { RULE_OVERRIDES } from '../src/registry/overrides.ts'
 import type { FixDomain, RuleEntry } from '../src/registry/types.ts'
+import { capToUpstream } from '../src/registry/upstream-severity.ts'
 import type { LanguageId } from '../src/languages.ts'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
@@ -90,6 +94,13 @@ type CatalogueRule = {
 
 function readCatalogue(): readonly CatalogueRule[] {
   const invocation = resolveOxlintBinary()
+  if (invocation === undefined) {
+    throw new Error(
+      "the bundled `oxlint` could not be resolved, so there is no catalogue to generate from. Run `pnpm install`. " +
+        '(It deliberately does not fall back to an `oxlint` on PATH — the committed registry would then ' +
+        'describe whichever version that machine happens to have.)',
+    )
+  }
   const stdout = execFileSync(invocation.command, [...invocation.prefixArgs, '--rules', '--format', 'json'], {
     encoding: 'utf8',
   })
@@ -230,7 +241,12 @@ function buildEntries(catalogue: readonly CatalogueRule[]): readonly GeneratedEn
     const engineRuleId = engineRuleIdOf(rule)
     const override = RULE_OVERRIDES[engineRuleId]
     const concepts = override?.concepts ?? [mechanicalId.get(rule)! as ConceptId]
-    const severityDefault = override?.severityDefault ?? (rule.category === 'correctness' ? 'error' : 'warn')
+    // The category mapping is a floor on nothing and a ceiling on nothing — it just says `correctness`
+    // is serious. Where the rule's own authors publish a milder level, theirs wins (see
+    // `registry/upstream-severity.ts`); an explicit override still beats both, because that is where a
+    // measurement lives.
+    const severityDefault =
+      override?.severityDefault ?? capToUpstream(rule.category === 'correctness' ? 'error' : 'warn', engineRuleId)
     const fixKind = fixKindOf(rule.fix)
     const excluded = RULE_EXCLUSIONS[engineRuleId] !== undefined
 

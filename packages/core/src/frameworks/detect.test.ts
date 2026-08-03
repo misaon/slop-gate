@@ -477,6 +477,48 @@ test('both installed disables both scopes — the double report would be genuine
   )
 })
 
+/**
+ * oxlint 1.76.0 omits `eslint-plugin-unicorn`'s own `jest.mock()` exemption for
+ * `consistent-function-scoping` (`rules/consistent-function-scoping.js:105-122`,
+ * `isInsideJestMockFactory`, unicorn 72.0.0) and carries the shape in its own `fail` vector instead.
+ * Measured on a four-file fixture: oxlint 5 findings, three of them functions declared inside a
+ * `jest.mock()` factory; ESLint 10.8.0 with the real plugin, 2. A jest factory *cannot* reference
+ * anything outside itself (jest hoists the call above the imports), so "move it to the outer scope"
+ * is advice that breaks the test — every one of the three is false.
+ *
+ * Confined to jest's own default `testMatch`, so the rule keeps working on application code, which is
+ * where it earns its place.
+ */
+test('a jest repository turns the mock-factory false positive off in test files only', async () => {
+  const detection = await detect({ 'package.json': manifest({ jest: '^30.0.0' }, 'devDependencies') })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+  const level = (path: string) =>
+    resolver.forFile(path).rules.get('suspicious.consistent-function-scoping' as never)?.level
+
+  expect(level('src/service.test.ts')).toBe('off')
+  expect(level('src/__tests__/service.ts')).toBe('off')
+  expect(level('src/service.ts')).toBe('warn')
+})
+
+test('a vitest-only repository keeps the mock-factory rule on, because upstream exempts only jest', async () => {
+  const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+
+  // Measured on the same fixture: the real plugin reports the `vi.mock()` factory too, so this is
+  // upstream's own position rather than an oversight of ours to route around. See the M0 follow-ups.
+  expect(resolver.forFile('src/service.test.ts').rules.get('suspicious.consistent-function-scoping' as never)?.level).toBe(
+    'warn',
+  )
+})
+
 test('neither installed disables both scopes, degrading to the exclusion this replaces', async () => {
   const both = await detect({ 'package.json': manifest({ jest: '^30.0.0', vitest: '^3.0.0' }, 'devDependencies') })
   const neither = await detect({ 'package.json': manifest({}) })
@@ -549,7 +591,7 @@ test('detects Next.js from a `next` dependency beside a `next.config.*`, and nam
 })
 
 /**
- * The whole point of the profile: every `nextjs` concept is already `error` repository-wide, and the
+ * The whole point of the profile: every `nextjs` concept is already enabled repository-wide, and the
  * only thing left to say about it is *where*. So the adjustments are subtractions, all path-scoped,
  * and they name the workspaces that cannot follow the advice rather than the app that can.
  */
@@ -574,9 +616,12 @@ test('the scoped subtraction reaches the sibling package and leaves the applicat
   })
   const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element' as never)?.level
 
+  // `warn`, not `error`, and that is Vercel's own level for this rule — see
+  // `registry/upstream-severity.ts`. What this test is about is the *scope*: the sibling package is
+  // `off` and the application keeps whatever `recommended` set.
   expect(level('packages/ui/src/Logo.tsx')).toBe('off')
-  expect(level('apps/web/app/page.tsx')).toBe('error')
-  expect(resolver.base.rules.get('correctness.no-img-element' as never)?.level).toBe('error')
+  expect(level('apps/web/app/page.tsx')).toBe('warn')
+  expect(resolver.base.rules.get('correctness.no-img-element' as never)?.level).toBe('warn')
 })
 
 /**

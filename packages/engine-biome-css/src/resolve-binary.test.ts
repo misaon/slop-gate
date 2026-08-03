@@ -6,10 +6,10 @@ test('resolves the installed biome bin script and runs it through this node', ()
   const invocation = resolveBiomeBinary()
   // `bin/biome` is an extensionless `#!/usr/bin/env node` script, which Windows cannot spawn
   // directly — so the resolved invocation is always `node <script>`, on every platform.
-  expect(invocation.command).toBe(process.execPath)
-  expect(invocation.prefixArgs).toHaveLength(1)
-  expect(invocation.prefixArgs[0]).toMatch(/biome/)
-  expect(existsSync(invocation.prefixArgs[0]!)).toBe(true)
+  expect(invocation?.command).toBe(process.execPath)
+  expect(invocation?.prefixArgs).toHaveLength(1)
+  expect(invocation?.prefixArgs[0]).toMatch(/biome/)
+  expect(existsSync(invocation!.prefixArgs[0]!)).toBe(true)
 })
 
 test('resolves package.json directly, needing no exports workaround', () => {
@@ -19,19 +19,20 @@ test('resolves package.json directly, needing no exports workaround', () => {
   expect(() => resolveBiomeBinary(() => require.resolve('@biomejs/biome/package.json'))).not.toThrow()
 })
 
-test('falls back to a bare command when the package cannot be resolved', () => {
+test('resolves to nothing when the package cannot be resolved, rather than to a `biome` on PATH', () => {
   const invocation = resolveBiomeBinary(() => {
     throw new Error('not installed')
   })
-  expect(invocation).toEqual({ command: 'biome', prefixArgs: [] })
+  expect(invocation).toBeUndefined()
 })
 
-test('falls back to a bare command when the bin script is missing from disk', () => {
+test('resolves to nothing when the bin script is missing from disk', () => {
   // A corrupted or partial install. `node <missing script>` would exit 1 — indistinguishable from
-  // "found findings" — so this must route back through a bare command and a real ENOENT instead.
+  // "found findings" — and a bare `biome` would be some other version of Biome than the exact one
+  // this package pins, so neither is an answer: the engine fails the run and says to reinstall.
   const invocation = resolveBiomeBinary(
     () => '/somewhere/@biomejs/biome/package.json',
     () => false,
   )
-  expect(invocation).toEqual({ command: 'biome', prefixArgs: [] })
+  expect(invocation).toBeUndefined()
 })

@@ -25,10 +25,10 @@ for (const platform of PLATFORMS) {
     try {
       const resolved = resolveKnipBinary()
 
-      expect(resolved.command).toBe(process.execPath)
-      expect(resolved.command).not.toMatch(/knip[\\/]bin[\\/]knip\.js$/)
-      expect(resolved.prefixArgs).toHaveLength(1)
-      expect(resolved.prefixArgs[0]).toMatch(/knip[\\/]bin[\\/]knip\.js$/)
+      expect(resolved?.command).toBe(process.execPath)
+      expect(resolved?.command).not.toMatch(/knip[\\/]bin[\\/]knip\.js$/)
+      expect(resolved?.prefixArgs).toHaveLength(1)
+      expect(resolved?.prefixArgs[0]).toMatch(/knip[\\/]bin[\\/]knip\.js$/)
     } finally {
       Object.defineProperty(process, 'platform', original)
     }
@@ -52,17 +52,14 @@ test('resolveKnipPackageJson reaches the real manifest anyway, via the package e
 
 test('resolves the real installed knip package to its bin/knip.js script', () => {
   const resolved = resolveKnipBinary()
-  expect(resolved.command).toBe(process.execPath)
-  expect(resolved.prefixArgs[0]).toMatch(/knip[\\/]bin[\\/]knip\.js$/)
+  expect(resolved?.command).toBe(process.execPath)
+  expect(resolved?.prefixArgs[0]).toMatch(/knip[\\/]bin[\\/]knip\.js$/)
 })
 
-test('falls back to the bare "knip" command with no prefix args when resolution fails entirely', () => {
-  expect(resolveKnipBinary(throwingResolver)).toEqual({ command: 'knip', prefixArgs: [] })
+test('resolves to nothing when the bundled knip cannot be resolved, rather than to one on PATH', () => {
+  expect(resolveKnipBinary(throwingResolver)).toBeUndefined()
 })
 
-test('falls back to the bare "knip" command when the package resolves but bin/knip.js is missing', () => {
-  expect(resolveKnipBinary(resolvedPackageJsonForMissingBin, fileNeverExists)).toEqual({
-    command: 'knip',
-    prefixArgs: [],
-  })
+test('resolves to nothing when the package resolves but bin/knip.js is missing', () => {
+  expect(resolveKnipBinary(resolvedPackageJsonForMissingBin, fileNeverExists)).toBeUndefined()
 })

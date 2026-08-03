@@ -39,31 +39,31 @@ for (const platform of PLATFORMS) {
       // just the platform-matrix branch on its own.
       const resolved = resolveTscBinary(process.cwd())
 
-      expect(resolved.command).toBe(process.execPath)
-      expect(resolved.command).not.toMatch(/typescript[\\/]bin[\\/]tsc$/)
-      expect(resolved.prefixArgs).toHaveLength(1)
-      expect(resolved.prefixArgs[0]).toMatch(/typescript[\\/]bin[\\/]tsc$/)
+      expect(resolved?.command).toBe(process.execPath)
+      expect(resolved?.command).not.toMatch(/typescript[\\/]bin[\\/]tsc$/)
+      expect(resolved?.prefixArgs).toHaveLength(1)
+      expect(resolved?.prefixArgs[0]).toMatch(/typescript[\\/]bin[\\/]tsc$/)
     } finally {
       Object.defineProperty(process, 'platform', original)
     }
   })
 }
 
-test('falls back to the bare "tsc" command with no prefix args when resolution fails entirely', () => {
-  expect(resolveTscBinary(dir, throwingResolver)).toEqual({ command: 'tsc', prefixArgs: [] })
+test('resolves to nothing when the project has no `typescript`, rather than to a `tsc` on PATH', () => {
+  // The engine turns this into a coverage gap naming `npm install -D typescript` (see its
+  // `availability()`); what must never happen is a bare `tsc`, which would typecheck against whatever
+  // version the machine has instead of the one the developer's own build reports.
+  expect(resolveTscBinary(dir, throwingResolver)).toBeUndefined()
 })
 
-test('falls back to the bare "tsc" command when the package resolves but bin/tsc itself is missing', () => {
-  expect(resolveTscBinary(dir, resolvedPackageJsonForMissingBin, fileNeverExists)).toEqual({
-    command: 'tsc',
-    prefixArgs: [],
-  })
+test('resolves to nothing when the package resolves but bin/tsc itself is missing', () => {
+  expect(resolveTscBinary(dir, resolvedPackageJsonForMissingBin, fileNeverExists)).toBeUndefined()
 })
 
 test('resolves the real installed typescript package to its bin/tsc script', () => {
   const resolved = resolveTscBinary(process.cwd())
-  expect(resolved.command).toBe(process.execPath)
-  expect(resolved.prefixArgs[0]).toMatch(/typescript[\\/]bin[\\/]tsc$/)
+  expect(resolved?.command).toBe(process.execPath)
+  expect(resolved?.prefixArgs[0]).toMatch(/typescript[\\/]bin[\\/]tsc$/)
 })
 
 test('resolves the analysed project’s own typescript install, not wherever this package is installed', async () => {
@@ -86,7 +86,9 @@ test('resolves the analysed project’s own typescript install, not wherever thi
   // that is itself a symlink to `/private/var/...`, and Node's own module resolution returns the
   // symlink-resolved form — a platform artifact of the fixture location, unrelated to what this test
   // is actually pinning (that resolution is anchored at `dir`, not at this package's own install).
-  expect(resolved.command).toBe(process.execPath)
-  expect(resolved.prefixArgs).toHaveLength(1)
-  await expect(realpath(resolved.prefixArgs[0]!)).resolves.toBe(await realpath(join(fixtureTypescriptDir, 'bin', 'tsc')))
+  expect(resolved?.command).toBe(process.execPath)
+  expect(resolved?.prefixArgs).toHaveLength(1)
+  await expect(realpath(resolved!.prefixArgs[0]!)).resolves.toBe(
+    await realpath(join(fixtureTypescriptDir, 'bin', 'tsc')),
+  )
 })

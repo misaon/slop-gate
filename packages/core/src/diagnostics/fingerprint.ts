@@ -1,22 +1,43 @@
 import { createHash } from 'node:crypto'
 import type { ByteRange } from './types.ts'
-import { createLineIndex } from './position.ts'
+import type { LineIndex } from './position.ts'
 
 export type FingerprintInput = {
   concept: string
   file: string
-  source: string
-  range: ByteRange
+  /** `normalizedWindow`'s output for this diagnostic's range. */
+  window: string
+  /**
+   * Which of the identically-windowed findings in this file this is (spec §10.1). Counted over
+   * `(concept, file, window)` by the caller, *not* over `(concept, file)`: two findings of one concept
+   * on textually different lines are already told apart by their windows, so numbering them 0 and 1 in
+   * arrival order made the fingerprint depend on the order the engine happened to emit them in. That
+   * is a real instability for an engine whose emission order is not fixed — actionlint iterates a
+   * workflow's jobs over a Go map, whose order is randomised — and the churn it produces is
+   * indistinguishable from a genuine change: the same finding set, different fingerprints, on the very
+   * next run.
+   */
   occurrenceIndex: number
 }
 
-export function fingerprint(input: FingerprintInput): string {
-  const index = createLineIndex(input.source)
-  const window = index.sliceBytes(index.lineRangeOf(input.range))
-  const normalized = window.replace(/\s+/g, ' ').trim()
+/**
+ * The diagnostic's range expanded to whole lines with runs of whitespace collapsed — the only thing a
+ * fingerprint knows about *where* a finding is. Line and column numbers are deliberately not hashed,
+ * so a fingerprint survives reformatting and unrelated edits above the finding (spec §10.1). The cost
+ * is the mirror image: a finding re-attributed to a different line *is* a different fingerprint,
+ * because the line it quotes has different text.
+ *
+ * Takes a `LineIndex` rather than the file's source. Every caller normalizes a whole file's worth of
+ * diagnostics and already holds one, and building a fresh index per diagnostic was a documented waste
+ * (M0 follow-ups, "Should fix soon").
+ */
+export function normalizedWindow(index: LineIndex, range: ByteRange): string {
+  return index.sliceBytes(index.lineRangeOf(range)).replace(/\s+/g, ' ').trim()
+}
 
+export function fingerprint(input: FingerprintInput): string {
   return createHash('sha256')
-    .update([input.concept, input.file, normalized, String(input.occurrenceIndex)].join('\0'))
+    .update([input.concept, input.file, input.window, String(input.occurrenceIndex)].join('\0'))
     .digest('hex')
     .slice(0, 32)
 }

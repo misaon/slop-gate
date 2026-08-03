@@ -180,6 +180,31 @@ test('gives repeated identical findings in one file distinct fingerprints', () =
   expect(first?.fingerprint).not.toBe(second?.fingerprint)
 })
 
+/**
+ * The instability nobody recorded, and the reason the M0 follow-ups' "position-based fingerprints
+ * would churn a baseline every run" was aimed slightly off target. Fingerprints exclude line numbers
+ * by design (§10.1) — but `occurrenceIndex` was counted per `(concept, file)` in the order the engine
+ * emitted its findings, so two findings of one concept on textually different lines swapped indices
+ * whenever the engine swapped their order, and *both* fingerprints changed. actionlint iterates a
+ * workflow's jobs over a randomised Go map and lints files concurrently, so that reordering is not
+ * hypothetical; a baseline would have recorded it as two findings fixed and two new ones.
+ *
+ * Asserted as a set, because the per-diagnostic order is genuinely the engine's and there is nothing
+ * to promise about it — what a baseline compares is the set.
+ */
+test('the fingerprints of one file do not depend on the order the engine reported them in', () => {
+  const forward = [
+    raw({ engineRuleId: 'no-unused-vars', message: 'unused import', range: { start: 0, end: 26 } }),
+    raw({ engineRuleId: 'no-unused-vars', message: 'unused import', range: { start: 27, end: 42 } }),
+  ]
+
+  const inOrder = run(forward).map((diagnostic) => diagnostic.fingerprint)
+  const reversed = run([...forward].reverse()).map((diagnostic) => diagnostic.fingerprint)
+
+  expect(inOrder).toHaveLength(2)
+  expect([...inOrder].sort()).toEqual([...reversed].sort())
+})
+
 test('gives the same finding in two files distinct fingerprints', () => {
   const [a, b] = run([
     raw({ engineRuleId: 'no-debugger', message: 'debugger', file: 'src/a.ts' }),

@@ -28,12 +28,23 @@ const MAX_FINDINGS_EXIT_CODE = 1
 /** How many of the batch's largest files to name when ast-grep silently skips one. */
 const SKIPPED_FILE_HINT_COUNT = 3
 
+const MISSING_AST_GREP =
+  'the bundled `@ast-grep/cli` platform binary could not be resolved from this installation of ' +
+  'slop-gate, and it will not fall back to an `ast-grep` on PATH — a different version reads the rule ' +
+  'files differently. Reinstall slop-gate. (On musl Linux, where upstream publishes no build at all, a ' +
+  '`PATH` ast-grep is used deliberately and this error cannot occur.)'
+
 export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engine {
   // `binaryPath` is the same test-only override the other three adapters carry: spawned exactly as
   // given. Unlike theirs it needs no `node` prefix in *either* case — see resolve-binary.ts for why
   // ast-grep is the one engine here whose bin target is a native executable rather than a script.
-  const invocation: AstGrepInvocation =
+  const invocation: AstGrepInvocation | undefined =
     options.binaryPath === undefined ? resolveAstGrepBinary() : { command: options.binaryPath, prefixArgs: [] }
+
+  const required = (): AstGrepInvocation => {
+    if (invocation === undefined) throw new EngineError('astgrep', MISSING_AST_GREP)
+    return invocation
+  }
 
   return {
     id: 'astgrep',
@@ -58,7 +69,8 @@ export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engi
     },
 
     async version() {
-      const { stdout } = await run(invocation.command, [...invocation.prefixArgs, '--version'], { encoding: 'utf8' })
+      const resolved = required()
+      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
       return stdout.trim().replace(/^ast-grep\s+/i, '')
     },
 
@@ -67,7 +79,7 @@ export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engi
     },
 
     run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
-      return execute(invocation, batch, handle, context, signal)
+      return execute(required(), batch, handle, context, signal)
     },
   }
 }

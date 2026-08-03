@@ -57,36 +57,41 @@ export type ResolveAstGrepBinaryOptions = {
  * (verified: `MODULE_NOT_FOUND` from this package, resolves from the CLI's directory). This mirrors
  * what `postinstall.js` does with `{ paths: [__dirname] }`.
  *
- * Falls back to a bare `ast-grep` on `PATH` when there is no platform package for this
- * platform/arch/libc combination, when the optional dependency was skipped (`--no-optional`), or when
- * the resolved binary is missing — the same last resort the other three adapters take, and the only
- * option a musl Linux user has, since upstream publishes no musl build at all.
+ * **A bare `ast-grep` on `PATH` is the answer to exactly one question, and `undefined` is the answer
+ * to the other.** Upstream publishes no musl build and nothing for platforms outside the seven above,
+ * so on those a `PATH` binary is not a substitution for something we shipped — it is the only ast-grep
+ * that can exist, and refusing it would remove the engine from Alpine outright. Every *other* failure
+ * (the optional dependency skipped with `--no-optional`, the platform package present but its binary
+ * missing, resolution throwing) is a broken install of a package this one bundles, and there the bare
+ * command silently swaps an unknown ast-grep version for the pinned one — the same silent substitution
+ * `resolveScriptBin` no longer offers the other three adapters. `createAstGrepEngine` turns
+ * `undefined` into an `EngineError` naming the package.
  *
  * Every parameter exists so `resolve-binary.test.ts` can drive each branch without uninstalling
  * anything, exactly as the other adapters' resolvers do.
  */
-export function resolveAstGrepBinary(options: ResolveAstGrepBinaryOptions = {}): AstGrepInvocation {
+export function resolveAstGrepBinary(options: ResolveAstGrepBinaryOptions = {}): AstGrepInvocation | undefined {
   const platform = options.platform ?? process.platform
   const arch = options.arch ?? process.arch
   const isGlibc = options.isGlibc ?? defaultIsGlibc
   const fileExists = options.fileExists ?? existsSync
   const resolveCliPackageJson = options.resolveCliPackageJson ?? defaultResolveCliPackageJson
   const resolveFromCli = options.resolveFromCli ?? defaultResolveFromCli
-  const fallback: AstGrepInvocation = { command: 'ast-grep', prefixArgs: [] }
+  const unpublished: AstGrepInvocation = { command: 'ast-grep', prefixArgs: [] }
 
-  if (platform === 'linux' && !isGlibc()) return fallback
+  if (platform === 'linux' && !isGlibc()) return unpublished
 
   const packageName = PLATFORM_PACKAGES[`${platform} ${arch}`]
-  if (packageName === undefined) return fallback
+  if (packageName === undefined) return unpublished
 
   try {
     const cliDir = dirname(resolveCliPackageJson())
     const binaryDir = dirname(resolveFromCli(`${packageName}/package.json`, cliDir))
     const binary = join(binaryDir, platform === 'win32' ? 'ast-grep.exe' : 'ast-grep')
-    if (!fileExists(binary)) return fallback
+    if (!fileExists(binary)) return undefined
     return { command: binary, prefixArgs: [] }
   } catch {
-    return fallback
+    return undefined
   }
 }
 

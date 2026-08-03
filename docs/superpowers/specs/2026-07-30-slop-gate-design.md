@@ -590,6 +590,36 @@ collapsed. `occurrenceIndex` disambiguates identical windows within one file. Li
 deliberately excluded so fingerprints survive reformatting and unrelated edits above the finding —
 the property that makes baselines usable in practice.
 
+**`occurrenceIndex` is counted per `(concept, file, normalizedWindow)`, and that is a guarantee rather
+than an implementation detail.** Counting it per `(concept, file)` — which is what the code did until
+the follow-up that wrote this paragraph — numbers two findings on textually different lines `0` and
+`1` in whatever order the engine emitted them, so a fingerprint depends on that order. Several engines
+do not fix it: actionlint iterates a workflow's jobs over a randomised Go map and lints files
+concurrently. Keyed on the window, the index only ever separates findings whose fingerprint inputs are
+otherwise identical, so the *set* of fingerprints over a file is the same however the engine ordered
+them.
+
+### 10.2 An engine whose findings are not reproducible
+
+Some engines do not return the same findings for the same input. actionlint is the measured case: ten
+identical runs over 403 workflow files produced 442–447 findings, 441 of them in all ten. Three
+decisions, so the next such engine does not reopen them:
+
+1. **Do not detect it at run time.** Detection means running the engine twice and comparing, which
+   doubles the cost of the slowest engines to answer a question two runs answer badly: the ten-run
+   measurement above differed from the stable core by 0–5 findings per run, so two runs frequently
+   agree by accident.
+2. **Do not weaken the fingerprint for it.** Only two instability classes exist, and neither is
+   reachable by hashing differently. A finding that is *absent* from the next run has no fingerprint at
+   all. A finding *re-attributed to another line* quotes different text by construction, and the only
+   way to stop caring is to drop the window — which would make fingerprints churn for every engine on
+   any edit that adds an earlier finding to the same file. Emission order was the one class a hash
+   change could fix, and §10.1 now fixes it for everyone.
+3. **Keep the unstable rule out of the default presets, with the measurement recorded on it**
+   (`registry/exclusions.ts`; `entries.test.ts` checks the exclusion holds). A rule too valuable to
+   exclude has no answer here yet, and the honest thing to tell a user who enables one anyway is that
+   its findings will drift and a baseline will show that drift as new findings.
+
 ---
 
 ## 11. Fix pipeline

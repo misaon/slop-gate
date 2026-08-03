@@ -1,5 +1,5 @@
 import type { GeneratedPolicy, RuleLevel } from '../config/types.ts'
-import { fingerprint } from '../diagnostics/fingerprint.ts'
+import { fingerprint, normalizedWindow } from '../diagnostics/fingerprint.ts'
 import { createLineIndex, type LineIndex } from '../diagnostics/position.ts'
 import type { Diagnostic, Fix, Severity } from '../diagnostics/types.ts'
 import { isGeneratedPath } from '../discovery/generated.ts'
@@ -80,13 +80,19 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
     if (level === 'off') continue
     const severity = level === undefined ? entry.severityDefault : LEVEL_TO_SEVERITY[level]
 
-    const source = ensureSource(raw.file)
+    // Called for its side effect: it is what populates `sources` (read by the suppression pass below,
+    // which must see every file this engine touched) and `lineIndexes`.
+    ensureSource(raw.file)
     const lineIndex = lineIndexes.get(raw.file)!
 
     const start = lineIndex.positionAt(raw.range.start)
     const end = lineIndex.positionAt(raw.range.end)
 
-    const occurrenceKey = `${concept}\0${raw.file}`
+    // Keyed on the window as well as the concept and the file, which is what spec §10.1 says this
+    // index is for ("disambiguates identical windows within one file") and what makes a fingerprint
+    // independent of the order an engine emitted its findings in — see `FingerprintInput`.
+    const window = normalizedWindow(lineIndex, raw.range)
+    const occurrenceKey = `${concept}\0${raw.file}\0${window}`
     const occurrenceIndex = occurrences.get(occurrenceKey) ?? 0
     occurrences.set(occurrenceKey, occurrenceIndex + 1)
 
@@ -107,7 +113,7 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
       ...(raw.help === undefined ? {} : { help: raw.help }),
       ...fixOf(entry, raw),
       docsUrl: raw.docsUrl ?? entry.docsUrl,
-      fingerprint: fingerprint({ concept, file: raw.file, source, range: raw.range, occurrenceIndex }),
+      fingerprint: fingerprint({ concept, file: raw.file, window, occurrenceIndex }),
       // Suppressed rather than skipped, so the finding still reaches the per-file cache entry and a
       // later `--show-suppressed` can surface it. Marked here rather than filtered in `run/check.ts`
       // because this is where the file is already known, exactly as `detectLanguage` above is.
@@ -164,7 +170,6 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
         concept: 'config.unused-suppression',
         directive,
         file,
-        source,
         lineIndex,
         levelOf: input.levelOf,
         occurrences,
@@ -177,7 +182,6 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
         concept: 'config.suppression-missing-reason',
         directive,
         file,
-        source,
         lineIndex,
         levelOf: input.levelOf,
         occurrences,
@@ -271,7 +275,6 @@ function suppressionDiagnostic(params: {
   concept: string
   directive: SuppressionDirective
   file: string
-  source: string
   lineIndex: LineIndex
   levelOf: (concept: string) => RuleLevel | undefined
   occurrences: Map<string, number>
@@ -285,7 +288,8 @@ function suppressionDiagnostic(params: {
   const start = params.lineIndex.positionAt(range.start)
   const end = params.lineIndex.positionAt(range.end)
 
-  const occurrenceKey = `${params.concept}\0${params.file}`
+  const window = normalizedWindow(params.lineIndex, range)
+  const occurrenceKey = `${params.concept}\0${params.file}\0${window}`
   const occurrenceIndex = params.occurrences.get(occurrenceKey) ?? 0
   params.occurrences.set(occurrenceKey, occurrenceIndex + 1)
 
@@ -300,7 +304,7 @@ function suppressionDiagnostic(params: {
     position: { startLine: start.line, startColumn: start.column, endLine: end.line, endColumn: end.column },
     help: params.help,
     docsUrl: `https://slop-gate.dev/concepts/${params.concept}`,
-    fingerprint: fingerprint({ concept: params.concept, file: params.file, source: params.source, range, occurrenceIndex }),
+    fingerprint: fingerprint({ concept: params.concept, file: params.file, window, occurrenceIndex }),
   }
 }
 

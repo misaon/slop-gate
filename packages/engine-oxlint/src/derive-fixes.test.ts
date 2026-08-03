@@ -6,7 +6,9 @@ import { applyEdits, decodeUtf8, encodeUtf8, type CandidateEdit, type FixTarget,
 import { deriveOxlintFixes, loadFixCatalogue } from './derive-fixes.ts'
 import { resolveOxlintBinary } from './resolve-binary.ts'
 
-const invocation = resolveOxlintBinary()
+// Non-null because every test here spawns the real bundled oxlint: an unresolvable one is a broken
+// install of this package, which no assertion below could say anything useful about.
+const invocation = resolveOxlintBinary()!
 let dir: string
 
 const context = (): RunContext => ({ rootDir: dir, tmpDir: join(dir, '.slop-gate', 'tmp') })

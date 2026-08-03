@@ -31,6 +31,10 @@ const run = promisify(execFile)
  */
 const MAX_FINDINGS_EXIT_CODE = 2
 
+const UNAVAILABLE_REASON =
+  'no `typescript` is installed in this project, and slop-gate deliberately will not fall back to a ' +
+  'global one — a type error has to match what your own build reports'
+
 export type CreateTscEngineOptions = {
   /**
    * The project being analysed. Required, unlike `createOxlintEngine`'s options bag: `tsc` is
@@ -50,18 +54,23 @@ export type CreateTscEngineOptions = {
 export function createTscEngine(options: CreateTscEngineOptions): Engine {
   const tsconfigPath = options.tsconfigPath ?? join(options.rootDir, 'tsconfig.json')
   const cacheDir = options.cacheDir ?? join(options.rootDir, '.slop-gate', 'cache')
-  const invocation: TscInvocation =
+  const invocation: TscInvocation | undefined =
     options.binaryPath === undefined ? resolveTscBinary(options.rootDir) : { command: options.binaryPath, prefixArgs: [] }
 
   /**
-   * Whether `typescript` was actually resolved from the analysed project, as opposed to
-   * `resolveScriptBin` giving up and handing back its bare-`tsc`-on-`PATH` fallback. The two are
-   * distinguishable exactly: a resolved script is always `{ command: process.execPath, prefixArgs:
-   * [scriptPath] }`, and the fallback is always `{ command: 'tsc', prefixArgs: [] }`. An explicit
-   * `binaryPath` is the test escape hatch and is trusted as given — it has the fallback's *shape*
-   * without being one.
+   * Whether `typescript` was actually resolved from the analysed project. This used to be inferred
+   * from the returned *shape* (`prefixArgs.length > 0`, since the bare-`tsc`-on-`PATH` fallback had
+   * none) — correct, and only writable by someone who knew `resolveScriptBin`'s internals. That
+   * fallback is gone: `resolveScriptBin` returns nothing at all when it cannot find the package, for
+   * every engine rather than for this one, so the question is now asked directly. An explicit
+   * `binaryPath` is the test escape hatch and is trusted as given.
    */
-  const resolvedFromProject = options.binaryPath !== undefined || invocation.prefixArgs.length > 0
+  const resolvedFromProject = options.binaryPath !== undefined || invocation !== undefined
+
+  const required = (): TscInvocation => {
+    if (invocation === undefined) throw new EngineError('tsc', UNAVAILABLE_REASON)
+    return invocation
+  }
 
   return {
     id: 'tsc',
@@ -115,9 +124,7 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       if (!resolvedFromProject) {
         return {
           available: false as const,
-          reason:
-            'no `typescript` is installed in this project, and slop-gate deliberately will not fall back to a ' +
-            'global one — a type error has to match what your own build reports',
+          reason: UNAVAILABLE_REASON,
           install: 'npm install -D typescript',
         }
       }
@@ -135,7 +142,8 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
     },
 
     async version() {
-      const { stdout } = await run(invocation.command, [...invocation.prefixArgs, '--version'], { encoding: 'utf8' })
+      const resolved = required()
+      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
       return stdout.trim().replace(/^Version\s+/i, '')
     },
 
@@ -150,7 +158,7 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       // CLI arguments alongside `-p` is not just unnecessary, it is rejected outright: confirmed
       // directly, `tsc -p tsconfig.json src/a.ts` fails with "error TS5042: Option 'project' cannot
       // be mixed with source files on a command line."
-      return execute(invocation, handle, cacheDir, context, signal)
+      return execute(required(), handle, cacheDir, context, signal)
     },
   }
 }

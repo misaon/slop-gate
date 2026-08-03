@@ -149,8 +149,16 @@ export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       'lints files concurrently (`linter.go:347`, an `errgroup` sharing one cache) **and iterates a ' +
       'workflow\'s jobs over `Jobs map[string]*Job`, whose order Go randomises** — so this is unstable ' +
       'even for a single file in a single process: ten runs over one file put the same finding on line ' +
-      '99, 71, 316 and 359. Per-file invocation does not fix it. Position-based fingerprints (§10.1) ' +
-      'would therefore thrash on every run, taking the cache and the baseline with them.\n\n' +
+      '99, 71, 316 and 359. Per-file invocation does not fix it.\n\n' +
+      '**And no fingerprint scheme rescues it, which is worth stating precisely because the obvious ' +
+      'summary — "fingerprints are position-based, so they thrash" — is not what §10.1 does.** A ' +
+      'fingerprint hashes no line or column number at all; it hashes the *text* of the line the finding ' +
+      'lands on. So a column moving within a line is free, and the emission order of a file\'s findings ' +
+      'is free too (`FingerprintInput.occurrenceIndex`). What is not free is the same finding being ' +
+      'attributed to a different line, because that line reads differently — and a finding that is ' +
+      'simply absent from the next run has no fingerprint to stabilise in the first place. Both of ' +
+      'those are what this rule does, so a baseline over it would churn no matter how the hash is ' +
+      'computed. Keeping it out of `recommended` is the fix; there is no other one.\n\n' +
       '**And it is imprecise.** 10 findings, 1 true positive (a Docker action whose `runs.image` names ' +
       'a file not called `Dockerfile`). The other 9 are all `could not parse action metadata in "…": ' +
       'unexpected key "type" for definition of input "…"` — a `type:` key under a composite action\'s ' +

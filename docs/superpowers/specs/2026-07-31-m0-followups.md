@@ -276,9 +276,10 @@ gets for free from a human reading the code.**
   `sgate` indefinitely. Spec §18 requires one.
 - **A missing engine binary yields `spawn … ENOENT`** with no install command, against §18's
   "actionable message containing the exact install command".
-- **`fingerprint()` rebuilds the line index per diagnostic.** `packages/core/src/diagnostics/fingerprint.ts`
-  calls `createLineIndex` on the whole file while its caller in `normalize.ts` already has one cached
-  per file. The Task 2 deferral said "revisit when normalization batches per file"; it now does.
+- ~~**`fingerprint()` rebuilds the line index per diagnostic.**~~ **Resolved** by the recorded-defects
+  session (last section): `normalizedWindow(index, range)` is now its own function and takes the
+  caller's cached `LineIndex`. It moved because the nondeterminism fix needed the window at the call
+  site anyway, which is the only reason it was worth doing now.
 - **`readJson` swallows every error** in `packages/core/src/discovery/workspaces.ts`, so a malformed
   root `package.json` silently yields no workspaces. This is the last instance of the class that was
   deliberately fixed for `pnpm-workspace.yaml` fifteen lines below it.
@@ -1213,6 +1214,10 @@ that they were the proof was the argument for leaving them.
 
 ### We have no policy for an engine that is not deterministic
 
+> **Resolved, and one sentence of this section was wrong.** The policy is spec §10.2 and the
+> correction is in the last section of this document: fingerprints are *not* position-based, and the
+> real order-dependence was somewhere else. Everything below is the original measurement, which stands.
+
 Everything in this project assumes that the same inputs produce the same findings — fingerprints
 (§10.1) are position-based, the cache is keyed on content, and the baseline compares finding sets.
 actionlint breaks that assumption, and it is the first engine here to do so.
@@ -2081,3 +2086,189 @@ The fixture also reproduced the corpus finding above in miniature: three of its 
   `measured` on framework entries, plus `rejectedFrameworkAdditions`), and with no shipped profile
   adding anything the emitted document is byte-identical today. The first profile that adds will
   change what consumers see without changing the version, which is the moment to bump it.
+
+## Found fixing four recorded defects (the severity ceiling, global fallbacks, nondeterminism, `jest.mock`)
+
+Four things earlier sessions measured and wrote down without fixing. The measurements were all good;
+two of the *explanations* attached to them were not, and both corrections are below.
+
+### We were stricter than the plugins' own authors, and only Next.js had been counted
+
+Swept every oxlint scope with an upstream plugin by importing each plugin's own default config object
+at a pinned version and reading the severities out of it — not its documentation, and not the strictest
+variant it also publishes. Of the 301 rules `recommended` holds (`correctness` + `suspicious`, before
+exclusions):
+
+| | count |
+|---|---|
+| upstream agrees with our `error` | 174 |
+| **we were stricter than upstream** | **29** |
+| we are milder than upstream (`suspicious` → `warn`) | 16 |
+| our `error`, upstream does not enable the rule at all | 43 |
+| no upstream data (`oxc` scope, plus rules absent from the reference config) | 39 |
+
+The 29 are now capped at what upstream publishes: 13 `nextjs`, 9 `jsdoc`, 2 `promise`, 2 `jest`,
+1 `vitest`, plus `react/no-unsafe` and `jsx-a11y/control-has-associated-label` (both `off` upstream,
+capped at `warn` — see below). `registry/upstream-severity.ts` carries the table, the plugin version
+and the config name each level was read from; the generator applies it as a **ceiling only**, so a rule
+upstream holds at `error` while oxlint's category says `warn` stays `warn`.
+
+**Two reference-config choices that a reader will otherwise second-guess.** `@next/eslint-plugin-next`
+publishes `recommended` (15 of 21 at `warn`) and `core-web-vitals` (13 of 21); `eslint-config-next`
+applies the latter, and it is the stricter of the two, so that is the ceiling — the two rules that
+differ are `no-html-link-for-pages` and `no-sync-scripts`. `eslint-plugin-jsdoc` publishes
+`recommended` (all `warn`) and `recommended-error` (the same rules at `error`); the `error` variant is
+the opt-in one, so `warn` is the author's default judgement.
+
+**Nothing was kept stricter.** `RULE_OVERRIDES.severityDefault` still outranks the cap and is where an
+exception would go, with its measurement; no rule has one, because none of the 29 has a measurement on
+this repository's corpora that beats its author's own judgement of their own rule.
+`upstream-severity.test.ts` asserts every capped rule either matches its cap or has such an override,
+so the recorded upstream level cannot quietly stop describing what ships.
+
+**Evidence, since this repository shows nothing.** `sgate check` here is zero diagnostics before and
+after. On a three-file Next.js fixture (`next` dependency, `next.config.js`, one `<img>`) the run went
+from **exit 1** — `correctness.no-img-element` at `error` — to **exit 0**, same finding, `warn`. That
+discontinuity is the whole argument: `resolveExitCode` fails a run on one `error` with no opt-in
+anywhere, and costs nothing for a `warn` unless `--max-warnings` was passed.
+
+**The 43 are a different question and were deliberately left alone.** "Upstream does not enable this
+rule" is about preset membership, which `registry/exclusions.ts` decides by measured false-positive
+rate — and a plugin author leaving a rule off by default says nothing about how often it is wrong.
+Acting on it would silently re-decide `recommended` for 43 rules on an argument that does not support
+it. The two `off` cases were capped rather than dropped for the same reason. If anyone does take that
+question up: 17 are `typescript`, 8 `react`, 7 `vitest`, 5 `eslint`, 3 `jsx-a11y`, 2 `jest`, 1 `vue`.
+
+### Every adapter's resolver, audited: four could substitute a global binary for a bundled one
+
+The `tsc` fix and the actionlint `-shellcheck`/`-pyflakes` fix were each treated as one engine's
+problem. They were instances of one pattern, and it was in five resolvers:
+
+| engine | how the tool arrives | what it did when resolution failed |
+|---|---|---|
+| oxlint | `dependencies` | bare `oxlint` on `PATH` |
+| knip | `dependencies` | bare `knip` on `PATH` |
+| biome-css | `dependencies`, exact pin | bare `biome` on `PATH` |
+| astgrep | `dependencies` + platform packages | bare `ast-grep` on `PATH`, from four separate branches |
+| tsc | `peerDependencies` | bare `tsc` on `PATH` — already fixed, via an availability probe |
+
+`resolveScriptBin` no longer takes a `fallbackCommand` at all — the shared helper cannot express a
+substitution any more — and returns `undefined`. **The honest answer is neither a fallback nor a
+coverage gap.** A gap (`Engine.availability`) exits 0 and reports the repository clean, which is the
+worst available answer to "the linter is missing"; and a missing *bundled* dependency is not a property
+of the analysed repository at all, it is a broken installation of slop-gate. So each adapter raises an
+`EngineError` naming the package. A gap is right only where the tool was never bundled, which is
+exactly what actionlint and hadolint already do: they walk `PATH` themselves, return an absolute path
+or nothing, and report the absence as a gap with an install command.
+
+Two findings beyond the pattern:
+
+- **knip's `version()` read the bundled manifest while `run()` used the resolver.** So a corrupted
+  install could report one version and run another, and the cache key recorded the wrong one. Removing
+  the fallback closes it by construction: there is only ever the bundled knip now.
+- **`engine-tsc` detected its own fallback by inspecting the returned *shape*** (`prefixArgs.length >
+  0`, since the bare fallback had none). Correct, and writable only by someone who knew
+  `resolveScriptBin`'s internals. It asks directly now, and the refusal moved out of the availability
+  probe into `version()`/`run()` as well — a caller that skips the probe used to get the machine's
+  TypeScript version reported back as if nothing were wrong.
+
+**ast-grep keeps a `PATH` fallback in two of its four branches, and that is not an inconsistency.**
+Upstream publishes no musl build and nothing outside its seven platform triples, so there a `PATH`
+binary is not a substitute for something we shipped — it is the only ast-grep that can exist, and
+refusing it removes the engine from Alpine outright. The other two branches (optional dependency
+skipped, binary missing from a platform package that did resolve) are a broken install wearing the same
+clothes, and they now fail.
+
+**What is not covered: only `tsc` has a seam that lets a test drive the refusal end to end** (its
+resolution anchor is the analysed project, so a temp directory with no `typescript` reproduces it).
+For the other four the branch is enforced by the type system — the resolver returns `undefined` and the
+compiler will not let an adapter ignore it — plus a resolver-level test per engine. Making the others
+testable means injecting a resolver into `createXEngine`, which is production surface added for a test;
+not worth it for a branch that means "reinstall".
+
+### A nondeterministic engine: what could be encoded, and the sentence that was wrong
+
+The recorded section says "fingerprints (§10.1) are position-based" and concludes that an unstable
+*position* would churn a baseline. **Fingerprints hash no line or column number at all** — §10.1
+excludes them on purpose so a reformat does not invalidate a baseline. What they hash is the *text of
+the line* the finding lands on. The consequences are different from the ones recorded, and
+`fingerprint.test.ts` now pins both: a column moving within a line is free; a finding re-attributed to
+a different line is not, because that line reads differently.
+
+**Underneath the mis-description was a real instability nobody had recorded, and it was fixable.**
+`occurrenceIndex` was counted per `(concept, file)` over the engine's emission order, while §10.1 says
+it "disambiguates identical windows within one file". Two findings of one concept on textually
+different lines were therefore numbered `0` and `1` by arrival — so an engine that reordered them
+changed *both* fingerprints, with an identical finding set. actionlint iterates a workflow's jobs over
+a randomised Go map and lints files concurrently, so the reordering is real, and a baseline would have
+read it as two findings fixed and two new ones. Keyed on the window as the spec says, the index only
+separates findings whose fingerprint inputs are otherwise identical, and the set of fingerprints over a
+file is invariant under emission order — for every engine, not just the unstable one. Verified by
+reverting the fix and watching the new test fail.
+
+**The policy is spec §10.2, and the two refusals in it are the point:**
+
+- **No run-time instability detection.** It means running the engine twice and comparing, which doubles
+  the cost of the slowest engines to answer the question badly: the ten-run measurement that found this
+  differed from the stable core by 0–5 findings per run, so two runs frequently agree by accident.
+- **No weaker fingerprint for an unstable engine.** Only two classes remain and neither is reachable by
+  hashing differently. A finding *absent* from the next run has no fingerprint to stabilise. A finding
+  *re-attributed to another line* quotes different text by construction, and the only way to stop
+  caring is to drop the window — which would churn for every engine on any edit that adds an earlier
+  finding to the same file. Trading a property that holds for eight engines to salvage one that is
+  unstable anyway is a bad trade.
+
+So what is left is: keep the measured-unstable rule out of the default presets with its measurement
+recorded on it (`entries.test.ts` checks that), and tell a user who enables one anyway that its
+findings will drift and that a baseline will show the drift as new findings.
+
+**`EngineCapabilities.deterministic` was considered and not added.** It has no consumer: the baseline
+that would read it does not exist yet, arbitration has no use for it, and a per-run banner about a
+permanent property is the noise this document already criticises (the "115 enabled concepts have no
+capable engine" line). This repository has three fields with no consumer already (`fixTouches`,
+`capabilities.fixes`, `RawDiagnostic.severity`) and each is recorded here as a mistake. **Whoever
+builds the baseline should add the declaration then** — and note the granularity question they will
+hit: actionlint's *mechanism* is engine-wide, while its *measured* instability was one rule out of
+sixteen, so an engine-level flag would overstate the case for the other fifteen and a rule-level one is
+where the evidence actually is.
+
+### oxlint's missing `jest.mock()` exemption: the `test-framework` profile can reach it
+
+Stated to this document's standard for an engine claim — version, observation, fixture:
+
+- **oxlint 1.76.0** has no `jest.mock` handling in
+  `crates/oxc_linter/src/rules/unicorn/consistent_function_scoping.rs` and carries
+  `jest.mock('@kbn/i18n-react', () => { return { I18nProvider: function MockI18nProvider() {}, }; })`
+  in its own **`fail`** vector.
+- **eslint-plugin-unicorn 72.0.0** exempts any function nested inside a `jest.mock()` factory:
+  `rules/consistent-function-scoping.js:105-122`, `isInsideJestMockFactory`, which walks ancestors for a
+  `CallExpression` whose callee is `jest.mock` and whose second argument is the enclosing function.
+- **Measured on a four-file fixture** (three mock factories, one genuine violation): oxlint reports
+  **5**, all `code: "unicorn(consistent-function-scoping)"`; ESLint 10.8.0 with the real plugin reports
+  **2**. Through the real CLI, `sgate check` on that fixture went 5 → 1 after the fix.
+
+Every one of the three is false for a mechanical reason rather than a stylistic one: jest hoists
+`jest.mock()` above the imports, so its factory may not reference anything outside itself, and "move
+the function to the outer scope" — the rule's only advice — produces a test that throws.
+
+**The profile can reach it, and that is the answer to the recorded question.** The concept is
+`unicorn`-scope, so the `test-framework` profile's dual-firing subtraction never touched it; but §23.6's
+path scoping means the profile can confine a `disable-concept` to jest's own default `testMatch` when
+jest is detected, leaving the rule working on application code. A registry exclusion — the alternative
+the recorded note offered — is strictly worse: it drops the rule for every repository, including the
+ones that never write a mock factory.
+
+Two consequences stated rather than hidden. The scope is "jest's test files", not "mock factories", so
+a *genuine* violation inside a test file is silenced too — accepted, because that is where the rule's
+value is lowest and its false-positive rate highest. And a repository that overrides `testMatch`, or
+writes `jest.mock()` in a `setupFiles` module, still reports; reading `testMatch` needs an array-valued
+config probe `frameworks/literal.ts` deliberately does not have.
+
+**Not extended to vitest, and this is the new finding worth someone's attention.** On the same fixture
+the *real plugin* reports the `vi.mock()` factory too — upstream's exemption is `jest.mock`-only, and
+`isNodeMatches(parent.callee, ['jest.mock'])` is why. vitest hoists `vi.mock` and forbids out-of-scope
+references in its factory exactly as jest does (which is what `vi.hoisted` exists for), so the finding
+looks false there on the same mechanism. But that is an argument, not a measurement, and acting on it
+would mean deciding a rule's semantics for a framework its author has not. **The reportable item is
+upstream `eslint-plugin-unicorn`, not oxlint**, and it is unfiled — the user's call, not this
+document's.

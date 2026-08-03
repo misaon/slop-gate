@@ -56,9 +56,23 @@ export type CreateKnipEngineOptions = {
  * is a property of slop-gate rather than of the repository. Everything else project-specific arrives
  * per call, through `RunContext.rootDir` and the `FileBatch`.
  */
+const MISSING_KNIP =
+  'the bundled `knip` package could not be resolved from this installation of slop-gate, and it will ' +
+  'not fall back to a `knip` on PATH — knip’s version is a property of slop-gate, not of the ' +
+  'repository being checked. Reinstall slop-gate.'
+
 export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine {
-  const invocation: KnipInvocation =
+  const invocation: KnipInvocation | undefined =
     options.binaryPath === undefined ? resolveKnipBinary() : { command: options.binaryPath, prefixArgs: [] }
+
+  // An unresolvable bundled dependency is a broken installation of slop-gate, not a coverage gap —
+  // see `resolveScriptBin`'s own note. This also closes a smaller hole: `version()` reads the bundled
+  // package's manifest, so while the resolver still fell back to a `knip` on `PATH`, a corrupted
+  // install could report one version while running another, and the cache key recorded the wrong one.
+  const required = (): KnipInvocation => {
+    if (invocation === undefined) throw new EngineError('knip', MISSING_KNIP)
+    return invocation
+  }
 
   return {
     id: 'knip',
@@ -114,7 +128,7 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
     },
 
     run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
-      return execute(invocation, batch, handle, context, signal)
+      return execute(required(), batch, handle, context, signal)
     },
   }
 }

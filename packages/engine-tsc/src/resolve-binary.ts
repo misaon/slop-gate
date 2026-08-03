@@ -36,11 +36,10 @@ export function resolveTscBinary(
   rootDir: string,
   resolvePackageJson: (specifier: string) => string = createRequire(join(rootDir, 'package.json')).resolve,
   fileExists: (path: string) => boolean = existsSync,
-): TscInvocation {
+): TscInvocation | undefined {
   return resolveScriptBin({
     packageJsonSpecifier: 'typescript/package.json',
     binSegments: ['bin', 'tsc'],
-    fallbackCommand: 'tsc',
     resolvePackageJson,
     fileExists,
   })

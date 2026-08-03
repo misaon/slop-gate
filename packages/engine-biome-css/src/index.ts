@@ -52,11 +52,24 @@ const run = promisify(execFile)
  * intended outcome — see `BIOME_CSS_RULE_ENTRIES` in the core registry for what was excluded to make
  * it so, and why a loud stylesheet linter would have been the failure.
  */
+const MISSING_BIOME =
+  'the bundled `@biomejs/biome` package could not be resolved from this installation of slop-gate, and ' +
+  'it will not fall back to a `biome` on PATH — this package pins one exact Biome version and the rule ' +
+  'entries were measured against it. Reinstall slop-gate.'
+
 export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Engine {
   // As in `engine-oxlint`: an explicit override is spawned exactly as given, with no `node` prefix,
   // because tests point it at a deliberately-missing path.
-  const invocation: BiomeInvocation =
+  const invocation: BiomeInvocation | undefined =
     options.binaryPath === undefined ? resolveBiomeBinary() : { command: options.binaryPath, prefixArgs: [] }
+
+  // An unresolvable bundled dependency is a broken installation of slop-gate, not a coverage gap —
+  // see `resolveScriptBin`'s own note. `@biomejs/biome` is pinned exactly here, so a `biome` on PATH
+  // is by definition a different one than the rule entries were measured against.
+  const required = (): BiomeInvocation => {
+    if (invocation === undefined) throw new EngineError('biome-css', MISSING_BIOME)
+    return invocation
+  }
 
   return {
     id: 'biome-css',
@@ -72,7 +85,8 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
     },
 
     async version() {
-      const { stdout } = await run(invocation.command, [...invocation.prefixArgs, '--version'], { encoding: 'utf8' })
+      const resolved = required()
+      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
       return stdout.trim().replace(/^version:\s*/i, '')
     },
 
@@ -81,7 +95,7 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
     },
 
     run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
-      return execute(invocation, batch, handle, context, signal)
+      return execute(required(), batch, handle, context, signal)
     },
   }
 }
