@@ -286,16 +286,39 @@ gets for free from a human reading the code.**
 - **`git ls-files --deduplicate` needs git ≥ 2.31** (2021) with no fallback. `selectFileSource`
   catches only `rev-parse` failure, so if `ls-files` rejects the flag the whole run dies with a raw
   git error. Ubuntu 20.04 ships git 2.25.
-- **Downstream package tests exercise each dependency's built `dist/`, not its live source.**
-  `packages/cli`'s tests import `@misaon/slop-gate-core`, `-reporters` and `-engine-oxlint` by
-  package name, which resolve through each package's `exports` field to `dist/index.js` — there is
-  no vitest alias back to `src`. Editing `packages/core/src` and running `pnpm test` from the repo
-  root can show every CLI-level test passing while it silently still exercises the previous build.
-  `pnpm build` has to run first for a dependency change to reach a dependent package's tests;
-  `pnpm typecheck` happens to rebuild everything as a side effect of turbo's own dependency graph,
-  but plain `pnpm test` does not. Found the hard way during the five-fixes session (see the report):
-  three CLI-level tests kept passing against a stale build for several edits before a rebuild
-  surfaced that they actually needed updating.
+- ~~**Downstream package tests exercise each dependency's built `dist/`, not its live source.**~~
+  **Resolved.** `vitest.config.ts` now aliases every workspace package to its `src/index.ts`, built
+  by scanning `packages/` so a newly added package cannot be missed. The bug was symmetrical and both
+  halves are gone: editing `packages/core/src` and running `pnpm test` used to show every CLI-level
+  test passing against the previous build (three did exactly that for several edits during the
+  five-fixes session), and a branch switch that left `dist` behind used to produce a wall of red that
+  reads like a semantic conflict between branches rather than a missing `pnpm build`.
+
+  What the alias cost, checked rather than assumed. Two guarantees were expected to be in the way and
+  neither was: the `exports`-map guard (`packages/cli/src/index.test.ts:35`) reads `package.json` off
+  the filesystem and asserts the literal `'./dist/index.js'`, and the `./package.json`-not-exported
+  trap (`packages/engine-knip/src/resolve-binary.test.ts:38`) is about **knip's** packaging, not ours.
+  Commit `a6967f8` had already made the first deliberately build-independent, verifying `pnpm test`
+  passed with `packages/cli/dist` deleted. Nothing asserts on any package's `files` array;
+  `engine-schema`'s reasoning about `files` (`src/catalogue.ts:15`) concerns Apache-2.0 attribution,
+  and its schema is a relative intra-package JSON import the bundler inlines, so no cross-package
+  alias could reach it either way. The whole suite passes under the alias unchanged.
+
+  What still proves the build works, measured: with the alias in place and every `packages/*/dist`
+  deleted, 28 tests fail and 1703 pass, and the 28 are exactly the three suites that spawn a child
+  process — `packages/cli/src/main.test.ts`, `packages/cli/src/commands/mcp/e2e.test.ts`, and
+  `packages/core/src/registry/entries.generated.test.ts`. A child does real Node resolution and cannot
+  see a vitest alias, and `main.ts` pulls all twelve packages in through `cli/src/engines.ts`, so the
+  cover is per-package: deleting only `packages/engine-schema/dist` fails them too, naming the missing
+  module. Rewriting any of those three as an in-process import would leave the suite unable to
+  distinguish a working build from no build; each says so at its own head.
+
+  Still not covered, before or after: a build that succeeds and emits subtly wrong output on a path no
+  spawned process walks. CI's `pnpm build` (first step after install) and `pnpm typecheck`'s turbo
+  `dependsOn: ["^build"]` are what stand behind that. A turbo `test` task depending on `^build` was
+  considered as the alternative and rejected: it would fix the fresh-clone case the alias leaves at 28
+  failures, but `npx vitest`, watch mode and IDE runners all bypass turbo — which is precisely the
+  inner loop where the stale-build bug actually bit.
 
 ## Test gaps worth closing
 

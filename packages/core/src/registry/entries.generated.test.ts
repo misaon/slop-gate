@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test } from 'vitest'
-import { isConceptId } from '../concepts/catalogue.ts'
+import { CURATED_CONCEPTS, HAND_WRITTEN_CONCEPTS, isConceptId } from '../concepts/catalogue.ts'
 import { LANGUAGES } from '../languages.ts'
 import { GENERATED_CONCEPTS } from '../concepts/concepts.generated.ts'
 import { GENERATED_RECOMMENDED_RULES, GENERATED_RULE_ENTRIES } from './entries.generated.ts'
@@ -109,13 +109,22 @@ test('every generated concept has a non-empty title and description', () => {
   }
 })
 
-test('no generated concept duplicates a hand-written one', () => {
+test('no generated concept duplicates a written one', () => {
   // Regression guard for the exact bug this generator's own dev loop hit once: comparing against
   // the *merged* `CONCEPTS` (which already includes a previous run's `GENERATED_CONCEPTS`) instead
-  // of `HAND_WRITTEN_CONCEPTS` makes every concept the generator has ever produced look
+  // of the two human-maintained halves makes every concept the generator has ever produced look
   // "already known", and `concepts.generated.ts` silently regenerates empty. Asserting a realistic
   // lower bound here means that regression fails loudly instead of shrinking the file to nothing.
-  expect(GENERATED_CONCEPTS.length).toBeGreaterThan(800)
+  //
+  // The overlap is asserted in the other direction too, which is the failure the title names: a
+  // concept present in both halves would give `conceptById` two definitions for one id and hand the
+  // reporter whichever the merge happened to reach first.
+  const written = new Set<string>([...HAND_WRITTEN_CONCEPTS, ...CURATED_CONCEPTS].map((c) => c.id))
+  expect(GENERATED_CONCEPTS.filter((c) => written.has(c.id)).map((c) => c.id)).toEqual([])
+  // A floor against collapse, not a figure to keep in step with oxlint: the file holds 615 at the
+  // time of writing, down from 801 once `CURATED_CONCEPTS` claimed the concepts a user actually
+  // meets, and it shrinks further with every rationale written from here.
+  expect(GENERATED_CONCEPTS.length).toBeGreaterThan(400)
 })
 
 // --- GENERATED_RECOMMENDED_RULES ---

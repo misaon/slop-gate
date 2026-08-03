@@ -1,4 +1,7 @@
 import { GENERATED_CONCEPTS } from './concepts.generated.ts'
+import { CURATED_CONCEPTS } from './curated.ts'
+
+export { CURATED_CONCEPTS }
 
 export const CONCEPT_GROUPS = [
   'correctness',
@@ -54,7 +57,8 @@ export type ConceptDefinition = {
 // its own; see the comment on the merged `CONCEPTS` export just below the closing bracket.
 //
 // Exported (not module-private) specifically so `scripts/generate-registry.ts` can import *this*
-// array, not the merged `CONCEPTS`, when it decides which concepts are genuinely new. Reading the
+// array — together with `CURATED_CONCEPTS`, the other half of the vocabulary a human maintains, and
+// still not the merged `CONCEPTS` — when it decides which concepts are genuinely new. Reading the
 // merged export there would be circular: after the first run, `GENERATED_CONCEPTS` (produced by
 // that run) is already part of `CONCEPTS`, so every concept the generator ever produced would look
 // "already known" on every subsequent run and `concepts.generated.ts` would regenerate empty —
@@ -1195,14 +1199,24 @@ export const HAND_WRITTEN_CONCEPTS = [
 ] as const satisfies readonly ConceptDefinition[]
 
 /**
- * The full concept vocabulary: `HAND_WRITTEN_CONCEPTS` above plus `GENERATED_CONCEPTS`
- * (concepts/concepts.generated.ts) — every mechanically-named concept the registry generator
- * invented for a rule the override table did not redirect onto one of the hand-written ids above.
- * Both halves are `as const satisfies readonly ConceptDefinition[]` before this spread, which is
- * what keeps `ConceptId` below a closed union of every concept's literal id rather than widening to
- * plain `string` the moment a generated id joins the array.
+ * The full concept vocabulary, in three halves — provenance of the *prose*, not of the id:
+ *
+ *   - `HAND_WRITTEN_CONCEPTS` above: ids a human chose, named in type-checked code.
+ *   - `CURATED_CONCEPTS` (concepts/curated.ts): ids the generator named, prose a human wrote later
+ *     for the concepts a user actually meets. Listed here rather than in `concepts.generated.ts`
+ *     precisely so the generator stops re-emitting them with a boilerplate description.
+ *   - `GENERATED_CONCEPTS` (concepts/concepts.generated.ts): everything left — mechanically named
+ *     *and* mechanically described, which is what `GENERATED_CONCEPT_IDS` below reports.
+ *
+ * All three are `as const satisfies readonly ConceptDefinition[]` before this spread, which is what
+ * keeps `ConceptId` below a closed union of every concept's literal id rather than widening to plain
+ * `string` the moment a generated id joins the array.
  */
-export const CONCEPTS = [...HAND_WRITTEN_CONCEPTS, ...GENERATED_CONCEPTS] as const satisfies readonly ConceptDefinition[]
+export const CONCEPTS = [
+  ...HAND_WRITTEN_CONCEPTS,
+  ...CURATED_CONCEPTS,
+  ...GENERATED_CONCEPTS,
+] as const satisfies readonly ConceptDefinition[]
 
 export type ConceptId = (typeof CONCEPTS)[number]['id']
 
@@ -1240,7 +1254,11 @@ export const SLOP_GATE_SERVICED_CONCEPTS: ReadonlySet<string> = new Set(
  * it. Labelling the second kind "why this matters" would be worse than saying nothing, so the
  * `agent` reporter reads this set and omits the line instead (spec §12).
  *
- * Derived from `GENERATED_CONCEPTS` rather than a flag on each entry: the flag would be 801 extra
- * lines in a generated file to encode what the file's identity already says.
+ * Derived from `GENERATED_CONCEPTS` rather than a flag on each entry: the flag would be hundreds of
+ * extra lines in a generated file to encode what the file's identity already says. That identity is
+ * also the mechanism by which a concept leaves this set — moving it into `CURATED_CONCEPTS`
+ * (concepts/curated.ts) makes the generator treat it as known vocabulary and stop emitting it, which
+ * is what turns the reporter's `why:` line back on. Writing a rationale without that move would
+ * leave the prose committed and never shown; `curated.test.ts` asserts the pair.
  */
 export const GENERATED_CONCEPT_IDS: ReadonlySet<string> = new Set(GENERATED_CONCEPTS.map((c) => c.id))

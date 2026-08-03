@@ -1,5 +1,12 @@
 import { expect, test } from 'vitest'
-import { CONCEPTS, conceptById, GENERATED_CONCEPT_IDS, HAND_WRITTEN_CONCEPTS, isConceptId } from './catalogue.ts'
+import {
+  CONCEPTS,
+  conceptById,
+  CURATED_CONCEPTS,
+  GENERATED_CONCEPT_IDS,
+  HAND_WRITTEN_CONCEPTS,
+  isConceptId,
+} from './catalogue.ts'
 import { validateCatalogue } from './validate.ts'
 
 test('the catalogue satisfies its invariants', () => {
@@ -27,15 +34,22 @@ test('looks a concept up by id', () => {
   expect(conceptById('dead-code.unused-import').group).toBe('dead-code')
 })
 
-test('separates generated descriptions from hand-written ones', () => {
+test('separates generated descriptions from written ones', () => {
   // The property consumers actually rely on: a generated description restates the rule's name and a
-  // hand-written one states the consequence, so anything presenting a description as rationale has
-  // to be able to tell them apart. Asserted on both sides — a set that quietly went empty, or one
-  // that swallowed the curated half, would pass a membership check written only one way.
-  expect(GENERATED_CONCEPT_IDS.has('correctness.no-useless-spread')).toBe(true)
+  // written one states the consequence, so anything presenting a description as rationale has to be
+  // able to tell them apart. Asserted on both sides — a set that quietly went empty, or one that
+  // swallowed the written half, would pass a membership check written only one way.
+  //
+  // `pedantic.accessor-pairs` stands in for the still-generated majority: a rule outside
+  // `recommended`, so nothing has yet had reason to write its rationale. `correctness.no-debugger` is
+  // hand-written vocabulary and `correctness.no-useless-spread` is a mechanically-named concept a
+  // human has since described (concepts/curated.ts) — the second is the case worth pinning, because
+  // writing prose without dropping the concept out of this set is a silent no-op.
+  expect(GENERATED_CONCEPT_IDS.has('pedantic.accessor-pairs')).toBe(true)
   expect(GENERATED_CONCEPT_IDS.has('correctness.no-debugger')).toBe(false)
+  expect(GENERATED_CONCEPT_IDS.has('correctness.no-useless-spread')).toBe(false)
   for (const concept of HAND_WRITTEN_CONCEPTS) expect(GENERATED_CONCEPT_IDS.has(concept.id)).toBe(false)
-  expect(GENERATED_CONCEPT_IDS.size).toBe(CONCEPTS.length - HAND_WRITTEN_CONCEPTS.length)
+  expect(GENERATED_CONCEPT_IDS.size).toBe(CONCEPTS.length - HAND_WRITTEN_CONCEPTS.length - CURATED_CONCEPTS.length)
 })
 
 test('reports duplicate ids', () => {

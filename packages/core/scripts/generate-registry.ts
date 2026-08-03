@@ -57,7 +57,7 @@ import { fileURLToPath } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolveOxlintBinary } from '@misaon/slop-gate-engine-oxlint'
 import type { ConceptDefinition, ConceptGroup, ConceptId } from '../src/concepts/catalogue.ts'
-import { HAND_WRITTEN_CONCEPTS } from '../src/concepts/catalogue.ts'
+import { CURATED_CONCEPTS, HAND_WRITTEN_CONCEPTS } from '../src/concepts/catalogue.ts'
 import { compareStrings } from '../src/ordering.ts'
 import { RULE_EXCLUSIONS } from '../src/registry/exclusions.ts'
 import { RULE_OVERRIDES } from '../src/registry/overrides.ts'
@@ -276,12 +276,18 @@ function buildEntries(catalogue: readonly CatalogueRule[]): readonly GeneratedEn
 }
 
 function buildGeneratedConcepts(generated: readonly GeneratedEntry[]): readonly ConceptDefinition[] {
-  // Deliberately `HAND_WRITTEN_CONCEPTS`, not the merged `CONCEPTS` export: the merged export
-  // already includes whatever `GENERATED_CONCEPTS` a *previous* run produced, so checking against
-  // it would make every concept this generator has ever produced look "already known" on every
-  // subsequent run, and `concepts.generated.ts` would regenerate empty. See the comment on
-  // `HAND_WRITTEN_CONCEPTS` in catalogue.ts.
-  const known = new Set(HAND_WRITTEN_CONCEPTS.map((c) => c.id as string))
+  // Deliberately the two human-maintained halves of the vocabulary, not the merged `CONCEPTS`
+  // export: the merged export already includes whatever `GENERATED_CONCEPTS` a *previous* run
+  // produced, so checking against it would make every concept this generator has ever produced look
+  // "already known" on every subsequent run, and `concepts.generated.ts` would regenerate empty. See
+  // the comment on `HAND_WRITTEN_CONCEPTS` in catalogue.ts.
+  //
+  // `CURATED_CONCEPTS` (concepts/curated.ts) is here because that is the whole mechanism by which a
+  // rationale replaces the boilerplate description below: the concept keeps its mechanical id, but
+  // once a human has written prose for it, it is no longer this script's to describe. Dropping it
+  // from this set would silently re-emit the generated description alongside the curated one and
+  // duplicate the id in `CONCEPTS`.
+  const known = new Set([...HAND_WRITTEN_CONCEPTS, ...CURATED_CONCEPTS].map((c) => c.id as string))
   const byId = new Map<string, ConceptDefinition>()
 
   for (const { rule, engineRuleId, entry } of generated) {
