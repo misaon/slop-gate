@@ -17,18 +17,15 @@ export type InspectWorktreeOptions = {
 }
 
 /**
- * Answers the one question spec §11's first safety rail asks: does the user have a `git diff` they
- * could use to separate `sgate fix`'s edits from their own, and to undo them?
+ * Answers the one question spec §11's first safety rail asks: does the user have a `git diff` they could
+ * use to separate `sgate fix`'s edits from their own, and to undo them?
  *
- * That framing is why **untracked files are not dirt** (`--untracked-files=no`). `sgate fix` only
- * ever rewrites files already in the inventory; it creates nothing. A stray build artifact or scratch
- * file cannot be mistaken for one of the tool's edits, so refusing to run over it would be a rail
- * that fires on the wrong signal — and one users would learn to pass `--allow-dirty` past reflexively,
- * which is worse than not having it.
- *
- * `'unknown'` exists so a git that answers `rev-parse` and then fails `status` is never rounded down
- * to "clean". The caller treats it as dirty; the reason is surfaced so the user can see it was a git
- * failure rather than their own uncommitted work.
+ * That framing is why **untracked files are not dirt** (`--untracked-files=no`). `sgate fix` only rewrites
+ * files already in the inventory and creates nothing, so a stray build artifact cannot be mistaken for one
+ * of its edits — refusing over it would be a rail firing on the wrong signal, and one users would learn to
+ * pass `--allow-dirty` past reflexively. `'unknown'` exists for the mirror case: a git that answers
+ * `rev-parse` then fails `status` is never rounded down to "clean", and the reason is surfaced so it reads
+ * as a git failure rather than the user's own uncommitted work.
  */
 export async function inspectWorktree(rootDir: string, options: InspectWorktreeOptions = {}): Promise<WorktreeState> {
   const run =

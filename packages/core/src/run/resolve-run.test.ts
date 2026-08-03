@@ -115,5 +115,5 @@ test('excludes a candidate whose engine is absent from the given engines list, m
   })
 
   expect(resolved.election.owners.get('correctness.no-debugger')?.[0]?.owner.engine).toBe('oxlint')
-  expect(resolved.election.suppressed).toEqual([])
+  expect(resolved.election.overlaps).toEqual([])
 })

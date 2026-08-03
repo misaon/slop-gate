@@ -57,9 +57,9 @@ test('computes a byte range anchored at the reported (line, column), one charact
 
 test('joins a multi-line diagnostic (indented continuation lines) into one message', async () => {
   await writeFile(join(dir, 'src/g.ts'), 'function pick(x: string): void\nfunction pick(x: boolean): void\nfunction pick(x: string | boolean): void {}\n\npick(42)\n')
-  // Captured verbatim from the real tsc 5.9.3 binary against this exact fixture (see
-  // .superpowers/engine-tsc-report.md) — continuation lines carry no file/line/col prefix at all;
-  // indentation is the only signal they belong to the diagnostic above them.
+  // Captured verbatim from the real tsc 5.9.3 binary against this exact fixture: continuation lines
+  // carry no file/line/col prefix at all, and indentation is the only signal they belong to the
+  // diagnostic above them.
   const stdout = [
     'src/g.ts(5,6): error TS2769: No overload matches this call.',
     "  Overload 1 of 2, '(x: string): void', gave the following error.",
@@ -140,8 +140,8 @@ test('a malformed tsconfig is parsed as an ordinary located diagnostic against t
 })
 
 test('recognises a synthetic "warning" severity line, even though real tsc 5.9.3 was never observed to emit one', async () => {
-  // Every case captured against the real binary (.superpowers/engine-tsc-report.md) reported only
-  // "error" — this pins the parser's own regex handles the word "warning" too, defensively, without
+  // Every case captured against the real tsc 5.9.3 binary reported severity "error", never
+  // "warning" — this pins the parser's own regex handles the word too, defensively, without
   // asserting real tsc ever produces it.
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
   const stdout = 'src/a.ts(1,1): warning TS0000: synthetic warning for parser coverage.\n'

@@ -10,7 +10,7 @@ import {
   writeAdvisorySnapshot,
 } from '@misaon/slop-gate-engine-deps-security'
 import { EXIT_CODES } from '../exit-codes.ts'
-import { check, parseMaxTokens } from './check.ts'
+import { check, parseMaxTokens, parseMaxWarnings } from './check.ts'
 
 let dir: string
 let originalExitCode: typeof process.exitCode
@@ -212,6 +212,51 @@ test('parseMaxTokens accepts a positive integer and refuses everything else', ()
   for (const raw of ['0', '-1', '1.5', 'lots', '', '1e400', 'Infinity']) expect(parseMaxTokens(raw), raw).toBe('invalid')
 })
 
+test('parseMaxWarnings accepts zero and any count above it, and refuses everything else', () => {
+  expect(parseMaxWarnings(undefined)).toBeUndefined()
+  // Unlike `--max-tokens`, `0` is the flag's most useful value — it is what our own CI gate passes.
+  expect(parseMaxWarnings('0')).toBe(0)
+  expect(parseMaxWarnings('25')).toBe(25)
+  for (const raw of ['-1', '1.5', 'abc', '', '1e400', 'Infinity', 'NaN']) expect(parseMaxWarnings(raw), raw).toBe('invalid')
+})
+
+test('rejects a --max-warnings that is not a non-negative integer instead of ignoring it', async () => {
+  // The silent-drop version of this exited 0 on `--max-warnings abc` with nothing on stderr, which
+  // is a CI gate that reports success because its own threshold failed to parse.
+  let written = ''
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    written += chunk
+    return true
+  })
+  try {
+    await check.run!({
+      args: { format: 'json', cwd: dir, cache: false, 'max-warnings': 'abc', _: [] },
+      rawArgs: [],
+      cmd: check,
+    } as never)
+  } finally {
+    stderr.mockRestore()
+  }
+
+  expect(process.exitCode).toBe(EXIT_CODES.config)
+  expect(written).toContain('--max-warnings must be a non-negative integer, got: abc')
+})
+
+test('a negative --max-warnings is refused rather than passed through as an always-failing threshold', async () => {
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+  try {
+    await check.run!({
+      args: { format: 'json', cwd: dir, cache: false, 'max-warnings': '-1', _: [] },
+      rawArgs: [],
+      cmd: check,
+    } as never)
+  } finally {
+    stderr.mockRestore()
+  }
+
+  expect(process.exitCode).toBe(EXIT_CODES.config)
+})
+
 test('--no-cache reaches the command as cache: false through citty real argv parser', () => {
   // Regression test: this must go through citty's own `parseArgs`, not a hand-built `args`
   // object like the tests above use. citty treats any raw `--no-X` token as "negate X" before
@@ -223,9 +268,9 @@ test('--no-cache reaches the command as cache: false through citty real argv par
   // have exposed that: it skips the parser and lands directly on the field the bug prevented
   // `--no-cache` from ever reaching.
   const argsDef = check.args as never
-  expect(parseArgs([], argsDef).cache).toBe(true)
-  expect(parseArgs(['--no-cache'], argsDef).cache).toBe(false)
-  expect(parseArgs(['--cache'], argsDef).cache).toBe(true)
+  expect(parseArgs([], argsDef)['cache']).toBe(true)
+  expect(parseArgs(['--no-cache'], argsDef)['cache']).toBe(false)
+  expect(parseArgs(['--cache'], argsDef)['cache']).toBe(true)
 })
 
 test('--require-engines is off unless asked for, and reaches the command through the real argv parser', () => {
@@ -316,4 +361,56 @@ test('--require-engines on a machine missing an optional engine exits 3 and name
     if (saved === undefined) delete process.env['SLOP_GATE_ACTIONLINT_PATH']
     else process.env['SLOP_GATE_ACTIONLINT_PATH'] = saved
   }
+})
+
+test('--timing puts the breakdown in the json document, and its rows account for the reported duration', async () => {
+  const output = await runCheckCapturingStdout({ timing: true })
+  const report = JSON.parse(output) as {
+    stats: { durationMs: number }
+    timings: { startupMs: number; phases: Array<{ name: string; durationMs: number }>; unattributedMs: number }
+  }
+
+  // The four things that are not engine work, all accounted for: node boot, the module graph and
+  // `loadCliConfig` are `startupMs` (the CLI passes `startedAt: 0`), and the inventory walk is a phase.
+  expect(report.timings.startupMs).toBeGreaterThan(0)
+  expect(report.timings.phases.map((phase) => phase.name)).toContain('discover')
+
+  const summed =
+    report.timings.startupMs +
+    report.timings.phases.reduce((total, phase) => total + phase.durationMs, 0) +
+    report.timings.unattributedMs
+  expect(Math.abs(summed - report.stats.durationMs)).toBeLessThan(1)
+})
+
+test('a run without --timing produces no timings key, so the flag is what costs anything', async () => {
+  const output = await runCheckCapturingStdout()
+
+  expect('timings' in (JSON.parse(output) as object)).toBe(false)
+})
+
+test('--timing prints the breakdown under the pretty footer', async () => {
+  const output = await runCheckCapturingStdout({ format: 'pretty', timing: true })
+
+  expect(output.indexOf('timing')).toBeGreaterThan(output.lastIndexOf('╰'))
+  expect(output).toContain('startup')
+  expect(output).toContain('unattributed')
+})
+
+test('--timing with --format=agent says it is ignored rather than measuring a run it cannot print', async () => {
+  let written = ''
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    written += chunk
+    return true
+  })
+  let output = ''
+  try {
+    output = await runCheckCapturingStdout({ format: 'agent', timing: true })
+  } finally {
+    stderr.mockRestore()
+  }
+
+  expect(written).toContain('--timing is ignored by `--format=agent`')
+  // The report itself is untouched: that is the property the note exists to protect.
+  expect(output).toContain('slop-gate agent report v1')
+  expect(output).not.toContain('unattributed')
 })

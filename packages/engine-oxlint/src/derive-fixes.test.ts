@@ -20,7 +20,7 @@ const asCandidate = (file: string, edit: { range: { start: number; end: number }
   range: edit.range,
   replacement: edit.replacement,
   kind: 'safe',
-  ruleId: 'oxlint/r',
+  ruleRefKey: 'oxlint/r',
   concept: 'correctness.m',
   priority: 50,
   severity: 'warn',
@@ -110,6 +110,27 @@ test('a dangerous fix is derived using the flag its catalogue entry calls for', 
   })
 
   expect(await applyDerived('a.ts', derived[0]!.edits)).toBe('const copy = [1, 2, 3]\nexport { copy }\n')
+})
+
+// The other half of the flag choice, and the one that pins its *order*. `unicorn/no-new-array` is
+// `fixable_dangerous_suggestion` — a rule whose only fix data is a dangerous suggestion, of which the
+// catalogue holds three. Measured against oxlint 1.76.0 on `const x = new Array(5)`: `--fix` leaves it
+// alone, `--fix-suggestions` leaves it alone, only `--fix-dangerously` rewrites it. So `flagFor` must
+// keep testing `dangerous` before `suggestion`; reversed, this rule derives nothing at all, which the
+// pipeline cannot tell apart from "this rule has no fix".
+test('a rule whose only fix data is a dangerous suggestion is still derived', async () => {
+  await writeFile(join(dir, 'a.ts'), 'const x = new Array(5)\nexport { x }\n')
+
+  const derived = await deriveOxlintFixes({
+    invocation,
+    targets: [target('a.ts', 'unicorn/no-new-array')],
+    selection: new Map(),
+    context: context(),
+    signal: new AbortController().signal,
+  })
+
+  expect(derived).toHaveLength(1)
+  expect(await applyDerived('a.ts', derived[0]!.edits)).toBe('const x = Array.from({length: 5})\nexport { x }\n')
 })
 
 test('two occurrences of one rule in a file become two separate edits, not one spanning both', async () => {

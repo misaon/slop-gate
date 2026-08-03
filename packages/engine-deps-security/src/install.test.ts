@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AdvisoryInstallError, installAdvisorySnapshot, writeAdvisorySnapshot } from './install.ts'
-import { MALICIOUS_FILE, MANIFEST_FILE, SNAPSHOT_FORMAT_VERSION, VULNERABLE_FILE, readSnapshotManifest } from './snapshot.ts'
+import { MALICIOUS_FILE, SNAPSHOT_MANIFEST_FILENAME, SNAPSHOT_FORMAT_VERSION, VULNERABLE_FILE, readSnapshotManifest } from './snapshot.ts'
 import type { AdvisoryTable } from './advisory.ts'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
@@ -146,6 +146,6 @@ describe('writeAdvisorySnapshot', () => {
     )
 
     expect(readSnapshotManifest(directory)?.source).toBe('file:///build/all.zip')
-    expect(await readFile(join(directory, MANIFEST_FILE), 'utf8')).toContain('"formatVersion": 1')
+    expect(await readFile(join(directory, SNAPSHOT_MANIFEST_FILENAME), 'utf8')).toContain('"formatVersion": 1')
   })
 })

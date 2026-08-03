@@ -2,9 +2,10 @@ import { explainConcept } from '@misaon/slop-gate-core'
 import { renderRulesWhyJson, renderRulesWhyPretty, REPORTER_NAMES } from '@misaon/slop-gate-reporters'
 import { defineCommand } from 'citty'
 import { EXIT_CODES } from '../../exit-codes.ts'
+import { validateFormat } from '../../format.ts'
 import { supportsColor, supportsUnicode } from '../../terminal.ts'
 import { readCliVersion } from '../../version.ts'
-import { prepareRulesRun, validateFormat } from './shared.ts'
+import { prepareRulesRun } from './shared.ts'
 
 export const why = defineCommand({
   meta: { name: 'why', description: 'Explain why a concept is (or is not) enabled, and who owns it' },
@@ -32,9 +33,9 @@ export const why = defineCommand({
     if (args.format === 'json') renderRulesWhyJson(explanation, context)
     else renderRulesWhyPretty(explanation, context)
 
-    // A concept id this catalogue has never heard of is a usage error (the same class as an
-    // unknown `--format`), not "the concept exists but is quiet" — those two must not share an
-    // exit code, or a typo silently reads as "correctly explained: not enabled".
+    // A concept id this catalogue has never heard of is a usage error (the same class as an unknown `--format`), not
+    // "the concept exists but is quiet" — sharing an exit code makes a typo read as "correctly explained: not
+    // enabled".
     if (!explanation.isKnownConcept) process.exitCode = EXIT_CODES.config
   },
 })

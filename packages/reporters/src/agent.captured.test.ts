@@ -19,7 +19,7 @@ import { createReporter } from './index.ts'
  *
  *     $ sgate fix --dry-run --unsafe
  *     sgate fix would change 3 files (3 edits, tier `unsafe`):
- *       packages/cli/src/engines.ts — 1 edit
+ *       packages/cli/src/engine-registry.ts — 1 edit
  *       packages/core/src/frameworks/detect.test.ts — 1 edit
  *       packages/engine-knip/src/index.ts — 1 edit
  *     Rules applied:
@@ -29,11 +29,11 @@ import { createReporter } from './index.ts'
 const CAPTURED: readonly Diagnostic[] = [
   {
     concept: 'correctness.no-useless-spread',
-    ruleId: 'oxlint/unicorn/no-useless-spread',
+    ruleRefKey: 'oxlint/unicorn/no-useless-spread',
     engine: 'oxlint',
     severity: 'error',
     message: 'Using a spread operator here creates a new object unnecessarily.',
-    file: 'packages/cli/src/engines.ts',
+    file: 'packages/cli/src/engine-registry.ts',
     range: { start: 2528, end: 2531 },
     position: { startLine: 39, startColumn: 24, endLine: 39, endColumn: 27 },
     help: '`configFile === undefined ? {} : { configFile }` returns a new object. Spreading it into an object expression to create a new object is redundant.',
@@ -42,7 +42,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'correctness.vitest-require-to-throw-message',
-    ruleId: 'oxlint/vitest/require-to-throw-message',
+    ruleRefKey: 'oxlint/vitest/require-to-throw-message',
     engine: 'oxlint',
     severity: 'error',
     message: 'Require a message for "toThrow".',
@@ -55,7 +55,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'config.unused-suppression',
-    ruleId: 'slop-gate/config.unused-suppression',
+    ruleRefKey: 'slop-gate/config.unused-suppression',
     engine: 'slop-gate',
     severity: 'warn',
     message: 'This suppression for `correctness.no-debugger` does not match any diagnostic on this line.',
@@ -68,7 +68,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'config.unused-suppression',
-    ruleId: 'slop-gate/config.unused-suppression',
+    ruleRefKey: 'slop-gate/config.unused-suppression',
     engine: 'slop-gate',
     severity: 'warn',
     message: 'This suppression for `correctness.no-debugger` does not match any diagnostic on this line.',
@@ -81,7 +81,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'config.unused-suppression',
-    ruleId: 'slop-gate/config.unused-suppression',
+    ruleRefKey: 'slop-gate/config.unused-suppression',
     engine: 'slop-gate',
     severity: 'warn',
     message: 'This suppression for `correctness.no-debugger` does not match any diagnostic in this file.',
@@ -94,7 +94,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'config.suppression-missing-reason',
-    ruleId: 'slop-gate/config.suppression-missing-reason',
+    ruleRefKey: 'slop-gate/config.suppression-missing-reason',
     engine: 'slop-gate',
     severity: 'warn',
     message: 'This suppression has no reason. Add one so a future reader knows why the finding is safe to ignore.',
@@ -107,7 +107,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'suspicious.consistent-function-scoping',
-    ruleId: 'oxlint/unicorn/consistent-function-scoping',
+    ruleRefKey: 'oxlint/unicorn/consistent-function-scoping',
     engine: 'oxlint',
     severity: 'warn',
     message: 'Function `values` does not capture any variables from its parent scope',
@@ -120,7 +120,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'correctness.no-useless-spread',
-    ruleId: 'oxlint/unicorn/no-useless-spread',
+    ruleRefKey: 'oxlint/unicorn/no-useless-spread',
     engine: 'oxlint',
     severity: 'error',
     message: 'Using a spread operator here creates a new array unnecessarily.',
@@ -133,7 +133,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'correctness.vitest-no-conditional-expect',
-    ruleId: 'oxlint/vitest/no-conditional-expect',
+    ruleRefKey: 'oxlint/vitest/no-conditional-expect',
     engine: 'oxlint',
     severity: 'error',
     message: 'Unexpected conditional expect',
@@ -146,7 +146,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'correctness.vitest-no-conditional-expect',
-    ruleId: 'oxlint/vitest/no-conditional-expect',
+    ruleRefKey: 'oxlint/vitest/no-conditional-expect',
     engine: 'oxlint',
     severity: 'error',
     message: 'Unexpected conditional expect',
@@ -159,7 +159,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'suspicious.consistent-function-scoping',
-    ruleId: 'oxlint/unicorn/consistent-function-scoping',
+    ruleRefKey: 'oxlint/unicorn/consistent-function-scoping',
     engine: 'oxlint',
     severity: 'warn',
     message: 'Function `finding` does not capture any variables from its parent scope',
@@ -172,7 +172,7 @@ const CAPTURED: readonly Diagnostic[] = [
   },
   {
     concept: 'correctness.no-useless-spread',
-    ruleId: 'oxlint/unicorn/no-useless-spread',
+    ruleRefKey: 'oxlint/unicorn/no-useless-spread',
     engine: 'oxlint',
     severity: 'error',
     message: 'Using a spread operator here creates a new object unnecessarily.',
@@ -186,7 +186,7 @@ const CAPTURED: readonly Diagnostic[] = [
 ]
 
 const AUTOMATED_FILES = [
-  'packages/cli/src/engines.ts',
+  'packages/cli/src/engine-registry.ts',
   'packages/core/src/frameworks/detect.test.ts',
   'packages/engine-knip/src/index.ts',
 ]
@@ -199,8 +199,8 @@ const report = (maxTokens?: number): string => {
     engineFailures: [],
     unavailableEngines: [],
     baseline: null,
-    stats: { filesScanned: 232, filesAnalysed: 199, filesFromCache: 0, enginesRun: 1, durationMs: 155 },
-    ruleset: { enabledConcepts: 284, suppressed: 0, uncovered: [], unknownKeys: [] },
+    stats: { filesScanned: 232, filesAnalysed: 199, filesFromCache: 0, cacheByEngine: [], enginesRun: 1, durationMs: 155 },
+    ruleset: { enabledConcepts: 284, overlaps: 0, uncovered: [], unknownKeys: [] },
   }
   const reporter = createReporter('agent', {
     write: (chunk) => (output += chunk),

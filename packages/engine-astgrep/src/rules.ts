@@ -29,7 +29,7 @@ const SCRIPT: readonly AstGrepLanguage[] = ['TypeScript', 'Tsx', 'JavaScript']
 const TYPESCRIPT_ONLY: readonly AstGrepLanguage[] = ['TypeScript', 'Tsx']
 
 export type AstGrepRule = {
-  /** Matches the `RuleEntry.engineRuleId` in `packages/core/src/registry/entries.manual.ts`, and the `ruleId` ast-grep echoes back on every finding. */
+  /** Matches the `RuleEntry.engineRuleId` in `packages/core/src/registry/entries.uncatalogued.ts`, and the `ruleRefKey` ast-grep echoes back on every finding. */
   readonly engineRuleId: string
   readonly languages: readonly AstGrepLanguage[]
   /** The diagnostic text. ast-grep returns it verbatim on each match, so it is written for the reader of a `sgate check`, not for a rule author. */
@@ -50,7 +50,7 @@ export type AstGrepRule = {
  * The pattern-shaped half of the `slop.*` ruleset (spec §14). Every entry here was measured against
  * two real corpora before it was given a level or a preset — this repository's own 163 JS/TS files
  * and 3,366 third-party files (~45 MB) under `node_modules` — and the numbers are recorded on the
- * matching `RuleEntry` in `packages/core/src/registry/entries.manual.ts`, not here, so a level and
+ * matching `RuleEntry` in `packages/core/src/registry/entries.uncatalogued.ts`, not here, so a level and
  * its evidence stay in one place.
  *
  * **Three of §14's eleven concepts are deliberately absent from this list**, each because something

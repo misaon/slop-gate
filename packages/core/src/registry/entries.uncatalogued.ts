@@ -561,7 +561,7 @@ const DEPS_SECURITY_RULE_ENTRIES = [
   },
   {
     engine: 'deps-security',
-    // Kept out of `recommended` (see registry/exclusions.ts) because this is the one rule here with a
+    // Kept out of `recommended` (see registry/not-recommended.ts) because this is the one rule here with a
     // real false-positive mode: a lockfile that predates the manifest edit produces exactly the same
     // observation as a package that does not exist, and nothing available offline separates them.
     // Still worth having, because knip's answer for the same shape — `deps.unused-dependency`, "nothing
@@ -637,7 +637,7 @@ const ACTIONLINT_RULE_ENTRIES = [
   {
     engine: 'actionlint',
     // 10 findings on the corpus (4 stable, 6 not — see below), 1 true positive. Excluded from
-    // `recommended`; see `MANUAL_RULE_EXCLUSIONS`, which records the nondeterminism in full.
+    // `recommended`; see `NOT_RECOMMENDED_UNCATALOGUED`, which records the nondeterminism in full.
     engineRuleId: 'action',
     concepts: ['config.workflow-action'],
     tier: 0,
@@ -867,7 +867,7 @@ const ACTIONLINT_RULE_ENTRIES = [
     engine: 'actionlint',
     // 308 findings — 69% of everything the corpus produced — and **zero true positives**. Excluded
     // from `recommended`; the full measurement and the condition for revisiting are in
-    // `MANUAL_RULE_EXCLUSIONS`.
+    // `NOT_RECOMMENDED_UNCATALOGUED`.
     engineRuleId: 'runner-label',
     concepts: ['config.workflow-runner-label'],
     tier: 0,
@@ -898,7 +898,7 @@ const ACTIONLINT_RULE_ENTRIES = [
   {
     engine: 'actionlint',
     // 9 findings, 2 true positives, 7 false — and all 7 are one failure mode. Excluded from
-    // `recommended`; see `MANUAL_RULE_EXCLUSIONS`. Note what this entry does **not** claim:
+    // `recommended`; see `NOT_RECOMMENDED_UNCATALOGUED`. Note what this entry does **not** claim:
     // `correctness.parse-error` and `correctness.no-duplicate-object-key` both stay with the `schema`
     // engine, and the adapter drops those two message classes outright rather than mapping them here.
     engineRuleId: 'syntax-check',
@@ -957,7 +957,7 @@ const BIOME_DOCS = 'https://biomejs.dev/linter/rules'
  * **12,125 lint findings. Roughly 23 are real defects.** Four rules — `noHexColors`,
  * `noDescendingSpecificity`, `useBaseline`, `noImportantStyles` — are 11,525 of the findings and
  * none of the defects. They are house style, not defects; every one keeps an entry here so a project
- * that wants the convention can enable it by concept, and every one is in `MANUAL_RULE_EXCLUSIONS`
+ * that wants the convention can enable it by concept, and every one is in `NOT_RECOMMENDED_UNCATALOGUED`
  * so no `recommended` run ever emits them. A first run reporting eleven thousand findings with no
  * defect content would have ended this engine's credibility on contact.
  *
@@ -1272,14 +1272,14 @@ const BIOME_CSS_RULE_ENTRIES = [
     since: '0.1.0',
   },
   // Below: entries that exist so the rule can be enabled by concept, and are kept out of
-  // `recommended` by `MANUAL_RULE_EXCLUSIONS`. Two distinct reasons, and the file must keep them
+  // `recommended` by `NOT_RECOMMENDED_UNCATALOGUED`. Two distinct reasons, and the file must keep them
   // apart — a future reader has to be able to tell "wrong rule" from "right rule, wrong context".
   {
     engine: 'biome-css',
     // 26 findings, 0 true positives — **and the rule is not at fault**. 25 are `@extend` (zulip, via
     // PostCSS) and 1 is `@tailwind` (Tailwind v3). Both are valid input to their own build step, so
     // this measures the corpus containing preprocessed `.css`, not the check being wrong. See
-    // `MANUAL_RULE_EXCLUSIONS` for the revisit trigger.
+    // `NOT_RECOMMENDED_UNCATALOGUED` for the revisit trigger.
     engineRuleId: 'noUnknownAtRules',
     concepts: ['correctness.css-unknown-at-rule'],
     tier: 0,
@@ -1484,7 +1484,7 @@ const HADOLINT_DOCS = 'https://github.com/hadolint/hadolint/wiki'
  * 217 of the 275 files — 79% — produce at least one**. Of the 816 that are hadolint's own (the other
  * 77 come from its statically linked ShellCheck and are dropped; see `engine-hadolint/src/rules.ts`),
  * **204 are true positives and 612 are false: 25% precision.** Thirteen rules account for 552 findings
- * with **zero** true positives and are excluded as data in `exclusions.ts`.
+ * with **zero** true positives and are excluded as data in `not-recommended.ts`.
  *
  * The five entries below carry 150 of those 204, and three of them are among the highest-precision
  * rules in this registry. Per-rule figures are on each entry.
@@ -1612,7 +1612,7 @@ const HADOLINT_RULE_ENTRIES = [
   },
 ] as const satisfies readonly RuleEntry[]
 
-export const MANUAL_RULE_ENTRIES = [
+export const UNCATALOGUED_RULE_ENTRIES = [
   {
     engine: 'oxlint',
     // Synthetic: not a real `--rules`-listed oxlint rule, but the id oxlint's own adapter assigns

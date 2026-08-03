@@ -17,26 +17,22 @@ export type BuildServerOptions = {
   /** The directory the server was started in. Every tool call is confined to it — see `root.ts`. */
   readonly serverRoot: string
   readonly version: string
-  /** Wraps every tool call, so the stdio entry can tell whether work is still running when stdin
-   *  ends (`in-flight.ts`). Absent in a test that drives a handler directly. */
+  /** Wraps every tool call, so the stdio entry can tell whether work is still running when stdin ends
+   *  (`in-flight.ts`). Absent in a test that drives a handler directly. */
   readonly track?: <T>(work: () => Promise<T>) => Promise<T>
 }
 
 /**
- * The `sgate mcp` server, as a value rather than a process, so a test can drive it over a pair of
- * pipes without spawning anything.
+ * The `sgate mcp` server, as a value rather than a process, so a test can drive it over a pair of pipes without
+ * spawning anything.
  *
- * Three tools, and the shape of the set is the argument. Each answers one question an agent has
- * about the *user's code*: what is wrong here, why does this count as wrong, and what would the tool
- * change. `sgate rules list` and `sgate rules conflicts` answer a fourth kind of question — what is
- * wrong with my slop-gate configuration — which is a human's authoring task, and paying for it in
- * every agent's context on every `tools/list` is the wrong trade. They remain one shell command
- * away. `baseline_status`, which spec §12.1 also named, cannot ship: there is no baseline in this
- * codebase to report the status of.
- *
- * Every tool is annotated `readOnlyHint: true`, and that is a property of the set, not a
- * coincidence: nothing here writes to the user's files. `propose_fixes` runs the real fix pipeline
- * in dry-run and hands back the diff.
+ * Three tools, and the shape of the set is the argument: each answers one question an agent has about the
+ * *user's code* — what is wrong here, why does this count as wrong, what would the tool change. `sgate rules
+ * list` and `sgate rules conflicts` answer a fourth kind of question, what is wrong with my slop-gate
+ * configuration, which is a human's authoring task; paying for it in every agent's context on every `tools/list`
+ * is the wrong trade, and they remain one shell command away. `baseline_status`, which spec §12.1 also named, is
+ * not implemented. Every tool is annotated `readOnlyHint: true`, and that is a property of the set rather than a
+ * coincidence: nothing here writes to the user's files.
  */
 export function buildMcpServer(options: BuildServerOptions): McpServer {
   const server = new McpServer(
@@ -80,7 +76,7 @@ export function buildMcpServer(options: BuildServerOptions): McpServer {
       description:
         'Explain why one concept is enabled or disabled in this repository, which engine rule owns it, what ' +
         'lost arbitration for it, and whether an absent engine would have owned it instead. Takes the `concept` ' +
-        'of a finding, not its `ruleId`. Runs no engines.',
+        'of a finding, not its `ruleRefKey`. Runs no engines.',
       inputSchema: EXPLAIN_INPUT,
       outputSchema: EXPLAIN_OUTPUT,
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },

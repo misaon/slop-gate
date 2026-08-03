@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { buildAdvisoryTables, distillAdvisory, type AdvisoryTable, type DistilledAffected } from './advisory.ts'
 import {
   MALICIOUS_FILE,
-  MANIFEST_FILE,
+  SNAPSHOT_MANIFEST_FILENAME,
   SNAPSHOT_FORMAT_VERSION,
   VULNERABLE_FILE,
   advisorySnapshotDir,
@@ -14,14 +14,13 @@ import {
 import { readZipEntries } from './zip.ts'
 
 /**
- * OSV's per-ecosystem export. Everything the npm ecosystem has: GitHub's reviewed advisories and the
- * OpenSSF malicious-packages feed, already normalised into one schema and with withdrawals marked.
+ * OSV's per-ecosystem export: GitHub's reviewed advisories and the OpenSSF malicious-packages feed, normalised
+ * into one schema with withdrawals marked.
  *
- * **There is no digest to pin it against, and spec §19 is amended rather than quietly broken.** The
- * object is regenerated daily — the `ETag` changes with it — so upstream publishes nothing like
- * actionlint's `checksums.txt` and no committed SHA-256 could ever match. What is recorded instead is
- * the digest of the bytes this machine actually fetched, which makes a snapshot reproducible between
- * machines and tamper-evident on disk, and proves nothing whatsoever about the publisher.
+ * **There is no digest to pin it against, and spec §19 is amended rather than quietly broken.** The object is
+ * regenerated daily, so upstream publishes nothing like actionlint's `checksums.txt` and no committed SHA-256
+ * could ever match. What is recorded instead is the digest of the bytes this machine actually fetched — enough to
+ * make a snapshot reproducible between machines and tamper-evident on disk, and nothing about the publisher.
  */
 export const OSV_NPM_ARCHIVE_URL = 'https://osv-vulnerabilities.storage.googleapis.com/npm/all.zip'
 
@@ -34,7 +33,6 @@ export class AdvisoryInstallError extends Error {
 
 export type InstallAdvisoriesOptions = SnapshotLocationOptions & {
   source?: string
-  /** Injected in tests. Production uses the global `fetch`. */
   fetch?: (url: string) => Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer> }>
   now?: Date
   signal?: AbortSignal
@@ -48,15 +46,11 @@ export type InstallAdvisoriesResult = {
 }
 
 /**
- * The only thing in this package that touches the network, and it is never on the path of a
- * `sgate check` — the same narrowing of D3 that `sgate engines install actionlint` records, for the
- * same reason: `Engine.availability` is filesystem-only, and availability is what decides whether a
- * first use ever happens. So a check on an air-gapped machine reports a coverage gap naming this
- * command rather than failing mid-run, and `npm audit`'s behaviour of exiting 0 with an empty report
- * when it cannot reach the registry has no analogue here.
+ * The only thing in this package that touches the network, and never on the path of a `sgate check` — the same
+ * narrowing of D3 that `sgate engines install actionlint` records: `Engine.availability` is filesystem-only, so a
+ * check on an air-gapped machine reports a coverage gap naming this command rather than failing mid-run.
  *
- * The 213 MB archive is distilled to roughly 18 MB on disk. The discarded 95% is prose — advisory
- * details, references, CWE lists — none of which a version match needs.
+ * The 213 MB archive distils to roughly 18 MB on disk; the discarded 95% is prose a version match never needs.
  */
 export async function installAdvisorySnapshot(options: InstallAdvisoriesOptions = {}): Promise<InstallAdvisoriesResult> {
   const source = options.source ?? OSV_NPM_ARCHIVE_URL
@@ -87,10 +81,9 @@ export async function installAdvisorySnapshot(options: InstallAdvisoriesOptions 
   }
 
   if (manifest.vulnerableAdvisories === 0) {
-    // A snapshot with no vulnerability data would make every repository read as clean — the exact
-    // silent false negative this engine was built to avoid. Far likelier to mean the archive layout
-    // changed than that npm has no advisories, so it refuses rather than installing a snapshot that
-    // would make the tool lie quietly.
+    // A snapshot with no vulnerability data would make every repository read as clean — the exact silent false
+    // negative this engine was built to avoid, and far likelier to mean the archive layout changed than that npm
+    // has no advisories.
     throw new AdvisoryInstallError(
       `${source} was read successfully but produced no npm vulnerability advisories. Refusing to install a snapshot that would report every repository clean.`,
     )
@@ -117,8 +110,8 @@ function* readAdvisories(archive: Uint8Array, source: string): Generator<Distill
     try {
       document = JSON.parse(decoder.decode(entry.data))
     } catch {
-      // One malformed document out of 224,000 is not a reason to abandon the other 223,999, and the
-      // empty-result guard above is what catches a layout change that breaks all of them at once.
+      // One malformed document out of 224,000 is no reason to abandon the other 223,999; the empty-result guard
+      // above is what catches a layout change that breaks all of them at once.
       continue
     }
     yield* distillAdvisory(document)
@@ -133,15 +126,13 @@ function countAdvisories(table: Record<string, readonly { id: string }[]>): numb
 }
 
 /**
- * Writes a snapshot to an arbitrary directory. Exported because building one somewhere other than
- * the default cache is a real workflow rather than a test hook: an air-gapped image cannot run
- * `sgate engines install advisories` at all, so it has to bake a snapshot in at build time and point
- * `SLOP_GATE_ADVISORIES_PATH` at it.
+ * Exported because building a snapshot outside the default cache is a real workflow rather than a test hook: an
+ * air-gapped image cannot run `sgate engines install advisories` at all, so it bakes one in at build time and
+ * points `SLOP_GATE_ADVISORIES_PATH` at it.
  *
- * Written to a staging directory and moved into place, so a `check` running concurrently sees either
- * the previous snapshot or the new one and never a half-written index. Within the staging directory
- * the manifest is written last, for the same reason at a finer grain: `readSnapshotManifest` is what
- * `availability()` consults, so a directory without it is simply "not installed".
+ * Written to a staging directory and moved into place, so a concurrent `check` sees either the previous snapshot or
+ * the new one and never a half-written index. The manifest is written last within staging for the same reason at a
+ * finer grain: `availability()` consults it, so a directory without it is simply "not installed".
  */
 export async function writeAdvisorySnapshot(
   directory: string,
@@ -154,7 +145,7 @@ export async function writeAdvisorySnapshot(
     await mkdir(staging, { recursive: true })
     await writeFile(join(staging, VULNERABLE_FILE), JSON.stringify(tables.vulnerable), 'utf8')
     await writeFile(join(staging, MALICIOUS_FILE), JSON.stringify(tables.malicious), 'utf8')
-    await writeFile(join(staging, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+    await writeFile(join(staging, SNAPSHOT_MANIFEST_FILENAME), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
     await mkdir(join(directory, '..'), { recursive: true })
     await rm(directory, { recursive: true, force: true })

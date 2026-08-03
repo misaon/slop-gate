@@ -6,8 +6,8 @@
  * actively-maintained repositories at pinned default-branch HEADs produced **893 findings; 217 of the
  * 275 files (79%) produce at least one**. Of the 816 that come from hadolint's own DL rules, **204 are
  * true positives and 612 are false — 25% precision**. The rules below are the concentrated part: they
- * account for 150 of those 204. Per-rule figures are on each entry in `registry/entries.manual.ts`,
- * and the thirteen zero-true-positive rules are excluded as data in `registry/exclusions.ts`.
+ * account for 150 of those 204. Per-rule figures are on each entry in `registry/entries.uncatalogued.ts`,
+ * and the thirteen zero-true-positive rules are excluded as data in `registry/not-recommended.ts`.
  *
  * **Selection is enforced here, not by configuring hadolint.** hadolint can be handed `--ignore` per
  * code, but the list of codes it knows grows between releases, and a rule this registry has never
@@ -90,6 +90,6 @@ export const SOURCE_EXCLUSIONS: readonly SourceExclusion[] = [
   },
 ]
 
-export function conceptOf(engineRuleId: string): string | undefined {
+export function conceptForEngineRuleId(engineRuleId: string): string | undefined {
   return HADOLINT_RULES.find((rule) => rule.engineRuleId === engineRuleId)?.concept
 }

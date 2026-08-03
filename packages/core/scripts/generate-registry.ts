@@ -25,7 +25,7 @@
  *      better name (`registry/overrides.ts`). Two rules that would otherwise mechanically collide
  *      on the same id (e.g. `eslint/no-dupe-keys` and `vue/no-dupe-keys`, both `correctness`) are
  *      disambiguated by scope instead of silently shadowing one another — see `disambiguate` below.
- *   3. Some rules are excluded from `recommended` with a stated reason (`registry/exclusions.ts`)
+ *   3. Some rules are excluded from `recommended` with a stated reason (`registry/not-recommended.ts`)
  *      but still get a full entry.
  *   4. Type-aware rules (`type_aware: true`) get `tier: 1` and `requires: ['types']`. Nothing in
  *      slop-gate today provides the `types` capability, so arbitration can never elect one — see
@@ -59,7 +59,7 @@ import { resolveOxlintBinary } from '@misaon/slop-gate-engine-oxlint'
 import type { ConceptDefinition, ConceptGroup, ConceptId } from '../src/concepts/catalogue.ts'
 import { CURATED_CONCEPTS, HAND_WRITTEN_CONCEPTS } from '../src/concepts/catalogue.ts'
 import { compareStrings } from '../src/ordering.ts'
-import { RULE_EXCLUSIONS } from '../src/registry/exclusions.ts'
+import { NOT_RECOMMENDED_GENERATED } from '../src/registry/not-recommended.ts'
 import { RULE_OVERRIDES } from '../src/registry/overrides.ts'
 import type { FixDomain, RuleEntry } from '../src/registry/types.ts'
 import { capToUpstream } from '../src/registry/upstream-severity.ts'
@@ -248,7 +248,7 @@ function buildEntries(catalogue: readonly CatalogueRule[]): readonly GeneratedEn
     const severityDefault =
       override?.severityDefault ?? capToUpstream(rule.category === 'correctness' ? 'error' : 'warn', engineRuleId)
     const fixKind = fixKindOf(rule.fix)
-    const excluded = RULE_EXCLUSIONS[engineRuleId] !== undefined
+    const excluded = NOT_RECOMMENDED_GENERATED[engineRuleId] !== undefined
 
     const entry: RuleEntry = {
       engine: 'oxlint',
@@ -298,7 +298,7 @@ function buildGeneratedConcepts(generated: readonly GeneratedEntry[]): readonly 
     // always has exactly one concept (only an override can populate `classify`/multiple concepts).
     if (RULE_OVERRIDES[engineRuleId]?.concepts !== undefined) continue
 
-    const conceptId = entry.concepts[0]!
+    const conceptId = entry.concepts[0]
     if (known.has(conceptId) || byId.has(conceptId)) continue
 
     byId.set(conceptId, {
@@ -395,7 +395,7 @@ ${body}
 
 /**
  * \`concept -> level\` for every generated entry whose source rule is \`correctness\` or \`suspicious\`
- * category, not type-aware, and not in \`registry/exclusions.ts\` — the policy
+ * category, not type-aware, and not in \`registry/not-recommended.ts\` — the policy
  * \`packages/core/src/config/presets.ts\` reads to build \`recommended\`. Committed and diffable like
  * everything else this script produces, per decision 5: a rule that starts, stops, or changes
  * category on an oxlint upgrade is a reviewable diff here, not a silent behaviour change.

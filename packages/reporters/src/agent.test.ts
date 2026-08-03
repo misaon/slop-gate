@@ -6,7 +6,7 @@ import type { ReporterContext } from './index.ts'
 
 const diagnostic = (over: Partial<Diagnostic> = {}): Diagnostic => ({
   concept: 'correctness.no-debugger',
-  ruleId: 'oxlint/no-debugger',
+  ruleRefKey: 'oxlint/no-debugger',
   engine: 'oxlint',
   severity: 'error',
   message: '`debugger` statement is not allowed',
@@ -24,8 +24,8 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   engineFailures: [],
   unavailableEngines: [],
   baseline: null,
-  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
-  ruleset: { enabledConcepts: 5, suppressed: 0, uncovered: [], unknownKeys: [] },
+  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, cacheByEngine: [], enginesRun: 1, durationMs: 42 },
+  ruleset: { enabledConcepts: 5, overlaps: 0, uncovered: [], unknownKeys: [] },
   ...over,
 })
 
@@ -108,8 +108,8 @@ test('a clean run says so and asks for nothing', () => {
 test('splits findings by whether `sgate fix` handles them and names the flag needed', () => {
   const output = capture([
     done([
-      diagnostic({ ruleId: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' }),
-      diagnostic({ ruleId: 'oxlint/vitest/no-conditional-expect', concept: 'correctness.vitest-no-conditional-expect' }),
+      diagnostic({ ruleRefKey: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' }),
+      diagnostic({ ruleRefKey: 'oxlint/vitest/no-conditional-expect', concept: 'correctness.vitest-no-conditional-expect' }),
     ]),
   ])
 
@@ -124,7 +124,7 @@ test('a rule the run arbitrated against decides the tier, not the shipped regist
   // `CheckOptions.entries` is a real seam (`resolveRun` takes it), so a run that narrowed or
   // replaced the registry must not have the reporter quietly consult the shipped one instead and
   // promise `sgate fix` will handle something this run's registry calls unfixable.
-  const fixable = done([diagnostic({ ruleId: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' })])
+  const fixable = done([diagnostic({ ruleRefKey: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' })])
   expect(capture([fixable], { readSource: () => null })).toContain('## automated')
 
   let narrowed = ''
@@ -150,8 +150,8 @@ test('a concept whose findings do not all carry a declared fix is judgement, not
   // leaves it alone, and nothing comes back for it.
   const output = capture([
     done([
-      diagnostic({ concept: 'correctness.no-useless-spread', ruleId: 'oxlint/unicorn/no-useless-spread' }),
-      diagnostic({ concept: 'correctness.no-useless-spread', ruleId: 'oxlint/vitest/no-conditional-expect', file: 'src/b.ts' }),
+      diagnostic({ concept: 'correctness.no-useless-spread', ruleRefKey: 'oxlint/unicorn/no-useless-spread' }),
+      diagnostic({ concept: 'correctness.no-useless-spread', ruleRefKey: 'oxlint/vitest/no-conditional-expect', file: 'src/b.ts' }),
     ]),
   ])
 
@@ -164,7 +164,7 @@ test('states the reason once per concept instead of once per finding', () => {
     done(
       repeat(3, (index) => ({
         concept: 'config.unused-suppression',
-        ruleId: 'slop-gate/config.unused-suppression',
+        ruleRefKey: 'slop-gate/config.unused-suppression',
         engine: 'slop-gate',
         severity: 'warn',
         message: 'This suppression does not match any diagnostic on this line.',
@@ -190,8 +190,8 @@ test('omits the reason for a concept whose description is generator boilerplate,
   // with real findings, and every concept a real run produces now has a rationale.
   const output = capture([
     done([
-      diagnostic({ concept: 'pedantic.accessor-pairs', ruleId: 'oxlint/accessor-pairs', file: 'src/a.ts' }),
-      diagnostic({ concept: 'correctness.no-debugger', ruleId: 'oxlint/no-debugger', file: 'src/b.ts' }),
+      diagnostic({ concept: 'pedantic.accessor-pairs', ruleRefKey: 'oxlint/accessor-pairs', file: 'src/a.ts' }),
+      diagnostic({ concept: 'correctness.no-debugger', ruleRefKey: 'oxlint/no-debugger', file: 'src/b.ts' }),
     ]),
   ])
 
@@ -276,7 +276,7 @@ test('says the diff is unavailable rather than silently dropping an edit it cann
 
 test('an orchestrator-level finding with no file is located, not skipped', () => {
   const output = capture([
-    done([diagnostic({ concept: 'config.dead-override', ruleId: 'slop-gate/config.dead-override', engine: 'slop-gate', file: null })]),
+    done([diagnostic({ concept: 'config.dead-override', ruleRefKey: 'slop-gate/config.dead-override', engine: 'slop-gate', file: null })]),
   ])
 
   expect(output).toContain('### config.dead-override')
@@ -365,7 +365,7 @@ test('a budget too small for any finding still cannot drop the gap', () => {
 test('names concepts nothing could check and config keys that resolve to nothing', () => {
   const output = capture([
     done([diagnostic()], {
-      ruleset: { enabledConcepts: 5, suppressed: 0, uncovered: ['a11y.alt-text', 'style.quotes'], unknownKeys: ['oxlint/nope'] },
+      ruleset: { enabledConcepts: 5, overlaps: 0, uncovered: ['a11y.alt-text', 'style.quotes'], unknownKeys: ['oxlint/nope'] },
     }),
   ])
 
@@ -377,7 +377,7 @@ test('names concepts nothing could check and config keys that resolve to nothing
 test('is byte-identical across two runs over the same result', () => {
   const diagnostics = [
     diagnostic({ file: 'src/a.ts' }),
-    diagnostic({ file: 'src/b.ts', concept: 'style.x', ruleId: 'oxlint/style-x', severity: 'warn' }),
+    diagnostic({ file: 'src/b.ts', concept: 'style.x', ruleRefKey: 'oxlint/style-x', severity: 'warn' }),
     diagnostic({ file: 'src/c.ts', fix: { kind: 'safe', description: 'd', edits: [{ range: { start: 0, end: 1 }, replacement: 'y' }] } }),
   ]
 
@@ -390,8 +390,8 @@ test('orders groups by concept when severity and size tie, whatever order they a
   // key differ only by concept id, so a reporter that emitted them in insertion order would produce
   // different bytes for the same repository depending on which file an engine happened to visit
   // first — and the whole value of this format as an agent input rests on that never happening.
-  const alpha = repeat(2, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
-  const beta = repeat(2, (index) => ({ concept: 'style.beta', ruleId: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` }))
+  const alpha = repeat(2, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
+  const beta = repeat(2, (index) => ({ concept: 'style.beta', ruleRefKey: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` }))
 
   const forward = capture([done([...alpha, ...beta])])
   const reversed = capture([done([...beta, ...alpha])])
@@ -402,8 +402,8 @@ test('orders groups by concept when severity and size tie, whatever order they a
 
 test('reports exactly what the token budget dropped, per concept and in total', () => {
   const many = [
-    ...repeat(10, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` })),
-    ...repeat(10, (index) => ({ concept: 'style.beta', ruleId: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
+    ...repeat(10, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` })),
+    ...repeat(10, (index) => ({ concept: 'style.beta', ruleRefKey: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
   ]
 
   const output = capture([done(many)], { maxTokens: 400 })
@@ -427,8 +427,8 @@ test('reports exactly what the token budget dropped, per concept and in total', 
 
 test('keeps a worked example for every concept before deepening any one of them', () => {
   const many = [
-    ...repeat(6, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` })),
-    ...repeat(6, (index) => ({ concept: 'style.beta', ruleId: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
+    ...repeat(6, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` })),
+    ...repeat(6, (index) => ({ concept: 'style.beta', ruleRefKey: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
   ]
 
   // Swept across every budget rather than pinned to one, so the assertion is the rotation invariant
@@ -450,7 +450,7 @@ test('keeps a worked example for every concept before deepening any one of them'
 })
 
 test('fits every budget it can, and says so plainly for the ones it cannot', () => {
-  const many = repeat(40, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
+  const many = repeat(40, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
 
   // The whole contract in one sweep, with no floor constant to keep in step with the prose: below
   // the floor the report overruns and declares it; at or above, it fits. A report that overran
@@ -477,7 +477,7 @@ test('counts a multi-byte message in bytes, so non-ASCII text cannot overrun the
   // the estimate must never err in.
   const many = repeat(30, (index) => ({
     concept: 'style.alpha',
-    ruleId: 'oxlint/alpha',
+    ruleRefKey: 'oxlint/alpha',
     severity: 'warn' as const,
     file: `src/a${index}.ts`,
     message: `変数の宣言が重複しています ${index}`,
@@ -499,7 +499,7 @@ test('never drops a finding the complete report would have fitted', () => {
   // The complete report carries none of the bookkeeping a truncated one needs, so it can be smaller
   // than the space that would be reserved to truncate it. Reserving first made a budget in that band
   // produce a *larger* document than a generous budget did, and claim findings were dropped.
-  const many = repeat(12, (index) => ({ concept: 'style.alpha', ruleId: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
+  const many = repeat(12, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
   const complete = capture([done(many)], { maxTokens: 100_000 })
 
   for (const budget of [estimate(complete), estimate(complete) + 1, estimate(complete) + 200]) {
@@ -531,9 +531,9 @@ test('the summary lists the same concepts, in the same order and on the same sid
   // `check` tool does both — must not be able to show a concept as `automated` in one and
   // `judgement` in the other, so both read one grouping rather than two agreeing implementations.
   const diagnostics = [
-    diagnostic({ concept: 'correctness.no-useless-spread', ruleId: 'oxlint/unicorn/no-useless-spread' }),
-    diagnostic({ concept: 'config.unused-suppression', ruleId: 'slop-gate/config.unused-suppression', severity: 'warn', file: 'src/b.ts' }),
-    diagnostic({ concept: 'config.unused-suppression', ruleId: 'slop-gate/config.unused-suppression', severity: 'warn', file: 'src/c.ts' }),
+    diagnostic({ concept: 'correctness.no-useless-spread', ruleRefKey: 'oxlint/unicorn/no-useless-spread' }),
+    diagnostic({ concept: 'config.unused-suppression', ruleRefKey: 'slop-gate/config.unused-suppression', severity: 'warn', file: 'src/b.ts' }),
+    diagnostic({ concept: 'config.unused-suppression', ruleRefKey: 'slop-gate/config.unused-suppression', severity: 'warn', file: 'src/c.ts' }),
   ]
   const event = done(diagnostics)
   const output = capture([event])
@@ -551,9 +551,9 @@ test('the summary lists the same concepts, in the same order and on the same sid
       section: 'automated',
       tier: 'unsafe',
       severity: 'error',
-      findings: 1,
-      files: 1,
-      ruleIds: ['oxlint/unicorn/no-useless-spread'],
+      findingCount: 1,
+      fileCount: 1,
+      ruleRefKeys: ['oxlint/unicorn/no-useless-spread'],
       docsUrl: 'https://example.test/no-debugger',
     },
     {
@@ -561,9 +561,9 @@ test('the summary lists the same concepts, in the same order and on the same sid
       section: 'judgement',
       tier: null,
       severity: 'warn',
-      findings: 2,
-      files: 2,
-      ruleIds: ['slop-gate/config.unused-suppression'],
+      findingCount: 2,
+      fileCount: 2,
+      ruleRefKeys: ['slop-gate/config.unused-suppression'],
       docsUrl: 'https://example.test/no-debugger',
     },
   ])
@@ -577,11 +577,11 @@ test('the summary states true counts even for a concept the budget dropped every
   const event = done(many)
 
   expect(capture([event], { maxTokens: 700 })).toContain('showing ')
-  expect(summariseAgentGroups(event.result)[0]?.findings).toBe(40)
+  expect(summariseAgentGroups(event.result)[0]?.findingCount).toBe(40)
 })
 
 test('the summary reads the run\'s own registry entries, the same seam the reporter does', () => {
-  const event = done([diagnostic({ ruleId: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' })])
+  const event = done([diagnostic({ ruleRefKey: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' })])
 
   expect(summariseAgentGroups(event.result)[0]?.section).toBe('automated')
   expect(summariseAgentGroups(event.result, { entries: [] })[0]?.section).toBe('judgement')
@@ -670,4 +670,26 @@ test('a baseline that withheld nothing prints nothing, because there is no omiss
   const output = capture([done([], { baseline: baselineSummary({ accepted: 0, acceptedByConcept: [], entries: 4 }) })])
   expect(output).not.toContain('baseline')
   expect(coverageLine(output)).toBe('coverage: no findings. Nothing was omitted.')
+})
+
+test('a timing report reaches this reporter and changes nothing, which is the point of the report', () => {
+  const findings = [{ type: 'diagnostic' as const, diagnostic: diagnostic() }]
+  const clean = capture([...findings, { type: 'done', result: result({ counts: { error: 1, warn: 0, info: 0 } }) }])
+  const timed = capture([
+    ...findings,
+    {
+      type: 'done',
+      result: result({
+        counts: { error: 1, warn: 0, info: 0 },
+        timings: {
+          startupMs: 61.2,
+          phases: [{ name: 'run:oxlint', durationMs: 12.3, count: 1 }],
+          unattributedMs: 9.8,
+          rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 1 }],
+        },
+      }),
+    },
+  ])
+
+  expect(timed).toBe(clean)
 })

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { RulesListEntry } from '@misaon/slop-gate-core'
+import { RULES_LIST_JSON_VERSION } from '@misaon/slop-gate-reporters'
 import { list } from './list.ts'
 
 let dir: string
@@ -39,7 +40,7 @@ test('lists the recommended preset\'s enabled concepts as json, each with a leve
   const output = await runListCapturingStdout()
   const parsed = JSON.parse(output) as { version: number; entries: RulesListEntry[] }
 
-  expect(parsed.version).toBe(1)
+  expect(parsed.version).toBe(RULES_LIST_JSON_VERSION)
   expect(parsed.entries.length).toBeGreaterThan(0)
   const debuggerEntry = parsed.entries.find((entry) => entry.concept === 'correctness.no-debugger')
   expect(debuggerEntry).toMatchObject({

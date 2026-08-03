@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { isGeneratedPath } from './generated.ts'
+import { isGeneratedPath } from './detect-generated.ts'
 
 test.each([
   'packages/bat-api/src/v1/client/client.gen.ts',

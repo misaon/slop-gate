@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   CACHE_DIR_ENV,
-  MANIFEST_FILE,
+  SNAPSHOT_MANIFEST_FILENAME,
   SNAPSHOT_FORMAT_VERSION,
   SNAPSHOT_PATH_ENV,
   STALE_AFTER_DAYS,
@@ -36,7 +36,7 @@ const valid: SnapshotManifest = {
 }
 
 const write = async (body: unknown) => {
-  await writeFile(join(dir, MANIFEST_FILE), JSON.stringify(body))
+  await writeFile(join(dir, SNAPSHOT_MANIFEST_FILENAME), JSON.stringify(body))
   return dir
 }
 
@@ -98,7 +98,7 @@ describe('readSnapshotManifest', () => {
     ['a manifest with no fetch date', JSON.stringify({ formatVersion: SNAPSHOT_FORMAT_VERSION, digest: 'x', source: 'y' })],
     ['a manifest with no digest', JSON.stringify({ formatVersion: SNAPSHOT_FORMAT_VERSION, fetchedAt: 'y', source: 'y' })],
   ])('treats %s as no snapshot at all', async (_label, body) => {
-    await writeFile(join(dir, MANIFEST_FILE), body)
+    await writeFile(join(dir, SNAPSHOT_MANIFEST_FILENAME), body)
     expect(readSnapshotManifest(dir)).toBeUndefined()
   })
 })

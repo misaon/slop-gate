@@ -11870,7 +11870,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
 
 /**
  * `concept -> level` for every generated entry whose source rule is `correctness` or `suspicious`
- * category, not type-aware, and not in `registry/exclusions.ts` — the policy
+ * category, not type-aware, and not in `registry/not-recommended.ts` — the policy
  * `packages/core/src/config/presets.ts` reads to build `recommended`. Committed and diffable like
  * everything else this script produces, per decision 5: a rule that starts, stops, or changes
  * category on an oxlint upgrade is a reviewable diff here, not a silent behaviour change.

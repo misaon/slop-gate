@@ -9,7 +9,7 @@ import { compareStrings } from '@misaon/slop-gate-core'
  * This list is knip's *entire* electable vocabulary. Unlike oxlint, knip has no per-rule catalogue
  * to introspect: `--include`/`--exclude` take these seventeen names and nothing finer, so an issue
  * type is exactly what `RuleEntry.engineRuleId` names for this engine (see the knip block in
- * `packages/core/src/registry/entries.manual.ts`).
+ * `packages/core/src/registry/entries.uncatalogued.ts`).
  */
 export const KNIP_ISSUE_TYPES = [
   'files',
@@ -37,7 +37,7 @@ export type KnipIssueTypeExclusion = {
   /**
    * Why this issue type is never surfaced as a diagnostic, stated plainly enough that nobody
    * re-adds it later thinking its absence was an oversight — the same contract
-   * `packages/core/src/registry/exclusions.ts` holds for an oxlint rule kept out of `recommended`,
+   * `packages/core/src/registry/not-recommended.ts` holds for an oxlint rule kept out of `recommended`,
    * applied one level up: here the unit being excluded is a whole category of knip's output, so
    * dropping one silently would remove a class of finding with no signal at all.
    */
@@ -51,7 +51,7 @@ export const KNIP_EXCLUDED_ISSUE_TYPES: Readonly<Record<string, KnipIssueTypeExc
       'the weaker signal: an export only reachable through a namespace import (`import * as x`) ' +
       'cannot be proven unused, since knip cannot see which members the namespace holder actually ' +
       'touches. Surfacing the bucket knip itself labels lower-confidence, on top of an `exports` ' +
-      'measurement only one finding deep (see the knip block in entries.manual.ts), would ship a ' +
+      'measurement only one finding deep (see the knip block in entries.uncatalogued.ts), would ship a ' +
       'category with no evidence behind it and a false-positive mode built into its definition.',
   },
   nsTypes: {

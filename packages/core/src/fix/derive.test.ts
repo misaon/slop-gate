@@ -11,7 +11,7 @@ const asCandidates = (edits: ReturnType<typeof derive>): CandidateEdit[] =>
     range: edit.range,
     replacement: edit.replacement,
     kind: 'safe' as const,
-    ruleId: 'oxlint/r',
+    ruleRefKey: 'oxlint/r',
     concept: 'correctness.m',
     priority: 50,
     severity: 'warn' as const,

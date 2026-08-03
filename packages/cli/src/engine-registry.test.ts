@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { defaultEngines } from './engines.ts'
+import { defaultEngines } from './engine-registry.ts'
 
 test('registers exactly the engines a real check run uses', () => {
   const engines = defaultEngines(process.cwd())

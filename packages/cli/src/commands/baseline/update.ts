@@ -5,17 +5,14 @@ import { EXIT_CODES } from '../../exit-codes.ts'
 import { baselineRun, writeBreakdown } from './shared.ts'
 
 /**
- * Prunes, and only prunes: an entry that no longer matches any finding is removed, and nothing is
- * added.
+ * Prunes, and only prunes: an entry that no longer matches any finding is removed, and nothing is added.
  *
- * The obvious alternative — re-snapshot whatever the repository holds now — is what `create --force`
- * does, and it is a separate command on purpose. A fingerprint cannot distinguish a finding that moved
- * because its file was renamed from one written this morning (the path is part of the identity, §10.1),
- * so a command that added entries would sometimes accept new debt and could never say which. Splitting
- * them means the command a team runs habitually can only ever make the baseline smaller, and the one
- * that can make it larger states the number.
- *
- * So a rename is handled by `create --force`, whose output says how many findings that newly accepted.
+ * The obvious alternative — re-snapshot whatever the repository holds now — is what `create --force` does, and it
+ * is a separate command on purpose. **A fingerprint cannot distinguish a finding that moved because its file was
+ * renamed from one written this morning** (the path is part of the identity, §10.1), so a command that added
+ * entries would sometimes accept new debt and could never say which. Splitting them means the command a team runs
+ * habitually can only ever make the baseline smaller, and a rename goes through `create --force`, whose output
+ * says how many findings that newly accepted.
  */
 export const update = defineCommand({
   meta: { name: 'update', description: 'Drop baseline entries whose findings are fixed' },
@@ -51,8 +48,8 @@ export const update = defineCommand({
     }
 
     if (unaccepted.length > 0) {
-      // Named but not written. These are what `sgate check` is currently failing on, and the whole
-      // reason this command does not add them is that it cannot tell which of them anyone agreed to.
+      // Named but not written: these are what `sgate check` is currently failing on, and this command does not add
+      // them because it cannot tell which of them anyone agreed to.
       process.stdout.write(
         `\n  ${unaccepted.length} finding(s) are not in the baseline and still fail \`sgate check\`.\n` +
           '  Fix them, or accept them deliberately with `sgate baseline create --force`.\n',

@@ -53,7 +53,7 @@ export const SCHEMA_BINDINGS: readonly SchemaBinding[] = [
 /**
  * Config formats deliberately **not** bound to a schema yet, each with the reason stated plainly so
  * that a later reader can tell a considered omission from an oversight — the same discipline
- * `packages/core/src/registry/exclusions.ts` applies to rules.
+ * `packages/core/src/registry/not-recommended.ts` applies to rules.
  */
 export const SCHEMA_EXCLUSIONS: Readonly<Record<string, { readonly reason: string }>> = {
   'github-workflow': {

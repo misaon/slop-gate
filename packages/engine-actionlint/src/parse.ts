@@ -1,4 +1,4 @@
-import { createLineIndex, EngineError, type ByteRange, type RawDiagnostic } from '@misaon/slop-gate-core'
+import { createLineIndex, EngineError, toPosix, type ByteRange, type RawDiagnostic } from '@misaon/slop-gate-core'
 import { DISABLED_INTEGRATION_RULES, MESSAGE_EXCLUSIONS, MESSAGE_REWRITES } from './rules.ts'
 
 /** One element of `actionlint -format '{{json .}}'`. Field names are actionlint's own. */
@@ -24,8 +24,7 @@ const encoder = new TextEncoder()
 
 /**
  * `actionlint -format '{{json .}}'` output as a list. Separate from `parseActionlintOutput` because
- * the caller needs the file names before it can supply their text: `rangeOf` works on source, and
- * only the files that actually produced a finding are worth reading.
+ * the caller needs the file names before it can supply their text.
  *
  * Clean output is the empty string rather than `[]` when no file was linted, so an empty document is
  * no findings, not a malformed one.
@@ -54,9 +53,8 @@ export function parseActionlintOutput(
           'able to explain them, and would appear or vanish depending on whether that tool happens to be installed.',
       )
     }
-    // Unelected rules — and any rule a newer actionlint has grown that this registry does not know —
-    // are dropped here. actionlint cannot be asked for a subset, so this is the only place selection
-    // can happen; see `ACTIONLINT_RULES`.
+    // actionlint cannot be asked for a subset, so this is the only place selection can happen — and it
+    // also drops any rule a newer actionlint has grown that this registry does not know.
     if (!options.enabled(error.kind)) continue
     if (MESSAGE_EXCLUSIONS.some((exclusion) => exclusion.engineRuleId === error.kind && exclusion.pattern.test(error.message))) {
       continue
@@ -67,38 +65,30 @@ export function parseActionlintOutput(
     diagnostics.push({
       engineRuleId: error.kind,
       message: rewrite(error.kind, sanitize(error.message, options.absolutePrefixes)),
-      // actionlint has no severity of its own: every check it makes is reported the same way, and the
+      // actionlint has no severity of its own — every check it makes is reported the same way — so the
       // registry's `severityDefault` is the only thing that decides how a finding is shown.
       severity: 'error',
       file,
-      range: rangeOf(error, source),
+      range: rangeFromLineColumn(error, source),
     })
   }
   return diagnostics
 }
 
 /**
- * actionlint's `line`/`column` translated into a UTF-8 byte range.
- *
- * **`end_column` is deliberately not used, and it is wrong in two independent ways.** First the
- * units: `column` is a 1-based *byte* offset into the line — `getIndicator` slices with
- * `line[Column-1:]`, which is Go string indexing — while `end_column` is `len(indicator)`, and the
- * indicator is built from `runewidth.StringWidth`, i.e. *display columns*. They agree for ASCII,
+ * **`end_column` is deliberately not used, and it is wrong in two independent ways.** Units first:
+ * `column` is a 1-based *byte* offset into the line, while `end_column` is `len(indicator)` and the
+ * indicator is built from `runewidth.StringWidth`, i.e. *display columns* — they agree for ASCII,
  * which is why the discrepancy is invisible on almost every workflow, and diverge on any line with a
- * wide or multi-byte character before or inside the token: a CJK character is 2 display columns and
- * 3 bytes. Second, even on pure ASCII it is *inclusive* — measured against 1.7.12, an 11-character
- * token at `column: 23` reports `end_column: 33` — so using it as an exclusive end is off by one as
- * well.
+ * wide or multi-byte character (a CJK character is 2 display columns and 3 bytes). Second, even on
+ * pure ASCII it is *inclusive*: against 1.7.12, an 11-character token at `column: 23` reports
+ * `end_column: 33`. The end is derived from the source instead, by actionlint's own indicator rule —
+ * from the start byte to the first space, tab or line break.
  *
- * The end is therefore derived from the source instead, by the same rule actionlint's own indicator
- * uses: from the start byte, take everything up to the first space, tab or line break. That
- * reproduces the underline actionlint would have drawn, in bytes, for every input.
- *
- * `line: 0, column: 0` means "no position at all" rather than "the first character" — actionlint
- * emits it when a failure happens before any node has a location (the unresolved-anchor case the M0
- * follow-ups record). It maps to an empty range at the top of the file.
+ * `line: 0, column: 0` means "no position at all" rather than "the first character": actionlint emits
+ * it when a failure happens before any node has a location. It maps to an empty range at the top.
  */
-export function rangeOf(error: Pick<ActionlintError, 'line' | 'column'>, source: string | undefined): ByteRange {
+export function rangeFromLineColumn(error: Pick<ActionlintError, 'line' | 'column'>, source: string | undefined): ByteRange {
   if (source === undefined || error.line <= 0) return { start: 0, end: 0 }
 
   const index = createLineIndex(source)
@@ -111,14 +101,11 @@ export function rangeOf(error: Pick<ActionlintError, 'line' | 'column'>, source:
 }
 
 /**
- * Removes machine-specific absolute paths from a message.
- *
- * Not cosmetic: `RawDiagnostic.message` reaches fingerprints (§10.1), the cache key and the baseline,
- * so a message carrying `/Users/someone/project/...` makes all three machine-specific — two
- * developers checking out the same commit would compute different fingerprints for the same finding.
- * actionlint puts absolute paths in at least two messages today (`could not parse action metadata in
- * "…"`, `the action is defined at "…"`), and this strips by prefix rather than by known message so a
- * future one is covered without a code change.
+ * Removes machine-specific absolute paths from a message. Not cosmetic: `RawDiagnostic.message`
+ * reaches fingerprints (§10.1), the cache key and the baseline, so a message carrying
+ * `/Users/someone/project/...` makes all three machine-specific — two developers on the same commit
+ * would compute different fingerprints for one finding. actionlint puts absolute paths in at least two
+ * messages today, and stripping by prefix rather than by known message covers a future one.
  */
 export function sanitize(message: string, absolutePrefixes: readonly string[]): string {
   let result = message
@@ -139,7 +126,3 @@ function rewrite(engineRuleId: string, message: string): string {
   return message
 }
 
-/** `RawDiagnostic.file` is repo-relative with POSIX separators; actionlint uses the host's. */
-function toPosix(path: string): string {
-  return path.replaceAll('\\', '/')
-}

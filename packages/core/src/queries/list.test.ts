@@ -55,7 +55,7 @@ test('lists one row per enabled concept, sorted, with its owner and level', () =
 
   expect(rows.map((row) => row.concept)).toEqual(['correctness.no-debugger', 'dead-code.unused-variable'])
   expect(rows[0]).toMatchObject({ group: 'correctness', level: 'error', ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-debugger' }, languages: ['ts'] }] })
-  expect(rows[1]).toMatchObject({ suppressedCount: 1, ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }] })
+  expect(rows[1]).toMatchObject({ overlapCount: 1, ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }] })
 })
 
 test('does not list a concept no layer enables', () => {

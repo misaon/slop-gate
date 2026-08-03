@@ -60,7 +60,7 @@ test('reports every diagnostic with a canonical rule id, a concept and a positio
   expect(diagnostics.some((d) => d.concept.startsWith('config.'))).toBe(true)
 
   for (const diagnostic of diagnostics) {
-    expect(diagnostic.ruleId).toMatch(/^[a-z-]+\/\S+$/)
+    expect(diagnostic.ruleRefKey).toMatch(/^[a-z-]+\/\S+$/)
     expect(diagnostic.concept).toMatch(/^[a-z-]+\.[a-z-]+$/)
     expect(diagnostic.position.startLine).toBeGreaterThan(0)
     expect(diagnostic.file).not.toMatch(/^\/|\\/)

@@ -7,12 +7,9 @@ import { baselineRun, warnGitignored, warnUnavailable, writeBreakdown } from './
 /**
  * The on-ramp: accept everything wrong here today so only new findings fail the build.
  *
- * **This is the only command that can grow a baseline**, and on an existing file it needs `--force`.
- * That asymmetry is the design: `sgate baseline update` prunes and is safe to run out of habit, while
- * the command that can launder debt someone wrote this morning has to be asked for by name and reports
- * what it newly accepted. Neither is `sgate check`, which never writes — a gate that rewrote its own
- * pass criteria while running in CI would accept whatever the branch happened to introduce.
- *
+ * **This is the only command that can grow a baseline**, and on an existing file it needs `--force`. That
+ * asymmetry is the design: `sgate baseline update` prunes and is safe to run out of habit, while the command that
+ * can launder debt someone wrote this morning has to be asked for by name and reports what it newly accepted.
  * Exits 0 with findings on the floor, which is the point: they were accepted, not missed.
  */
 export const create = defineCommand({
@@ -46,9 +43,9 @@ export const create = defineCommand({
     process.stdout.write(`  accepted ${run.entries.length} finding(s) into ${shown}\n\n`)
     writeBreakdown(run.entries)
     if (existing !== null) {
-      // Only meaningful on a replacement, and it is the number that matters there: a `--force` that
-      // silently accepted twelve findings written since the last baseline is the failure mode this
-      // command's whole shape is arranged against.
+      // Only meaningful on a replacement, and the number that matters there: a `--force` that silently accepted
+      // twelve findings written since the last baseline is the failure mode this command's shape is arranged
+      // against.
       const before = new Set(existing.accepted.map((entry) => entry.fingerprint))
       const after = new Set(run.entries.map((entry) => entry.fingerprint))
       const added = run.entries.filter((entry) => !before.has(entry.fingerprint)).length

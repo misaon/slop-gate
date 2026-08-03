@@ -8,15 +8,12 @@ export type InFlight = {
 /**
  * How many tool calls are still running.
  *
- * The stdio binding makes closing stdin the shutdown signal, and the SDK's transport does not act on
- * it — it listens for `data` and `error` and nothing else — so the entry point has to. Closing the
- * transport the moment stdin ends is the obvious way to do that and it is wrong: a `check` takes
- * seconds, and a client that wrote its request and closed the pipe (which is what a batch invocation
- * or a shell pipeline does) would have the answer thrown away just as it was about to be written.
- * The observable symptom is a server that exits silently having answered nothing.
- *
- * So shutdown is "stdin ended *and* nothing is in flight". Nothing new can arrive after EOF, so this
- * settles: the count only falls once `idle` is being waited on.
+ * The stdio binding makes closing stdin the shutdown signal and the SDK's transport does not act on it — it
+ * listens for `data` and `error` and nothing else — so the entry point has to. **Closing the transport the moment
+ * stdin ends is the obvious way to do that and it is wrong:** a `check` takes seconds, and a client that wrote its
+ * request and closed the pipe (a batch invocation, a shell pipeline) would have the answer thrown away just as it
+ * was about to be written, leaving a server that exits silently having answered nothing. So shutdown is "stdin
+ * ended *and* nothing is in flight", which settles because nothing new can arrive after EOF.
  */
 export function createInFlight(): InFlight {
   let count = 0

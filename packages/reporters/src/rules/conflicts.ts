@@ -1,13 +1,15 @@
-import { ruleRefKey, type RulesConflicts, type SuppressionRecord } from '@misaon/slop-gate-core'
+import { ruleRefKey, type RuleOverlap, type RulesConflicts } from '@misaon/slop-gate-core'
 import { displayWidth } from '../display-width.ts'
-import { createFrameKit, plural } from '../frame.ts'
+import { createFrameKit, plural } from '../box.ts'
 import type { RulesReporterContext } from './context.ts'
 
-export const RULES_CONFLICTS_JSON_VERSION = 1
+/** Bumped to 2 by `suppressed` becoming `overlaps`, and each record's own `suppressed` becoming
+ *  `loser`: a v1 reader finds both keys missing rather than renamed, and an empty `suppressed` reads
+ *  as a run with no overlaps at all. */
+export const RULES_CONFLICTS_JSON_VERSION = 2
 
-/** Matches the message `run/check.ts`'s `configDiagnostics` builds for the same
- *  `config.dead-override` case — the same words a user already sees inline in `sgate check`'s own
- *  output, not a second, independently-worded description of the same fact. */
+/** Matches the message `run/check.ts`'s `configDiagnostics` builds for the same `config.dead-override` case —
+ *  the words a user already sees inline in `sgate check`, not a second wording of the same fact. */
 function deadOverrideText(key: string): string {
   return `\`${key}\` does not name a known concept or a rule any engine provides.`
 }
@@ -22,24 +24,24 @@ export function renderRulesConflictsPretty(conflicts: RulesConflicts, context: R
     writeUnit([frameTop(), frameRow(paint('bold', left) + ' '.repeat(gap) + right), frameBottom()])
   }
 
-  if (conflicts.suppressed.length === 0 && conflicts.deadOverrides.length === 0) {
+  if (conflicts.overlaps.length === 0 && conflicts.deadOverrides.length === 0) {
     writeUnit([`  ${paint('green', 'No rule overlaps or dead overrides in this run.')}`])
   }
 
-  if (conflicts.suppressed.length > 0) {
-    const byConcept = new Map<string, SuppressionRecord[]>()
-    for (const record of conflicts.suppressed) {
+  if (conflicts.overlaps.length > 0) {
+    const byConcept = new Map<string, RuleOverlap[]>()
+    for (const record of conflicts.overlaps) {
       const forConcept = byConcept.get(record.concept) ?? []
       forConcept.push(record)
       byConcept.set(record.concept, forConcept)
     }
 
-    const lines = [paint('bold', `  Rule overlaps (${plural(conflicts.suppressed.length, 'suppression')})`)]
+    const lines = [paint('bold', `  Rule overlaps (${conflicts.overlaps.length})`)]
     for (const [concept, records] of byConcept) {
       lines.push(`    ${paint('bold', concept)}`)
-      lines.push(`      winner:     ${ruleRefKey(records[0]!.winner)}`)
+      lines.push(`      winner: ${ruleRefKey(records[0]!.winner)}`)
       for (const record of records) {
-        lines.push(`      suppressed: ${ruleRefKey(record.suppressed)} (${record.reason})`)
+        lines.push(`      loser:  ${ruleRefKey(record.loser)} (${record.reason})`)
       }
     }
     writeUnit(lines)
@@ -51,7 +53,7 @@ export function renderRulesConflictsPretty(conflicts: RulesConflicts, context: R
     writeUnit(lines)
   }
 
-  const footer = [`  ${plural(conflicts.suppressed.length, 'rule overlap')} · ${plural(conflicts.deadOverrides.length, 'dead override')}`]
+  const footer = [`  ${plural(conflicts.overlaps.length, 'rule overlap')} · ${plural(conflicts.deadOverrides.length, 'dead override')}`]
   writeUnit([frameTop(), ...footer.map((line) => frameRow(line)), frameBottom()])
 }
 

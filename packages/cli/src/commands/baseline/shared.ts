@@ -2,28 +2,23 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { compareStrings, entriesOf, runCheck, type BaselineEntry, type CheckResult } from '@misaon/slop-gate-core'
 import { DEFAULT_CONFIG, loadCliConfig } from '../../config.ts'
-import { defaultEngines } from '../../engines.ts'
+import { defaultEngines } from '../../engine-registry.ts'
 import { EXIT_CODES } from '../../exit-codes.ts'
 import { SLOP_GATE_GITIGNORE } from '../init.ts'
 
 export type BaselineRun = { result: CheckResult; entries: BaselineEntry[] }
 
 /**
- * The run a baseline is derived from: every engine, and **`useBaseline: false`** — a baseline built
- * through the baseline it is replacing would only ever re-accept what was already accepted.
+ * The run a baseline is derived from: every engine, and **`useBaseline: false`** — a baseline built through the
+ * baseline it is replacing would only ever re-accept what was already accepted. The cache is left on: it is keyed
+ * on file content and engine ruleset and baseline acceptance is applied after it (see `run/check.ts`), so a warm
+ * run produces exactly the diagnostics a cold one does.
  *
- * The cache is left on. It is keyed on file content and engine ruleset, and baseline acceptance is
- * applied after it (see `run/check.ts`), so a warm run produces exactly the diagnostics a cold one
- * does — which is also the property that lets `sgate check` and this command agree about a repository.
- *
- * Returns `null` after writing the reason to stderr and setting an exit code. Two refusals:
- *
- * - **A config error**, as every other command treats one.
- * - **An engine failure.** A baseline written from a broken run silently omits everything the failed
- *   engine would have reported, so those findings arrive as *new* on the first run that works — a build
- *   breaking on debt the team believed it had accepted, with nothing on screen connecting the two. An
- *   engine that is merely *not installed* is not a failure and does not refuse: that is the ordinary
- *   state of a laptop without every optional binary, and the caller is warned instead.
+ * Returns `null` after writing the reason to stderr and setting an exit code. Two refusals: a config error, as
+ * every other command treats one, and **an engine failure** — a baseline written from a broken run silently omits
+ * everything the failed engine would have reported, so those findings arrive as *new* on the first run that
+ * works. An engine that is merely *not installed* is not a failure and does not refuse; that is the ordinary
+ * state of a laptop without every optional binary, and the caller is warned instead.
  */
 export async function baselineRun(rootDir: string): Promise<BaselineRun | null> {
   const loaded = await loadCliConfig(rootDir, DEFAULT_CONFIG)
@@ -67,12 +62,10 @@ export function warnUnavailable(result: CheckResult): void {
 }
 
 /**
- * Warns when `.slop-gate/.gitignore` would swallow the baseline.
- *
- * Scoped to the one file slop-gate writes itself, deliberately. A repository-wide answer needs
- * `git check-ignore`, and nothing else here shells out to git; this checks the ignore rule slop-gate is
- * responsible for creating, which is the only one it can be blamed for. A rule the user added elsewhere
- * is not detected, and this says nothing about it rather than implying it looked.
+ * Warns when `.slop-gate/.gitignore` would swallow the baseline — deliberately only that file, the one ignore
+ * rule slop-gate wrote itself. A repository-wide answer needs `git check-ignore` and nothing else here shells out
+ * to git, so a rule the user added elsewhere is not detected and this says nothing about it rather than implying
+ * it looked.
  */
 export async function warnGitignored(rootDir: string): Promise<void> {
   const path = join(rootDir, '.slop-gate', '.gitignore')

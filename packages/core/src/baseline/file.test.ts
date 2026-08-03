@@ -21,7 +21,7 @@ const entry = (file: string | null, concept: string, fingerprint: string): Basel
 
 const diagnostic = (over: Partial<Diagnostic>): Diagnostic => ({
   concept: 'slop.double-cast',
-  ruleId: 'astgrep/double-cast',
+  ruleRefKey: 'astgrep/double-cast',
   engine: 'astgrep',
   severity: 'warn',
   message: 'x',

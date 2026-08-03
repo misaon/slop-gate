@@ -38,11 +38,9 @@ export function openResultStore(cacheDir: string): ResultStore {
 
 /**
  * The project-granularity counterpart to `ResultStore` (spec §8.1/§9: `tsc`, `knip` — whole-program
- * results, cacheable only per workspace against an aggregate input hash, never per file). Same
- * on-disk shape and schema versioning as `ResultStore`, just laid out as spec §9 describes:
- * `results/project/<engineId>/<aggregateHash>.json`, one entry per engine rather than sharded by key
- * prefix — a project engine has far fewer cache entries than a file engine has files, so the sharding
- * that keeps `ResultStore`'s directories small has nothing to earn its keep here.
+ * results, cacheable only per workspace against an aggregate input hash, never per file). Same on-disk
+ * shape and schema versioning, laid out as spec §9 describes. Not sharded by key prefix: a project engine
+ * has far fewer entries than a file engine has files, so `ResultStore`'s sharding earns nothing here.
  */
 export type ProjectResultStore = {
   get(engineId: string, key: string): Promise<Diagnostic[] | null>

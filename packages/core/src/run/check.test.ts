@@ -293,7 +293,7 @@ test('emits a diagnostic naming both rules when two rules overlap', async () => 
     // Both engines must actually participate, or arbitration now drops the `eslint` entry before
     // it can even compete — this run is the one deliberately proving a real overlap resolves
     // correctly when both sides of it are actually present, not a run reproducing the M0 defect
-    // where an entry for an absent engine still generated a suppression.
+    // where an entry for an absent engine still generated an overlap.
     engines: [stubEngine({}), stubEngine({ id: 'eslint' })],
   })
 
@@ -423,7 +423,7 @@ test('an engine that provides a capability lets a capability-requiring rule be e
   // tier-2, no-requirements entry wins by default, and a rule that should have been elected never
   // is. Only one of the two engines' findings should survive ownership filtering.
   expect(result.diagnostics).toHaveLength(1)
-  expect(result.diagnostics[0]?.ruleId).toBe('tsgolint/typed-rule')
+  expect(result.diagnostics[0]?.ruleRefKey).toBe('tsgolint/typed-rule')
   expect(result.ruleset.uncovered).toEqual([])
 })
 
@@ -858,6 +858,129 @@ test('a file one engine still had to look at is not counted as served from cache
   expect(warm.stats.filesFromCache).toBe(0)
 })
 
+test('hands a spawning engine a version cache, and withholds it under --no-cache', async () => {
+  // `version()` is a cache-key component and nothing else, so an engine that answers it by spawning
+  // `<tool> --version` was paying for a subprocess on every run, warm or cold — measured at ~36 ms of a
+  // 111.6 ms internal warm run on this repository across four such engines. The cache is what elides
+  // that, and it can only do so if `streamCheck` actually passes it. `--no-cache` must not: it means
+  // believe nothing on disk, and a version read from disk is still read from disk.
+  const seen: Array<unknown> = []
+  const probing = (): Engine => ({
+    ...stubEngine({}),
+    version: async (cache) => {
+      seen.push(cache)
+      return '1.75.0'
+    },
+  })
+
+  await runCheck({ ...baseOptions(), engines: [probing()] })
+  expect(seen).toHaveLength(1)
+  expect(seen[0]).toBeDefined()
+
+  await runCheck({ ...baseOptions(), engines: [probing()], useCache: false })
+  expect(seen[1]).toBeUndefined()
+})
+
+test('reports each engine its own cache coverage, so the strict aggregate cannot be read as the whole story', async () => {
+  // The presentation defect `stats.cacheByEngine` exists for, reproduced at the smallest size that can
+  // hold it: oxlint hits, ast-grep's ruleset moved so it re-examines the file, and `filesFromCache`
+  // therefore reports 0 out of 1 — true, and read aloud it says the cache did nothing for a run where
+  // it served half the work. Per engine the answer is 1/1 and 0/1, which is what a reporter needs.
+  await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
+
+  await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'before' })]))
+  const warm = await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'after' })]))
+
+  expect(warm.stats.filesFromCache).toBe(0)
+  expect(warm.stats.cacheByEngine).toEqual([
+    { engine: 'astgrep', filesAssigned: 1, filesFromCache: 0 },
+    { engine: 'oxlint', filesAssigned: 1, filesFromCache: 1 },
+  ])
+})
+
+test('an engine that failed reports no cache coverage of its own', async () => {
+  // A failure records no hit, matching `filesFromCache`'s own rule that a run which fell over cannot
+  // report its files as cached. Counting misses instead of hits would have let a crashed engine's files
+  // look served.
+  await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
+  const broken = (): Engine => ({
+    ...stubEngine({ id: 'astgrep' }),
+    async materializeConfig() {
+      throw new Error('nope')
+    },
+  })
+
+  await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), broken()]))
+  const warm = await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), broken()]))
+
+  expect(warm.engineFailures).toHaveLength(1)
+  expect(warm.stats.cacheByEngine).toEqual([
+    { engine: 'astgrep', filesAssigned: 1, filesFromCache: 0 },
+    { engine: 'oxlint', filesAssigned: 1, filesFromCache: 1 },
+  ])
+})
+
+test('an engine whose version cannot be resolved fails alone, and the rest of the plan still runs', async () => {
+  // `version()` is resolved for every planned engine before the plan loop, and concurrently, because
+  // it is only ever a cache-key component — nothing in the run depends on when it lands. That hoist
+  // must not turn one engine's missing binary into a failed *run*: the rejection is carried to this
+  // engine's own turn in the plan and thrown there, so it reaches the same `catch`, and produces the
+  // same `engine-failed` event, as any other failure of its. Resolving them with a bare `Promise.all`
+  // would fail everything on the first rejection instead.
+  const broken: Engine = {
+    ...stubEngine({ id: 'astgrep' }),
+    version: async () => {
+      throw new Error('ast-grep is not installed')
+    },
+  }
+
+  const events: string[] = []
+  let done: Awaited<ReturnType<typeof runCheck>> | null = null
+  for await (const event of streamCheck(
+    twoEngineOptions([stubEngine({ id: 'oxlint', findings: [debuggerFinding('src/a.ts')] }), broken]),
+  )) {
+    if (event.type === 'diagnostic') events.push(`diagnostic:${event.diagnostic.concept}`)
+    if (event.type === 'engine-failed') events.push(`failed:${event.engine}:${event.message}`)
+    if (event.type === 'done') done = event.result
+  }
+
+  expect(events).toContain('failed:astgrep:ast-grep is not installed')
+  expect(events).toContain('diagnostic:correctness.no-debugger')
+  expect(done?.engineFailures).toEqual([{ engine: 'astgrep', message: 'ast-grep is not installed' }])
+  // Attributed before the engine was ever configured, exactly as it was when `version()` was awaited
+  // inside the loop: the working engine is the only one that counts as having run.
+  expect(done?.stats.enginesRun).toBe(1)
+})
+
+test('an assignment streams its files in plan order, whether served fresh or from the cache', async () => {
+  // The per-file cache probes — one content hash and one result-store read each — are issued with
+  // `Promise.all` and therefore settle in whatever order the filesystem returns them. Their *results*
+  // are consumed in `assignment.files` order regardless, and that ordering is load-bearing twice
+  // over: the stream is what `pretty` prints as it arrives, and `isDuplicateSynthetic` keeps the
+  // first occurrence of an orchestrator-synthesised diagnostic. Consuming in completion order would
+  // make both depend on the disk.
+  //
+  // Asserted against the fresh run as well as the warm one, because the two paths are separate code
+  // (the batch loop versus the cache branch) and a user must not be able to tell which served them.
+  const paths = Array.from({ length: 24 }, (_unused, i) => `src/f${String(i).padStart(2, '0')}.ts`)
+  for (const path of paths) await writeFile(join(dir, path), 'export function f() {\n  debugger\n}\n')
+
+  const options = () => ({ ...baseOptions(), engines: [stubEngine({ findings: paths.map(debuggerFinding) })] })
+  const streamed = async (): Promise<string[]> => {
+    const files: string[] = []
+    for await (const event of streamCheck(options())) {
+      if (event.type === 'diagnostic' && event.diagnostic.file !== null) files.push(event.diagnostic.file)
+    }
+    return files
+  }
+
+  const fresh = await streamed()
+  const warm = await streamed()
+
+  expect(fresh).toEqual(paths)
+  expect(warm).toEqual(paths)
+})
+
 test('a directive is reported once, not once per file-granularity engine', async () => {
   // Two file-granularity engines assigned the same file each run their own `normalizeDiagnostics`
   // pass over it, and each synthesises its own `config.unused-suppression`. Unreachable while oxlint
@@ -987,4 +1110,45 @@ test('an absent engine that would have lost anyway is reported with nothing disp
   const result = await runCheck({ ...baseOptions(), entries, engines: [stubEngine({}), optional()] })
 
   expect(result.unavailableEngines).toEqual([{ engine: 'astgrep', reason: 'not installed', displaced: [] }])
+})
+
+test('a run nobody asked to time carries no timing report at all', async () => {
+  const result = await runCheck({ ...baseOptions(), engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })] })
+
+  expect(result.timings).toBeUndefined()
+})
+
+test('the timing rows name the walk, arbitration and the engine, and account for the whole reported duration', async () => {
+  const result = await runCheck({
+    ...baseOptions(),
+    engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })],
+    timing: true,
+    // From process start, as a one-shot CLI passes it: that is what produces a `startup` row, and
+    // without one the breakdown would silently omit node boot, the module graph and config loading.
+    startedAt: 0,
+  })
+
+  const report = result.timings!
+  const names = report.phases.map((phase) => phase.name)
+  expect(names).toEqual(expect.arrayContaining(['discover', 'arbitrate', 'versions', 'run:oxlint', 'normalize:oxlint']))
+  // No `version:oxlint`: the probes are concurrent, so they are reported as one span (see `streamCheck`).
+  expect(names).not.toContain('version:oxlint')
+
+  expect(report.startupMs).toBeGreaterThan(0)
+  // Negative would mean two phases overlapped and one was counted twice.
+  expect(report.unattributedMs).toBeGreaterThanOrEqual(0)
+  const summed = report.startupMs + report.phases.reduce((total, phase) => total + phase.durationMs, 0) + report.unattributedMs
+  expect(Math.abs(summed - result.stats.durationMs)).toBeLessThan(1)
+
+  expect(report.rules).toEqual([{ ruleRefKey: 'oxlint/no-debugger', findings: 1 }])
+})
+
+test('a long-lived host that does not claim process start is charged no startup', async () => {
+  const result = await runCheck({
+    ...baseOptions(),
+    engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })],
+    timing: true,
+  })
+
+  expect(result.timings?.startupMs).toBe(0)
 })

@@ -13,12 +13,14 @@ import {
   type RuleSetting,
 } from '@misaon/slop-gate-core'
 import { displayWidth } from '../display-width.ts'
-import { createFrameKit, plural } from '../frame.ts'
+import { createFrameKit, plural } from '../box.ts'
 import { wrapText } from '../wrap-text.ts'
 import type { RulesReporterContext } from './context.ts'
 import { indexCandidates, levelGlyph, tierOf } from './shared.ts'
 
-export const RULES_WHY_JSON_VERSION = 1
+/** Bumped to 2 by `suppressed` becoming `overlaps`, and each record's own `suppressed` becoming
+ *  `loser` — see `RULES_CONFLICTS_JSON_VERSION`, which carries the same two fields. */
+export const RULES_WHY_JSON_VERSION = 2
 
 /** A monorepo can have a dozen Next.js applications; the reader needs two and a count, not twelve. */
 const EVIDENCE_SHOWN = 4
@@ -33,10 +35,9 @@ const LAYER_LABEL: Readonly<Record<ProvenanceLayer, string>> = {
 }
 
 /**
- * One line of evidence, phrased so the reader can act on it: which file declares the thing that made
- * detection fire. "Off because NestJS" is a dead end for someone who disagrees; naming the manifest
- * and the dependency tells them exactly what to change, and tells them immediately if detection is
- * wrong (spec §23.4).
+ * Phrased so the reader can act on it: which file declares the thing that made detection fire. "Off because
+ * NestJS" is a dead end for someone who disagrees; naming the manifest and the dependency tells them exactly
+ * what to change, and tells them immediately if detection is wrong (spec §23.4).
  */
 function evidenceText(evidence: FrameworkEvidence): string {
   switch (evidence.kind) {
@@ -50,10 +51,9 @@ function evidenceText(evidence: FrameworkEvidence): string {
 }
 
 /**
- * The first few of a long list, then a count. Measured need rather than a precaution: a path-scoped
- * framework layer enumerates the workspaces it applies to (spec §23.6), and on `calcom/cal.com` that is
- * 112 globs — one provenance line long enough to bury every other line in the report. The full list is
- * still in `--format json`, which is where a reader who wants all 112 should be looking anyway.
+ * The first few of a long list, then a count. Measured need, not a precaution: a path-scoped framework layer
+ * enumerates the workspaces it applies to (spec §23.6), which on `calcom/cal.com` is 112 globs — one
+ * provenance line long enough to bury every other line. The full list is still in `--format json`.
  */
 function firstFew(values: readonly string[], keep = 3): string {
   const shown = values.slice(0, keep).join(', ')
@@ -61,9 +61,9 @@ function firstFew(values: readonly string[], keep = 3): string {
 }
 
 /**
- * A path-scoped framework layer's `source` carries every glob so the label is unique per scope, which
- * makes it exactly as long as the scope is. Shortened for display only — the bucket identity, the JSON
- * and the layer itself are untouched.
+ * A path-scoped framework layer's `source` carries every glob so the label is unique per scope, which makes it
+ * exactly as long as the scope is. **Shortened for display only** — the bucket identity, the JSON and the
+ * layer itself are untouched.
  */
 function sourceText(mention: OverrideMention): string {
   const scoped = /^(framework \S+) \((.*)\)$/.exec(mention.source)
@@ -73,18 +73,15 @@ function sourceText(mention: OverrideMention): string {
 function settingText(setting: RuleSetting): string {
   const { level, options } = splitRuleSetting(setting)
   if (options === undefined) return level
-  // `[]` is a layer explicitly clearing the options it inherited, which is a different statement
-  // from the bare level above and has to read as one, or the provenance table shows two identical
-  // rows for two different decisions.
+  // `[]` is a layer explicitly clearing the options it inherited — a different statement from the bare level
+  // above, and it has to read as one or the provenance table shows two identical rows for two decisions.
   return options.length === 0 ? `${level} (options cleared)` : `${level} ${JSON.stringify(options)}`
 }
 
 /**
- * The effective options and the layer that decided them — the options half of the same question
- * `enablementSummary` answers for the level, and separate from it because the two can be settled by
- * different layers: `extends: ['recommended']` plus `'pedantic.eqeqeq': 'error'` takes its level
- * from the config file and its options from the preset. Rendered only when there are options, so
- * every concept that has none looks exactly as it did.
+ * Separate from `enablementSummary` because level and options can be settled by *different* layers:
+ * `extends: ['recommended']` plus `'pedantic.eqeqeq': 'error'` takes its level from the config file and its
+ * options from the preset.
  */
 function optionsSummary(enablement: ConceptEnablement): string | undefined {
   if (enablement.options.length === 0) return undefined
@@ -93,8 +90,6 @@ function optionsSummary(enablement: ConceptEnablement): string | undefined {
   return `Options: ${JSON.stringify(enablement.options)}${source}`
 }
 
-/** One sentence answering "is this enabled, and by what" — the first of the six answers `sgate
- *  rules why` can give (see the module doc comment on `explainConcept`). */
 function enablementSummary(enablement: ConceptEnablement): string {
   if (enablement.enabled) {
     const step = enablement.baseProvenance.at(-1)
@@ -127,10 +122,9 @@ function provenanceLines(enablement: ConceptEnablement): string[] {
 }
 
 /**
- * Why a candidate that never contested this concept was rejected — the reasons `why` can explain
- * because `electOwners` now records them (`ElectionResult.ineligible`), plus one presentational
- * addition: a `'missing-capability'` naming `types` gets the M2 blocker cited, since that specific
- * gap has a known, documented cause rather than being an open question.
+ * Why a candidate never contested this concept — the reasons `electOwners` records
+ * (`ElectionResult.ineligible`), plus one presentational addition: a `'missing-capability'` naming `types`
+ * cites the M2 blocker, since that gap has a known documented cause rather than being an open question.
  */
 function ineligibilityText(record: IneligibleCandidate): string {
   switch (record.reason) {
@@ -138,8 +132,8 @@ function ineligibilityText(record: IneligibleCandidate): string {
       return 'deprecated'
     case 'engine-not-participating':
       return `no \`${record.candidate.engine}\` engine is registered in this run`
-    // Deliberately different words from the case above. "Not registered" is a property of the build;
-    // "not installed" is a property of this machine, and it is the one the reader can act on.
+    // Deliberately different words from the case above: "not registered" is a property of the build, "not
+    // installed" is a property of this machine — and that is the one the reader can act on.
     case 'engine-unavailable':
       return `\`${record.candidate.engine}\` is registered but not installed on this machine`
     case 'missing-capability':
@@ -155,11 +149,10 @@ function ineligibilityText(record: IneligibleCandidate): string {
 }
 
 /**
- * True when `owner` is undefined for a reason *other* than a genuine coverage gap: every
- * ineligible candidate recorded for this concept failed only on language. Mirrors
- * `RulesListEntry.languageMismatch` (core), computed here instead of carried as its own field —
- * `why`, unlike `list`, already has the full `ineligible` array for this one concept, so checking
- * it directly is reading a recorded fact, not re-deriving one.
+ * True when `owner` is undefined for a reason *other* than a genuine coverage gap: every ineligible candidate
+ * recorded for this concept failed only on language. Mirrors `RulesListEntry.languageMismatch` (core), computed
+ * here rather than carried as a field because `why`, unlike `list`, already has the full `ineligible` array for
+ * this one concept — so checking it directly reads a recorded fact instead of re-deriving one.
  */
 function isLanguageMismatch(explanation: ConceptWhy): boolean {
   return (
@@ -171,13 +164,9 @@ function isLanguageMismatch(explanation: ConceptWhy): boolean {
 }
 
 /**
- * Ownership as one phrase, whether one rule owns the concept everywhere or several split it by
- * language.
- *
- * Languages are named **only when ownership is actually split**. For the overwhelmingly common
- * single-owner case they would be noise — the reader asked who owns a concept, not which file
- * extensions exist — and the answer has to stay short enough to sit inside one sentence. When two
- * engines do own it, naming the languages is the entire content of the answer.
+ * Ownership as one phrase. Languages are named **only when ownership is actually split**: for the
+ * overwhelmingly common single-owner case they are noise — the reader asked who owns a concept, not which file
+ * extensions exist — while for two owners naming them is the entire content of the answer.
  */
 function describeOwnership(ownership: readonly ConceptOwnership[]): string {
   if (ownership.length === 1) return `\`${ruleRefKey(ownership[0]!.owner)}\``
@@ -186,17 +175,14 @@ function describeOwnership(ownership: readonly ConceptOwnership[]): string {
     .join(' and ')
 }
 
-/**
- * The one-line bottom-line `why`'s closing frame always carries — the thing a reader who skipped
- * straight to the bottom still needs: does this concept produce findings right now, and through
- * what. Every other section explains *why* the verdict is what it is; this is the verdict itself.
- */
+/** The bottom line `why`'s closing frame always carries: does this concept produce findings right now, and
+ *  through what. Every other section explains why the verdict is what it is; this is the verdict. */
 function verdict(explanation: ConceptWhy): string {
   if (explanation.servicedBySlopGate) return 'Emitted by slop-gate itself, not by any engine rule.'
   if (!explanation.enablement.enabled) {
-    // Filtered to the profiles that actually asked for `off`. A profile that asked for a *level* and
-    // was overruled by the user's own `off` is in this list too, and attributing the silence to it
-    // would name the one party that wanted the opposite.
+    // Filtered to the profiles that actually asked for `off`: a profile that asked for a *level* and was
+    // overruled by the user's own `off` is in this list too, and blaming the silence on it would name the
+    // one party that wanted the opposite.
     const framework = explanation.frameworks.filter((entry) => entry.setting === 'off').at(-1)
     return framework === undefined
       ? 'Produces no findings: not enabled by any layer.'
@@ -260,22 +246,19 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
         lines.push(`      ${paint('dim', `and ${framework.evidence.length - EVIDENCE_SHOWN} more detection sites`)}`)
       }
       for (const line of wrapText(framework.reason, Math.max(1, width - 6))) lines.push(`      ${line}`)
-      // The count is the whole warrant for an addition (spec §23.5), so it is rendered next to the
-      // reason rather than hidden behind `--format json`: a profile that turns a rule *on* is asking
-      // to produce findings on code that passed yesterday, and the reader is owed the number.
+      // The count is the whole warrant for an addition (spec §23.5), so it sits next to the reason rather than
+      // behind `--format json`: a profile that turns a rule *on* asks for findings on code that passed
+      // yesterday, and the reader is owed the number.
       if (framework.measured !== undefined) {
         const { findings, falsePositives, repository } = framework.measured
         lines.push(`      ${paint('dim', `measured on ${repository}: ${findings} findings, ${falsePositives} false`)}`)
       }
     }
-    // The precedence rule in the one line the reader actually needs: not the whole model, only the
-    // clause that decided *this* concept. Printed only when a profile asked for something the
-    // cascade did not grant, which is the sole case where the model is not self-evident from the
-    // provenance table directly above.
-    // A path-scoped profile is excluded even when its level differs from `enablement.level`: that
-    // level is `maxLevelOf`, the strongest anywhere in the repository, and a profile that asked for
-    // something *only under its globs* got exactly what it asked for there. Calling it overruled
-    // would report a defeat that did not happen — and hide the real one if it ever did.
+    // Printed only when a profile asked for something the cascade did not grant — the sole case where the
+    // model is not self-evident from the provenance table above. **A path-scoped profile is excluded even
+    // when its level differs from `enablement.level`**: that level is `maxLevelOf`, the strongest anywhere in
+    // the repository, and a profile that asked for something *only under its globs* got exactly that there.
+    // Calling it overruled would report a defeat that did not happen — and hide the real one if it ever did.
     const overruled = explanation.frameworks.filter(
       (framework) => framework.paths === undefined && framework.setting !== explanation.enablement.level,
     )
@@ -301,9 +284,9 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     writeUnit(lines)
   }
 
-  // Not filtered to this concept — a profile that stood down has no adjustments to filter by, which
-  // is the whole reason to surface it: the reader is looking at a finding some profile would have
-  // removed, and the actionable part is which parameter it could not resolve.
+  // Not filtered to this concept — a profile that stood down has no adjustments to filter by, which is the
+  // whole reason to surface it: the reader is looking at a finding some profile would have removed, and the
+  // actionable part is which parameter it could not resolve.
   if (explanation.inapplicableFrameworks.length > 0) {
     const lines = [`  ${paint('dim', 'Frameworks detected but not applied')}`]
     for (const framework of explanation.inapplicableFrameworks) {
@@ -334,14 +317,13 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
       const lines = [`  ${glyph}  ${label}:`]
       for (const { owner, languages } of explanation.ownership) {
         const tier = tierOf(candidateIndex, owner)
-        // The language list is dropped for a sole owner for the same reason `describeOwnership`
-        // drops it: it answers a question nobody asked unless ownership is genuinely split.
+        // Dropped for a sole owner for the same reason `describeOwnership` drops it: it answers a question
+        // nobody asked unless ownership is genuinely split.
         const scope = explanation.ownership.length === 1 ? '' : ` for ${languages.join(', ')}`
         lines.push(`      ${paint('bold', ruleRefKey(owner))}${tier === undefined ? '' : ` (tier ${tier})`}${scope}`)
       }
-      // One extra line per displaced owner, inside the same block. A reader looking at who owns a
-      // concept needs "and a better owner is one install away" in the same glance, not in a separate
-      // section further down — and it has to stay one line, or the model is too complicated.
+      // Inside the same block: a reader looking at who owns a concept needs "and a better owner is one
+      // install away" in the same glance, not in a section further down — and it has to stay one line.
       for (const record of explanation.displaced) {
         lines.push(
           `      ${paint('dim', `${ruleRefKey(record.wouldOwn)} would own ${record.languages.join(', ')} — not installed`)}`,
@@ -349,21 +331,21 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
       }
       // Kept on one line in the common case, so the single-owner rendering is unchanged.
       const single = explanation.ownership.length === 1 && explanation.displaced.length === 0
-      writeUnit(single ? [`${lines[0]!.replace(/:$/, ':')} ${lines[1]!.trim()}`] : lines)
+      writeUnit(single ? [`${lines[0]!} ${lines[1]!.trim()}`] : lines)
     } else if (explanation.uncovered) {
       writeUnit([`  ${paint('yellow', 'Uncovered')} — no capable engine in this run owns this concept.`])
     } else if (isLanguageMismatch(explanation)) {
       writeUnit([`  ${paint('dim', 'Not applicable')} — no files here in a language this concept covers. Not a coverage gap.`])
     }
 
-    if (explanation.suppressed.length > 0) {
-      const lines = [`  ${paint('bold', 'Suppressed candidates')} (lost arbitration to the owner above)`]
-      for (const record of explanation.suppressed) {
-        const tier = tierOf(candidateIndex, record.suppressed)
-        // The languages are what make a suppression checkable: "lost to oxlint on ts" is a claim a
-        // reader can verify, where a bare "lost" invites the question this whole change answers.
+    if (explanation.overlaps.length > 0) {
+      const lines = [`  ${paint('bold', 'Lost arbitration to the owner above')}`]
+      for (const record of explanation.overlaps) {
+        const tier = tierOf(candidateIndex, record.loser)
+        // The languages are what make an overlap checkable: "lost to oxlint on ts" is a claim a reader can
+        // verify, where a bare "lost" invites the question.
         const scope = explanation.ownership.length > 1 ? ` on ${record.languages.join(', ')}` : ''
-        lines.push(`    ${ruleRefKey(record.suppressed)}${tier === undefined ? '' : ` (tier ${tier})`} — ${record.reason}${scope}`)
+        lines.push(`    ${ruleRefKey(record.loser)}${tier === undefined ? '' : ` (tier ${tier})`} — ${record.reason}${scope}`)
       }
       writeUnit(lines)
     }
@@ -371,12 +353,9 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     if (explanation.ineligible.length > 0) {
       const lines = [`  ${paint('bold', 'Other candidates that never contested this concept')}`]
       for (const record of explanation.ineligible) {
-        // The M2-blocker reason in particular (`ineligibilityText`'s `missing-capability`/`types`
-        // case) is 180+ characters — measured printing this against a real type-aware concept, it
-        // ran to 228 and overflowed every normal terminal width unwrapped. Wrapped the same way
-        // `pretty.ts` wraps a diagnostic message: on plain text via `wrapText`, continuation lines
-        // aligned under this candidate's own prefix (which varies in length row to row, so the
-        // indent is computed per record rather than reusing one fixed column).
+        // The M2-blocker reason alone (`ineligibilityText`'s `missing-capability`/`types` case) runs past 200
+        // characters and overflows any terminal unwrapped. The prefix varies in length row to row, so the
+        // continuation indent is computed per record rather than reusing one fixed column.
         const prefix = `    ${ruleRefKey(record.candidate)} — `
         const detailWidth = Math.max(1, width - displayWidth(prefix))
         const [firstLine, ...continuationLines] = wrapText(ineligibilityText(record), detailWidth)
@@ -387,10 +366,9 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     }
   }
 
-  // Wrapped, not truncated. The verdict is the one line a reader who skipped everything else still
-  // gets, and a concept split across engines by language names two rules and their languages in it —
-  // measured at 96 characters for `correctness.parse-error` on this repository, well past any frame.
-  // Cutting the sentence off mid-word would lose exactly the half that the split makes interesting.
+  // Wrapped, not truncated. A concept split across engines by language names two rules and their languages
+  // here, which runs well past any frame width — and cutting the sentence off mid-word would lose exactly
+  // the half that the split makes interesting.
   writeUnit([
     frameTop(),
     ...wrapText(verdict(explanation), Math.max(1, inner - 2)).map((line) => frameRow(`  ${line}`)),

@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineCommand } from 'citty'
 import { streamCheck, type CheckResult } from '@misaon/slop-gate-core'
-import { REPORTER_NAMES, createReporter, type ReporterName } from '@misaon/slop-gate-reporters'
+import { REPORTER_NAMES, createReporter } from '@misaon/slop-gate-reporters'
 import { DEFAULT_CONFIG, loadCliConfig } from '../config.ts'
-import { defaultEngines } from '../engines.ts'
+import { defaultEngines } from '../engine-registry.ts'
 import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
+import { validateFormat } from '../format.ts'
 import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
 
@@ -16,18 +17,28 @@ export function parseMaxTokens(raw: string | undefined): number | undefined | 'i
   return Number.isSafeInteger(value) && value > 0 ? value : 'invalid'
 }
 
+/**
+ * `0` is admitted, unlike `parseMaxTokens`: `--max-warnings 0` is the flag's whole point. The empty
+ * string is refused explicitly because `Number('')` is `0` — the one value that must not be reachable
+ * by accident here, since it turns `--max-warnings=` into the strictest possible gate.
+ */
+export function parseMaxWarnings(raw: string | undefined): number | undefined | 'invalid' {
+  if (raw === undefined) return undefined
+  if (raw.trim() === '') return 'invalid'
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value >= 0 ? value : 'invalid'
+}
+
 export const check = defineCommand({
   meta: { name: 'check', description: 'Analyse the repository and report findings' },
   args: {
     format: { type: 'string', default: 'pretty', description: `Output format (${REPORTER_NAMES.join(', ')})` },
     'max-warnings': { type: 'string', description: 'Fail when warnings exceed this count' },
     'max-tokens': { type: 'string', description: 'Bound the `agent` report to this many estimated tokens' },
-    // Named `cache` (default true), not `no-cache`: citty treats any raw `--no-X` argv token as
-    // "negate X", stripping the `no-` prefix before its own parser ever sees it — regardless of
-    // whether an arg literally named `no-X` exists. An arg named `no-cache` can therefore never be
-    // set from `--no-cache`; citty reads it as "negate `cache`", a flag that isn't defined, and
-    // `no-cache` silently keeps its default forever. Naming the flag `cache` lets citty's own
-    // negation convention do what the CLI surface (`--no-cache`) already promises.
+    // Named `cache` (default true), not `no-cache`: citty strips the `no-` prefix from any raw `--no-X` argv
+    // token and reads it as "negate X", whether or not an arg literally named `no-X` exists. **An arg named
+    // `no-cache` can therefore never be set from `--no-cache`** — citty negates an undefined `cache` and
+    // `no-cache` keeps its default forever.
     cache: { type: 'boolean', default: true, negativeDescription: 'Ignore cached results' },
     // Named for the same reason `cache` is — citty reads `--no-baseline` as "negate `baseline`".
     baseline: { type: 'boolean', default: true, negativeDescription: 'Report every finding, including the accepted ones' },
@@ -36,26 +47,42 @@ export const check = defineCommand({
       default: false,
       description: 'Exit 3 when a registered engine is not installed here',
     },
+    timing: { type: 'boolean', default: false, description: 'Show where the run spent its time' },
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
     const rootDir = args.cwd ?? process.cwd()
 
-    if (!REPORTER_NAMES.includes(args.format as ReporterName)) {
-      process.stderr.write(`unknown format: ${args.format}. Expected one of ${REPORTER_NAMES.join(', ')}.\n`)
-      process.exitCode = EXIT_CODES.config
-      return
-    }
+    if (!validateFormat(args.format)) return
 
-    // Rejected rather than coerced or ignored. `--max-tokens` is the one flag whose whole purpose is
-    // to make the report drop findings; a typo silently falling back to "no limit" would hand an
-    // agent a report far larger than its context, and a typo silently becoming `0` would hand it one
-    // with no findings at all. Both are failures the caller has to be told about.
+    // Rejected rather than coerced or ignored. `--max-tokens` is the one flag whose whole purpose is to make the
+    // report drop findings: a typo falling back to "no limit" hands an agent a report far larger than its
+    // context, and a typo becoming `0` hands it one with no findings at all.
     const maxTokens = parseMaxTokens(args['max-tokens'])
     if (maxTokens === 'invalid') {
       process.stderr.write(`--max-tokens must be a positive integer, got: ${args['max-tokens']}\n`)
       process.exitCode = EXIT_CODES.config
       return
+    }
+
+    // Refused here, before any engine runs, for the same reason `--max-tokens` is. The silent version
+    // dropped a `NaN` threshold and let a negative one through: `--max-warnings abc` exited 0 on a
+    // repository full of warnings, and `--max-warnings -1` failed a clean one — either way the gate's
+    // verdict came from a typo rather than from the findings.
+    const maxWarnings = parseMaxWarnings(args['max-warnings'])
+    if (maxWarnings === 'invalid') {
+      process.stderr.write(`--max-warnings must be a non-negative integer, got: ${args['max-warnings']}\n`)
+      process.exitCode = EXIT_CODES.config
+      return
+    }
+
+    // Refused for `agent` rather than collected and dropped: that reporter withholds everything run-dependent on
+    // purpose, so its output is byte-identical between a cold and a warm run (`packages/reporters/src/agent.ts`,
+    // and the e2e test that pins it) — there is nowhere for a breakdown to go. Said on stderr, because the
+    // alternative is a flag that measures a run and silently prints nothing.
+    const timing = args.timing === true && args.format !== 'agent'
+    if (args.timing === true && !timing) {
+      process.stderr.write('--timing is ignored by `--format=agent`: that report is byte-identical between runs by design.\n')
     }
 
     const loaded = await loadCliConfig(rootDir, DEFAULT_CONFIG)
@@ -69,7 +96,13 @@ export const check = defineCommand({
     process.once('SIGINT', onInterrupt)
     process.once('SIGTERM', onInterrupt)
 
-    const reporter = createReporter(args.format as ReporterName, {
+    // The run's source text, shared with `streamCheck` (see `CheckOptions.sources`) rather than kept as a second
+    // copy. Both directions matter: a file some engine examined is already in here by the time its diagnostics
+    // reach the reporter, while a file every engine served from cache was never read at all, so the reporter's
+    // own read below is what fills it.
+    const sources = new Map<string, string>()
+
+    const reporter = createReporter(args.format, {
       write: (chunk) => process.stdout.write(chunk),
       color: supportsColor(),
       unicode: supportsUnicode(),
@@ -77,13 +110,20 @@ export const check = defineCommand({
       version: readCliVersion(),
       ...(maxTokens === undefined ? {} : { maxTokens }),
       readSource: (file) => {
-        // `file` is `null` for an orchestrator-level diagnostic with nothing to attribute (see
-        // `Diagnostic.file`). Guarded explicitly rather than left to `join(rootDir, null)` throwing
-        // and being swallowed by the `catch` below — that would work by accident, not by contract.
+        // `file` is `null` for an orchestrator-level diagnostic with nothing to attribute (see `Diagnostic.file`).
+        // Guarded explicitly rather than left to `join(rootDir, null)` throwing into the `catch` below — that
+        // would work by accident, not by contract.
         if (file === null) return null
+        const held = sources.get(file)
+        if (held !== undefined) return held
         try {
-          return readFileSync(join(rootDir, file), 'utf8')
+          const content = readFileSync(join(rootDir, file), 'utf8')
+          sources.set(file, content)
+          return content
         } catch {
+          // A failure is deliberately not remembered: storing a `null` needs a value type wider than the run's
+          // own map, and the case — a file deleted between discovery and rendering — is bounded by the frame
+          // dedupe to a handful of retries.
           return null
         }
       },
@@ -98,6 +138,12 @@ export const check = defineCommand({
         engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined, loaded.config.ignore),
         useCache: args.cache,
         useBaseline: args.baseline,
+        sources,
+        // From process start, not from the top of `streamCheck`. This process exists to run one check, so node
+        // boot, the module graph and `loadCliConfig` are part of what the user waited for — roughly half the
+        // wall clock of a warm run, and `--timing`'s largest row. See `CheckOptions.startedAt`.
+        startedAt: 0,
+        timing,
         signal: controller.signal,
       })) {
         reporter.onEvent(event)
@@ -109,10 +155,10 @@ export const check = defineCommand({
     }
 
     const unavailableEngines = result?.unavailableEngines ?? []
-    // Written to stderr, not left to the reporter. `pretty` shows an absent engine only when it
-    // actually cost the run coverage, and `--require-engines` fails on absence regardless — without
-    // this, the one case the flag exists for (a CI image missing a tool the repository does not yet
-    // exercise) would exit 3 with nothing on screen naming the tool or the flag.
+    // Written to stderr, not left to the reporter. `pretty` shows an absent engine only when it actually cost the
+    // run coverage while `--require-engines` fails on absence regardless — without this, the one case the flag
+    // exists for (a CI image missing a tool the repository does not yet exercise) exits 3 with nothing on screen
+    // naming the tool or the flag.
     if (args['require-engines'] === true) {
       for (const engine of unavailableEngines) {
         const install = engine.install === undefined ? '' : ` Install it with \`${engine.install}\`.`
@@ -120,13 +166,12 @@ export const check = defineCommand({
       }
     }
 
-    const maxWarnings = args['max-warnings'] === undefined ? undefined : Number(args['max-warnings'])
     process.exitCode = resolveExitCode({
       counts: result?.counts ?? { error: 0, warn: 0, info: 0 },
       engineFailures: result?.engineFailures ?? [],
       unavailableEngines,
       requireEngines: args['require-engines'] === true,
-      ...(maxWarnings === undefined || Number.isNaN(maxWarnings) ? {} : { maxWarnings }),
+      ...(maxWarnings === undefined ? {} : { maxWarnings }),
     })
   },
 })

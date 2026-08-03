@@ -4,9 +4,12 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   EngineError,
+  isExecFileFailure,
+  toolVersion,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
+  type ExecFileFailure,
   type FileBatch,
   type RawDiagnostic,
   type RunContext,
@@ -36,21 +39,18 @@ export { findForeignSuppressions } from './suppressions.ts'
 const run = promisify(execFile)
 
 /**
- * The seventh engine, and the one that covers stylesheets — `css` only.
+ * The stylesheet engine — `css` only.
  *
- * **Bundled, with no `availability()`.** `@biomejs/biome` is an ordinary dependency of this package
- * with eight platform optional dependencies, oxlint's distribution shape exactly: present by
- * construction, so an availability probe that always returned `true` would be noise (see
- * `Engine.availability`).
+ * **Bundled, with no `availability()`.** `@biomejs/biome` is an ordinary dependency with eight platform
+ * optional dependencies, oxlint's distribution shape exactly: present by construction, so a probe that
+ * always returned `true` would be noise (see `Engine.availability`).
  *
- * **`fixes: false`.** Exactly one CSS rule in Biome offers a fix (`noImportantStyles`, unsafe), and
- * that rule is out of `recommended`. Neither fix route is implemented rather than implementing one
- * for a single excluded rule.
+ * **`fixes: false`.** Exactly one CSS rule in Biome offers a fix (`noImportantStyles`, unsafe), and it
+ * is out of `recommended`.
  *
  * **What a run of this engine looks like on a real repository: nothing.** Sixteen of its eighteen
- * `recommended` rules produced zero findings across 1729 production stylesheets. That is the
- * intended outcome — see `BIOME_CSS_RULE_ENTRIES` in the core registry for what was excluded to make
- * it so, and why a loud stylesheet linter would have been the failure.
+ * `recommended` rules produced zero findings across 1729 production stylesheets — the intended outcome;
+ * `BIOME_CSS_RULE_ENTRIES` in the core registry records what was excluded to make it so.
  */
 const MISSING_BIOME =
   'the bundled `@biomejs/biome` package could not be resolved from this installation of slop-gate, and ' +
@@ -63,9 +63,7 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
   const invocation: BiomeInvocation | undefined =
     options.binaryPath === undefined ? resolveBiomeBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  // An unresolvable bundled dependency is a broken installation of slop-gate, not a coverage gap —
-  // see `resolveScriptBin`'s own note. `@biomejs/biome` is pinned exactly here, so a `biome` on PATH
-  // is by definition a different one than the rule entries were measured against.
+  // An unresolvable bundled dependency is a broken installation of slop-gate, not a coverage gap.
   const required = (): BiomeInvocation => {
     if (invocation === undefined) throw new EngineError('biome-css', MISSING_BIOME)
     return invocation
@@ -75,19 +73,17 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
     id: 'biome-css',
 
     capabilities: {
-      // Not `scss`, not `less`. Biome 2.5.6 does not lint them — it ignores the file entirely rather
-      // than reporting on it badly — so declaring either would have arbitration elect this engine for
-      // stylesheets it never opens, and the run would report clean. See the M0 follow-ups.
+      // Not `scss`, not `less`. Biome 2.5.6 ignores those files entirely rather than reporting on them
+      // badly, so declaring either would have arbitration elect this engine for stylesheets it never
+      // opens and the run would report clean.
       languages: ['css'],
       granularity: 'file',
       provides: [],
       fixes: false,
     },
 
-    async version() {
-      const resolved = required()
-      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
-      return stdout.trim().replace(/^version:\s*/i, '')
+    async version(cache) {
+      return toolVersion(required(), /^version:\s*/i, cache)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
@@ -110,26 +106,24 @@ async function* execute(
   if (batch.files.length === 0) return
   const elected = electedRuleIds(handle)
 
-  // Every file is read once, here, and the text serves three purposes: the byte-offset conversion
-  // (Biome reports line/column only), the foreign-suppression scan, and nothing else. Reading it in
-  // the adapter rather than lazily inside the parser keeps the suppression scan honest — it must run
-  // for every assigned file, including the ones Biome had nothing to say about.
+  // Every file is read once, here, for the byte-offset conversion and the foreign-suppression scan.
+  // Reading in the adapter rather than lazily inside the parser is what keeps the suppression scan
+  // honest — it must run for every assigned file, including the ones Biome had nothing to say about.
   const sources = new Map<string, string>()
   for (const file of batch.files) {
     try {
       sources.set(file.path, await readFile(join(context.rootDir, file.path), 'utf8'))
     } catch {
       // A file that vanished between planning and running is routine in a caching linter. Biome will
-      // not count it either, and the `summary.unchanged` guard below is what notices the mismatch.
+      // not count it either, and the `summary.unchanged` guard below notices the mismatch.
     }
   }
 
   await mkdir(context.tmpDir, { recursive: true })
-  // The report goes to a file, never to stdout, and that is the only way to read this engine
-  // reliably. Biome's exit code is ambiguous in the way knip's is without `--no-exit-code`: 1 means
-  // "found findings" *and* "your configuration is broken" *and* "a path did not match" — all three
-  // confirmed directly. Whatever failure text Biome prints therefore lands on stdout/stderr, where
-  // it cannot corrupt the report, and the report's own contents decide whether the run succeeded.
+  // The report goes to a file, never to stdout, and that is the only way to read this engine reliably:
+  // Biome's exit code 1 means "found findings" *and* "your configuration is broken" *and* "a path did
+  // not match", all three confirmed directly. Failure text therefore lands on stdout/stderr where it
+  // cannot corrupt the report, and the report's own contents decide whether the run succeeded.
   const reportDir = await mkdtemp(join(context.tmpDir, 'biome-css-report-'))
   const reportPath = join(reportDir, 'report.json')
 
@@ -140,15 +134,14 @@ async function* execute(
     // Biome caps output at 20 diagnostics by default and reports how many it withheld;
     // `parseBiomeOutput` fails the run if that counter is ever non-zero.
     '--max-diagnostics=none',
-    // Turns "none of these paths matched" from exit 1 into exit 0. It does not make the ambiguity
-    // above go away — it removes one of the three meanings.
+    // Turns "none of these paths matched" from exit 1 into exit 0 — one of the three meanings above.
     '--no-errors-on-unmatched',
     '--reporter=json',
     `--reporter-file=${reportPath}`,
     ...batch.files.map((file) => file.path),
   ]
 
-  let failure: { code?: number | string; stderr?: string; stdout?: string } | undefined
+  let failure: ExecFileFailure | undefined
   try {
     await run(invocation.command, args, {
       cwd: context.rootDir,
@@ -157,7 +150,7 @@ async function* execute(
       maxBuffer: 1024 * 1024 * 64,
     })
   } catch (error) {
-    failure = error as { code?: number | string; stderr?: string; stdout?: string }
+    failure = isExecFileFailure(error) ? error : {}
   }
 
   let report: string
@@ -165,8 +158,8 @@ async function* execute(
     report = await readFile(reportPath, 'utf8')
   } catch (cause) {
     // No report at all means Biome never got as far as linting — a rejected configuration, a missing
-    // binary, a nested `biome.json` in the config directory. This is where the ambiguous exit code
-    // gets resolved: the report's absence is the signal, and the process output is the explanation.
+    // binary, a nested `biome.json` in the config directory. This resolves the ambiguous exit code: the
+    // report's absence is the signal, the process output the explanation.
     throw new EngineError(
       'biome-css',
       `biome produced no report: ${failure?.stderr?.trim() || failure?.stdout?.trim() || String(failure?.code ?? 'unknown error')}`,
@@ -184,18 +177,17 @@ async function* execute(
   })
 
   // Biome's own suppressions, reported by us because Biome reports nothing about them at all — see
-  // `suppressions.ts`. Emitted after the findings so a file's real diagnostics come first, and
-  // scoped to `FOREIGN_SUPPRESSION_RULE_ID` so arbitration and inline `sgate-disable` treat it as an
-  // ordinary rule the user can turn off if they have decided they do not care.
+  // `suppressions.ts`. Scoped to `FOREIGN_SUPPRESSION_RULE_ID` so arbitration and inline
+  // `sgate-disable` treat it as an ordinary rule the user can turn off.
   if (elected.has(FOREIGN_SUPPRESSION_RULE_ID)) {
     for (const [file, source] of sources) yield* findForeignSuppressions(file, source)
   }
 }
 
 /**
- * The handle `run` was given is the one `materializeConfig` produced, so this always succeeds — it
- * exists so that a future refactor synthesising a handle elsewhere fails here with a sentence rather
- * than by silently treating every rule as elected.
+ * Always succeeds today: the handle `run` was given is the one `materializeConfig` produced. It exists
+ * so that a future refactor synthesising a handle elsewhere fails here with a sentence rather than by
+ * silently treating every rule as elected.
  */
 function electedRuleIds(handle: EngineConfigHandle): ReadonlySet<string> {
   const elected = (handle as Partial<BiomeCssConfigHandle>).enabledRuleIds

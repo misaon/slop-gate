@@ -67,15 +67,15 @@ test('reports a concept no layer enables, even when a registry entry could serve
   expect(explanation.enablement.enabled).toBe(false)
   expect(explanation.candidates).toHaveLength(1)
   expect(explanation.ownership).toEqual([])
-  // Never enabled, so arbitration never ran for it — not owned, not suppressed, not ineligible,
+  // Never enabled, so arbitration never ran for it — no owner, no overlap, not ineligible,
   // not uncovered. The whole story is `enablement.enabled === false`.
-  expect(explanation.suppressed).toEqual([])
+  expect(explanation.overlaps).toEqual([])
   expect(explanation.ineligible).toEqual([])
   expect(explanation.uncovered).toBe(false)
 })
 
 test('reports the owner and an ineligible non-participating candidate — the real eslint/oxlint case', () => {
-  // Mirrors the registry's own shipped `dead-code.unused-variable` overlap (entries.manual.ts):
+  // Mirrors the registry's own shipped `dead-code.unused-variable` overlap (entries.uncatalogued.ts):
   // both an oxlint and an eslint entry declare it, only oxlint actually participates in a real run.
   const entries = [
     entry({ engine: 'oxlint', engineRuleId: 'no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 0 }),
@@ -87,7 +87,7 @@ test('reports the owner and an ineligible non-participating candidate — the re
   )
 
   expect(explanation.ownership.map((o) => o.owner)).toEqual([{ engine: 'oxlint', engineRuleId: 'no-unused-vars' }])
-  expect(explanation.suppressed).toEqual([])
+  expect(explanation.overlaps).toEqual([])
   expect(explanation.ineligible).toEqual([
     {
       concept: 'dead-code.unused-variable',
@@ -97,7 +97,7 @@ test('reports the owner and an ineligible non-participating candidate — the re
   ])
 })
 
-test('reports a suppressed loser when both engines actually participate', () => {
+test('reports an overlap loser when both engines actually participate', () => {
   const entries = [
     entry({ engine: 'oxlint', engineRuleId: 'no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 0 }),
     entry({ engine: 'eslint', engineRuleId: 'no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 2 }),
@@ -108,11 +108,11 @@ test('reports a suppressed loser when both engines actually participate', () => 
   )
 
   expect(explanation.ownership[0]?.owner.engine).toBe('oxlint')
-  expect(explanation.suppressed).toEqual([
+  expect(explanation.overlaps).toEqual([
     {
       concept: 'dead-code.unused-variable',
       languages: ['ts'],
-      suppressed: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
+      loser: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
       winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
       reason: 'lower-tier',
     },

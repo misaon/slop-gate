@@ -161,7 +161,7 @@ test('recomputes positions from byte offsets', () => {
 
 test('builds a canonical rule id from engine and engine rule id', () => {
   const [only] = run([raw({ engineRuleId: 'no-debugger', message: 'debugger' })])
-  expect(only?.ruleId).toBe('oxlint/no-debugger')
+  expect(only?.ruleRefKey).toBe('oxlint/no-debugger')
 })
 
 test('prefers the engine docs url and falls back to the registry', () => {
@@ -368,7 +368,7 @@ test('emits config.unused-suppression when a directive matches nothing', () => {
   expect(result[0]).toMatchObject({
     concept: 'config.unused-suppression',
     engine: 'slop-gate',
-    ruleId: 'slop-gate/config.unused-suppression',
+    ruleRefKey: 'slop-gate/config.unused-suppression',
     severity: 'warn',
     file: 'src/a.ts',
   })

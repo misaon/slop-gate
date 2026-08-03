@@ -8,8 +8,8 @@ const result: CheckResult = {
   engineFailures: [],
   unavailableEngines: [],
   baseline: null,
-  stats: { filesScanned: 1, filesAnalysed: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 },
-  ruleset: { enabledConcepts: 2, suppressed: 0, uncovered: [], unknownKeys: [] },
+  stats: { filesScanned: 1, filesAnalysed: 1, filesFromCache: 0, cacheByEngine: [], enginesRun: 1, durationMs: 1 },
+  ruleset: { enabledConcepts: 2, overlaps: 0, uncovered: [], unknownKeys: [] },
 }
 
 test('emits a single versioned json document on done', () => {
@@ -25,7 +25,7 @@ test('emits a single versioned json document on done', () => {
   reporter.onEvent({ type: 'done', result })
 
   const parsed = JSON.parse(output) as { version: number; counts: unknown; diagnostics: unknown[] }
-  expect(parsed.version).toBe(3)
+  expect(parsed.version).toBe(4)
   expect(parsed.diagnostics).toEqual([])
   expect(parsed.counts).toEqual({ error: 0, warn: 0, info: 0 })
 })
@@ -128,4 +128,42 @@ test('carries the whole baseline summary, so an empty diagnostics array can be r
   expect(parsed.diagnostics).toEqual([])
   expect(parsed.baseline.accepted).toBe(2)
   expect(parsed.baseline.stale).toHaveLength(1)
+})
+
+const capture = (over: Partial<CheckResult>): Record<string, unknown> => {
+  let output = ''
+  const reporter = createReporter('json', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: () => null,
+  })
+  reporter.onEvent({ type: 'done', result: { ...result, ...over } })
+  return JSON.parse(output) as Record<string, unknown>
+}
+
+test('a document from a run nobody timed has no timings key at all, not an empty one', () => {
+  expect('timings' in capture({})).toBe(false)
+})
+
+test('carries the timing breakdown verbatim, phases and per-rule counts both', () => {
+  const parsed = capture({
+    timings: {
+      startupMs: 61.2,
+      phases: [{ name: 'normalize:oxlint', durationMs: 6.2, count: 307 }],
+      unattributedMs: 9.8,
+      rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 23 }],
+    },
+  })
+
+  expect(parsed['timings']).toEqual({
+    startupMs: 61.2,
+    phases: [{ name: 'normalize:oxlint', durationMs: 6.2, count: 307 }],
+    unattributedMs: 9.8,
+    rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 23 }],
+  })
+  // Additive: a v4 reader finds every key it knew exactly where it was.
+  expect(parsed['version']).toBe(4)
 })

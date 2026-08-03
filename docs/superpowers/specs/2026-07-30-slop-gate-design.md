@@ -740,7 +740,8 @@ All reporters consume the same diagnostic stream.
 
 - **`pretty`** (default, human): framed header and footer, an open (unframed) body grouped by file
   with code frames, OSC 8 hyperlinks to rule docs, top-offending files, optional `--timing` breakdown
-  per engine and rule. Honours `NO_COLOR`, `FORCE_COLOR` and TTY detection for colour, and `TERM=dumb`
+  — per phase and engine, and per rule a finding count rather than a duration, for the reason §12.4
+  gives. Honours `NO_COLOR`, `FORCE_COLOR` and TTY detection for colour, and `TERM=dumb`
   separately for an ASCII-only frame and severity-marker fallback — colour and Unicode degrade
   independently, so a non-TTY pipe (colour off) still gets the real frame and emoji glyphs, and only
   `TERM=dumb` (not "not a TTY") drops to ASCII.
@@ -924,10 +925,73 @@ Truncation is never silent, which is the property everything else is arranged ar
   A report that fits its budget by hiding what it dropped is worse than one that overruns. The
   practical floor is roughly 600 tokens for a two-concept run and 1,600 for this repository's six.
 
-**Nothing time- or cache-dependent is printed.** `durationMs`, `filesFromCache` and `enginesRun` are
-omitted deliberately: the format's value as an agent input rests on the same repository state
-producing the same bytes, and `packages/cli/src/e2e.test.ts` proves it end to end by comparing a cold
-run's report with a warm one's.
+**Nothing time- or cache-dependent is printed.** `durationMs`, `filesFromCache`, `enginesRun` and the
+whole of `--timing` are omitted deliberately: the format's value as an agent input rests on the same
+repository state producing the same bytes, and `packages/cli/src/e2e.test.ts` proves it end to end by
+comparing a cold run's report with a warm one's. `--timing` therefore does nothing here, and
+`sgate check` says so on stderr rather than measuring a run it has nowhere to print.
+
+### 12.4 `--timing`, and the part of it that cannot be built
+
+The first version of this section promised a `--timing` breakdown "per engine and rule". Per engine is
+measurable and shipped. **Per rule is not achievable at all, and no amount of work on our side changes
+that** — so it is written down here rather than approximated into something that looks like it.
+
+An engine is an external process. We hand `tsc` a program and `oxlint` a file list, and read what comes
+back. Neither reports how long any one of *its* rules took, and neither has a mode that would: `tsc`
+does not attribute time to a diagnostic code, and oxlint's rules run inside a single AST pass whose cost
+is not separable per rule even in principle. Any per-rule millisecond figure slop-gate printed would be
+invented. The one number that is genuinely available at that boundary is **how many findings each rule
+produced**, and that is what the per-rule block reports — labelled a count, in the output, so it cannot
+be misread as a duration.
+
+What *is* measured, and how the rows add up:
+
+- **`startupMs` + every phase + `unattributedMs` = `stats.durationMs`.** `durationMs` measures from
+  process start, so a breakdown of only what happened inside `streamCheck` would leave a reader
+  subtracting to find the rest of their own run. It adds up instead.
+- **`startup`** is everything before core was called: node boot, the ESM module graph and
+  `loadCliConfig`. It is one row and not three, because core cannot split what it was not running for —
+  all it sees is the gap between the `startedAt` the caller claimed and its own first statement. **On a
+  warm run of this repository it is 54% of the whole run**, and nothing an engine does explains it. A
+  long-lived host (§12.1) reports `0` here: its process start has nothing to do with this run.
+- **The inventory walk is `discover`; rule-registry arbitration is `arbitrate`.** Both are ours, both
+  are phases, neither is engine work — which is the distinction someone reaching for this flag is
+  usually trying to draw.
+- **An engine's own subprocess time is `run:<engine>`**; our normalization of what it returned is
+  `normalize:<engine>`. Together those are the honest answer to "what does this engine cost me", and
+  the second is the only part any rule's cost lands in on our side of the boundary.
+- **Concurrent spans are reported as one row, never summed.** The `version()` probes are the only
+  concurrent work in a run; six overlapping 30 ms probes summed to 180 ms of a 155 ms run and made
+  every other row's share wrong, so the fan-out is one `versions` row.
+- **`unattributed` is real, and is mostly the reporter.** `streamCheck` is an async generator: while
+  `pretty` renders a code frame the run is suspended inside a `yield` and the clock is still running.
+  The row is labelled with what it contains rather than left to be read as slack in the orchestrator.
+
+**Off costs nothing measurable, and that is measured rather than assumed.** Instrumentation is compiled
+in unconditionally and inert unless `--timing` asked for it — one indirect call through a no-op
+collector per span, 3 307 of them on a cold run of this repository, since `read-source`, `normalize` and
+`cache-write` are measured per file. Measured by building `packages/core` twice from the same tree, once
+with all 22 wrapper call sites removed, and swapping only its `dist` between hyperfine benchmarks in one
+invocation (§16.4's terms: minima, ≥ 3 warmups, ≥ 10 runs, both orders):
+
+| | absent | present, flag off |
+|---|---|---|
+| warm, order A→B | 156.8 ms ± 1.8 (min 152.2) | 155.3 ms ± 2.0 (min 151.5) |
+| warm, order B→A | 156.4 ms ± 1.7 (min 153.3) | 157.1 ms ± 3.5 (min 153.0) |
+| cold | 6.123 s ± 0.080 (min 6.017) | 6.101 s ± 0.107 (min 6.029) |
+
+**The instrumented build posted the lower minimum in both warm rounds and the lower mean cold**, which
+is only possible if the real difference is smaller than the machine's own drift — the same drift §16.4
+already documents. So: no compile-time switch, and no claim of a specific percentage either, because
+this measurement cannot support one.
+
+**The terminal folds, `json` does not.** A cold run of this repository measures 51 phases, most under a
+millisecond, so `pretty` prints the rows worth ≥ 10 ms or ≥ 0.5% of the run and sums the rest into one
+labelled row. Two criteria because either alone is blind where the other holds: on a cold run `run:tsc`
+is 83% of the wall clock, which puts a 26 ms inventory walk under the share floor and would drop exactly
+the row a reader asked for; on a 140 ms warm run, 10 ms is 7% of everything. The column adds to the
+total either way, and `--format=json` carries every phase and every rule uncapped.
 
 ---
 
@@ -1618,6 +1682,14 @@ Global flags: `--format <pretty|agent|json|sarif|github|junit>`, `--since <ref>`
 `--engine <id>`, `--max-warnings <n>`, `--frozen-rules`, `--no-cache`, `--concurrency <n>`,
 `--max-tokens <n>`, `--timing`, `--quiet`, `--verbose`.
 
+`--timing` shows where the run's wall clock went, and the breakdown adds up to the duration printed
+beside it: startup (node boot, the module graph, config load), each measured phase — the inventory walk,
+arbitration, each engine's subprocess and each engine's normalization — and the residual, labelled.
+Rendered by `pretty` under the footer and by `json` as a `timings` object; **ignored by `agent`**, whose
+whole contract is being byte-identical between two runs of the same repository, and `sgate check` says so
+on stderr rather than measuring a run it cannot print. Per **rule** it reports a finding count and not a
+duration: §12.4 says why that is a limit of the engine boundary rather than an unfinished feature.
+
 `check` analyses everything by default and relies on the cache for speed. `--since <ref>` restricts
 per-file engines to changed files while still running project-granularity engines whole — narrowing
 those would produce wrong answers, and silently wrong results are worse than slow ones.
@@ -1644,20 +1716,99 @@ which rules were dropped because a faster engine owns the concept. Old configs a
 
 ## 16. Performance targets
 
-Committed to a benchmark suite; CI fails on regression beyond 10%.
+The first version of this section was six round numbers and a 10% regression gate, none of them
+measured. Measured since: one target passes comfortably, one passes warm by 10 ms and fails cold, three
+are missed by roughly 2×, one was never measured at all, and the regression gate is below the machine's
+own run-to-run variance — so it could not have been implemented as written. A target below the noise
+floor is not a target, and one that was never measured is worse than none. What follows is what has
+actually been measured, against what, and which targets survive it.
 
-| Metric | Target |
-|---|---|
-| First diagnostic rendered | < 200 ms |
-| Cold run, 5 000 files | < 3 s |
-| Warm run, no changes | < 300 ms |
-| Warm run, one file changed | < 500 ms |
-| Cold run, 100 000 files | < 45 s |
-| Install size, default engines | < 60 MB |
+**Every number here comes from `hyperfine` 1.20.0 and `/usr/bin/time -l`, on darwin-arm64 / Node
+24.14.0.** Where a shape is named it matters: a target that does not say what it was measured on is not
+a target.
 
-Benchmarks cover synthetic repositories at 1k, 10k and 100k files plus real-world monorepos.
-Comparative numbers against trunk, qlty and ESLint are published, generated by a committed script so
-anyone can reproduce them.
+### 16.1 What the shapes are
+
+Three, because the numbers differ by an order of magnitude between them and a single "N files" figure
+hides which one you are in:
+
+- **`slop-gate` itself** — 373 files, 353 analysed, all nine default engines registered and six in the
+  plan, `tsc` and `knip` among them. The only shape here with a whole-program engine.
+- **file-granularity corpus** — synthetic, 2 003 and 8 003 TypeScript files, `tsc` and `knip` disabled,
+  so oxlint and ast-grep are the whole plan. This is the shape that shows how cost scales with file
+  count.
+- **cold** means `.slop-gate/cache` removed before the run; **warm** means an unchanged repository;
+  **one file changed** means one source file's content differs from what the cache holds.
+
+### 16.2 Measured
+
+| Metric | Shape | Target | Measured | |
+|---|---|---|---|---|
+| Warm run, no changes | self, 373 files | < 300 ms | 120–128 ms | ✅ |
+| Warm run, no changes | corpus, 2 003 files | — | 344–357 ms | — |
+| Warm run, no changes | corpus, 8 003 files | — | 989 ms ± 19 | — |
+| First diagnostic rendered | corpus, 2 003 files, warm | < 200 ms | 189.5 ms mean, 184.7 ms min | ✅ (barely) |
+| First diagnostic rendered | corpus, 2 003 files, cold | < 200 ms | 268–354 ms | ❌ |
+| Warm run, one file changed | self, 373 files | < 500 ms | 1.241 s ± 0.033 | ❌ 2.5× |
+| Cold run | self, 373 files | — | 6.158 s ± 0.121 | — |
+| Cold run, 5 000 files | corpus, 2 003 / 8 003 files | < 3 s | 1.952 s / 6.829 s | ❌ |
+| Cold run, 100 000 files | — | < 45 s | never measured | — |
+| Install size, default engines | darwin-arm64 | < 60 MB | 119 MB in native engine binaries alone | ❌ |
+| Peak RSS, warm | corpus, 8 003 files | — | 343 MB | — |
+
+`bin/sgate.js` calls `module.enableCompileCache()`, which takes a flat ~26 ms off **every** shape after
+the first run on a machine: V8 reuses its bytecode instead of recompiling ~870 kB of bundled core, and
+`--timing`'s `startup` row drops 77.5 → 46.5 ms. Only the two self rows above were re-measured against
+it; the corpus and cold rows predate it and are that much pessimistic. It is a fixed cost, so it is
+nearly a fifth of a warm self run and rounding error on a 6 s cold one.
+
+### 16.3 Why the misses are structural, not slack to be tuned away
+
+**One file changed is 2.5× over because a whole-program engine has one cache entry.** `tsc` and `knip`
+are project-granularity (§8.1): their result key hashes *every* input file's hash, so any edit anywhere
+invalidates the whole program's result and the engine re-runs in full. There is no subset to re-check —
+asking `tsc` about part of a program gives wrong answers, not faster ones. So the floor for this metric
+is the cost of one `tsc` program build, and 500 ms was never reachable with `tsc` in the plan. It is a
+consequence of the design, not a defect in it, and the honest options are per-project cache granularity
+in a workspace (so an edit invalidates one package, not the repository) or leaving whole-program engines
+out of the interactive path — not a faster cache.
+
+**A cold run is dominated by `tsc`, not by file count.** On this repository, 4 987 ms of a 5 964 ms cold
+run is `run:tsc` — 83.6% — for 373 files. The original "cold, 5 000 files" target assumed cost scaled
+with the file count; it scales with the number of whole-program engines and the size of their programs.
+The file-granularity shape is the one where the count governs, and there the same corpus goes 1.952 s
+at 2 003 files to 6.829 s at 8 003 — ≈0.8 ms per additional file, near enough linear, and that marginal
+cost is the number worth holding to rather than any single total.
+
+**Install size is missed by the engine binaries on their own.** Biome 56 MB, ast-grep 51 MB and the
+oxlint native binding 12 MB come to 119 MB for one platform before any JavaScript. A 60 MB budget is
+only reachable by not bundling a native engine, which is a product decision about which engines ship by
+default, not something a build step can recover.
+
+### 16.4 The regression gate
+
+**"CI fails on regression beyond 10%" cannot be implemented against a single benchmark mean.** Five
+consecutive 12-run benchmarks of one unchanged build, on an idle machine, gave 150.2, 151.6, 154.5,
+156.3 and 151.8 ms — a 4.1% drift in the mean while each invocation reported its own σ as 1.0–3.8 ms.
+The same build measured on a different occasion moved from 170.6 ms ± 1.6 to 190.5 ms ± 14.9: an 11.7%
+shift, entirely noise, and past the threshold on its own. A shared CI runner is worse than either.
+
+So the gate is specified in terms it can actually hold:
+
+- **Compare minima, not means.** `hyperfine --export-json` reports `min`; the minimum of N runs is the
+  measurement least contaminated by scheduling noise, and it is the number a regression check compares.
+- **≥ 10 runs after ≥ 3 warmups**, per shape, with the shape recorded alongside the number.
+- **A threshold above the observed drift of the runner it runs on**, established by benchmarking one
+  unchanged build repeatedly *on that runner* before any threshold is chosen. 10% is below the drift
+  already observed here; 25% on minima is defensible, and a tighter number has to be earned by
+  measurement rather than asserted.
+- **Fail on a sustained regression, not a single sample.** Two consecutive breaches, or a breach that
+  reproduces on re-run, since a one-off breach on shared hardware is more likely the runner than the
+  commit.
+
+Benchmarks cover the shapes in §16.1 plus real-world monorepos, generated by a committed script so
+anyone can reproduce them. Comparative numbers against trunk, qlty and ESLint are published on the same
+terms — measured shape stated, minima compared.
 
 ---
 

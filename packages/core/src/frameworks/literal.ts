@@ -1,14 +1,13 @@
 const IDENTIFIER_CHAR = /[\p{ID_Continue}$]/u
 
 /**
- * Blanks out every comment and every string *body* in `source`, preserving length and preserving the
- * quote characters themselves. Structural scanning then runs over this copy while values are read
- * from the original at the same offsets, which is what lets the scanner below find a property key
- * without a parser and without ever matching one that only appears inside a comment or a string.
+ * Blanks out every comment and every string *body* in `source`, **preserving length** and preserving the
+ * quote characters themselves. Structural scanning then runs over this copy while values are read from
+ * the original at the same offsets, which is what lets the scanner below find a property key without a
+ * parser and without ever matching one that only appears inside a comment or a string.
  *
- * A template literal is masked like any other string. Its delimiters survive, so the value reader
- * sees a backtick, does not recognise it as a plain literal, and yields nothing — which is the
- * correct answer for `` `./a/${b}` ``: the value is computed, and this probe does not compute.
+ * A template literal is masked like any other string; its delimiters survive, so the value reader sees a
+ * backtick and yields nothing — the correct answer for `` `./a/${b}` ``, whose value is computed.
  */
 function maskSource(source: string): string {
   const out = [...source]
@@ -53,7 +52,6 @@ function maskSource(source: string): string {
   return out.join('')
 }
 
-/** Index just past the whitespace run starting at `from`, bounded by `end`. */
 function skipSpace(masked: string, from: number, end: number): number {
   let i = from
   while (i < end && /\s/.test(masked[i]!)) i += 1
@@ -64,17 +62,15 @@ function skipSpace(masked: string, from: number, end: number): number {
  * Offset of the colon introducing `key`'s value within `[start, end)`, choosing the **shallowest**
  * match and, among equally shallow ones, the first.
  *
- * Shallowest rather than "at depth zero" because the two callers sit at different depths and neither
- * knows its own: the first segment is looked for in a whole file, where the config object's own
- * braces put its keys one level down (and an `import { defineConfig }` line makes "descend into the
- * first brace" wrong), while later segments are looked for in an object interior, where they sit at
- * depth zero. Picking the minimum handles both, and is what stops `{ snapshot: { path } , path }`
- * from resolving to the nested one.
+ * Shallowest rather than "at depth zero" because the two callers sit at different depths and neither knows
+ * its own: a first segment is looked for in a whole file, where the config object's own braces put its
+ * keys one level down (and an `import { defineConfig }` line makes "descend into the first brace" wrong),
+ * while later segments sit at depth zero in an object interior. The minimum handles both, and is what
+ * stops `{ snapshot: { path } , path }` from resolving to the nested one.
  *
- * Matches `key:` and `'key':`/`"key":`. A bare identifier is matched against `masked`, so one inside
- * a comment or a string body (both blanked) cannot match; a quoted key is matched against `source`,
- * because masking blanked its body, and is then required to have its closing quote immediately
- * after — which is what rejects the `"migrations: { ... }"` inside a string.
+ * Matches `key:` and `'key':`/`"key":`. A bare identifier is matched against `masked`, so one inside a
+ * comment or a string body cannot match; a quoted key is matched against `source` — masking blanked its
+ * body — and must have its closing quote immediately after, which rejects `"migrations: { ... }"`.
  */
 function findKeyColon(source: string, masked: string, key: string, start: number, end: number): number {
   let depth = 0
@@ -127,11 +123,10 @@ function readQuoted(source: string, masked: string, open: number, end: number): 
 }
 
 /**
- * Three outcomes rather than `string[] | null`, because the caller has to tell "the key is not
- * there" from "the key is there and I cannot read it". For `tsconfig.json#extends` those mean
- * opposite things: absent is a chain that ends, unreadable is a chain that might still hide a
- * `"jsx": "react"` — see `tsconfig.ts`, which stands the profile down for the second and not the
- * first.
+ * Three outcomes rather than `string[] | null`, because the caller has to tell "the key is not there"
+ * from "the key is there and I cannot read it". For `tsconfig.json#extends` those mean opposite things:
+ * absent is a chain that ends, unreadable is a chain that might still hide a `"jsx": "react"` — see
+ * `tsconfig.ts`, which stands the profile down for the second and not the first.
  */
 export type StringListResult =
   | { readonly kind: 'absent' }
@@ -139,11 +134,10 @@ export type StringListResult =
   | { readonly kind: 'unreadable' }
 
 /**
- * `extractStringLiteral`'s sibling for a property that is **either one string or an array of
- * them** — the shape `tsconfig.json#extends` has had since TypeScript 5.0. Same masking pass, same
- * refusal to compute: an element that is not a plain quoted literal makes the whole list
- * `unreadable` rather than a shorter list, because a partial answer here would silently drop a
- * config file from the chain.
+ * `extractStringLiteral`'s sibling for a property that is **either one string or an array of them** — the
+ * shape `tsconfig.json#extends` has had since TypeScript 5.0. Same masking pass, same refusal to compute:
+ * an element that is not a plain quoted literal makes the whole list `unreadable` rather than a shorter
+ * list, because a partial answer here would silently drop a config file from the chain.
  */
 export function extractStringList(source: string, propertyPath: readonly string[]): StringListResult {
   if (propertyPath.length === 0) return { kind: 'absent' }
@@ -185,18 +179,15 @@ export function extractStringList(source: string, propertyPath: readonly string[
 }
 
 /**
- * The `literal` probe's whole implementation (spec §23.1): the value of a **string literal** at a
- * dotted property path in a framework's own config file, read **without executing it**. Importing
- * `mikro-orm.config.ts` to learn one path would make `sgate check` open a database connection; this
- * reads the source instead and looks at it.
+ * The `literal` probe's whole implementation (spec §23.1): the value of a **string literal** at a dotted
+ * property path in a framework's own config file, read **without executing it**. Importing
+ * `mikro-orm.config.ts` to learn one path would make `sgate check` open a database connection.
  *
- * Deliberately not a parser, and deliberately incomplete in one direction only. It answers when the
- * value is written literally and yields `null` for everything else — a variable, a template with an
- * interpolation, a `process.env` lookup, a `join()` call, or a path containing a backslash escape.
- * That is the safe failure direction the design commits to: an unresolvable parameter makes the
- * profile *not apply*, restoring the status quo, rather than applying it against a guessed value and
- * silently moving which files an engine treats as reachable. Never throws — a truncated or
- * unbalanced source is just another `null`.
+ * Deliberately not a parser, and incomplete in one direction only: it answers when the value is written
+ * literally and yields `null` for everything else — a variable, an interpolated template, a `process.env`
+ * lookup, a `join()` call, a backslash escape. An unresolvable parameter makes the profile *not apply*,
+ * restoring the status quo, rather than applying it against a guessed value and silently moving which
+ * files an engine treats as reachable. Never throws — a truncated source is just another `null`.
  */
 export function extractStringLiteral(source: string, propertyPath: readonly string[]): string | null {
   if (propertyPath.length === 0) return null

@@ -1,11 +1,9 @@
-// Both imports are shaped by CommonJS interop rather than preference, and both were verified against
-// plain `node` as well as the test runner — vitest is more forgiving here than Node is, so a form that
-// only passes under vitest would fail in the published package.
-//
-// `Ajv2020` is imported by name: the default export of `ajv/dist/2020.js` is the CJS `module.exports`
-// object under `nodenext`, which is not constructable. `ajv-formats` declares `export default` from a
-// CommonJS package, so the callable lives at `.default` for TypeScript while Node hands back the
-// function itself — reaching through `.default` is the one spelling that is correct for both.
+// Both imports are shaped by CommonJS interop, and both were verified against plain `node` as well as
+// the test runner — vitest is more forgiving here, so a form that only passes under vitest would fail in
+// the published package. `Ajv2020` is imported by name because the default export of `ajv/dist/2020.js`
+// is the CJS `module.exports` object under `nodenext`, which is not constructable; `ajv-formats` declares
+// `export default` from a CommonJS package, so the callable lives at `.default` for TypeScript while
+// Node hands back the function itself — reaching through `.default` is correct for both.
 import { Ajv2020, type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js'
 import addFormatsModule from 'ajv-formats'
 import { isMap, isPair, isScalar, type Document, type Node } from 'yaml'
@@ -27,9 +25,8 @@ export type SchemaValidator = (binding: SchemaBinding, document: YamlDocument) =
  * A validator over the vendored schemas, compiling each one at most once for the life of the engine.
  *
  * `strict: false` is required, not a convenience: the Compose specification uses keywords ajv's strict
- * mode rejects outright, and a linter that refuses to load its own schema is worse than one with a
- * permissive loader. `allErrors` is on so that two unrelated typos in one file are two findings —
- * without it ajv stops at the first, and a user fixing a compose file would need one run per mistake.
+ * mode rejects outright. `allErrors` is on so that two unrelated typos in one file are two findings —
+ * without it ajv stops at the first, and a user would need one run per mistake.
  */
 export function createSchemaValidator(): SchemaValidator {
   const ajv = new Ajv2020({ allErrors: true, strict: false })
@@ -48,21 +45,18 @@ export function createSchemaValidator(): SchemaValidator {
 /**
  * One ajv error per logical defect.
  *
- * ajv with `allErrors` does not report mistakes, it reports *every schema keyword that failed*, and
- * for a schema as `oneOf`-heavy as the Compose specification those are wildly different counts. A
- * single bad `depends_on.condition` produces three errors: the `enum` that actually failed, a `type`
- * error from the sibling branch that models `depends_on` as a list, and the `oneOf` recording that
- * neither branch matched. Reported verbatim, one typo becomes three findings pointing at two places,
- * two of which name a level of the schema the user never wrote.
- *
- * Two rules, applied in order, and between them they collapsed all ten seeded defects in
- * `validate.test.ts` to exactly one finding each:
+ * ajv with `allErrors` does not report mistakes, it reports *every schema keyword that failed*, and for a
+ * schema as `oneOf`-heavy as the Compose specification those are wildly different counts. A single bad
+ * `depends_on.condition` produces three errors: the `enum` that actually failed, a `type` error from the
+ * sibling branch that models `depends_on` as a list, and the `oneOf` recording that neither branch
+ * matched. Verbatim, one typo becomes three findings pointing at two places, two of which name a level
+ * of the schema the user never wrote. Two rules, applied in order:
  *
  * 1. **Prefer specific keywords over structural ones.** At a given location, `oneOf`/`anyOf` is the
  *    umbrella under which a real error was already reported; drop it if anything else survives there.
  * 2. **Prefer the deepest location.** An error at `/services/web/depends_on` is the same defect as the
- *    one at `/services/web/depends_on/db/condition`, described from further away. Keeping the deeper
- *    one is what makes the finding point at the token the user has to edit.
+ *    one at `/services/web/depends_on/db/condition`, described from further away; the deeper one is what
+ *    points at the token the user has to edit.
  */
 function collapse(errors: readonly ErrorObject[]): ErrorObject[] {
   // `if`/`then`/`else` never describe a user-visible defect; they report which conditional branch the
@@ -81,8 +75,8 @@ function collapse(errors: readonly ErrorObject[]): ErrorObject[] {
   const locations = [...byLocation.keys()]
   const kept: ErrorObject[] = []
   for (const [location, group] of byLocation) {
-    // Rule 2: something more specific was reported underneath this location, so this one is that
-    // same defect seen from further out.
+    // Rule 2: something more specific was reported underneath this location, so this is that same
+    // defect seen from further out.
     if (locations.some((other) => other !== location && other.startsWith(`${location}/`))) continue
     // Rule 1: structural keywords only survive when nothing more concrete failed here.
     const specific = group.filter((error) => !['oneOf', 'anyOf'].includes(error.keyword))
@@ -93,9 +87,9 @@ function collapse(errors: readonly ErrorObject[]): ErrorObject[] {
 
 /**
  * Where an error *is*, which for `additionalProperties` is not where ajv says it is: the reported
- * `instancePath` is the containing object, and the offending key is in `params.additionalProperty`.
- * Folding it into the location here is what lets two unrelated typos in one mapping stay two findings
- * rather than collapsing into one, and what lets the range land on the misspelling.
+ * `instancePath` is the containing object and the offending key is in `params.additionalProperty`.
+ * Folding it in here is what keeps two unrelated typos in one mapping two findings rather than one, and
+ * what lets the range land on the misspelling.
  */
 function locationOf(error: ErrorObject): string {
   const extra = error.params?.['additionalProperty']
@@ -110,7 +104,7 @@ function toFinding(error: ErrorObject, binding: SchemaBinding, document: Documen
       ? `\`${extra}\` is not a property the ${binding.title} defines here.`
       : `${describe(pointer)} ${error.message ?? 'is invalid'} (${binding.title}).`
 
-  return { message, pointer, ...rangeOf(document, pointer) }
+  return { message, pointer, ...utf16SpanOfPointer(document, pointer) }
 }
 
 function describe(pointer: string): string {
@@ -119,14 +113,12 @@ function describe(pointer: string): string {
 }
 
 /**
- * The source range for a JSON pointer.
- *
  * Points at the **key**, not the value, whenever the pointer names a mapping entry: `ports: 8080` is
- * reported against `ports`, because that is the token a reader scans for and the one whose spelling
- * may itself be the defect. Falls back to the value node, then to the document start — a pointer the
- * parser cannot resolve must still yield a usable finding rather than an exception.
+ * reported against `ports`, the token a reader scans for and the one whose spelling may itself be the
+ * defect. Falls back to the value node, then to the document start — a pointer the parser cannot resolve
+ * must still yield a usable finding rather than an exception.
  */
-function rangeOf(document: Document, pointer: string): { offset: number; endOffset: number } {
+function utf16SpanOfPointer(document: Document, pointer: string): { offset: number; endOffset: number } {
   const segments = pointer.split('/').filter((segment) => segment.length > 0).map(unescapePointer)
   if (segments.length === 0) return { offset: 0, endOffset: 0 }
 

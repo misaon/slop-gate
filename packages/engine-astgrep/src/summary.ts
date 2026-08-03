@@ -6,8 +6,8 @@ export type AstGrepScanSummary = {
 }
 
 /**
- * Reads the three `--inspect summary` lines ast-grep writes to **stderr** (never stdout, so they do
- * not disturb `--json`). Verbatim from 0.45.0:
+ * Reads the `--inspect summary` lines ast-grep writes to **stderr** (never stdout, so they do not disturb
+ * `--json`). Verbatim from 0.45.0:
  *
  * ```
  * sg: summary|project: isProject=false
@@ -15,11 +15,9 @@ export type AstGrepScanSummary = {
  * sg: summary|rule: effectiveRuleCount=20,skippedRuleCount=0
  * ```
  *
- * Parsed by scanning for the `key=value` pairs rather than by matching the line shapes, so a future
- * release adding a counter, reordering the pairs or renaming the `sg:` prefix does not break the two
- * numbers this adapter actually depends on. Returns `null` when either of those two is absent, which
- * `run` treats as a failure — see `assertSummary` in index.ts for why a disabled guard is worse than
- * a noisy one.
+ * Parsed by scanning for `key=value` pairs rather than by matching the line shapes, so a future release adding
+ * a counter, reordering the pairs or renaming the `sg:` prefix does not break the two numbers this adapter
+ * depends on. `null` when either of those two is absent, which `run` treats as a failure (`assertSummary`).
  */
 export function readScanSummary(stderr: string): AstGrepScanSummary | null {
   const counters = new Map<string, number>()

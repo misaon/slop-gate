@@ -19,7 +19,7 @@ const entry = (over: Partial<RuleEntry> & Pick<RuleEntry, 'engine' | 'engineRule
   ...over,
 })
 
-test('surfaces both a suppressed overlap and a dead override from an already-resolved run', () => {
+test('surfaces both a rule overlap and a dead override from an already-resolved run', () => {
   const entries = [
     entry({ engine: 'oxlint', engineRuleId: 'no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 0 }),
     entry({ engine: 'eslint', engineRuleId: 'no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 2 }),
@@ -46,11 +46,11 @@ test('surfaces both a suppressed overlap and a dead override from an already-res
 
   const conflicts = buildRulesConflicts(resolved)
 
-  expect(conflicts.suppressed).toEqual([
+  expect(conflicts.overlaps).toEqual([
     {
       concept: 'dead-code.unused-variable',
       languages: ['ts'],
-      suppressed: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
+      loser: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
       winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
       reason: 'lower-tier',
     },
@@ -78,6 +78,6 @@ test('reports both as empty on a run with no overlaps and no dead overrides', ()
   }
 
   const conflicts = buildRulesConflicts(resolved)
-  expect(conflicts.suppressed).toEqual([])
+  expect(conflicts.overlaps).toEqual([])
   expect(conflicts.deadOverrides).toEqual([])
 })

@@ -7,11 +7,9 @@ export const LOCKFILES = {
 } as const
 
 /**
- * Lockfiles this engine can read a resolved dependency tree out of, and the ones it cannot. The
- * second list is the point: a repository locked with yarn or bun must be told it was not examined,
- * because the failure this whole engine exists to avoid is a security check that quietly looked at
- * nothing. They are named here rather than left to fall through an `else`, so the coverage gap can
- * say which file it found.
+ * A repository locked with yarn or bun must be *told* it was not examined — the failure this whole engine exists
+ * to avoid is a security check that quietly looked at nothing. Named here rather than left to fall through an
+ * `else`, so the coverage gap can say which file it found.
  */
 export const UNSUPPORTED_LOCKFILES: Readonly<Record<string, string>> = {
   'yarn.lock': 'yarn',
@@ -25,14 +23,12 @@ export type ResolvedPackage = {
   readonly name: string
   readonly version: string
   /**
-   * Names from the direct manifest dependency down to this package inclusive, so a finding can point
-   * at the manifest line that is actually editable. Length 1 means the package is itself declared.
+   * Names from the direct manifest dependency down to this package inclusive, so a finding can point at the
+   * manifest line that is actually editable. Length 1 means the package is itself declared.
    *
-   * Empty means nothing in the manifest reaches it, and that is a real state rather than a parsing
-   * failure — npm has its own word for it. On Ghost's lockfile 1,452 of 3,814 resolved packages come
-   * back with no path, and npm marks exactly 1,452 entries `extraneous`: a bundled shrinkwrap inside
-   * one dependency drags in a tree that nothing declares. A finding against one of those has no
-   * manifest line to point at because there genuinely is not one.
+   * **Empty is a real state, not a parse failure**: npm calls those `extraneous` — a bundled shrinkwrap inside one
+   * dependency drags in a tree nothing declares. On Ghost's lockfile 1,452 of 3,814 resolved packages come back
+   * with no path and npm marks exactly 1,452 entries extraneous. Such a finding has no manifest line to point at.
    */
   readonly path: readonly string[]
 }
@@ -60,11 +56,10 @@ export function parseLockfile(kind: LockfileKind, source: string): ParsedLockfil
 const DEPENDENCY_GROUPS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const
 
 /**
- * `peerDependencies` is deliberately absent from the group list here and in `manifestDependencies`.
- * A peer is a requirement on the *consumer*, not something this package installs, and npm's
- * auto-install of peers already surfaces in the lockfile through the ordinary groups. Treating it as
- * a declaration would report a phantom peer against a library whose whole job is to declare peers it
- * does not itself carry.
+ * `peerDependencies` is deliberately absent from the group list above and in `manifestDependencies`: a peer is a
+ * requirement on the *consumer*, and npm's auto-install of peers already surfaces through the ordinary groups.
+ * Treating it as a declaration would report a phantom peer against a library whose job is to declare peers it does
+ * not carry.
  */
 type NpmEntry = {
   version?: string
@@ -85,9 +80,9 @@ function parseNpmLockfile(source: string): ParsedLockfile {
 
   const entries = document.packages
   if (entries === undefined) {
-    // lockfileVersion 1 has no `packages` map at all — only the nested `dependencies` tree, which
-    // records versions but not the flat install layout this resolver walks. Refused rather than
-    // half-read: npm 7 shipped in 2020 and `npm install` rewrites a v1 lockfile on sight.
+    // lockfileVersion 1 has no `packages` map at all — only the nested `dependencies` tree, which records versions
+    // but not the flat install layout this resolver walks. Refused rather than half-read: npm 7 shipped in 2020
+    // and `npm install` rewrites a v1 lockfile on sight.
     throw new LockfileParseError(
       `this lockfile has no \`packages\` map (lockfileVersion ${document.lockfileVersion ?? 'unknown'}); run \`npm install\` to upgrade it`,
     )
@@ -100,20 +95,16 @@ function parseNpmLockfile(source: string): ParsedLockfile {
     if (path === '') continue
     const name = nameFromNpmPath(path)
     if (name === undefined) continue
-    // Recorded as known even when it is a workspace link with no version of its own: the question
-    // `directNames` answers is "did the lockfile account for this dependency", and a link did.
+    // Known even when it is a workspace link with no version of its own: the question `directNames` answers is
+    // "did the lockfile account for this dependency", and a link did.
     known.add(name)
     if (entry.link === true || typeof entry.version !== 'string') continue
     versions.set(path, entry.version)
-    // `peerDependencies` *is* an edge here, unlike in `manifestDependencies` where it deliberately is
-    // not, and the two answer different questions. Between packages, npm 7 and later install peers, so
-    // a peer is genuinely part of the resolved tree and a package reachable only that way still has a
-    // dependent worth naming. In the *root* manifest it is a requirement on the consumer, so counting
-    // it as a declared install would report every library that declares peers it does not carry.
-    //
-    // Measured across the six corpora: on four of them nothing changes, because everything was already
-    // reachable through ordinary dependencies. On axios 1.4.0 it takes reachability from 1,866 of 2,056
-    // packages to all 2,056 — 190 findings that would otherwise have anchored at byte zero.
+    // `peerDependencies` *is* an edge here, unlike in `manifestDependencies`, because the two answer different
+    // questions: between packages npm 7 and later install peers, so a peer is genuinely part of the resolved tree
+    // and a package reachable only that way still has a dependent worth naming. On axios 1.4.0 that takes
+    // reachability from 1,866 of 2,056 packages to all of them — 190 findings that would otherwise anchor at byte
+    // zero.
     edges.set(path, new Map(Object.entries({ ...entry.dependencies, ...entry.optionalDependencies, ...entry.peerDependencies })))
   }
 
@@ -152,10 +143,10 @@ function parseNpmLockfile(source: string): ParsedLockfile {
 }
 
 /**
- * npm's flat layout, resolved the way Node does: a dependency of the package at `from` lives in the
- * nearest `node_modules` at or above it. Walking up is not an optimisation — a duplicated transitive
- * dependency is nested precisely so that two dependents can see different versions of it, so
- * resolving by bare name would attribute the wrong version to one of them.
+ * npm's flat layout, resolved the way Node does: a dependency of the package at `from` lives in the nearest
+ * `node_modules` at or above it. Walking up is not an optimisation — a duplicated transitive dependency is nested
+ * precisely so two dependents can see different versions of it, so resolving by bare name would attribute the
+ * wrong version to one of them.
  */
 function resolveNpmPath(from: string, name: string, versions: ReadonlyMap<string, string>): string | undefined {
   const segments = from === '' ? [] : from.split('/')
@@ -190,8 +181,8 @@ function parsePnpmLockfile(source: string): ParsedLockfile {
   }
 
   const snapshots = document.snapshots ?? {}
-  // `snapshots` split out of `packages` in lockfile 9. On an older file the same edges live in
-  // `packages`, so both are read rather than assuming the newer layout.
+  // `snapshots` split out of `packages` in lockfile 9; on an older file the same edges live in `packages`, so both
+  // are read rather than assuming the newer layout.
   const nodes = Object.keys(snapshots).length > 0 ? snapshots : ((document.packages ?? {}) as typeof snapshots)
 
   const edges: Edges = new Map()
@@ -236,10 +227,9 @@ function parsePnpmLockfile(source: string): ParsedLockfile {
 }
 
 /**
- * A pnpm node id is `name@version` with an optional parenthesised peer suffix —
- * `vite@5.0.0(@types/node@20.0.0)`. The suffix is part of the key, so an importer's recorded version
- * (which carries it too) is tried first and the bare form only as a fallback for the older layouts
- * that omit it.
+ * A pnpm node id is `name@version` with an optional parenthesised peer suffix — `vite@5.0.0(@types/node@20.0.0)`.
+ * The suffix is part of the key, so an importer's recorded version (which carries it too) is tried first and the
+ * bare form only as a fallback for the older layouts that omit it.
  */
 function findPnpmKey(name: string, version: string, edges: Edges): string | undefined {
   const exact = `${name}@${version}`
@@ -250,8 +240,8 @@ function findPnpmKey(name: string, version: string, edges: Edges): string | unde
 
 export function splitPnpmKey(key: string): { readonly name: string; readonly version: string } | undefined {
   const bare = stripPeerSuffix(key)
-  // Scoped names contain an `@` of their own, so the separator is the last one — and a leading `@`
-  // at index 0 is the scope marker, never a separator.
+  // Scoped names carry an `@` of their own, so the separator is the last one — and a leading `@` at index 0 is the
+  // scope marker, never a separator.
   const separator = bare.lastIndexOf('@')
   if (separator <= 0) return undefined
   const name = bare.slice(0, separator)
@@ -266,9 +256,8 @@ function stripPeerSuffix(value: string): string {
 }
 
 /**
- * Breadth-first from the root manifest's own dependencies, so the recorded path is the *shortest*
- * route to each package. That matters for the message: a package reachable both directly and six
- * levels down should read as the direct dependency it is.
+ * Breadth-first from the root manifest's own dependencies, so the recorded path is the *shortest* route to each
+ * package — a package reachable both directly and six levels down should read as the direct dependency it is.
  */
 function walk(
   roots: ReadonlyMap<string, string>,

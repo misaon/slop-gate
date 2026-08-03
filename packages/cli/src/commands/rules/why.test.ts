@@ -36,7 +36,7 @@ async function runWhyCapturingStdout(concept: string): Promise<string> {
 }
 
 test('explains the shipped eslint/oxlint overlap: owned by oxlint, eslint ineligible because it never participates', async () => {
-  // The exact case the task asks `why` to demonstrate: entries.manual.ts's synthetic `eslint` entry
+  // The exact case the task asks `why` to demonstrate: entries.uncatalogued.ts's synthetic `eslint` entry
   // exists purely so a real overlap is provable, and a real CLI run only ever registers oxlint.
   const output = await runWhyCapturingStdout('dead-code.unused-variable')
   const explanation = JSON.parse(output) as ConceptWhy
@@ -47,7 +47,7 @@ test('explains the shipped eslint/oxlint overlap: owned by oxlint, eslint inelig
     candidate: { engine: 'eslint', engineRuleId: '@typescript-eslint/no-unused-vars' },
     reason: 'engine-not-participating',
   })
-  expect(explanation.suppressed).toEqual([])
+  expect(explanation.overlaps).toEqual([])
 })
 
 test('reports an unknown concept id as a config error, distinct from "not enabled"', async () => {

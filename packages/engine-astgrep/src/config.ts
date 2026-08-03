@@ -11,14 +11,13 @@ import {
 import { astGrepRuleById, type AstGrepLanguage } from './rules.ts'
 
 /**
- * ast-grep's severity vocabulary is `error | warning | info | hint | off`; ours is
- * `error | warn | info | off`. Only the spelling of `warn` actually differs.
+ * ast-grep's severity vocabulary is `error | warning | info | hint | off`; ours is `error | warn | info | off`.
+ * Only the spelling of `warn` actually differs.
  *
- * Writing the elected level into the document at all is belt-and-braces: `normalizeDiagnostics`
- * (`packages/core/src/engine/normalize.ts`) derives a diagnostic's severity from the resolved level
- * or the registry's `severityDefault`, never from what the engine reported. It is written anyway
- * because a materialised config is something a user can be asked to paste into a bug report, and one
- * that disagrees with the ruleset it was materialised from is a red herring waiting to happen.
+ * Writing the elected level into the document at all is belt-and-braces — `normalizeDiagnostics` derives a
+ * diagnostic's severity from the resolved level or the registry's `severityDefault`, never from what the
+ * engine reported. It is written anyway because a materialised config is something a user can be asked to
+ * paste into a bug report, and one that disagrees with the ruleset behind it is a red herring waiting to happen.
  */
 const LEVEL_TO_ASTGREP: Readonly<Record<string, string>> = {
   error: 'error',
@@ -32,27 +31,23 @@ function quote(value: string): string {
   return `'${value.replaceAll("'", "''")}'`
 }
 
-export type MaterializedAstGrepConfig = {
+export type AstGrepRuleFile = {
   /** Every (rule, language) document written, in emission order. The count is what `run` asserts ast-grep actually loaded. */
   readonly documents: readonly { readonly engineRuleId: string; readonly language: AstGrepLanguage }[]
   readonly text: string
 }
 
 /**
- * Builds the multi-document rule file. Split out from the write so the assembly is testable without
- * a filesystem, and so `materializeAstGrepConfig` stays the thin `Engine` seam.
- *
- * **One document per (rule, language) pair.** ast-grep's `language:` field takes a single language,
- * and its extension mapping is not the one our `LanguageId` uses — see the comment on
- * `AstGrepLanguage`. Duplicate `id`s across documents are accepted by ast-grep and every finding
- * still reports the shared id, which is what keeps one `engineRuleId` per concept: two rule entries
+ * Builds the multi-document rule file. **One document per (rule, language) pair**, because ast-grep's
+ * `language:` field takes a single language and its extension mapping is not the one our `LanguageId` uses —
+ * see the comment on `AstGrepLanguage`. Duplicate `id`s across documents are accepted by ast-grep and every
+ * finding still reports the shared id, which is what keeps one `engineRuleId` per concept: two rule entries
  * claiming one concept would make arbitration elect one and silently discard the other's findings.
  */
-export function buildAstGrepConfig(selection: EngineRuleSelection): MaterializedAstGrepConfig {
-  // These rules are this package's own, written here rather than configured, so the option half of a
-  // setting has nothing to apply to and is deliberately dropped — which is also why `rulesetHash`
-  // below need not fold it in (`EngineRuleSetting`: an adapter that ignores options owes nothing,
-  // because identical inputs really do produce identical findings).
+export function buildAstGrepConfig(selection: EngineRuleSelection): AstGrepRuleFile {
+  // These rules are this package's own, written here rather than configured, so the option half of a setting
+  // has nothing to apply to and is deliberately dropped — which is also why `rulesetHash` below need not fold
+  // it in (`EngineRuleSetting`: identical inputs really do produce identical findings).
   const enabled = [...selection]
     .filter(([, [level]]) => level !== 'off')
     .sort(([a], [b]) => compareStrings(a, b))
@@ -62,9 +57,9 @@ export function buildAstGrepConfig(selection: EngineRuleSelection): Materialized
 
   for (const [engineRuleId, [level]] of enabled) {
     const rule = astGrepRuleById(engineRuleId)
-    // Arbitration only ever selects an id that came off a `RuleEntry`, so reaching this means the
-    // registry and this package have drifted apart — the exact failure oxlint's `number_of_rules`
-    // check exists to make loud, caught one step earlier here because we own both sides of it.
+    // Arbitration only ever selects an id that came off a `RuleEntry`, so reaching this means the registry and
+    // this package have drifted apart — the failure oxlint's `number_of_rules` check exists to make loud,
+    // caught one step earlier here because we own both sides of it.
     if (rule === undefined) {
       throw new EngineError('astgrep', `no ast-grep rule is defined for elected rule id \`${engineRuleId}\``)
     }

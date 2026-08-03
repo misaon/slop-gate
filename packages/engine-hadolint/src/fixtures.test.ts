@@ -17,7 +17,7 @@ import { HADOLINT_RULE_IDS, createHadolintEngine, resolveHadolintBinary } from '
  * - `filtered` — hadolint **does** report and `SOURCE_EXCLUSIONS` must remove it. Asserted from both
  *   ends: the raw binary is required to report the class, so a fixture that stopped triggering it
  *   would fail here rather than pass by accident.
- * - `excluded` — the measured false-positive classes behind `MANUAL_RULE_EXCLUSIONS`, kept executable
+ * - `excluded` — the measured false-positive classes behind `NOT_RECOMMENDED_UNCATALOGUED`, kept executable
  *   so the reasons in that table stay true. `no-user` is the important one: it pins that hadolint
  *   says **nothing** about a Dockerfile that never drops privileges.
  */

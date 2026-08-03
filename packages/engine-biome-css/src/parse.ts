@@ -17,36 +17,31 @@ type BiomeReport = { summary?: BiomeSummary; diagnostics?: BiomeDiagnostic[] }
 /**
  * The synthetic rule id for a stylesheet Biome could not parse.
  *
- * Deliberately **not** `correctness.parse-error`, the concept oxlint and the schema engine share.
- * That concept means "this file is broken"; this one means "this file was not analysed", and on real
- * input the difference is the whole finding. All 125 parse errors across 1729 production stylesheets
- * came from 26 `.css` files that are not plain CSS at all — zulip's PostCSS `$variables` and
- * `%placeholder` selectors, pdf.js's Firefox-only `-moz-pref()` — every one of which compiles and
- * ships. Reporting those as broken CSS would be wrong 125 times out of 125.
+ * Deliberately **not** `correctness.parse-error`, the concept oxlint and the schema engine share: that
+ * concept means "this file is broken", this one means "this file was not analysed". All 125 parse
+ * errors across 1729 production stylesheets came from 26 `.css` files that are not plain CSS at all
+ * (PostCSS `$variables` and `%placeholder` selectors, Firefox-only `-moz-pref()`) and every one of them
+ * compiles and ships — reporting them as broken CSS would be wrong 125 times out of 125.
  *
- * It is still reported, and it is in `recommended`, because the alternative is worse: a repository
- * whose stylesheets this engine cannot read would otherwise come back clean. One finding per file
- * rather than per error, at `warn`, saying what actually happened.
+ * Still reported, and in `recommended`, because a repository whose stylesheets this engine cannot read
+ * would otherwise come back clean. One finding per file rather than per error, at `warn`.
  */
 export const CSS_PARSE_ERROR_RULE_ID = 'css-parse-error'
 
 const PARSE_CATEGORY = 'parse'
 
 /**
- * Biome's own reports *about* suppression comments — `suppressions/unused` when a `biome-ignore`
- * matches no diagnostic, and its siblings.
- *
- * Dropped, because `findForeignSuppressions` already reports every `biome-ignore` in the file,
- * used or unused, and these would double-report the subset Biome happens to notice. Note what they
- * do **not** provide, which is the thing that would have made the adapter's own scan unnecessary: a
- * suppression that *is* doing its job produces no diagnostic in this namespace or any other.
+ * Biome's own reports *about* suppression comments — `suppressions/unused` and its siblings. Dropped,
+ * because `findForeignSuppressions` already reports every `biome-ignore` in the file, used or unused.
+ * What Biome does **not** provide is why that scan exists at all: a suppression that *is* doing its job
+ * produces no diagnostic in this namespace or any other.
  */
 const SUPPRESSION_CATEGORY_PREFIX = 'suppressions/'
 
 /**
- * Biome's severity words. `information`/`hint` are not observed on CSS findings today — every CSS
- * rule reports `error` or `warning` — but they are in Biome's own vocabulary, and mapping them costs
- * two lines against silently widening every unrecognised severity to `warning`.
+ * Biome's severity words. `information`/`hint` are not observed on CSS findings today — every CSS rule
+ * reports `error` or `warning` — but they are in Biome's vocabulary, and mapping them costs two lines
+ * against silently widening every unrecognised severity to `warning`.
  */
 const SEVERITIES: Readonly<Record<string, RawSeverity>> = {
   fatal: 'error',
@@ -62,28 +57,23 @@ export type ParseOptions = {
   read: (file: string) => string | undefined
   /**
    * The `engineRuleId`s the materialised config actually enabled. Biome's JSON carries no
-   * `number_of_rules`, so there is nothing to compare a count against the way `engine-oxlint` does;
-   * checking each finding against the selection is the same guard from the other end.
+   * `number_of_rules`, so there is no count to compare the way `engine-oxlint` does; checking each
+   * finding against the selection is the same guard from the other end.
    */
   enabled: ReadonlySet<string>
-  /**
-   * How many files the batch handed to Biome. Compared against `summary.unchanged`, which is this
-   * engine's only guard against a silently skipped file — see `parseBiomeOutput`.
-   */
+  /** How many files the batch handed to Biome. The `summary.unchanged` guard in `parseBiomeOutput`. */
   expectedFileCount: number
 }
 
 /**
  * Parses `--reporter=json` output into raw diagnostics.
  *
- * **Byte offsets are computed here, because no Biome reporter emits them.** All nine give
- * `{line, column}` only — checked directly against json, json-pretty, sarif, rdjson, gitlab,
- * checkstyle, github, junit and concise — so the adapter converts, and it must convert with
- * `offsetAtCodepointColumn` rather than `offsetAt`: Biome counts columns in **Unicode codepoints**,
- * not the UTF-16 code units the rest of this codebase and every LSP-shaped tool use. Measured
- * against 2.5.6 with three astral characters ahead of a finding: expected UTF-16 column 28,
- * codepoint column 25, Biome reported 25. The two units agree on every input without an astral
- * character, which is exactly why the distinction has to be made explicitly rather than noticed.
+ * **Byte offsets are computed here, because no Biome reporter emits them** — all nine give
+ * `{line, column}` only. The conversion must use `offsetAtCodepointColumn` and not `offsetAt`: Biome
+ * counts columns in **Unicode codepoints**, not the UTF-16 code units the rest of this codebase and
+ * every LSP-shaped tool use. Against 2.5.6, with three astral characters ahead of a finding, UTF-16
+ * column 28 was codepoint column 25 and Biome reported 25. The two units agree on every input without
+ * an astral character, which is why the distinction has to be made explicitly rather than noticed.
  */
 export function parseBiomeOutput(report: string, options: ParseOptions): RawDiagnostic[] {
   const trimmed = report.trim()
@@ -99,12 +89,10 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
     throw new EngineError('biome-css', 'biome json output has no diagnostics array')
   }
 
-  // The silent-skip guard, and it has to be `unchanged` rather than the counter named for the job.
-  // A file above `files.maxSize` (1 MiB by default) is not linted, and Biome says so by emitting a
-  // warning whose `message` is the **empty string** at line 0 column 0 while leaving `summary.skipped`
-  // at 0 — so the run looks clean and nothing distinguishes an unread file from a tidy one. `unchanged`
-  // is the count of files actually processed and is the only field that moves. The adapter passes
-  // `--files-max-size` well above any real stylesheet, so this firing means something else changed.
+  // The silent-skip guard, and it has to be `unchanged` rather than the counter named for the job. A
+  // file above `files.maxSize` is not linted, and Biome says so by emitting a warning whose `message`
+  // is the **empty string** at line 0 column 0 while leaving `summary.skipped` at 0 — so nothing
+  // distinguishes an unread file from a tidy one. `unchanged` is the only field that moves.
   const unchanged = parsed.summary?.unchanged ?? 0
   if (unchanged !== options.expectedFileCount) {
     throw new EngineError(
@@ -121,10 +109,9 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
   }
 
   // Biome recovers from a syntax error and keeps linting the partial tree: the 26 unparseable corpus
-  // files produced 986 further findings between them. Those describe a document Biome could not fully
-  // read, so the file's rule findings are dropped and replaced by the single not-analysed report
-  // below. Collected first because a finding earlier in the array may belong to a file whose parse
-  // error appears later.
+  // files produced 986 further findings between them, all describing a document it could not fully
+  // read. Those are dropped in favour of the single not-analysed report below. Collected in a first
+  // pass because a finding earlier in the array may belong to a file whose parse error appears later.
   const unparseable = new Map<string, BiomeDiagnostic>()
   for (const diagnostic of parsed.diagnostics) {
     if (diagnostic.category !== PARSE_CATEGORY) continue
@@ -141,7 +128,7 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
     return indexes.get(file)
   }
 
-  const rangeOf = (file: string, location: BiomeDiagnostic['location']) => {
+  const rangeFromCodepointLocation = (file: string, location: BiomeDiagnostic['location']) => {
     const index = indexOf(file)
     if (index === undefined || location?.start === undefined) return { start: 0, end: 0 }
     const start = index.offsetAtCodepointColumn(location.start)
@@ -153,9 +140,9 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
   for (const diagnostic of parsed.diagnostics) {
     if (diagnostic.category === PARSE_CATEGORY) continue
     if (diagnostic.category.startsWith(SUPPRESSION_CATEGORY_PREFIX)) continue
-    // The oversize-file warning arrives as a bare `lint` category with an empty message. There is no
-    // rule behind it and `ruleByCategory` already returns `undefined`, but the guard above is what
-    // actually catches the condition; this only keeps it from reaching the unelected-rule error below.
+    // The oversize-file warning arrives as a bare `lint` category with an empty message. The
+    // `unchanged` guard above is what catches that condition; this only keeps the warning from
+    // reaching the unelected-rule error below.
     if (diagnostic.category === 'lint' && diagnostic.message === '') continue
 
     const file = toRepoRelative(diagnostic.location?.path)
@@ -163,9 +150,9 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
 
     const rule = ruleByCategory(diagnostic.category)
     // A finding under a rule the config did not enable means the config is not selecting the elected
-    // set — a preset key leaking rules in, an upgrade renaming one, or a stray `biome.json` Biome
-    // decided to merge. Loud rather than dropped: silently discarding it would let an unelected rule
-    // run on every file forever while `sgate rules` reported it off.
+    // set — a preset key leaking rules in, an upgrade renaming one, a stray `biome.json` Biome merged.
+    // Loud rather than dropped: discarding it silently would let an unelected rule run on every file
+    // forever while `sgate rules` reported it off.
     if (rule === undefined || !options.enabled.has(rule.engineRuleId)) {
       throw new EngineError(
         'biome-css',
@@ -180,7 +167,7 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
       message: diagnostic.message,
       severity: SEVERITIES[diagnostic.severity] ?? 'warning',
       file,
-      range: rangeOf(file, diagnostic.location),
+      range: rangeFromCodepointLocation(file, diagnostic.location),
       ...(help === undefined ? {} : { help }),
     })
   }
@@ -194,15 +181,15 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
         'directives) is the usual cause, and is not a defect in the file.',
       severity: 'warning',
       file,
-      range: rangeOf(file, first.location),
+      range: rangeFromCodepointLocation(file, first.location),
     })
   }
   return results
 }
 
 function toRepoRelative(path: string | undefined): string | undefined {
-  // Biome reports paths exactly as they were passed on argv, and the adapter passes repo-relative
-  // ones with `cwd` set to the repository root — so unlike oxlint's absolute filenames there is
-  // nothing to relativise here, only separators to normalise for Windows.
+  // Biome reports paths exactly as they were passed on argv, and the adapter passes repo-relative ones
+  // — so unlike oxlint's absolute filenames there is nothing to relativise, only separators to
+  // normalise for Windows.
   return path === undefined ? undefined : path.replaceAll('\\', '/')
 }

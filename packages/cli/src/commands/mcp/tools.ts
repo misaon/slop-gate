@@ -4,18 +4,15 @@ import { explainConcept, resolveRun, ruleRefKey, RULE_ENTRIES, runCheck, runFix,
 import { createAgentReporter, renderRulesWhyPretty, summariseAgentGroups } from '@misaon/slop-gate-reporters'
 import { z } from 'zod'
 import { DEFAULT_CONFIG, loadCliConfig, type CliConfig } from '../../config.ts'
-import { defaultEngines } from '../../engines.ts'
+import { defaultEngines } from '../../engine-registry.ts'
 import { checkOutcome, coverageGaps } from './coverage.ts'
 import { resolveToolRoot } from './root.ts'
 
 /**
- * The report is bounded by default, unlike `sgate check --format agent`, which is not.
- *
- * The divergence is the destination. A CLI's stdout goes to a terminal that scrolls; a tool result
- * goes straight into a model's context window, and a first call against an unfamiliar repository
- * should not be able to spend all of it. The bound is safe to apply silently only because the report
- * is not silent about it: the `coverage:` block states the budget, lists the omitted count per
- * concept, and `concepts` below carries every true count regardless.
+ * Bounded by default, unlike `sgate check --format agent`: a tool result goes straight into a model's context
+ * window, and a first call against an unfamiliar repository should not be able to spend all of it. Safe to apply
+ * silently only because the report is not silent about it — the `coverage:` block states the budget and the
+ * omitted count per concept, and `concepts` below carries every true count regardless.
  */
 const DEFAULT_MAX_TOKENS = 25_000
 
@@ -42,19 +39,17 @@ export type ToolResult = {
 
 const failure = (text: string): ToolResult => ({ content: [{ type: 'text', text }], isError: true })
 
-type OpenedRun =
+type PreflightResult =
   | { readonly kind: 'ok'; readonly rootDir: string; readonly loaded: Exclude<CliConfig, { kind: 'error' }> }
   | { readonly kind: 'failed'; readonly result: ToolResult }
 
 /**
- * Everything the three tools need before they diverge: a root they are allowed to look at, and a
- * configuration that loaded.
- *
- * Both failures are tool execution errors rather than JSON-RPC errors. They are exactly the class
- * the spec reserves `isError` for — something the caller can read, understand and correct — where a
- * protocol error would reach the model as a transport fault it has no way to act on.
+ * Everything the three tools need before they diverge: a root they are allowed to look at, and a configuration
+ * that loaded. Both failures are **tool execution errors rather than JSON-RPC errors** — exactly the class the
+ * spec reserves `isError` for, something the caller can read and correct, where a protocol error would reach
+ * the model as a transport fault it has no way to act on.
  */
-async function open(args: { rootDir?: string | undefined }, context: ToolContext): Promise<OpenedRun> {
+async function preflight(args: { rootDir?: string | undefined }, context: ToolContext): Promise<PreflightResult> {
   const root = resolveToolRoot(context.serverRoot, args.rootDir)
   if (root.kind === 'refused') return { kind: 'failed', result: failure(root.message) }
 
@@ -108,9 +103,9 @@ export const CHECK_OUTPUT = z.object({
         section: z.enum(['automated', 'judgement']),
         tier: z.enum(['safe', 'suggested', 'unsafe']).nullable(),
         severity: z.enum(['error', 'warn', 'info']),
-        findings: z.int(),
-        files: z.int(),
-        ruleIds: z.array(z.string()),
+        findingCount: z.int(),
+        fileCount: z.int(),
+        ruleRefKeys: z.array(z.string()),
         docsUrl: z.string().nullable(),
       }),
     )
@@ -132,23 +127,26 @@ export const CHECK_OUTPUT = z.object({
 })
 
 export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: ToolContext): Promise<ToolResult> {
-  const opened = await open(args, context)
-  if (opened.kind === 'failed') return opened.result
-  const { rootDir, loaded } = opened
+  const ready = await preflight(args, context)
+  if (ready.kind === 'failed') return ready.result
+  const { rootDir, loaded } = ready
 
   const maxTokens = args.maxTokens ?? DEFAULT_MAX_TOKENS
+  // Shared with the reporter below for the reason `sgate check` shares it (see `CheckOptions.sources`): core
+  // already read every file it had to analyse, so the code frames need not hold a second copy of the text.
+  const sources = new Map<string, string>()
   const result = await runCheck({
     rootDir,
     config: loaded.config,
     ...configFileOf(loaded),
     engines: enginesFor(rootDir, loaded),
+    sources,
     ...(context.signal === undefined ? {} : { signal: context.signal }),
   })
 
-  // The `agent` reporter, rendered verbatim — not a second format for the same data. Everything that
-  // makes that report safe to act on (the INCOMPLETE block, `coverage:` leading with the correction,
-  // the automated/judgement split, `nextActions`) is a property of this renderer, and re-deriving any
-  // of it here would be re-deriving the part that matters.
+  // The `agent` reporter, rendered verbatim — not a second format for the same data. Everything that makes that
+  // report safe to act on (the INCOMPLETE block, the automated/judgement split, `nextActions`) is a property of
+  // this renderer, not of the data.
   let report = ''
   createAgentReporter({
     write: (chunk) => (report += chunk),
@@ -159,8 +157,12 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
     maxTokens,
     readSource: (file) => {
       if (file === null) return null
+      const held = sources.get(file)
+      if (held !== undefined) return held
       try {
-        return readFileSync(join(rootDir, file), 'utf8')
+        const content = readFileSync(join(rootDir, file), 'utf8')
+        sources.set(file, content)
+        return content
       } catch {
         return null
       }
@@ -180,9 +182,8 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
       filesAnalysed: result.stats.filesAnalysed,
       uncoveredConcepts: result.ruleset.uncovered,
       unknownConfigKeys: result.ruleset.unknownKeys.length,
-      // Read off the report the caller is actually being handed, not predicted from the budget: the
-      // reporter tries the complete document first and prints it whole when it fits, so a budget
-      // being set is not the same fact as something having been dropped.
+      // Read off the report the caller is handed, not predicted from the budget: the reporter prints the complete
+      // document when it fits, so a budget being set is not the same fact as something having been dropped.
       reportTruncated: report.includes('\nomitted:\n'),
     },
   }
@@ -191,7 +192,7 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
 // --- explain_concept -----------------------------------------------------------------------------
 
 export const EXPLAIN_INPUT = z.object({
-  concept: z.string().describe('Concept id, e.g. `dead-code.unused-variable` — the `concept` field of a finding, not its `ruleId`.'),
+  concept: z.string().describe('Concept id, e.g. `dead-code.unused-variable` — the `concept` field of a finding, not its `ruleRefKey`.'),
   rootDir: rootDirArg,
 })
 
@@ -201,30 +202,29 @@ export const EXPLAIN_OUTPUT = z.object({
   enabled: z.boolean(),
   level: z.string().nullable(),
   servicedBySlopGate: z.boolean().describe('True for a concept the orchestrator emits itself. No engine rule will ever own it.'),
-  owners: z.array(z.object({ ruleId: z.string(), languages: z.array(z.string()) })),
+  owners: z.array(z.object({ ruleRefKey: z.string(), languages: z.array(z.string()) })),
   uncovered: z.boolean().describe('Enabled, but nothing in this run can check it.'),
   displacedBy: z
-    .array(z.object({ ruleId: z.string(), insteadOwnedBy: z.string().nullable() }))
+    .array(z.object({ ruleRefKey: z.string(), insteadOwnedBy: z.string().nullable() }))
     .describe('Ownership an absent engine would have taken. Non-empty means a better owner is one install away.'),
-  suppressedCandidates: z
-    .array(z.object({ ruleId: z.string(), lostTo: z.string(), reason: z.string() }))
-    .describe('Rules that also declare this concept and lost arbitration. Not a problem — this is what stops double reporting.'),
+  overlappingRules: z
+    .array(z.object({ ruleRefKey: z.string(), lostTo: z.string(), reason: z.string() }))
+    .describe('Not a problem — an overlap is what stops the same concept being reported twice.'),
 })
 
 /**
- * Every finding carries both a `concept` and a `ruleId`, and only one of them is the argument here.
- * Handing the wrong one over is the single most likely misuse of this tool, so it is answered rather
- * than refused: the registry already knows which concepts a rule declares, and saying so costs one
- * lookup and turns a dead end into a retry the model can make on its own.
+ * Every finding carries both a `concept` and a `ruleRefKey`, and only one of them is the argument here. Handing
+ * the wrong one over is the single most likely misuse of this tool, so it is answered rather than refused: one
+ * registry lookup turns a dead end into a retry the model can make on its own.
  */
 function conceptsForRuleId(candidate: string): string[] {
   return RULE_ENTRIES.filter((entry) => ruleRefKey(entry) === candidate).flatMap((entry) => [...entry.concepts])
 }
 
 export async function callExplain(args: z.infer<typeof EXPLAIN_INPUT>, context: ToolContext): Promise<ToolResult> {
-  const opened = await open(args, context)
-  if (opened.kind === 'failed') return opened.result
-  const { rootDir, loaded } = opened
+  const ready = await preflight(args, context)
+  if (ready.kind === 'failed') return ready.result
+  const { rootDir, loaded } = ready
 
   const asRule = conceptsForRuleId(args.concept)
   if (asRule.length > 0) {
@@ -262,21 +262,20 @@ export async function callExplain(args: z.infer<typeof EXPLAIN_INPUT>, context: 
       enabled: why.enablement.enabled,
       level: why.enablement.enabled ? why.enablement.level : null,
       servicedBySlopGate: why.servicedBySlopGate,
-      owners: why.ownership.map((entry) => ({ ruleId: ruleRefKey(entry.owner), languages: [...entry.languages] })),
+      owners: why.ownership.map((entry) => ({ ruleRefKey: ruleRefKey(entry.owner), languages: [...entry.languages] })),
       uncovered: why.uncovered,
       displacedBy: why.displaced.map((entry) => ({
-        ruleId: ruleRefKey(entry.wouldOwn),
+        ruleRefKey: ruleRefKey(entry.wouldOwn),
         insteadOwnedBy: entry.insteadOwnedBy === undefined ? null : ruleRefKey(entry.insteadOwnedBy),
       })),
-      suppressedCandidates: why.suppressed.map((entry) => ({
-        ruleId: ruleRefKey(entry.suppressed),
+      overlappingRules: why.overlaps.map((entry) => ({
+        ruleRefKey: ruleRefKey(entry.loser),
         lostTo: ruleRefKey(entry.winner),
         reason: entry.reason,
       })),
     },
-    // An unknown concept id is a typo, and the same class of mistake as passing a rule id above. Left
-    // as a success it reads as "the concept exists and is quiet", which is the one answer that is
-    // both wrong and reassuring.
+    // An unknown concept id is a typo, the same class of mistake as passing a rule id above. Left as a success it
+    // reads as "the concept exists and is quiet", the one answer that is both wrong and reassuring.
     ...(why.isKnownConcept ? {} : { isError: true }),
   }
 }
@@ -314,9 +313,9 @@ export const PROPOSE_OUTPUT = z.object({
 const TIER_FLAG: Readonly<Record<FixTier, string>> = { safe: 'sgate fix', suggested: 'sgate fix --suggest', unsafe: 'sgate fix --unsafe' }
 
 export async function callPropose(args: z.infer<typeof PROPOSE_INPUT>, context: ToolContext): Promise<ToolResult> {
-  const opened = await open(args, context)
-  if (opened.kind === 'failed') return opened.result
-  const { rootDir, loaded } = opened
+  const ready = await preflight(args, context)
+  if (ready.kind === 'failed') return ready.result
+  const { rootDir, loaded } = ready
 
   const tier: FixTier = args.tier ?? 'safe'
   // `dryRun: true` is not a default here, it is the only value. See the module doc on `mcp/index.ts`

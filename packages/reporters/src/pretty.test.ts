@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { CheckEvent, CheckResult, Diagnostic, UnavailableEngine } from '@misaon/slop-gate-core'
+import type { CheckEvent, CheckResult, Diagnostic, TimingReport, UnavailableEngine } from '@misaon/slop-gate-core'
 import { displayWidth, hasWideOrFullwidthCharacter } from './display-width.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
@@ -10,7 +10,7 @@ const ANSI_ESCAPE = String.fromCharCode(27) + '['
 
 const diagnostic = (over: Partial<Diagnostic> = {}): Diagnostic => ({
   concept: 'correctness.no-debugger',
-  ruleId: 'oxlint/no-debugger',
+  ruleRefKey: 'oxlint/no-debugger',
   engine: 'oxlint',
   severity: 'error',
   message: '`debugger` statement is not allowed',
@@ -28,8 +28,8 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   engineFailures: [],
   unavailableEngines: [],
   baseline: null,
-  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
-  ruleset: { enabledConcepts: 5, suppressed: 1, uncovered: [], unknownKeys: [] },
+  stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, cacheByEngine: [], enginesRun: 1, durationMs: 42 },
+  ruleset: { enabledConcepts: 5, overlaps: 1, uncovered: [], unknownKeys: [] },
   ...over,
 })
 
@@ -147,7 +147,7 @@ test('folds analysed and cached into one clause once every analysed file came fr
   // "127 analysed · 127 cached" reads like a coincidence rather than the whole story — "(all
   // cached)" says the same thing without repeating the number.
   const output = capture([
-    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 127, enginesRun: 1, durationMs: 83 } }) },
+    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 127, cacheByEngine: [], enginesRun: 1, durationMs: 83 } }) },
   ])
 
   expect(output).toContain('179 scanned')
@@ -160,7 +160,7 @@ test('does not claim anything was cached when nothing was analysed', () => {
   // analysed necessarily means 0 cached too, but saying so is redundant, not just crisp: "0
   // analysed" alone does not imply a cache failure the way "0 analysed · 0 cached" reads.
   const output = capture([
-    { type: 'done', result: result({ stats: { filesScanned: 5, filesAnalysed: 0, filesFromCache: 0, enginesRun: 0, durationMs: 3 } }) },
+    { type: 'done', result: result({ stats: { filesScanned: 5, filesAnalysed: 0, filesFromCache: 0, cacheByEngine: [], enginesRun: 0, durationMs: 3 } }) },
   ])
 
   expect(output).toContain('5 scanned')
@@ -170,13 +170,131 @@ test('does not claim anything was cached when nothing was analysed', () => {
 
 test('shows the analysed/cached split when they differ', () => {
   const output = capture([
-    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 90, enginesRun: 1, durationMs: 83 } }) },
+    { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 90, cacheByEngine: [], enginesRun: 1, durationMs: 83 } }) },
   ])
 
   expect(output).toContain('179 scanned')
   expect(output).toContain('127 analysed')
   expect(output).toContain('90 cached')
   expect(output).not.toContain('analysed (all cached)')
+})
+
+test('names each engine when the aggregate cache count understates the run', () => {
+  // The reason `stats.cacheByEngine` exists: `filesFromCache` needs *every* engine that claimed a file
+  // to have hit, so one whole-program engine invalidating on any edit reports 3 out of 353 while the
+  // per-file engines were served 351 each. "3 cached" is not wrong, and on its own it is read as "the
+  // cache did nothing".
+  const output = capture([
+    {
+      type: 'done',
+      result: result({
+        stats: {
+          filesScanned: 373,
+          filesAnalysed: 353,
+          filesFromCache: 3,
+          cacheByEngine: [
+            { engine: 'astgrep', filesAssigned: 351, filesFromCache: 351 },
+            { engine: 'knip', filesAssigned: 12, filesFromCache: 0 },
+            { engine: 'oxlint', filesAssigned: 351, filesFromCache: 351 },
+            { engine: 'tsc', filesAssigned: 353, filesFromCache: 0 },
+          ],
+          enginesRun: 4,
+          durationMs: 1489,
+        },
+      }),
+    },
+  ])
+
+  expect(output).toContain('353 analysed')
+  expect(output).toContain('3 cached')
+  expect(output).toContain('cache ')
+  expect(output).toContain('oxlint 351/351')
+  expect(output).toContain('astgrep 351/351')
+  expect(output).toContain('tsc 0/353')
+  expect(output).toContain('knip 0/12')
+})
+
+test('keeps the per-engine breakdown off a run where it would add nothing', () => {
+  // Two cases, and the same predicate covers both: a cold run has every engine at zero, so no engine
+  // exceeds the aggregate; a fully warm one has nothing left to explain. Printing a breakdown either
+  // time would be footer noise on the two most common runs there are.
+  const cold = capture([
+    {
+      type: 'done',
+      result: result({
+        stats: {
+          filesScanned: 373,
+          filesAnalysed: 353,
+          filesFromCache: 0,
+          cacheByEngine: [
+            { engine: 'oxlint', filesAssigned: 351, filesFromCache: 0 },
+            { engine: 'tsc', filesAssigned: 353, filesFromCache: 0 },
+          ],
+          enginesRun: 2,
+          durationMs: 5750,
+        },
+      }),
+    },
+  ])
+  expect(cold).not.toContain('oxlint 0/351')
+
+  const warm = capture([
+    {
+      type: 'done',
+      result: result({
+        stats: {
+          filesScanned: 373,
+          filesAnalysed: 353,
+          filesFromCache: 353,
+          cacheByEngine: [
+            { engine: 'oxlint', filesAssigned: 351, filesFromCache: 351 },
+            { engine: 'tsc', filesAssigned: 353, filesFromCache: 353 },
+          ],
+          enginesRun: 2,
+          durationMs: 157,
+        },
+      }),
+    },
+  ])
+  expect(warm).toContain('353 analysed (all cached)')
+  expect(warm).not.toContain('oxlint 351/351')
+})
+
+test('wraps the per-engine breakdown rather than letting the frame truncate an engine off it', () => {
+  // The engines worth naming are the ones with the fewest hits, and they sort last — so truncating to
+  // the frame width would drop precisely the ones the block exists for.
+  const output = capture(
+    [
+      {
+        type: 'done',
+        result: result({
+          stats: {
+            filesScanned: 400,
+            filesAnalysed: 380,
+            filesFromCache: 1,
+            cacheByEngine: [
+              { engine: 'actionlint', filesAssigned: 14, filesFromCache: 14 },
+              { engine: 'astgrep', filesAssigned: 351, filesFromCache: 351 },
+              { engine: 'biome-css', filesAssigned: 9, filesFromCache: 9 },
+              { engine: 'knip', filesAssigned: 12, filesFromCache: 0 },
+              { engine: 'oxlint', filesAssigned: 351, filesFromCache: 350 },
+              { engine: 'schema', filesAssigned: 2, filesFromCache: 2 },
+              { engine: 'tsc', filesAssigned: 353, filesFromCache: 0 },
+            ],
+            enginesRun: 7,
+            durationMs: 1489,
+          },
+        }),
+      },
+    ],
+    { width: 60 },
+  )
+
+  expect(output).toContain('tsc 0/353')
+  expect(output).toContain('knip 0/12')
+  // Every framed line stays exactly one frame wide, breakdown lines included.
+  const framed = output.split('\n').filter((line) => line.includes('│') || line.includes('|'))
+  expect(new Set(framed.map((line) => line.length)).size).toBe(1)
 })
 
 test('pluralises the severity nouns a developer reads on every run', () => {
@@ -225,7 +343,7 @@ test('an absent engine that would have owned nothing does not raise a gap', () =
   expect(output).toContain('No issues found')
 })
 
-test('mentions suppressed overlaps in the summary', () => {
+test('mentions rule overlaps in the summary', () => {
   const output = capture([{ type: 'done', result: result() }])
   expect(output).toMatch(/1 rule overlap/i)
 })
@@ -391,7 +509,7 @@ test('never puts a wide or fullwidth character in a framed line', () => {
   // real terminals disagree with the standard often enough that a framed line can never safely
   // contain one — see `hasWideOrFullwidthCharacter`'s doc comment. Stating this as an invariant, and
   // checking every framed line of the busiest footer this reporter draws (all three severities, the
-  // "Most frequent" block, a suppressed overlap and an uncovered concept together), is what stops a
+  // "Most frequent" block, a rule overlap and an uncovered concept together), is what stops a
   // future glyph added to the footer from quietly reintroducing the bug fix 2 closed.
   const busy = manyDiagnostics([
     { concept: 'dead-code.unused-variable', count: 7 },
@@ -401,14 +519,14 @@ test('never puts a wide or fullwidth character in a framed line', () => {
   const outputs = [
     // Clean run: header plus the "No issues found" footer.
     capture([{ type: 'done', result: result({ diagnostics: [], counts: { error: 0, warn: 0, info: 0 } }) }]),
-    // Every severity, "Most frequent", a suppressed overlap and an uncovered concept at once.
+    // Every severity, "Most frequent", a rule overlap and an uncovered concept at once.
     capture([
       {
         type: 'done',
         result: result({
           diagnostics: busy,
           counts: { error: 5, warn: 3, info: 2 },
-          ruleset: { enabledConcepts: 5, suppressed: 3, uncovered: ['style.no-var'], unknownKeys: [] },
+          ruleset: { enabledConcepts: 5, overlaps: 3, uncovered: ['style.no-var'], unknownKeys: [] },
         }),
       },
     ]),
@@ -594,4 +712,125 @@ test('reports stale entries as fixed findings and names the command that prunes 
 test('says nothing about a baseline when there is none', () => {
   const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
   expect(output).not.toContain('baseline')
+})
+
+const timings = (over: Partial<TimingReport> = {}): TimingReport => ({
+  startupMs: 61.2,
+  phases: [
+    { name: 'run:tsc', durationMs: 40.1, count: 1 },
+    { name: 'normalize:oxlint', durationMs: 6.2, count: 307 },
+  ],
+  unattributedMs: 9.8,
+  rules: [
+    { ruleRefKey: 'oxlint/no-debugger', findings: 23 },
+    { ruleRefKey: 'tsc/2345', findings: 4 },
+  ],
+  ...over,
+})
+
+const timed = (over: Partial<TimingReport> = {}, durationMs = 117): CheckEvent => ({
+  type: 'done',
+  result: result({ counts: { error: 0, warn: 0, info: 0 }, stats: { ...result().stats, durationMs }, timings: timings(over) }),
+})
+
+test('says nothing about timing when nobody asked for it', () => {
+  const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
+
+  expect(output).not.toContain('timing')
+  expect(output).not.toContain('unattributed')
+})
+
+test('prints the timing breakdown under the footer, each row as a share of the run', () => {
+  const output = capture([timed()])
+
+  const footerEnd = output.lastIndexOf('\u256f')
+  expect(output.indexOf('timing')).toBeGreaterThan(footerEnd)
+  expect(output).toMatch(/startup\s+61\.2 ms\s+52\.3%/)
+  expect(output).toMatch(/run:tsc\s+40\.1 ms\s+34\.3%/)
+  expect(output).toMatch(/unattributed\s+9\.8 ms\s+8\.4%/)
+  expect(output).toContain('117 ms total')
+})
+
+test('brackets the engine work with the two rows that are not engine work, so the column reads as an account', () => {
+  const output = capture([timed()])
+
+  const rows = output
+    .split('\n')
+    .filter((line) => /^ {4}\S.* ms {2}/.test(line))
+    .map((line) => line.trim().split(/\s+/)[0])
+  expect(rows[0]).toBe('startup')
+  expect(rows.at(-1)).toBe('unattributed')
+})
+
+test('shows how many spans a per-file phase summed, so 6 ms across 307 files is not read as one call', () => {
+  const output = capture([timed()])
+
+  expect(output).toMatch(/normalize:oxlint\s+6\.2 ms\s+\d+\.\d%\s+\u00d7307/)
+  expect(output).not.toMatch(/run:tsc.*\u00d71/)
+})
+
+test('folds the phases too small to matter into one row rather than dropping them, so the column still adds up', () => {
+  const phases = [
+    { name: 'run:tsc', durationMs: 40.1, count: 1 },
+    ...Array.from({ length: 12 }, (_, index) => ({ name: `dispose:e${index}`, durationMs: 0.1, count: 1 })),
+  ]
+  const output = capture([timed({ phases })])
+
+  expect(output).not.toContain('dispose:e0')
+  expect(output).toMatch(/12 smaller phases\s+1\.2 ms/)
+})
+
+test('keeps a phase worth naming on a run one engine dominates, where a share alone would fold it away', () => {
+  // 26 ms of a 6-second cold run is 0.4% — under the share floor, and exactly the row someone timing
+  // the run wants to compare against the engine that took the other 83%.
+  const phases = [
+    { name: 'run:tsc', durationMs: 5039, count: 1 },
+    { name: 'discover', durationMs: 26, count: 1 },
+    { name: 'dispose:tsc', durationMs: 0.1, count: 1 },
+  ]
+  const output = capture([timed({ phases }, 6050)])
+
+  expect(output).toContain('discover')
+  expect(output).not.toContain('dispose:tsc')
+})
+
+test('names what the two rows core cannot itemise are actually made of', () => {
+  const output = capture([timed()])
+
+  expect(output).toContain('node boot')
+  expect(output).toContain('module graph')
+  expect(output).toContain('between yields')
+})
+
+test('per rule the breakdown is a finding count, and says so rather than implying a duration', () => {
+  const output = capture([timed()])
+
+  expect(output).toContain('findings by rule')
+  expect(output).toContain('no engine reports per-rule time')
+  expect(output).toMatch(/23\s+oxlint\/no-debugger/)
+  expect(output).toMatch(/4\s+tsc\/2345/)
+})
+
+test('caps the per-rule list and says how much of it is missing', () => {
+  const rules = Array.from({ length: 14 }, (_, index) => ({ ruleRefKey: `oxlint/rule-${index}`, findings: 20 - index }))
+  const output = capture([timed({ rules })])
+
+  expect(output).toContain('oxlint/rule-9')
+  expect(output).not.toContain('oxlint/rule-10')
+  expect(output).toContain('4 more rules')
+  expect(output).toContain('`--format=json` carries every phase and every rule')
+})
+
+test('a run with nothing to report per rule prints the phases and no empty heading', () => {
+  const output = capture([timed({ rules: [] })])
+
+  expect(output).toContain('unattributed')
+  expect(output).not.toContain('findings by rule')
+})
+
+test('the timing block never widens the output past the frame', () => {
+  const output = capture([timed({ rules: [{ ruleRefKey: `oxlint/${'x'.repeat(120)}`, findings: 1 }] })])
+
+  // 82: the 80-column frame plus the two-space left margin every line in this reporter carries.
+  for (const line of output.split('\n')) expect(displayWidth(line)).toBeLessThanOrEqual(82)
 })

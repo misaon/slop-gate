@@ -27,30 +27,21 @@ const main = defineCommand({
 const rawArgs = process.argv.slice(2)
 
 /**
- * citty's own `runMain` provides `--help`/`--version` handling, but on every usage error
- * (unknown subcommand, missing argument, no command given) it calls `process.exit()` directly
- * instead of throwing — bypassing `process.exitCode`, the one thing this layer owns, and
- * reporting exit 1 ("findings") for something that never ran a check at all. `runCommand` throws
- * on those same conditions instead (verified directly: an unknown subcommand raises a `CLIError`
- * coded `E_UNKNOWN_COMMAND`; no command given raises one coded `E_NO_COMMAND`), so the catch
- * below can map them to `EXIT_CODES.config` correctly. The cost: `runCommand` has no
- * `--help`/`--version` handling of its own — verified directly: calling it with
- * `['check', '--help']` does not show usage, it starts running `check` for real — so this file
- * replicates just that part below, using citty's own exported `renderUsage`.
+ * `runCommand`, not citty's own `runMain`: on every usage error (unknown subcommand, missing argument, no
+ * command given) `runMain` calls `process.exit()` directly, bypassing `process.exitCode` — the one thing this
+ * layer owns — and reporting exit 1 ("findings") for something that never ran a check at all. `runCommand`
+ * throws instead (verified directly: an unknown subcommand raises a `CLIError` coded `E_UNKNOWN_COMMAND`, no
+ * command given one coded `E_NO_COMMAND`), so the catch below maps those to `EXIT_CODES.config`. The cost is
+ * that `runCommand` has no `--help`/`--version` handling of its own — `['check', '--help']` starts running
+ * `check` for real — so this file replicates just that part below over citty's exported `renderUsage`.
  *
- * One `try` around the whole dispatch, not just the `runCommand` branch: `resolveHelpTarget`
- * dynamically imports a subcommand, which transitively loads the engine layer, so a broken
- * oxlint install makes `sgate check --help` reject. Left unhandled that exits 1 — "the check
- * found problems" — for a run that never checked anything, which is the exact confusion this
- * layer exists to prevent. A plain `includes` scan for the help flags is enough here: no
- * subcommand takes positional arguments, so `--help` cannot arrive as another flag's value.
+ * One `try` around the whole dispatch, not just the `runCommand` branch: `resolveHelpTarget` dynamically
+ * imports a subcommand, which transitively loads the engine layer, so a broken oxlint install makes
+ * `sgate check --help` reject — and left unhandled that exits 1 for a run that never checked anything.
  */
 try {
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
     const target = await resolveHelpTarget(rawArgs)
-    // `renderUsage` (also citty's own, what `showUsage` calls internally) returns the usage body as
-    // a plain string rather than printing it — cheap to prepend the same framed header `check`'s
-    // output uses, without reimplementing citty's own argument/subcommand rendering.
     printHeader()
     console.log(`${await renderUsage(target.cmd, target.parent)}\n`)
   } else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
@@ -64,14 +55,11 @@ try {
 }
 
 /**
- * Walks as many levels of `subCommands` as `args` names, matching citty's own runtime dispatch
- * (`runCommand` recurses into a matched subcommand's own `subCommands`, one positional token at a
- * time — see `command.ts`'s internal `resolveSubCommand`, which does the same walk but is not
- * exported). No aliases, and no attempt to skip a value-flag's argument the way citty's own
- * version does (e.g. `sgate rules --engine oxlint why --help` would misread `oxlint` as a
- * subcommand name) — every command in this CLI takes its flags after the subcommand name, so that
- * case does not arise in practice; revisit if one ever puts a value flag ahead of a nested
- * subcommand name.
+ * Walks as many levels of `subCommands` as `args` names, matching citty's own runtime dispatch — its internal
+ * `resolveSubCommand` does the same walk but is not exported. No aliases, and no attempt to skip a value-flag's
+ * argument the way citty's own version does (`sgate rules --engine oxlint why --help` would misread `oxlint` as
+ * a subcommand name); every command here takes its flags after the subcommand name, so revisit only if one ever
+ * puts a value flag ahead of a nested subcommand name.
  */
 async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: CommandDef; parent?: CommandDef }> {
   let cmd: CommandDef = main
@@ -87,16 +75,10 @@ async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: Comman
 }
 
 /**
- * The same framed header `sgate check` prints, ahead of citty's own usage body. Deliberately not
- * the full `pretty` reporter: this only needs the three-line box, not per-file grouping or code
- * frames, so it draws it directly rather than constructing a whole `ReporterContext`.
- *
- * Not colour-matched to citty's own usage text: citty's `renderUsage` decides colour internally
- * (checking `NO_COLOR`/`TERM=dumb`/`CI`/`TEST`, but not `FORCE_COLOR` or TTY status — a narrower
- * rule than `check`'s own `supportsColor`), and reimplementing citty's colour decision here just to
- * match it belongs to "reimplementing usage rendering," which this is deliberately avoiding. In the
- * rare case those two rules disagree (e.g. `FORCE_COLOR` set while piped), the header and the usage
- * body below it may differ in colour even though both render correctly on their own.
+ * The same framed header `sgate check` prints, ahead of citty's own usage body — the three-line box only, not a
+ * whole `ReporterContext`. Not colour-matched to that body: citty's `renderUsage` decides colour internally
+ * from `NO_COLOR`/`TERM=dumb`/`CI`/`TEST` and *not* from `FORCE_COLOR` or TTY status, so where those two rules
+ * disagree (`FORCE_COLOR` set while piped) header and body may differ in colour.
  */
 function printHeader(): void {
   const unicode = process.env['TERM'] !== 'dumb'
