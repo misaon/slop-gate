@@ -11,7 +11,7 @@ export type {
   Severity,
 } from './diagnostics/types.ts'
 export { createLineIndex, type LineIndex } from './diagnostics/position.ts'
-export { fingerprint, type FingerprintInput } from './diagnostics/fingerprint.ts'
+export { fingerprint, normalizedWindow, type FingerprintInput } from './diagnostics/fingerprint.ts'
 
 export {
   CONCEPTS,
