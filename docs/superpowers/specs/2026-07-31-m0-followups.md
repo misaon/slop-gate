@@ -401,9 +401,13 @@ and the segments independently.
 - **No test exercises a successful pass through `importTransformed`** (the config loader's
   `oxc-transform` fallback). Proven correct by hand with a TS `enum` config; no regression guard.
 - **No test for the `engine-failed` stream event**, only the aggregated `engineFailures`.
-- **CI never runs `sgate check` on this repository**, so a regression in the shipped registry or
-  presets would not be caught. Cheap dogfooding now that the answer is a clean zero — re-confirmed
-  by hand after the M0 registry expansion (39 new rules, 47 total): still zero.
+- ~~**CI never runs `sgate check` on this repository**, so a regression in the shipped registry or
+  presets would not be caught.~~ **Closed**: `pnpm dogfood` (root `package.json`) builds and then runs
+  `sgate check --max-warnings 0` on this repository, and `.github/workflows/ci.yml` runs that same
+  script in every matrix leg. `--max-warnings 0` is what makes it a gate rather than a report — 128 of
+  the 340 concepts `recommended` enables here are `warn`, all four `slop.*` rules among them, so a bare
+  `sgate check` exits `0` on an `as any` cast (measured). No baseline; the optional engines are left
+  absent in CI as they are on a laptop, so the two invocations are identical. See AGENTS.md.
 - **A rule appearing in `oxlint --rules --format json` is not proof it detects anything.** Curating
   the M0 registry expansion, `no-implied-eval` reported `number_of_rules: 1` and zero diagnostics
   against every canonical trigger (`setTimeout`/`setInterval`/`Function`/`execScript` with a string

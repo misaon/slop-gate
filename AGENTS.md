@@ -10,9 +10,39 @@ architectural decision and why it was made. Do not redesign a subsystem before r
 
 ## Commands
 
-- `pnpm check` — typecheck and test. Run this before claiming anything works.
+- `pnpm check` — typecheck, test, and run the gate on ourselves. Run this before claiming anything works.
 - `pnpm build` — build all packages.
 - `pnpm test -- <pattern>` — run a subset of tests.
+- `pnpm dogfood` — build, then `sgate check --max-warnings 0` on this repository. The CI step is this
+  same script, so a red build reproduces with one command.
+
+## The gate runs on itself
+
+`pnpm dogfood` is the same invocation locally and in CI, and three things about it are deliberate.
+
+**It builds first.** `pnpm test` resolves workspace packages to `src` through a vitest alias, so no
+in-process test touches `dist` (see `vitest.config.ts`). The dogfood runs the linked `sgate` bin, which
+loads `packages/cli/dist/main.js` — the artefact a user installs, and the one thing that alias gave up
+covering. The build stays inside the `dogfood` script rather than becoming a `test` dependency, so
+`pnpm test` is not slowed by it, and the check stays outside turbo rather than becoming a turbo task,
+because a cached "the gate passed" verdict is not a verdict. `--output-logs=errors-only` is there
+because turbo replays a cached task's log in full: 229 lines of tsdown output ahead of the findings,
+which in CI is the whole step log a contributor opens. A build that fails still prints everything.
+
+**`--max-warnings 0`, not bare `sgate check`.** Only 211 of the 340 concepts `recommended` enables here
+are `error`; 128 are `warn`, including all four `slop.*` rules. Measured: a file with an `as any` cast
+and a stub implementation exits `0` from a bare `sgate check` and `1` with the flag. Without it the
+gate would pass on precisely the findings this tool exists to make. One concept is still not gated —
+`config.rule-overlap` is `info`, and there is no threshold flag for `info`.
+
+**No baseline, and CI installs no optional engines.** This repository is at zero findings; a baseline
+would only let that rot silently. A finding gets fixed, or the rule gets argued with. `actionlint`,
+`hadolint` and `deps-security` are absent on a fresh machine, which a run states out loud as a coverage
+gap naming the command that closes it — installing them in CI and not locally would make CI the first
+place a finding ever appears, and `actionlint`'s installer has no Windows path at all
+(`packages/engine-actionlint/src/release.ts`), so it could not be uniform across our own matrix even
+then. Exercising the download path and the advisory data against the live network belongs in a
+scheduled job, where a failed fetch is triage rather than a blocked pull request.
 
 ## Conventions
 
