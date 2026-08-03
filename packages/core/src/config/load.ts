@@ -3,6 +3,7 @@ import { access, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, parse as parsePath } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ConfigError } from '../errors.ts'
+import { nearestName } from '../nearest-name.ts'
 import { PRESETS } from './presets.ts'
 import type { SlopGateConfig } from './types.ts'
 
@@ -66,7 +67,10 @@ const CONFIG_SHAPE = new Map<string, KeyShape>(
       expected: 'an array of `{ files, rules }` blocks',
       ok: (value) =>
         Array.isArray(value) &&
-        value.every((block) => isPlainObject(block) && isStringList(block.files) && (block.rules === undefined || isPlainObject(block.rules))),
+        value.every(
+          (block) =>
+            isPlainObject(block) && isStringList(block['files']) && (block['rules'] === undefined || isPlainObject(block['rules'])),
+        ),
     },
     owners: { expected: 'an object mapping concept ids to engine ids', ok: isPlainObject },
     engines: { expected: 'an object mapping engine ids to their options', ok: isPlainObject },
@@ -96,8 +100,10 @@ export async function loadConfig(
   for (const [key, value] of Object.entries(exported)) {
     const shape = CONFIG_SHAPE.get(key)
     if (shape === undefined) {
+      const meant = nearestName(key, CONFIG_SHAPE.keys())
       throw new ConfigError(
-        `${file} sets an unknown top-level key \`${key}\`. Known keys: ${[...CONFIG_SHAPE.keys()].join(', ')}.`,
+        `${file} sets an unknown top-level key \`${key}\`. ` +
+          (meant === undefined ? `Known keys: ${[...CONFIG_SHAPE.keys()].join(', ')}.` : `Did you mean \`${meant}\`?`),
       )
     }
     // `undefined` is how an optional key is spelled when it is computed, so it has to mean absent

@@ -1744,7 +1744,7 @@ hides which one you are in:
 
 | Metric | Shape | Target | Measured | |
 |---|---|---|---|---|
-| Warm run, no changes | self, 373 files | < 300 ms | 150–161 ms | ✅ |
+| Warm run, no changes | self, 373 files | < 300 ms | 120–128 ms | ✅ |
 | Warm run, no changes | corpus, 2 003 files | — | 344–357 ms | — |
 | Warm run, no changes | corpus, 8 003 files | — | 989 ms ± 19 | — |
 | First diagnostic rendered | corpus, 2 003 files, warm | < 200 ms | 189.5 ms mean, 184.7 ms min | ✅ (barely) |
@@ -1755,6 +1755,12 @@ hides which one you are in:
 | Cold run, 100 000 files | — | < 45 s | never measured | — |
 | Install size, default engines | darwin-arm64 | < 60 MB | 119 MB in native engine binaries alone | ❌ |
 | Peak RSS, warm | corpus, 8 003 files | — | 343 MB | — |
+
+`bin/sgate.js` calls `module.enableCompileCache()`, which takes a flat ~26 ms off **every** shape after
+the first run on a machine: V8 reuses its bytecode instead of recompiling ~870 kB of bundled core, and
+`--timing`'s `startup` row drops 77.5 → 46.5 ms. Only the two self rows above were re-measured against
+it; the corpus and cold rows predate it and are that much pessimistic. It is a fixed cost, so it is
+nearly a fifth of a warm self run and rounding error on a 6 s cold one.
 
 ### 16.3 Why the misses are structural, not slack to be tuned away
 

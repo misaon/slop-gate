@@ -230,3 +230,32 @@ unrecoverable from the code, so the conclusion stays in the comment.
 Verified by running the restore path 30 times in a row against a real typeless `.ts` config with a
 distinct, differently-coded warning emitted immediately after restore completed: the unrelated warning
 printed every time, this one never did.
+
+## `module.enableCompileCache()` is worth ~26 ms on every run
+
+`packages/cli/bin/sgate.js`
+
+Two hypotheses about the ~77 ms `startup` phase were measured and **refuted** before this one was tried.
+
+*Refuted 1 — the rule registry is not the cost.* `GENERATED_RULE_ENTRIES` is 354,893 bytes, **40.8% of
+the 870 kB core bundle**, so it looked like the obvious target. But importing `core/dist/index.js` costs
+23.3 ms and touching `RULE_ENTRIES` afterwards costs **0.0 ms** — the array is built during module
+evaluation, and evaluating a 334 kB data literal is only ~4.5 ms of that. Making it lazy would help
+`--version` and nothing else, since `check` needs all 922 entries for arbitration.
+
+*Refuted 2 — `JSON.parse` is not faster than the JS parser here.* The same 922 entries, extracted to a
+`.json` file and to an `.mjs` exporting the literal, over 40 runs each: **22.6 ms vs 23.5 ms**, inside
+one σ. V8 parses a pure data literal about as fast as it parses JSON, so moving the registry out of the
+bundle buys nothing.
+
+*Confirmed.* The cost is compiling the remaining ~515 kB of actual code, and V8's own bytecode cache
+removes it. Interleaved A→B→A, 30 runs per arm, 5 warmups, `sgate check --max-warnings 0` on this repo:
+
+| arm | mean | min |
+|---|---|---|
+| without compile cache | 150.0 ms ± 2.8 | 146.0 ms |
+| **with compile cache** | **124.2 ms ± 3.9** | **120.4 ms** |
+| without, repeated | 151.8 ms ± 2.8 | 148.7 ms |
+
+Both control arms agree, so the 26 ms is the cache and not drift. `--timing`'s `startup` row confirms the
+mechanism directly: 77.5 → 46.5 ms, against an 18 ms bare-`node` floor that no cache can touch.

@@ -271,6 +271,18 @@ test('reports an unknown top-level key rather than accepting it in silence', asy
   await expect(loadConfig(dir)).rejects.toThrow(/`ignoer`/)
 })
 
+test('names the key a typo most likely meant, since a typo is why the key is unknown', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { ignoer: ['dist/**'] }`)
+  await expect(loadConfig(dir)).rejects.toThrow(/Did you mean `ignore`\?/)
+})
+
+test('lists the known keys when the unknown one resembles none of them', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { plugins: [] }`)
+  const failure = await loadConfig(dir).then(() => null, (error: unknown) => error)
+  expect(String(failure)).toContain('Known keys:')
+  expect(String(failure)).not.toContain('Did you mean')
+})
+
 test('prefers .ts over .mts when both exist', async () => {
   // Deliberately unchanged by fix 3 (packages/cli/src/commands/init.ts): `runInit` only ever
   // writes one of the two (its own existence check looks for both before choosing), so in the

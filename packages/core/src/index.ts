@@ -22,9 +22,11 @@ export { ConfigError, EngineError } from './errors.ts'
 
 export { ENGINE_PREFERENCE, ruleRefKey, type EngineId, type RuleEntry, type RuleRef } from './registry/types.ts'
 export { RULE_ENTRIES } from './registry/entries.ts'
-// `IneligibilityReason` and `OverlapReason` have no importer. They stay listed only because dropping
-// `export` in `registry/elect.ts` is the fix and that file is being edited elsewhere; remove them here
-// and there together.
+/**
+ * `IneligibilityReason`, `OverlapReason` and `EngineCacheStats` (below) have no importer, and stay
+ * anyway: each names a field of a type a caller receives. Dropping them would leave a consumer able
+ * to read `result.stats.cacheByEngine` but not to name its element except as an indexed access.
+ */
 export type {
   ConceptOwnership,
   IneligibilityReason,
@@ -88,8 +90,6 @@ export type {
 } from './engine/types.ts'
 export { LEVEL_TO_SEVERITY } from './engine/normalize.ts'
 
-// `EngineCacheStats` has no importer either, and for the same reason: the `export` to drop lives in
-// `run/check.ts`.
 export { runCheck, streamCheck, type CheckEvent, type CheckResult, type EngineCacheStats } from './run/check.ts'
 export type { MeasuredPhase, TimingReport } from './run/timing.ts'
 export { resolveRun, type ResolvedRun, type UnavailableEngine } from './run/resolve-run.ts'

@@ -264,7 +264,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
         const reason = reasonFor(winner, loser, pinOverrode)
         // Keyed by loser *and* winner *and* reason: a rule beaten by two different winners on two
         // languages is two distinct facts, and collapsing them would attribute both to the first.
-        const key = `${loserKey} ${winnerKey} ${reason}`
+        const key = `${loserKey}\0${winnerKey}\0${reason}`
         const lost = lostLanguages.get(key) ?? {
           record: { concept, loser: refOf(loser), winner: refOf(winner), reason },
           languages: [],
