@@ -6,6 +6,7 @@ import {
   hashJson,
   runEngineTool,
   toolVersion,
+  toPosix,
   type Engine,
   type EngineAvailability,
   type EngineConfigHandle,
@@ -194,9 +195,14 @@ async function* execute(
   const errors = readActionlintErrors(stdout)
 
   // Read up front so `readSource` can stay synchronous — `rangeFromLineColumn` needs the text.
+  //
+  // Keyed with `toPosix`, the same helper `parseActionlintOutput` derives its lookup key with. An
+  // open-coded equivalent here would agree only for as long as `toPosix` stays a bare separator
+  // swap: the moment it normalises anything else, every lookup misses and every actionlint finding
+  // silently collapses to `{ start: 0, end: 0 }` rather than failing.
   const sources = new Map<string, string | undefined>()
   for (const error of errors) {
-    const file = error.filepath.replaceAll('\\', '/')
+    const file = toPosix(error.filepath)
     if (file === '' || sources.has(file)) continue
     try {
       sources.set(file, await readFile(join(context.rootDir, file), 'utf8'))

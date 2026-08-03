@@ -23,15 +23,38 @@ export function findDependencyRange(source: string, name: string): ByteRange | u
 
 type Span = { readonly start: number; readonly end: number }
 
+/**
+ * The braces of the group `group` names **at the manifest's top level**, which is the only place a
+ * dependency declaration lives. Depth is tracked rather than taking the first occurrence from byte zero,
+ * because `dependencies` is an ordinary nested key — `pnpm.packageExtensions.<pkg>.dependencies` is the
+ * one every workspace root eventually grows — and either the nested block happens to contain the package
+ * and the finding lands on somebody else's declaration, or it does not and the real group is never
+ * searched at all, leaving the finding at byte zero.
+ */
 function locateGroup(source: string, group: string): Span | undefined {
   const key = `"${group}"`
-  for (let from = source.indexOf(key); from !== -1; from = source.indexOf(key, from + 1)) {
-    const colon = skipSpace(source, from + key.length)
-    if (source[colon] !== ':') continue
-    const brace = skipSpace(source, colon + 1)
-    if (source[brace] !== '{') continue
-    const end = matchBrace(source, brace)
-    if (end !== undefined) return { start: brace + 1, end }
+  let depth = 0
+  let inString = false
+
+  for (let at = 0; at < source.length; at++) {
+    const character = source[at]
+    if (inString) {
+      if (character === '\\') at++
+      else if (character === '"') inString = false
+      continue
+    }
+    if (character === '{') depth++
+    else if (character === '}') depth--
+    else if (character === '"') {
+      inString = true
+      if (depth !== 1 || !source.startsWith(key, at)) continue
+      const colon = skipSpace(source, at + key.length)
+      if (source[colon] !== ':') continue
+      const brace = skipSpace(source, colon + 1)
+      if (source[brace] !== '{') continue
+      const end = matchBrace(source, brace)
+      return end === undefined ? undefined : { start: brace + 1, end }
+    }
   }
   return undefined
 }

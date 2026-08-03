@@ -217,13 +217,19 @@ export function electOwners(input: ElectionInput): ElectionResult {
 
       const here = ranked.filter((e) => e.languages.includes(language))
       const instead = (pinned === undefined ? here : here.filter((e) => e.engine === pinned))[0]
-      const key = ruleRefKey(wouldWin)
+      // Keyed by the absent rule *and* whatever took over from it, for the reason `lostLanguages`
+      // below is keyed by loser and winner: one absent rule can fall back to a different owner per
+      // language — or to none at all on one and to something on another — and keying on the absent
+      // rule alone reports every language with whichever fallback the first one happened to have.
+      const key = `${ruleRefKey(wouldWin)} ${instead === undefined ? '' : ruleRefKey(instead)}`
       const record = displacedLanguages.get(key) ?? { entry: wouldWin, instead, languages: [] }
       record.languages.push(language)
       displacedLanguages.set(key, record)
     }
 
-    for (const { entry: wouldOwn, instead, languages } of displacedLanguages.values()) {
+    // Key order, not language order: the sequence must not depend on which language came first.
+    for (const key of [...displacedLanguages.keys()].sort(compareStrings)) {
+      const { entry: wouldOwn, instead, languages } = displacedLanguages.get(key)!
       displaced.push({
         concept,
         languages,

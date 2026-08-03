@@ -331,7 +331,7 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
       }
       // Kept on one line in the common case, so the single-owner rendering is unchanged.
       const single = explanation.ownership.length === 1 && explanation.displaced.length === 0
-      writeUnit(single ? [`${lines[0]!.replace(/:$/, ':')} ${lines[1]!.trim()}`] : lines)
+      writeUnit(single ? [`${lines[0]!} ${lines[1]!.trim()}`] : lines)
     } else if (explanation.uncovered) {
       writeUnit([`  ${paint('yellow', 'Uncovered')} — no capable engine in this run owns this concept.`])
     } else if (isLanguageMismatch(explanation)) {

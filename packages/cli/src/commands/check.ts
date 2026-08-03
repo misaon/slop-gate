@@ -17,6 +17,18 @@ export function parseMaxTokens(raw: string | undefined): number | undefined | 'i
   return Number.isSafeInteger(value) && value > 0 ? value : 'invalid'
 }
 
+/**
+ * `0` is admitted, unlike `parseMaxTokens`: `--max-warnings 0` is the flag's whole point. The empty
+ * string is refused explicitly because `Number('')` is `0` — the one value that must not be reachable
+ * by accident here, since it turns `--max-warnings=` into the strictest possible gate.
+ */
+export function parseMaxWarnings(raw: string | undefined): number | undefined | 'invalid' {
+  if (raw === undefined) return undefined
+  if (raw.trim() === '') return 'invalid'
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value >= 0 ? value : 'invalid'
+}
+
 export const check = defineCommand({
   meta: { name: 'check', description: 'Analyse the repository and report findings' },
   args: {
@@ -49,6 +61,17 @@ export const check = defineCommand({
     const maxTokens = parseMaxTokens(args['max-tokens'])
     if (maxTokens === 'invalid') {
       process.stderr.write(`--max-tokens must be a positive integer, got: ${args['max-tokens']}\n`)
+      process.exitCode = EXIT_CODES.config
+      return
+    }
+
+    // Refused here, before any engine runs, for the same reason `--max-tokens` is. The silent version
+    // dropped a `NaN` threshold and let a negative one through: `--max-warnings abc` exited 0 on a
+    // repository full of warnings, and `--max-warnings -1` failed a clean one — either way the gate's
+    // verdict came from a typo rather than from the findings.
+    const maxWarnings = parseMaxWarnings(args['max-warnings'])
+    if (maxWarnings === 'invalid') {
+      process.stderr.write(`--max-warnings must be a non-negative integer, got: ${args['max-warnings']}\n`)
       process.exitCode = EXIT_CODES.config
       return
     }
@@ -143,13 +166,12 @@ export const check = defineCommand({
       }
     }
 
-    const maxWarnings = args['max-warnings'] === undefined ? undefined : Number(args['max-warnings'])
     process.exitCode = resolveExitCode({
       counts: result?.counts ?? { error: 0, warn: 0, info: 0 },
       engineFailures: result?.engineFailures ?? [],
       unavailableEngines,
       requireEngines: args['require-engines'] === true,
-      ...(maxWarnings === undefined || Number.isNaN(maxWarnings) ? {} : { maxWarnings }),
+      ...(maxWarnings === undefined ? {} : { maxWarnings }),
     })
   },
 })

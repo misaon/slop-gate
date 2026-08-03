@@ -785,6 +785,65 @@ test('records what an absent engine would have owned, so the run can say so', ()
   ])
 })
 
+test('keeps the per-language fallback owner apart when two languages fall back differently', () => {
+  const result = electOwners({
+    entries: [
+      parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', tier: 0, languages: ['github-workflow', 'yaml'] }),
+      parseError({ engine: 'schema', engineRuleId: 'parse-error', tier: 2, languages: ['github-workflow'] }),
+      parseError({ engine: 'eslint', engineRuleId: 'parse-error', tier: 2, languages: ['yaml'] }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['github-workflow', 'yaml']),
+    participatingEngines: ALL_ENGINES,
+    unavailableEngines: new Set(['actionlint']),
+  })
+
+  expect(result.displaced).toEqual([
+    {
+      concept: 'correctness.parse-error',
+      languages: ['yaml'],
+      wouldOwn: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+      insteadOwnedBy: { engine: 'eslint', engineRuleId: 'parse-error' },
+    },
+    {
+      concept: 'correctness.parse-error',
+      languages: ['github-workflow'],
+      wouldOwn: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+      insteadOwnedBy: { engine: 'schema', engineRuleId: 'parse-error' },
+    },
+  ])
+})
+
+test('separates the language that has a fallback owner from the one that has none', () => {
+  const result = electOwners({
+    entries: [
+      parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', tier: 0, languages: ['github-workflow', 'yaml'] }),
+      parseError({ engine: 'schema', engineRuleId: 'parse-error', tier: 2, languages: ['yaml'] }),
+    ],
+    enabledConcepts: new Set(['correctness.parse-error']),
+    capabilities: NO_CAPABILITIES,
+    languages: new Set(['github-workflow', 'yaml']),
+    participatingEngines: ALL_ENGINES,
+    unavailableEngines: new Set(['actionlint']),
+  })
+
+  expect(result.displaced).toEqual([
+    {
+      concept: 'correctness.parse-error',
+      languages: ['github-workflow'],
+      wouldOwn: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+      insteadOwnedBy: undefined,
+    },
+    {
+      concept: 'correctness.parse-error',
+      languages: ['yaml'],
+      wouldOwn: { engine: 'actionlint', engineRuleId: 'syntax-check' },
+      insteadOwnedBy: { engine: 'schema', engineRuleId: 'parse-error' },
+    },
+  ])
+})
+
 test('reports no owner at all, and says why, when the only candidate is not installed', () => {
   const result = electOwners({
     entries: [parseError({ engine: 'actionlint', engineRuleId: 'syntax-check', languages: ['github-workflow'] })],

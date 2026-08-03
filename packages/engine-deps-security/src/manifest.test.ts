@@ -83,6 +83,38 @@ describe('findDependencyRange', () => {
     expect(slice(source, findDependencyRange(source, 'lodash'))).toBe('"lodash"')
   })
 
+  /** `pnpm.packageExtensions.<pkg>.dependencies` is an ordinary thing to find above the real group in a
+   *  workspace root. Anchoring there points the finding at somebody else's declared dependency. */
+  it('ignores a nested dependencies block and anchors in the top-level group', () => {
+    const source = `{
+  "pnpm": {
+    "packageExtensions": {
+      "some-plugin": { "dependencies": { "lodash": "^3.0.0" } }
+    }
+  },
+  "dependencies": { "lodash": "^4.17.21" }
+}`
+
+    const range = findDependencyRange(source, 'lodash')
+    expect(slice(source, range)).toBe('"lodash"')
+    expect(range?.start).toBeGreaterThan(source.indexOf('"dependencies": { "lodash": "^4.17.21" }'))
+  })
+
+  /** The same defect's other half: when the nested block does not contain the package, locking onto it
+   *  loses the real group entirely and the finding falls back to byte zero. */
+  it('still finds a package the nested dependencies block does not mention', () => {
+    const source = `{
+  "pnpm": {
+    "packageExtensions": {
+      "some-plugin": { "dependencies": { "react": "^18.0.0" } }
+    }
+  },
+  "dependencies": { "lodash": "^4.17.21" }
+}`
+
+    expect(slice(source, findDependencyRange(source, 'lodash'))).toBe('"lodash"')
+  })
+
   it('reports nothing rather than guessing when the name is absent', () => {
     expect(findDependencyRange(`{ "dependencies": { "lodash": "^4.0.0" } }`, 'express')).toBeUndefined()
   })

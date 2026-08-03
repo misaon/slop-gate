@@ -137,8 +137,12 @@ test('shows the owner and an ineligible non-participating engine — the real ox
     }),
   )
 
-  expect(output).toContain('Owner:')
-  expect(output).toContain('oxlint/no-unused-vars')
+  // The whole line, not two `toContain`s. A sole owner is folded onto the label's own line, and the
+  // fold is a string edit on that label — a `Owner:` here and a `oxlint/no-unused-vars` somewhere
+  // below would satisfy both substring checks while the fold silently stopped happening, or while it
+  // happened and mangled the separator between the two halves.
+  const ownerLine = output.split('\n').find((line) => line.includes('Owner'))
+  expect(ownerLine).toMatch(/^\s+\S+\s+Owner: oxlint\/no-unused-vars \(tier 0\)$/)
   expect(output).toContain('eslint/@typescript-eslint/no-unused-vars')
   expect(flat(output)).toMatch(/no `eslint` engine is registered in this run/)
   expect(output).toMatch(/produces findings via `oxlint\/no-unused-vars`/i)

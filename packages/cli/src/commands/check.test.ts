@@ -10,7 +10,7 @@ import {
   writeAdvisorySnapshot,
 } from '@misaon/slop-gate-engine-deps-security'
 import { EXIT_CODES } from '../exit-codes.ts'
-import { check, parseMaxTokens } from './check.ts'
+import { check, parseMaxTokens, parseMaxWarnings } from './check.ts'
 
 let dir: string
 let originalExitCode: typeof process.exitCode
@@ -210,6 +210,51 @@ test('parseMaxTokens accepts a positive integer and refuses everything else', ()
   expect(parseMaxTokens(undefined)).toBeUndefined()
   expect(parseMaxTokens('4000')).toBe(4000)
   for (const raw of ['0', '-1', '1.5', 'lots', '', '1e400', 'Infinity']) expect(parseMaxTokens(raw), raw).toBe('invalid')
+})
+
+test('parseMaxWarnings accepts zero and any count above it, and refuses everything else', () => {
+  expect(parseMaxWarnings(undefined)).toBeUndefined()
+  // Unlike `--max-tokens`, `0` is the flag's most useful value — it is what our own CI gate passes.
+  expect(parseMaxWarnings('0')).toBe(0)
+  expect(parseMaxWarnings('25')).toBe(25)
+  for (const raw of ['-1', '1.5', 'abc', '', '1e400', 'Infinity', 'NaN']) expect(parseMaxWarnings(raw), raw).toBe('invalid')
+})
+
+test('rejects a --max-warnings that is not a non-negative integer instead of ignoring it', async () => {
+  // The silent-drop version of this exited 0 on `--max-warnings abc` with nothing on stderr, which
+  // is a CI gate that reports success because its own threshold failed to parse.
+  let written = ''
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    written += chunk
+    return true
+  })
+  try {
+    await check.run!({
+      args: { format: 'json', cwd: dir, cache: false, 'max-warnings': 'abc', _: [] },
+      rawArgs: [],
+      cmd: check,
+    } as never)
+  } finally {
+    stderr.mockRestore()
+  }
+
+  expect(process.exitCode).toBe(EXIT_CODES.config)
+  expect(written).toContain('--max-warnings must be a non-negative integer, got: abc')
+})
+
+test('a negative --max-warnings is refused rather than passed through as an always-failing threshold', async () => {
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+  try {
+    await check.run!({
+      args: { format: 'json', cwd: dir, cache: false, 'max-warnings': '-1', _: [] },
+      rawArgs: [],
+      cmd: check,
+    } as never)
+  } finally {
+    stderr.mockRestore()
+  }
+
+  expect(process.exitCode).toBe(EXIT_CODES.config)
 })
 
 test('--no-cache reaches the command as cache: false through citty real argv parser', () => {
