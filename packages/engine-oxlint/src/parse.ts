@@ -26,12 +26,37 @@ const CODE_PATTERN = /^([a-z0-9-]+)\(([^)]+)\)$/
  */
 export const PARSE_ERROR_RULE_ID = 'parse-error'
 
+/**
+ * Diagnostic scope → the scope `oxlint --rules` spells the same rule with, for the two plugins where
+ * the two disagree on more than punctuation. The registry is generated from `--rules`, and
+ * `normalizeDiagnostics` looks entries up by exact `engineRuleId`, dropping anything it cannot find —
+ * so without this every finding from these plugins is silently discarded. Measured against oxlint
+ * 1.76.0 on five public Next.js repositories: **389 `next(...)` findings, all dropped**, from 21
+ * rules `recommended` holds at `error`.
+ *
+ * This is the mirror of the generator's `HYPHENATED_SCOPE` (`jsx_a11y` → `jsx-a11y`, `react_perf` →
+ * `react-perf`), and it lives here rather than there because these two cannot be fixed at generation
+ * time: oxlint's *config* parser rejects `plugins: ["next"]` outright (*Unknown plugin: 'next'*), so
+ * `nextjs` is the only spelling that can be written into a config, while `next` is the only spelling
+ * that ever comes back out of a diagnostic. `react-hooks` is accepted by both, and is mapped here
+ * anyway so one table holds every case rather than the knowledge being split across two packages.
+ *
+ * Derived, not guessed: every scope in `--rules` was compared against every `code` prefix oxlint
+ * emitted across two large monorepos with all seven categories enabled. `next` and `react-hooks` are
+ * the only two prefixes with no catalogue counterpart.
+ */
+const CATALOGUE_SCOPE: Readonly<Record<string, string>> = {
+  next: 'nextjs',
+  'react-hooks': 'react',
+}
+
 /** oxlint's core rules are configured bare; plugin rules are configured as `plugin/rule`. */
 export function toEngineRuleId(code: string): string | null {
   const match = CODE_PATTERN.exec(code)
   if (match === null) return null
   const [, plugin, rule] = match
-  return plugin === 'eslint' ? rule! : `${plugin}/${rule}`
+  if (plugin === 'eslint') return rule!
+  return `${CATALOGUE_SCOPE[plugin!] ?? plugin}/${rule}`
 }
 
 const SEVERITIES: Readonly<Record<string, RawSeverity>> = {

@@ -229,7 +229,7 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
     for (const file of configs) {
       const withinWorkspace = relativeToWorkspace(file.path, file.workspace)
       const root = withinWorkspace.slice(0, Math.max(0, withinWorkspace.indexOf('.vitepress') - 1))
-      sites.set(`${file.workspace} ${root}`, { workspace: file.workspace, root })
+      sites.set(`${file.workspace} ${root}`, { workspace: file.workspace, root })
     }
 
     return {
@@ -374,6 +374,144 @@ const reactJsxTransform = defineProfile<void>({
   ],
 })
 
+const NEXT_CONFIG = /(^|\/)next\.config\.[cm]?[jt]s$/
+
+/**
+ * The concepts oxlint's `nextjs` scope covers, read off the registry rather than listed here — 21
+ * today, and an oxlint upgrade that adds a 22nd is picked up without an edit. Same reasoning as
+ * `dualFiringConcepts`: a hand-written list of generated concept ids is a copy that silently rots.
+ */
+export function scopeConcepts(scope: string): ConceptId[] {
+  const found = new Set<ConceptId>()
+  for (const entry of RULE_ENTRIES) {
+    if (!entry.engineRuleId.startsWith(`${scope}/`)) continue
+    for (const concept of entry.concepts) found.add(concept)
+  }
+  return [...found].sort(compareStrings)
+}
+
+type NextJsLayout = {
+  /** Workspaces holding both a `next` dependency and a `next.config.*`, sorted. */
+  readonly appRoots: readonly string[]
+  /** `<dir>/**` for every workspace that declares no `next` at all, sorted. Possibly empty. */
+  readonly outside: readonly string[]
+}
+
+/**
+ * Next.js, and the first profile to scope a level to a path rather than to the whole repository.
+ *
+ * **Layer A of a borrowed profile, and it turned out to need nothing borrowed.** All 21 rules in
+ * oxlint's `nextjs` scope are `correctness`, so `GENERATED_RECOMMENDED_RULES` already holds every one
+ * of them at `error` — derived from the registry, not from `sgate rules list`, which filters by the
+ * languages present in the repository at hand and so cannot answer the question at all. There is
+ * nothing here for an `enable-concept` to add; Vercel's own `eslint-config-next` is in fact *milder*,
+ * shipping 15 of the 21 at `warn` and only 6 at `error` (verified against `@next/eslint-plugin-next`
+ * 16.2.12's `recommendedRules`). A profile cannot correct that — `materialize` drops a framework level
+ * weaker than what an earlier layer holds — so the six-versus-fifteen question belongs to
+ * `registry/overrides.ts`'s `severityDefault`, not here.
+ *
+ * **What the plugin does need is a scope, and the measurement is why.** `@next/eslint-plugin-next` is
+ * delivered by `eslint-config-next`, which Next.js wires into the application it belongs to; nothing
+ * in Vercel's own tooling points it at a sibling package. slop-gate points it at every `.tsx` in the
+ * repository, and in a monorepo that is a rule set aimed at code it does not describe. Measured with
+ * oxlint 1.76.0 across five public repositories (`shadcn-ui/ui`, `dubinc/dub`, `documenso/documenso`,
+ * `unkeyed/unkey`, `calcom/cal.com`): **389 findings, 67 of them in workspaces that declare no `next`
+ * dependency at all.** On `calcom/cal.com` alone, 33 of 73 — 8 in `packages/emails`, where `<img>` is
+ * not a lapse but the only thing an email client will render, and 6 in `apps/api/v2`, a NestJS service
+ * where `no-assign-module-variable` is complaining about CommonJS in a project that has no Next.js
+ * bundler to confuse.
+ *
+ * `no-img-element` and `no-assign-module-variable` are the two that were measured wrong there. The
+ * other 19 are carried by mechanism rather than by their own count, on the `angular` precedent (spec
+ * §23.5): every one of them resolves to *import from `next/…` instead*, and a workspace that does not
+ * declare `next` cannot follow that without producing an unlisted-dependency finding in its place.
+ * Shipping the whole scope wrongly costs 21 rules' coverage in packages those rules were never about;
+ * shipping only the measured two leaves the rest aimed at the same code for want of a fixture.
+ *
+ * **The scope is stated positively, and that is a picomatch fact rather than a preference.** The
+ * natural phrasing is "everywhere except the app roots", and in picomatch 4.0.5's array form a negated
+ * pattern does not subtract from its siblings — `['**', '!apps/web/**']` matches `apps/web/x.tsx`. So
+ * the profile enumerates the non-Next workspaces it can see, which costs nothing it was not already
+ * reading: `DetectionContext.manifests` is the same list detection ran on. A workspace with a nested
+ * one that *does* declare `next` is skipped rather than glob-matched around it — files directly in the
+ * parent keep the rules on, which is the safe direction to be wrong in.
+ *
+ * A single-app repository — the common case — has no non-Next workspace and therefore no scoped layer
+ * at all, so the profile is byte-identical to not existing there. That is deliberate: the whole
+ * apparatus exists for the monorepo, and it should be invisible everywhere else.
+ */
+const nextjs = defineProfile<NextJsLayout>({
+  id: 'nextjs',
+  summary: 'Next.js — Vercel’s own plugin, scoped to the applications it describes',
+  async detect(context) {
+    const declaring = context.manifests.filter((manifest) =>
+      manifest.dependencies.some((dependency) => dependency.name === 'next'),
+    )
+    if (declaring.length === 0) return null
+
+    const dependency = findDependency(context, ['next'])!
+    const configs = findFiles(context, (path) => NEXT_CONFIG.test(path))
+    const configured = new Set(configs.map((file) => file.workspace))
+    const appRoots = declaring
+      .map((manifest) => manifest.workspace)
+      .filter((workspace) => configured.has(workspace))
+      .sort(compareStrings)
+
+    if (appRoots.length === 0) {
+      return {
+        evidence: [dependency],
+        blocked:
+          'no `next.config.*` sits beside a manifest declaring `next`, so which workspaces are ' +
+          'Next.js applications cannot be told from which merely import from one',
+      }
+    }
+
+    const declared = new Set(declaring.map((manifest) => manifest.workspace))
+    const outside = context.manifests
+      .map((manifest) => manifest.workspace)
+      .filter((workspace) => !declared.has(workspace) && !hasNestedNext(workspace, declared))
+      .sort(compareStrings)
+      .map((workspace) => (workspace === '' ? '**' : `${workspace}/**`))
+
+    return {
+      evidence: [
+        dependency,
+        ...configs
+          .filter((file) => appRoots.includes(file.workspace))
+          .map((file) => ({ kind: 'path-present' as const, file: file.path })),
+      ],
+      parameters: { appRoots, outside },
+    }
+  },
+  consequences: (layout) =>
+    layout.outside.length === 0
+      ? []
+      : scopeConcepts('nextjs').map(
+          (concept): FrameworkAdjustment => ({
+            kind: 'disable-concept',
+            concept,
+            paths: layout.outside,
+            reason:
+              'Every rule in Vercel’s Next.js plugin resolves to “import from `next/…` instead”, and ' +
+              'these workspaces declare no `next` dependency, so the advice cannot be followed there. ' +
+              `Next.js applies the plugin to its own application (${describeRoots(layout.appRoots)}), not to sibling packages.`,
+          }),
+        ),
+})
+
+/** True when some workspace strictly below `workspace` declares `next` — see the profile's note. */
+function hasNestedNext(workspace: string, declared: ReadonlySet<string>): boolean {
+  const prefix = workspace === '' ? '' : `${workspace}/`
+  for (const candidate of declared) {
+    if (candidate !== workspace && candidate.startsWith(prefix)) return true
+  }
+  return false
+}
+
+function describeRoots(appRoots: readonly string[]): string {
+  return appRoots.map((root) => (root === '' ? 'the repository root' : `\`${root}\``)).join(', ')
+}
+
 const TEST_SCOPES = ['jest', 'vitest'] as const
 
 /**
@@ -427,6 +565,7 @@ export const FRAMEWORK_PROFILES: readonly AnyFrameworkProfile[] = [
   mikroOrm,
   nestjs,
   nestjsExpress,
+  nextjs,
   reactJsxTransform,
   testFramework,
   vitepress,

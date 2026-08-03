@@ -1,6 +1,6 @@
 import picomatch from 'picomatch'
 import { isConceptId } from '../concepts/catalogue.ts'
-import type { FrameworkRuleLayer } from '../frameworks/adjustments.ts'
+import type { FrameworkOverrideLayer, FrameworkRuleLayer } from '../frameworks/adjustments.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { ruleRefKey, type EngineId } from '../registry/types.ts'
 import { PRESETS } from './presets.ts'
@@ -15,7 +15,13 @@ import {
   type SlopGateConfig,
 } from './types.ts'
 
-export type ProvenanceLayer = 'preset' | 'framework' | 'root-config' | 'workspace-config' | 'override'
+export type ProvenanceLayer =
+  | 'preset'
+  | 'framework'
+  | 'framework-override'
+  | 'root-config'
+  | 'workspace-config'
+  | 'override'
 
 export type ProvenanceStep = {
   layer: ProvenanceLayer
@@ -57,6 +63,18 @@ export type ResolveInput = {
    * beats every profile.**
    */
   frameworks?: readonly FrameworkRuleLayer[]
+  /**
+   * The same layer as `frameworks`, for adjustments that named `paths` (`FrameworkAdjustment`). They
+   * are matched by the *same* `picomatch` pass the user's `overrides` use — one entry per
+   * `(profile, glob set)`, with its own `source` label — but they are spliced in at the **framework**
+   * position of the cascade, not appended after it like a user override.
+   *
+   * That placement is the point. A user's `overrides` block exists to beat their own base `rules`, so
+   * it comes last; a profile that came last would beat the user, which is the one thing no profile may
+   * do. Above the presets, below `rules`: identical to the unscoped `frameworks` layer, and for the
+   * identical reason.
+   */
+  frameworkOverrides?: readonly FrameworkOverrideLayer[]
 }
 
 export type RuleSetResolver = {
@@ -97,43 +115,60 @@ export type RuleSetResolver = {
    * `sgate rules why` that has no file in mind and instead needs to explain a concept's overall
    * enablement, including an override that would disable it for files it does not itself have open.
    */
-  overridesFor(key: string): ReadonlyArray<{ source: string; setting: RuleSetting }>
+  overridesFor(key: string): ReadonlyArray<{ layer: ProvenanceLayer; source: string; setting: RuleSetting }>
 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
 
+/** A `rules` map plus the compiled glob test that decides which files it reaches. */
+type PathScopedLayer = {
+  layer: ProvenanceLayer
+  source: string
+  rules: RuleMap
+  isMatch: (path: string) => boolean
+}
+
+function compile(layer: ProvenanceLayer, source: string, files: readonly string[], rules: RuleMap): PathScopedLayer {
+  return { layer, source, rules, isMatch: picomatch(files as string[], { dot: true }) }
+}
+
 export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const rootSource = input.configFile ?? 'slop-gate.config.ts'
-  const baseLayers: Array<{ layer: ProvenanceLayer; source: string; rules: RuleMap }> = []
+
+  // Split at the framework position rather than kept as one `baseLayers` array, because the
+  // path-scoped framework layer has to be spliced in *there* — see `frameworkOverrides`. Everything
+  // below is the same cascade it always was: presets, then profiles, then the human.
+  const presetLayers: Array<{ layer: ProvenanceLayer; source: string; rules: RuleMap }> = []
+  const configLayers: Array<{ layer: ProvenanceLayer; source: string; rules: RuleMap }> = []
 
   for (const preset of input.config.extends ?? []) {
-    baseLayers.push({ layer: 'preset', source: preset, rules: PRESETS[preset] })
+    presetLayers.push({ layer: 'preset', source: preset, rules: PRESETS[preset] })
   }
   for (const framework of input.frameworks ?? []) {
-    baseLayers.push({ layer: 'framework', source: framework.source, rules: framework.rules })
+    presetLayers.push({ layer: 'framework', source: framework.source, rules: framework.rules })
   }
   if (input.config.rules) {
-    baseLayers.push({ layer: 'root-config', source: rootSource, rules: input.config.rules })
+    configLayers.push({ layer: 'root-config', source: rootSource, rules: input.config.rules })
   }
   if (input.workspaceConfig?.config.rules) {
-    baseLayers.push({
+    configLayers.push({
       layer: 'workspace-config',
       source: input.workspaceConfig.file,
       rules: input.workspaceConfig.config.rules,
     })
   }
 
-  const overrides = [...(input.config.overrides ?? []), ...(input.workspaceConfig?.config.overrides ?? [])].map(
-    (block, index) => ({
-      source: `overrides[${index}] (${block.files.join(', ')})`,
-      rules: block.rules,
-      isMatch: picomatch(block.files as string[], { dot: true }),
-    }),
+  const frameworkOverrides = (input.frameworkOverrides ?? []).map((block) =>
+    compile('framework-override', `framework ${block.source} (${block.files.join(', ')})`, block.files, block.rules),
   )
+  const configOverrides = [...(input.config.overrides ?? []), ...(input.workspaceConfig?.config.overrides ?? [])].map(
+    (block, index) => compile('override', `overrides[${index}] (${block.files.join(', ')})`, block.files, block.rules),
+  )
+  const overrides = [...frameworkOverrides, ...configOverrides]
 
   const pinnedOwners = { ...input.config.owners, ...input.workspaceConfig?.config.owners } as Record<string, EngineId>
 
-  const base = materialize(baseLayers, pinnedOwners)
+  const base = materialize([...presetLayers, ...configLayers], pinnedOwners)
   const buckets = new Map<string, ResolvedRuleSet>([['', base]])
 
   // Seeded from the already-resolved base, then maxed against overrides only. The base cascade
@@ -142,6 +177,13 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   // explicit `'some.concept': 'off'`. Overrides are different — they apply to a subset of files, so
   // a rule any override enables must still be configured on the engine for the whole run, and
   // `forFile` narrows it back down during normalization.
+  //
+  // Path-scoped *framework* layers are maxed in on the same terms, with one consequence worth stating
+  // because it is not visible from here: they sit below the user's `rules`, so a scoped addition to a
+  // concept the user turned off globally still lands in `anyEnabledConcepts` — every file then resolves
+  // to `off` through `forFile` and nothing reports, but the engine is configured for a rule that cannot
+  // produce anything. Harmless, and no shipped profile does it; a future one that did would be paying
+  // for a rule it cannot use rather than beating the person who disabled it.
   const maxLevels = new Map<string, RuleLevel>()
   const ignoredOverrideOptions: Array<{ source: string; key: string }> = []
   for (const [key, resolution] of base.rules) maxLevels.set(key, resolution.level)
@@ -167,7 +209,12 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
       if (cached) return cached
 
       const resolved = materialize(
-        [...baseLayers, ...matched.map((m) => ({ layer: 'override' as const, source: m.source, rules: m.rules }))],
+        [
+          ...presetLayers,
+          ...matched.filter((m) => m.layer === 'framework-override'),
+          ...configLayers,
+          ...matched.filter((m) => m.layer === 'override'),
+        ],
         pinnedOwners,
       )
       buckets.set(key, resolved)
@@ -185,10 +232,10 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
     },
     ignoredOverrideOptions,
     overridesFor(key) {
-      const result: Array<{ source: string; setting: RuleSetting }> = []
+      const result: Array<{ layer: ProvenanceLayer; source: string; setting: RuleSetting }> = []
       for (const override of overrides) {
         const setting = override.rules[key as RuleKey]
-        if (setting !== undefined) result.push({ source: override.source, setting })
+        if (setting !== undefined) result.push({ layer: override.layer, source: override.source, setting })
       }
       return result
     },
@@ -219,8 +266,15 @@ function materialize(
       //
       // Skipped entirely rather than applied-and-ignored, so the provenance stays a record of what
       // actually decided the level instead of listing a step that did nothing.
+      //
+      // `framework-override` is held to the same rule, and that is the whole reason path-scoping is
+      // safe: a profile confining `warn` to `apps/web/**` while a preset holds `error` repository-wide
+      // would otherwise *lower* the level there — a subtraction wearing a narrower scope as a
+      // disguise, and the hardest kind to spot, because the concept still reads as enabled everywhere.
       const inertRaise =
-        layer === 'framework' && level !== 'off' && LEVEL_STRENGTH[level] <= LEVEL_STRENGTH[existing?.level ?? 'off']
+        (layer === 'framework' || layer === 'framework-override') &&
+        level !== 'off' &&
+        LEVEL_STRENGTH[level] <= LEVEL_STRENGTH[existing?.level ?? 'off']
       if (inertRaise) continue
 
       // **Level and options are two facts, each last-wins independently, and options replace rather

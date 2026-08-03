@@ -30,7 +30,7 @@ test('reports a concept enabled only by an override, with an empty base provenan
   expect(enablement.enabled).toBe(true)
   expect(enablement.level).toBe('error')
   expect(enablement.baseProvenance).toEqual([])
-  expect(enablement.overrides).toEqual([{ source: 'overrides[0] (legacy/**)', setting: 'error' }])
+  expect(enablement.overrides).toEqual([{ layer: 'override', source: 'overrides[0] (legacy/**)', setting: 'error' }])
 })
 
 test('wasEnabledBeforeBeingDisabled is false when no layer ever set a non-off level', () => {

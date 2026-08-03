@@ -130,3 +130,29 @@ test('does not throw when the reported rule count matches what was elected', () 
 test('throws when oxlint activated a different number of rules than were elected', () => {
   expect(() => parseOxlintOutput(SAMPLE, '/repo', { ruleCount: 3 })).toThrow(/expected 3 rule/)
 })
+
+test('maps a diagnostic scope oxlint spells differently from its own rule catalogue', () => {
+  const payload = JSON.stringify({
+    diagnostics: [
+      {
+        message: 'Do not use `<img>` element. Use `<Image />` from `next/image` instead.',
+        code: 'next(no-img-element)',
+        severity: 'warning',
+        filename: 'apps/web/page.tsx',
+        labels: [{ span: { offset: 0, length: 4 } }],
+      },
+      {
+        message: 'React Hook useEffect has a missing dependency',
+        code: 'react-hooks(exhaustive-deps)',
+        severity: 'error',
+        filename: 'apps/web/page.tsx',
+        labels: [{ span: { offset: 0, length: 4 } }],
+      },
+    ],
+    number_of_rules: 2,
+  })
+  expect(parseOxlintOutput(payload, '/repo').map((d) => d.engineRuleId)).toEqual([
+    'nextjs/no-img-element',
+    'react/exhaustive-deps',
+  ])
+})

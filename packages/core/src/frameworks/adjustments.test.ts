@@ -2,11 +2,13 @@ import { expect, test } from 'vitest'
 import type { ConceptId } from '../concepts/catalogue.ts'
 import { createRuleSetResolver } from '../config/resolve.ts'
 import type { RuleLevel } from '../config/types.ts'
-import { frameworkRuleLayers } from './adjustments.ts'
+import { frameworkOverrideLayers, frameworkRuleLayers } from './adjustments.ts'
 import type { FrameworkAdjustment, FrameworkApplication, FrameworkDetection, FrameworkId } from './types.ts'
 
 const UNSTABLE = 'suspicious.no-unstable-nested-components' as ConceptId
 const EXTRANEOUS = 'suspicious.no-extraneous-class' as ConceptId
+/** Deliberately a concept no preset enables, so a scoped addition is the only thing that could. */
+const HOOKS = 'pedantic.rules-of-hooks' as ConceptId
 
 const evidence = [
   { kind: 'manifest-dependency', file: 'package.json', workspace: '', name: 'next', field: 'dependencies' },
@@ -169,4 +171,127 @@ test('raising the level of an optioned preset rule leaves its options alone', ()
   })
   expect(resolver.base.rules.get(UNSTABLE as never)?.options).toEqual([{ allowAsProps: true }])
   expect(withFramework.base.rules.get(UNSTABLE as never)?.optionsFrom?.layer).not.toBe('framework')
+})
+
+// --- path-scoped adjustments ---------------------------------------------------------------------
+
+const scopedDisable = (concept: ConceptId, paths: readonly string[]): FrameworkAdjustment => ({
+  kind: 'disable-concept',
+  concept,
+  reason: 'off here only',
+  paths,
+})
+
+const scopedEnable = (concept: ConceptId, level: 'info' | 'warn' | 'error', paths: readonly string[]): FrameworkAdjustment => ({
+  kind: 'enable-concept',
+  concept,
+  level,
+  reason: 'on here only',
+  measured: { repository: 'a real one', findings: 35, falsePositives: 0 },
+  paths,
+})
+
+const scoped = (...applications: readonly FrameworkApplication[]) =>
+  createRuleSetResolver({
+    config: { extends: ['recommended'], rules: {} },
+    frameworks: frameworkRuleLayers(detection(...applications)),
+    frameworkOverrides: frameworkOverrideLayers(detection(...applications)),
+  })
+
+test('an adjustment naming `paths` leaves the base cascade alone and becomes an override instead', () => {
+  const application = applied('nextjs', [scopedDisable(UNSTABLE, ['packages/ui/**'])])
+  expect(frameworkRuleLayers(detection(application))).toEqual([])
+  expect(frameworkOverrideLayers(detection(application))).toEqual([
+    { source: 'nextjs', files: ['packages/ui/**'], rules: { [UNSTABLE]: 'off' } },
+  ])
+})
+
+test('the scoped level reaches only the files its globs match', () => {
+  const resolver = scoped(applied('nextjs', [scopedDisable(UNSTABLE, ['packages/ui/**'])]))
+  expect(resolver.forFile('packages/ui/Button.tsx').rules.get(UNSTABLE as never)?.level).toBe('off')
+  expect(resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as never)?.level).toBe('warn')
+  expect(resolver.base.rules.get(UNSTABLE as never)?.level).toBe('warn')
+})
+
+test('the provenance names the profile and the globs, not an anonymous override block', () => {
+  const resolver = scoped(applied('nextjs', [scopedDisable(UNSTABLE, ['packages/ui/**', 'packages/email/**'])]))
+  expect(
+    resolver.forFile('packages/ui/Button.tsx').rules.get(UNSTABLE as never)?.provenance.map((step) => [step.layer, step.source, step.setting]),
+  ).toEqual([
+    ['preset', 'recommended', 'warn'],
+    ['framework-override', 'framework nextjs (packages/email/**, packages/ui/**)', 'off'],
+  ])
+})
+
+/**
+ * The same non-negotiable as the unscoped case, and the reason these layers are spliced in at the
+ * framework position rather than appended after the user's own `overrides`: a profile that came last
+ * would beat the human, and narrowing its claim to a glob does not earn it that.
+ */
+test('a user writing `off` still beats a path-scoped profile enabling the same concept at `error`', () => {
+  const application = applied('nextjs', [scopedEnable(UNSTABLE, 'error', ['apps/web/**'])])
+  const resolver = createRuleSetResolver({
+    config: { rules: { [UNSTABLE]: 'off' } as never },
+    frameworks: frameworkRuleLayers(detection(application)),
+    frameworkOverrides: frameworkOverrideLayers(detection(application)),
+  })
+  expect(resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as never)?.level).toBe('off')
+})
+
+/** A floor, never a ceiling — the property that keeps a narrower scope from being a hidden subtraction. */
+test('a path-scoped level below what the base cascade holds changes nothing there', () => {
+  const resolver = scoped(applied('nextjs', [scopedEnable(UNSTABLE, 'info', ['apps/web/**'])]))
+  const resolution = resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as never)
+  expect(resolution?.level).toBe('warn')
+  expect(resolution?.provenance.map((step) => step.layer)).toEqual(['preset'])
+})
+
+/**
+ * A concept enabled only under a glob must still be configured on the engine for the whole run, or
+ * the scope is silently dead — the same contract `anyEnabledConcepts` already holds for a user's own
+ * `overrides`, now extended to the layer profiles write.
+ */
+test('a concept only a scoped addition enables still counts as enabled somewhere', () => {
+  const resolver = scoped(applied('nextjs', [scopedEnable(HOOKS, 'error', ['apps/web/**'])]))
+  expect(resolver.base.rules.get(HOOKS as never)).toBeUndefined()
+  expect(resolver.anyEnabledConcepts.has(HOOKS)).toBe(true)
+  expect(resolver.maxLevelOf(HOOKS)).toBe('error')
+  expect(resolver.forFile('packages/ui/Button.tsx').rules.get(HOOKS as never)).toBeUndefined()
+  expect(resolver.forFile('apps/web/page.tsx').rules.get(HOOKS as never)?.level).toBe('error')
+})
+
+test('a scoped and an unscoped opinion about one concept stay two facts rather than one join', () => {
+  const application = applied('nextjs', [disable(UNSTABLE), scopedEnable(UNSTABLE, 'error', ['apps/web/**'])])
+  expect(frameworkRuleLayers(detection(application))).toEqual([{ source: 'nextjs', rules: { [UNSTABLE]: 'off' } }])
+  expect(frameworkOverrideLayers(detection(application))).toEqual([
+    { source: 'nextjs', files: ['apps/web/**'], rules: { [UNSTABLE]: 'error' } },
+  ])
+})
+
+test('two profiles scoping one concept to the same globs join, and the result is order-free', () => {
+  const forwards = frameworkOverrideLayers(
+    detection(applied('angular', [scopedEnable(UNSTABLE, 'warn', ['apps/**'])]), applied('nestjs', [scopedDisable(UNSTABLE, ['apps/**'])])),
+  )
+  const backwards = frameworkOverrideLayers({
+    applied: [applied('nestjs', [scopedDisable(UNSTABLE, ['apps/**'])]), applied('angular', [scopedEnable(UNSTABLE, 'warn', ['apps/**'])])],
+    inapplicable: [],
+  })
+  expect(forwards).toEqual([{ source: 'nestjs', files: ['apps/**'], rules: { [UNSTABLE]: 'off' } }])
+  expect(backwards).toEqual(forwards)
+})
+
+test('one profile scoping two different concepts to two glob sets emits one layer per set', () => {
+  expect(
+    frameworkOverrideLayers(
+      detection(applied('nextjs', [scopedDisable(UNSTABLE, ['b/**']), scopedDisable(EXTRANEOUS, ['a/**'])])),
+    ),
+  ).toEqual([
+    { source: 'nextjs', files: ['a/**'], rules: { [EXTRANEOUS]: 'off' } },
+    { source: 'nextjs', files: ['b/**'], rules: { [UNSTABLE]: 'off' } },
+  ])
+})
+
+/** Options decide whether a finding exists at all, so no scoped layer can ever carry any. */
+test('a path-scoped layer never lands in `ignoredOverrideOptions`', () => {
+  expect(scoped(applied('nextjs', [scopedDisable(UNSTABLE, ['packages/ui/**'])])).ignoredOverrideOptions).toEqual([])
 })

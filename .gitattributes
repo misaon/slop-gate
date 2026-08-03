@@ -1,11 +1,11 @@
-# LF in the repository on every platform.
+# `diff` alone makes git render these as text even when a stray control byte would otherwise get them
+# classified as binary — two source files reached `main` with a NUL where a `Map` key separator's space
+# belonged, and git printed "Binary files differ" instead of a reviewable diff for one of them.
 #
-# Windows CI runners default to core.autocrlf=true, which rewrites checked-out
-# files to CRLF. The registry generator writes LF and byte-compares its output
-# against what is committed, so without this the freshness check fails on
-# Windows and only on Windows — which is exactly how it was found.
-#
-# Making that comparison line-ending-insensitive would have hidden real drift,
-# so the repository enforces the invariant instead of the check tolerating its
-# absence. Golden reporter output and code-frame fixtures depend on it too.
-* text=auto eol=lf
+# `-text` is not decoration. Setting `diff` also makes git's `core.autocrlf=true` path treat the file as
+# convertible, so `diff` on its own checks every `.ts` out with CRLF on a Windows runner and every test
+# that compares generated source against disk fails — reproduced locally with `git -c core.autocrlf=true
+# clone`, 12,173 CRLF line endings in `entries.generated.ts` against zero on `main`. `-text` restores the
+# byte-for-byte checkout this repository already relied on.
+*.ts diff -text
+*.tsx diff -text
