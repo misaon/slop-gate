@@ -18,8 +18,6 @@ export type ResolveScriptBinOptions = {
   packageJsonSpecifier: string
   /** Path segments from the resolved package directory to its bin script, e.g. `['bin', 'oxlint']`. */
   binSegments: readonly string[]
-  /** Bare command to fall back to, relying on the caller's `PATH` — e.g. `'oxlint'` or `'tsc'`. */
-  fallbackCommand: string
   resolvePackageJson: (specifier: string) => string
   fileExists?: (path: string) => boolean
 }
@@ -40,24 +38,38 @@ export type ResolveScriptBinOptions = {
  * (`process.execPath`) instead of asking the OS to interpret the file sidesteps the gap uniformly, on
  * every platform — it is exactly what the shebang already does on POSIX, made explicit.
  *
- * Falls back to `fallbackCommand`, spawned directly with no prefix args, in two cases: resolution
- * fails entirely (the package is not resolvable from wherever `resolvePackageJson` looks), or the
- * package resolves but its bin script is missing on disk (an incomplete or corrupted install). The
- * `fileExists` check specifically guards a gap the `node <script>` strategy itself introduces: once
- * invoked as `node scriptPath`, a missing `scriptPath` makes *Node* fail to find the entry module, and
- * Node's own launch failure exits with a *numeric* code `1` — indistinguishable by exit code alone
- * from many engines' own "exited non-zero because it found findings" convention. Verifying the file
- * exists before committing to the `node`-prefixed invocation routes a genuine absence back through the
- * bare fallback command instead, where it produces a real, string-coded `ENOENT` an adapter's own
- * error handling already knows how to turn into an actionable failure.
+ * Returns `undefined` in two cases — resolution fails entirely (the package is not resolvable from
+ * wherever `resolvePackageJson` looks), or the package resolves but its bin script is missing on disk
+ * (an incomplete or corrupted install). The `fileExists` check specifically guards a gap the
+ * `node <script>` strategy itself introduces: once invoked as `node scriptPath`, a missing `scriptPath`
+ * makes *Node* fail to find the entry module, and Node's own launch failure exits with a *numeric*
+ * code `1` — indistinguishable by exit code alone from many engines' own "exited non-zero because it
+ * found findings" convention.
+ *
+ * **`undefined`, and deliberately not a bare command name for the caller's `PATH` to resolve.** This
+ * function used to take a `fallbackCommand` and return `{ command: 'oxlint', prefixArgs: [] }` when it
+ * could not find the bundled one, and every caller passed one. That is a silent substitution of an
+ * unknown version for the pinned dependency the registry was generated against, and it produces
+ * results describing the machine rather than the project — the exact class §13.1 forbids for `tsc`
+ * ("uses the repo's own TypeScript version"), reached by accident for three engines that never
+ * intended it. `engine-tsc` was already refusing its own fallback by inspecting the returned shape
+ * (`prefixArgs.length > 0`), which worked and could only be written by someone who knew this
+ * function's internals.
+ *
+ * Every caller here wraps a **bundled** dependency, so `undefined` means slop-gate's own installation
+ * is incomplete — not a property of the analysed repository, and therefore not a coverage gap
+ * (`Engine.availability`) either: a gap exits 0 and reports the repository as clean, which is the worst
+ * available answer to "our linter is missing". Each adapter turns it into an `EngineError` naming the
+ * package instead. A tool that is genuinely *not* bundled — actionlint, hadolint — resolves `PATH`
+ * itself, deliberately and visibly, and never through this helper.
  */
-export function resolveScriptBin(options: ResolveScriptBinOptions): ScriptBinInvocation {
+export function resolveScriptBin(options: ResolveScriptBinOptions): ScriptBinInvocation | undefined {
   const fileExists = options.fileExists ?? existsSync
   try {
     const scriptPath = join(dirname(options.resolvePackageJson(options.packageJsonSpecifier)), ...options.binSegments)
-    if (!fileExists(scriptPath)) return { command: options.fallbackCommand, prefixArgs: [] }
+    if (!fileExists(scriptPath)) return undefined
     return { command: process.execPath, prefixArgs: [scriptPath] }
   } catch {
-    return { command: options.fallbackCommand, prefixArgs: [] }
+    return undefined
   }
 }

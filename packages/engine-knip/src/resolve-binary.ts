@@ -16,11 +16,12 @@ const require = createRequire(import.meta.url)
  * `ERR_PACKAGE_PATH_NOT_EXPORTED` — verified directly against knip 6.31.0, and pinned by a test so a
  * future release that adds the export is noticed rather than silently tolerated.
  *
- * Left to `resolveScriptBin`'s own `try`/`catch`, that throw degrades straight to the bare `knip`
- * fallback command, which relies on `node_modules/.bin` being on the spawned child's `PATH` —
- * something a globally- or `npx`-installed `sgate` has no reason to guarantee, and which would fail
- * as a bare `ENOENT` with no hint that the *bundled* knip was sitting right there all along. So the
- * manifest is reached the other way round instead: resolve the package's `.` entry point (`dist/index.js`,
+ * Left to `resolveScriptBin`'s own `try`/`catch`, that throw makes the bundled knip unresolvable and
+ * the engine fails the run with "reinstall slop-gate" — while the bundled knip was sitting right
+ * there all along. (Before the bare-command fallback was removed it was worse: the throw degraded to a
+ * `knip` on the child's `PATH`, which a globally- or `npx`-installed `sgate` has no reason to provide,
+ * and which would have run some *other* knip if it did.) So the manifest is reached the other way
+ * round instead: resolve the package's `.` entry point (`dist/index.js`,
  * which the exports map does list) and walk up to its own directory. `resolve` normalises the `..`
  * away eagerly so the returned path is the real manifest, not a `dist/../package.json` spelling of it.
  *
@@ -52,11 +53,10 @@ export function resolveKnipPackageJson(_specifier: string): string {
 export function resolveKnipBinary(
   resolvePackageJson: (specifier: string) => string = resolveKnipPackageJson,
   fileExists: (path: string) => boolean = existsSync,
-): KnipInvocation {
+): KnipInvocation | undefined {
   return resolveScriptBin({
     packageJsonSpecifier: 'knip/package.json',
     binSegments: ['bin', 'knip.js'],
-    fallbackCommand: 'knip',
     resolvePackageJson,
     fileExists,
   })

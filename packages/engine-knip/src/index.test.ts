@@ -272,7 +272,8 @@ test(
     await writeUndeclaredWorkspaceFixture()
     await write('.slop-gate/tmp/defaults.json', JSON.stringify({ workspaces: { '.': {}, docs: {} } }))
 
-    const invocation = resolveKnipBinary()
+    // Non-null: this case spawns the real bundled knip, and an unresolvable one is a broken install.
+    const invocation = resolveKnipBinary()!
     const { stdout } = await promisify(execFile)(
       invocation.command,
       [

@@ -210,10 +210,10 @@ test('is a coverage gap, not a crash, when the project has no typescript of its 
   // resolution cannot reach a `typescript` — which is precisely the condition every one of these
   // fixtures would be in if they did not deliberately live inside this package (see `fixturesRoot`).
   //
-  // Unguarded, `resolveScriptBin` hands back its bare-`tsc`-on-PATH fallback and `availability()`
-  // says yes on the strength of the tsconfig alone. `run()` then spawns a command that a POSIX CI
-  // runner happens to have on PATH and a Windows one can never execute by bare name: `spawn tsc
-  // ENOENT`, an EngineError, which `resolveExitCode` maps to exit 3 and fails the run.
+  // Historically `resolveScriptBin` handed back a bare-`tsc`-on-PATH fallback here and
+  // `availability()` said yes on the strength of the tsconfig alone. `run()` then spawned a command
+  // that a POSIX CI runner happens to have on PATH and a Windows one can never execute by bare name:
+  // `spawn tsc ENOENT`, an EngineError, which `resolveExitCode` maps to exit 3 and fails the run.
   const detached = await mkdtemp(join(tmpdir(), 'sgate-tsc-no-typescript-'))
   try {
     await writeFile(join(detached, 'tsconfig.json'), TSCONFIG)
@@ -224,6 +224,22 @@ test('is a coverage gap, not a crash, when the project has no typescript of its 
       reason: expect.stringContaining('no `typescript` is installed in this project'),
       install: 'npm install -D typescript',
     })
+  } finally {
+    await rm(detached, { recursive: true, force: true })
+  }
+})
+
+test('every entry point refuses, not just the availability probe', async () => {
+  // `availability()` is advice: `resolve-run.ts` honours it, and a caller constructing the engine
+  // directly does not have to. Before the resolver stopped substituting a bare `tsc`, that caller got
+  // the machine's TypeScript version reported back with no indication anything was wrong — the run
+  // looked successful. Both methods that reach the binary now say what is missing instead.
+  const detached = await mkdtemp(join(tmpdir(), 'sgate-tsc-refuses-'))
+  try {
+    await writeFile(join(detached, 'tsconfig.json'), TSCONFIG)
+    const engine = createTscEngine({ rootDir: detached })
+
+    await expect(engine.version()).rejects.toThrow(/no `typescript` is installed in this project/)
   } finally {
     await rm(detached, { recursive: true, force: true })
   }

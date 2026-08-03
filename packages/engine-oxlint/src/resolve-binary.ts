@@ -12,9 +12,9 @@ import { resolveScriptBin, type ScriptBinInvocation } from '@misaon/slop-gate-co
 export type OxlintInvocation = ScriptBinInvocation
 
 /**
- * Resolves how to invoke the installed `oxlint` package's CLI. Used by both `createOxlintEngine`
+ * Resolves how to invoke the bundled `oxlint` package's CLI. Used by both `createOxlintEngine`
  * (this package) and `packages/core/scripts/generate-registry.ts`, which used to each carry their own
- * copy of this logic — the generator's copy additionally lacked the fallback below entirely.
+ * copy of this logic.
  *
  * `oxlint`'s package.json declares an `exports` map that does not list `./bin/oxlint`, so
  * `require.resolve('oxlint/bin/oxlint')` always throws `ERR_PACKAGE_PATH_NOT_EXPORTED`. `./package.json`
@@ -27,18 +27,24 @@ export type OxlintInvocation = ScriptBinInvocation
  * from a different anchor (the analysed project's own directory, since `typescript` is a peer
  * dependency, rather than this package's own install location).
  *
+ * `undefined` when the bundled `oxlint` cannot be resolved. It used to be a bare `oxlint` for the
+ * child's `PATH` to resolve, which meant a broken install of *this* package silently linted with
+ * whatever oxlint the machine happened to have — a different version than the registry was generated
+ * from, whose rule ids and categories `entries.generated.ts` no longer describes. `oxlint` is a
+ * `dependencies` entry of this package, so there is no legitimate case for that substitution.
+ *
  * `resolvePackageJson` and `fileExists` default to the real `createRequire(import.meta.url).resolve`
- * and `existsSync`, and only take parameters so resolve-binary.test.ts can force each fallback branch
- * with a stub, without needing to actually uninstall `oxlint`, corrupt its install, or mock built-ins.
+ * and `existsSync`, and only take parameters so resolve-binary.test.ts can force each unresolvable
+ * branch with a stub, without needing to actually uninstall `oxlint`, corrupt its install, or mock
+ * built-ins.
  */
 export function resolveOxlintBinary(
   resolvePackageJson: (specifier: string) => string = createRequire(import.meta.url).resolve,
   fileExists: (path: string) => boolean = existsSync,
-): OxlintInvocation {
+): OxlintInvocation | undefined {
   return resolveScriptBin({
     packageJsonSpecifier: 'oxlint/package.json',
     binSegments: ['bin', 'oxlint'],
-    fallbackCommand: 'oxlint',
     resolvePackageJson,
     fileExists,
   })

@@ -32,14 +32,14 @@ test('resolves the platform package binary and spawns it directly, with no node 
   // lifecycle script ran, which pnpm 10 blocks by default.
   const invocation = resolveAstGrepBinary(stubs())
 
-  expect(invocation.prefixArgs).toEqual([])
-  expect(invocation.command).toBe(at('.pnpm', 'cli-darwin-arm64', '@ast-grep', 'cli-darwin-arm64', 'ast-grep'))
+  expect(invocation?.prefixArgs).toEqual([])
+  expect(invocation?.command).toBe(at('.pnpm', 'cli-darwin-arm64', '@ast-grep', 'cli-darwin-arm64', 'ast-grep'))
 })
 
 test('asks for the .exe on windows', () => {
   const invocation = resolveAstGrepBinary(stubs({ platform: 'win32', arch: 'x64' }))
-  expect(basename(invocation.command)).toBe('ast-grep.exe')
-  expect(invocation.command).toContain('cli-win32-x64-msvc')
+  expect(basename(invocation!.command)).toBe('ast-grep.exe')
+  expect(invocation!.command).toContain('cli-win32-x64-msvc')
 })
 
 test('falls back to PATH on musl linux, where upstream publishes no build at all', () => {
@@ -51,7 +51,7 @@ test('falls back to PATH on musl linux, where upstream publishes no build at all
 })
 
 test('uses the gnu build on glibc linux', () => {
-  expect(resolveAstGrepBinary(stubs({ platform: 'linux', arch: 'arm64' })).command).toContain('cli-linux-arm64-gnu')
+  expect(resolveAstGrepBinary(stubs({ platform: 'linux', arch: 'arm64' }))?.command).toContain('cli-linux-arm64-gnu')
 })
 
 test('falls back to PATH for a platform upstream does not publish', () => {
@@ -61,7 +61,10 @@ test('falls back to PATH for a platform upstream does not publish', () => {
   })
 })
 
-test('falls back to PATH when the optional dependency was never installed', () => {
+test('resolves to nothing when the optional dependency was never installed', () => {
+  // A supported platform whose platform package is absent is a broken install of a package this one
+  // bundles, not a platform upstream left out — so a bare `ast-grep` here would be an unknown version
+  // standing in for the pinned one. The two cases above keep the fallback; this one does not.
   const invocation = resolveAstGrepBinary(
     stubs({
       resolveFromCli: () => {
@@ -69,11 +72,11 @@ test('falls back to PATH when the optional dependency was never installed', () =
       },
     }),
   )
-  expect(invocation).toEqual({ command: 'ast-grep', prefixArgs: [] })
+  expect(invocation).toBeUndefined()
 })
 
-test('falls back to PATH when the platform package resolves but its binary is missing', () => {
-  expect(resolveAstGrepBinary(stubs({ fileExists: () => false }))).toEqual({ command: 'ast-grep', prefixArgs: [] })
+test('resolves to nothing when the platform package resolves but its binary is missing', () => {
+  expect(resolveAstGrepBinary(stubs({ fileExists: () => false }))).toBeUndefined()
 })
 
 test('resolves the real installed binary from this package, and it exists on disk', () => {
@@ -83,8 +86,8 @@ test('resolves the real installed binary from this package, and it exists on dis
   // so resolution has to be anchored at the CLI's directory rather than at ours.
   const invocation = resolveAstGrepBinary()
 
-  expect(invocation.prefixArgs).toEqual([])
-  expect(invocation.command).not.toBe('ast-grep')
-  expect(invocation.command).toContain(`@ast-grep${sep}cli-`)
-  expect(existsSync(invocation.command)).toBe(true)
+  expect(invocation?.prefixArgs).toEqual([])
+  expect(invocation?.command).not.toBe('ast-grep')
+  expect(invocation?.command).toContain(`@ast-grep${sep}cli-`)
+  expect(existsSync(invocation!.command)).toBe(true)
 })

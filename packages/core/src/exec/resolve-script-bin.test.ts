@@ -43,40 +43,37 @@ for (const platform of PLATFORMS) {
       const resolved = resolveScriptBin({
         packageJsonSpecifier: 'widget/package.json',
         binSegments: ['bin', 'widget'],
-        fallbackCommand: 'widget',
         resolvePackageJson: resolvedPackageJson,
         fileExists: fileAlwaysExists,
       })
 
-      expect(resolved.command).toBe(process.execPath)
-      expect(resolved.prefixArgs).toEqual([join(installDir, 'bin', 'widget')])
+      expect(resolved?.command).toBe(process.execPath)
+      expect(resolved?.prefixArgs).toEqual([join(installDir, 'bin', 'widget')])
     } finally {
       Object.defineProperty(process, 'platform', original)
     }
   })
 }
 
-test('falls back to the bare fallback command with no prefix args when resolution fails entirely', () => {
+test('resolves to nothing when resolution fails entirely, rather than to a bare command on `PATH`', () => {
   expect(
     resolveScriptBin({
       packageJsonSpecifier: 'widget/package.json',
       binSegments: ['bin', 'widget'],
-      fallbackCommand: 'widget',
       resolvePackageJson: throwingResolver,
     }),
-  ).toEqual({ command: 'widget', prefixArgs: [] })
+  ).toBeUndefined()
 })
 
-test('falls back to the bare fallback command when the package resolves but its bin script is missing', () => {
+test('resolves to nothing when the package resolves but its bin script is missing', () => {
   expect(
     resolveScriptBin({
       packageJsonSpecifier: 'widget/package.json',
       binSegments: ['bin', 'widget'],
-      fallbackCommand: 'widget',
       resolvePackageJson: resolvedPackageJson,
       fileExists: fileNeverExists,
     }),
-  ).toEqual({ command: 'widget', prefixArgs: [] })
+  ).toBeUndefined()
 })
 
 test('defaults fileExists to the real filesystem check when not supplied', () => {
@@ -87,19 +84,17 @@ test('defaults fileExists to the real filesystem check when not supplied', () =>
     resolveScriptBin({
       packageJsonSpecifier: 'widget/package.json',
       binSegments: ['bin', 'widget'],
-      fallbackCommand: 'widget',
       resolvePackageJson: resolvedPackageJson,
     }),
-  ).toEqual({ command: 'widget', prefixArgs: [] })
+  ).toBeUndefined()
 })
 
 test('joins multi-segment bin paths', () => {
   const resolved = resolveScriptBin({
     packageJsonSpecifier: 'widget/package.json',
     binSegments: ['dist', 'bin', 'widget.js'],
-    fallbackCommand: 'widget',
     resolvePackageJson: resolvedPackageJson,
     fileExists: fileAlwaysExists,
   })
-  expect(resolved.prefixArgs).toEqual([join(installDir, 'dist', 'bin', 'widget.js')])
+  expect(resolved?.prefixArgs).toEqual([join(installDir, 'dist', 'bin', 'widget.js')])
 })

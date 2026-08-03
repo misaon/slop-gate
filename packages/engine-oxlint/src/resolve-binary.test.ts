@@ -37,36 +37,33 @@ for (const platform of PLATFORMS) {
       // The command must be a real, directly-executable binary — `process.execPath` always is, on
       // every platform (it is how Node itself was launched) — never the raw, extensionless
       // `oxlint/bin/oxlint` script path, which is exactly what broke on Windows.
-      expect(resolved.command).toBe(process.execPath)
-      expect(resolved.command).not.toMatch(/oxlint[\\/]bin[\\/]oxlint$/)
+      expect(resolved?.command).toBe(process.execPath)
+      expect(resolved?.command).not.toMatch(/oxlint[\\/]bin[\\/]oxlint$/)
 
       // The resolved script is passed as an argument to that command, not spawned on its own.
-      expect(resolved.prefixArgs).toHaveLength(1)
-      expect(resolved.prefixArgs[0]).toMatch(/oxlint[\\/]bin[\\/]oxlint$/)
+      expect(resolved?.prefixArgs).toHaveLength(1)
+      expect(resolved?.prefixArgs[0]).toMatch(/oxlint[\\/]bin[\\/]oxlint$/)
     } finally {
       Object.defineProperty(process, 'platform', original)
     }
   })
 }
 
-test('falls back to the bare "oxlint" command with no prefix args when resolution fails entirely', () => {
-  // Uses the injectable resolver parameter to force the fallback rather than actually uninstalling
-  // oxlint or mocking node:module — see resolve-binary.ts's doc comment for why the fallback stays an
-  // unprefixed bare command: unlike the resolved case, we don't know what "oxlint" refers to here
-  // (global install, shim, alias, ...), so there is nothing to safely wrap with `process.execPath`.
-  expect(resolveOxlintBinary(throwingResolver)).toEqual({ command: 'oxlint', prefixArgs: [] })
+test('resolves to nothing when the bundled oxlint cannot be resolved, rather than to one on PATH', () => {
+  // Uses the injectable resolver parameter to force the branch rather than actually uninstalling
+  // oxlint or mocking node:module. It used to return a bare `oxlint` here, which meant a broken
+  // install of this package silently linted with whatever oxlint the machine had — a different rule
+  // catalogue than the one `entries.generated.ts` was generated from.
+  expect(resolveOxlintBinary(throwingResolver)).toBeUndefined()
 })
 
-test('falls back to the bare "oxlint" command when the package resolves but bin/oxlint itself is missing', () => {
+test('resolves to nothing when the package resolves but bin/oxlint itself is missing', () => {
   // Regression pin for a gap the `node <script>` strategy itself introduces (see resolve-binary.ts's
   // doc comment): Node's own "cannot find module" launch failure exits with the *numeric* code `1`,
   // colliding with oxlint's "exited 1 because it found lint issues" convention. Without this
   // existence check, a corrupted install (package.json resolves, bin/oxlint does not) would silently
   // report "zero findings" instead of a genuine EngineError.
-  expect(resolveOxlintBinary(resolvedPackageJsonForMissingBin, fileNeverExists)).toEqual({
-    command: 'oxlint',
-    prefixArgs: [],
-  })
+  expect(resolveOxlintBinary(resolvedPackageJsonForMissingBin, fileNeverExists)).toBeUndefined()
 })
 
 test('resolves the real installed oxlint package to its bin/oxlint script', () => {
@@ -74,6 +71,6 @@ test('resolves the real installed oxlint package to its bin/oxlint script', () =
   // resolved script path actually ends where oxlint's own package.json says its `bin` entry lives,
   // so the platform-matrix tests above aren't accidentally asserting a stubbed-away tautology.
   const resolved = resolveOxlintBinary()
-  expect(resolved.command).toBe(process.execPath)
-  expect(resolved.prefixArgs[0]).toMatch(/oxlint[\\/]bin[\\/]oxlint$/)
+  expect(resolved?.command).toBe(process.execPath)
+  expect(resolved?.prefixArgs[0]).toMatch(/oxlint[\\/]bin[\\/]oxlint$/)
 })

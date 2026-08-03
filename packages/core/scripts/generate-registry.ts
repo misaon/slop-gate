@@ -94,6 +94,13 @@ type CatalogueRule = {
 
 function readCatalogue(): readonly CatalogueRule[] {
   const invocation = resolveOxlintBinary()
+  if (invocation === undefined) {
+    throw new Error(
+      "the bundled `oxlint` could not be resolved, so there is no catalogue to generate from. Run `pnpm install`. " +
+        '(It deliberately does not fall back to an `oxlint` on PATH — the committed registry would then ' +
+        'describe whichever version that machine happens to have.)',
+    )
+  }
   const stdout = execFileSync(invocation.command, [...invocation.prefixArgs, '--rules', '--format', 'json'], {
     encoding: 'utf8',
   })

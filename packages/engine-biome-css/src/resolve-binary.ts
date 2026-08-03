@@ -23,11 +23,10 @@ export type BiomeInvocation = ScriptBinInvocation
 export function resolveBiomeBinary(
   resolvePackageJson: (specifier: string) => string = createRequire(import.meta.url).resolve,
   fileExists: (path: string) => boolean = existsSync,
-): BiomeInvocation {
+): BiomeInvocation | undefined {
   return resolveScriptBin({
     packageJsonSpecifier: '@biomejs/biome/package.json',
     binSegments: ['bin', 'biome'],
-    fallbackCommand: 'biome',
     resolvePackageJson,
     fileExists,
   })
