@@ -11,7 +11,7 @@ type OxlintDiagnostic = {
   url?: string
   help?: string
   filename: string
-  labels?: Array<{ span: OxlintSpan }>
+  labels?: Array<{ label?: string; span: OxlintSpan }>
 }
 type OxlintPayload = { diagnostics?: OxlintDiagnostic[]; number_of_rules?: number }
 
@@ -57,6 +57,43 @@ export function toEngineRuleId(code: string): string | null {
   const [, plugin, rule] = match
   if (plugin === 'eslint') return rule!
   return `${CATALOGUE_SCOPE[plugin!] ?? plugin}/${rule}`
+}
+
+/**
+ * engineRuleId → the text of the label that marks the **offending** node, for the rules where that
+ * is not the first label oxlint emits.
+ *
+ * A diagnostic's range is what everything downstream anchors to: the position a reporter prints, and
+ * — through `normalizedWindow` — the fingerprint a baseline is keyed on (spec §10.1). Anchoring on a
+ * node the finding is merely *about* rather than the one that is wrong therefore costs more than a
+ * misleading line number: the fingerprint then tracks a line the user has no reason to touch, and
+ * two findings sharing one enclosing scope collapse onto the same window, distinguishable only by
+ * `occurrenceIndex` — so adding a third shifts the other two and churns the baseline.
+ *
+ * `unicorn/consistent-function-scoping` is the case. It emits `Outer scope where this function is
+ * defined` first whenever the enclosing scope is nameable, and the offending inner function second;
+ * oxlint's own `json`, `unix`, `github` and `checkstyle` reporters all print the first label's
+ * position, and its `default` (graphical) reporter prints the second.
+ *
+ * **Additive by construction, which is the whole point of the shape.** A rule absent from this table
+ * keeps `labels[0]`, and a rule *in* it whose declared text is not among the labels — an oxc reword —
+ * falls back to `labels[0]` too. So the blast radius is exactly the rules named here, and no
+ * measurement of any other rule can be invalidated by this table growing.
+ *
+ * Keyed on the label *text* rather than on an index for the same reason: oxlint's label array is not
+ * sorted by offset (`eslint/no-duplicate-imports` emits 4:40 before 3:31), so an index would be a
+ * bet on an ordering nothing upstream promises.
+ *
+ * Derived, not guessed. `-D all` plus all eleven plugins over this repository's own sources and
+ * fixtures produced 27,966 diagnostics from 162 rules, of which **453 were multi-label across eight
+ * rules** — `eslint/no-use-before-define`, `vitest/no-importing-vitest-globals`, `jsdoc/require-param`,
+ * `eslint/no-duplicate-imports`, `unicorn/prefer-export-from`, `oxc/no-map-spread`,
+ * `eslint/no-useless-catch`, `eslint/no-dupe-keys` — and for **all eight the first label is the
+ * offending node**. Both index-free heuristics were measured against that set and rejected on it:
+ * "take the last label" moves all 453, and "take the narrowest span" moves 234.
+ */
+export const ANCHOR_LABELS: Readonly<Record<string, string>> = {
+  'unicorn/consistent-function-scoping': 'This function does not use any variables from the parent function',
 }
 
 const SEVERITIES: Readonly<Record<string, RawSeverity>> = {
@@ -106,9 +143,6 @@ export function parseOxlintOutput(
 
   const results: RawDiagnostic[] = []
   for (const diagnostic of parsed.diagnostics) {
-    const span = diagnostic.labels?.[0]?.span
-    if (span === undefined) continue
-
     const severity = SEVERITIES[diagnostic.severity] ?? 'warning'
     // A parse error has no rule to name, so `code` is absent rather than unparseable. Dropping it
     // silently (the pre-existing behaviour for `toEngineRuleId(undefined)`) means a file that fails
@@ -121,6 +155,9 @@ export function parseOxlintOutput(
         : toEngineRuleId(diagnostic.code)
     if (engineRuleId === null) continue
 
+    const span = anchorSpan(diagnostic, engineRuleId)
+    if (span === undefined) continue
+
     results.push({
       engineRuleId,
       message: diagnostic.message,
@@ -132,6 +169,15 @@ export function parseOxlintOutput(
     })
   }
   return results
+}
+
+function anchorSpan(diagnostic: OxlintDiagnostic, engineRuleId: string): OxlintSpan | undefined {
+  const wanted = ANCHOR_LABELS[engineRuleId]
+  if (wanted !== undefined) {
+    const declared = diagnostic.labels?.find((label) => label.label === wanted)
+    if (declared !== undefined) return declared.span
+  }
+  return diagnostic.labels?.[0]?.span
 }
 
 function toRepoRelative(filename: string, rootDir: string): string {

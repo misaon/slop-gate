@@ -6,6 +6,7 @@ import { readCliVersion } from './version.ts'
 const version = readCliVersion()
 
 const subCommands = {
+  baseline: () => import('./commands/baseline/index.ts').then((module) => module.baseline),
   check: () => import('./commands/check.ts').then((module) => module.check),
   engines: () => import('./commands/engines.ts').then((module) => module.engines),
   fix: () => import('./commands/fix.ts').then((module) => module.fix),

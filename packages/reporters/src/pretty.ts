@@ -152,14 +152,23 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     // per-diagnostic concept data.
     const total = result.counts.error + result.counts.warn + result.counts.info
 
+    const accepted = result.baseline?.accepted ?? 0
+
     if (total === 0) {
       // The green tick is the one line a reader takes at a glance, so it is withheld the moment an
       // engine could not run. "No issues found" on its own would be true of the engines that ran and
-      // false of the repository, and this is the line nobody reads twice.
+      // false of the repository, and this is the line nobody reads twice. A baseline that accepted
+      // findings withholds it for the same reason, and the clauses compose because both causes can
+      // hold at once.
+      // Kept short on purpose: `frameRow` truncates to the frame's inner width, and this is the one
+      // line a reader takes at a glance, so it has to survive both causes holding at once at width 80.
+      const caveats: string[] = []
+      if (gaps.length > 0) caveats.push(`${plural(gaps.length, 'engine')} could not run`)
+      if (accepted > 0) caveats.push(`${plural(accepted, 'baselined finding')}`)
       lines.push(
-        gaps.length === 0
+        caveats.length === 0
           ? `  ${paint('green', checkMark)}  No issues found`
-          : `  ${paint('yellow', `${gapMark}  No issues found, but ${plural(gaps.length, 'engine')} could not run`)}`,
+          : `  ${paint('yellow', `${gapMark}  No issues found, but ${caveats.join(' and ')}`)}`,
       )
     } else {
       // Text only, no severity glyph: this line sits inside the footer's frame (`frameRow` below),
@@ -198,6 +207,24 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
       for (const [concept, count] of top) lines.push(`    ${padStartDisplay(String(count), 3)} ${multiplySign}  ${concept}`)
     }
 
+    // Printed on every run that read a baseline, including one that accepted nothing: "no baseline
+    // notice" must never be how a reader learns whether a baseline is in force at all.
+    if (result.baseline !== null) {
+      const { path, entries, stale } = result.baseline
+      lines.push(
+        accepted === 0
+          ? `  ${paint('dim', `${path} holds ${plural(entries, 'finding')}, none found here`)}`
+          : `  ${paint('yellow', `${path} accepted ${plural(accepted, 'finding')}, not counted above`)}`,
+      )
+      // Stale entries are the good news a baseline can carry, and the only evidence it is shrinking
+      // rather than turning into permanent debt. Reported, never pruned here — `sgate check` does not
+      // write, so the entry survives until someone decides to remove it.
+      if (stale.length > 0) {
+        lines.push(
+          `  ${paint('dim', `${plural(stale.length, 'accepted finding')} are fixed — run \`sgate baseline update\``)}`,
+        )
+      }
+    }
     if (result.ruleset.suppressed > 0) {
       lines.push(
         `  ${paint('dim', `${plural(result.ruleset.suppressed, 'rule overlap')} resolved — run \`sgate rules conflicts\` for detail.`)}`,

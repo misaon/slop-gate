@@ -23,6 +23,7 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   counts: { error: 0, warn: 0, info: 0 },
   engineFailures: [],
   unavailableEngines: [],
+  baseline: null,
   stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
   ruleset: { enabledConcepts: 5, suppressed: 0, uncovered: [], unknownKeys: [] },
   ...over,
@@ -572,4 +573,81 @@ test('the summary is plain JSON — no Map or Set survives into it', () => {
 
   expect(group).toBeDefined()
   expect(JSON.parse(JSON.stringify(group))).toEqual(group)
+})
+
+const baselineSummary = (over: Partial<NonNullable<CheckResult['baseline']>> = {}): NonNullable<CheckResult['baseline']> => ({
+  path: '.slop-gate/baseline.json',
+  entries: 609,
+  accepted: 609,
+  acceptedBySeverity: { error: 211, warn: 398, info: 0 },
+  acceptedByConcept: [
+    { concept: 'correctness.shadows-outer-binding', count: 128 },
+    { concept: 'slop.double-cast', count: 54 },
+  ],
+  stale: [],
+  ...over,
+})
+
+test('a run with no findings left is not a clean result when a baseline accepted them', () => {
+  // The cardinal sin of this format, in its sharpest form: a model reads an empty report and concludes
+  // the repository is clean while 609 real findings sit in a file it never saw.
+  const output = capture([done([], { baseline: baselineSummary() })])
+
+  expect(output).toContain('INCOMPLETE: a baseline accepted 609 findings — .slop-gate/baseline.json')
+  expect(output).toContain('do not read a clean file or section as clean')
+  expect(coverageLine(output)).toContain('a baseline accepted 609 findings (see INCOMPLETE above)')
+  expect(coverageLine(output)).toContain('so this is not a clean result')
+})
+
+test('names the accepted concepts, so a model does not report a baselined concept as absent', () => {
+  const output = capture([done([], { baseline: baselineSummary() })])
+  expect(output).toContain('  accepted: correctness.shadows-outer-binding — 128')
+  expect(output).toContain('  accepted: slop.double-cast — 54')
+})
+
+test('points at the flag that reveals the accepted findings, not at the one that accepts more', () => {
+  const output = capture([done([], { baseline: baselineSummary() })])
+  expect(output).toContain('`sgate check --no-baseline`')
+  expect(output).not.toContain('sgate baseline create')
+})
+
+test('caps the accepted-concept list and says how many it did not name', () => {
+  const many = Array.from({ length: 12 }, (_, index) => ({ concept: `c.${index}`, count: 12 - index }))
+  const output = capture([done([], { baseline: baselineSummary({ acceptedByConcept: many }) })])
+  expect(output).toContain('  accepted: +4 more concepts')
+})
+
+test('a baseline and an absent engine both correct the coverage line, in one sentence', () => {
+  const output = capture([done([], { unavailableEngines: [absentEngine()], baseline: baselineSummary() })])
+  expect(coverageLine(output)).toContain('1 engine could not run (see INCOMPLETE above) and a baseline accepted 609 findings')
+})
+
+test('corrects the coverage line on a run that also has findings of its own', () => {
+  const output = capture([done([diagnostic()], { baseline: baselineSummary({ accepted: 1 }) })])
+  expect(coverageLine(output)).toContain('a baseline accepted 1 finding (see INCOMPLETE above), so this is not the whole picture')
+})
+
+test('reports a stale entry as a fixed finding, without calling the report incomplete for it', () => {
+  const output = capture([
+    done([], {
+      baseline: baselineSummary({
+        accepted: 0,
+        acceptedByConcept: [],
+        stale: [{ file: 'src/gone.ts', concept: 'slop.double-cast', fingerprint: 'zzzz' }],
+      }),
+    }),
+  ])
+  expect(output).toContain('baseline: 1 accepted finding is fixed — `sgate baseline update` prunes it.')
+  expect(output).not.toContain('INCOMPLETE')
+  expect(coverageLine(output)).toBe('coverage: no findings. Nothing was omitted.')
+})
+
+test('says nothing about a baseline when no baseline was read', () => {
+  expect(capture([done([])])).not.toContain('baseline')
+})
+
+test('a baseline that withheld nothing prints nothing, because there is no omission to correct', () => {
+  const output = capture([done([], { baseline: baselineSummary({ accepted: 0, acceptedByConcept: [], entries: 4 }) })])
+  expect(output).not.toContain('baseline')
+  expect(coverageLine(output)).toBe('coverage: no findings. Nothing was omitted.')
 })

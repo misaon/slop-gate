@@ -205,6 +205,50 @@ test('the fingerprints of one file do not depend on the order the engine reporte
   expect([...inOrder].sort()).toEqual([...reversed].sort())
 })
 
+/**
+ * The sibling of the order-invariance case above, and the one a baseline (spec §12.2) meets on an
+ * ordinary working day rather than only under a nondeterministic engine: a *new* finding of the same
+ * concept appears above two existing ones.
+ *
+ * Permuting a fixed set and growing the set are different edits, and the per-`(concept, file)` counter
+ * broke on both. Measured against the real oxlint binary while building `sgate baseline`: with the
+ * counter keyed per file, adding one non-capturing helper above two others reported 3 new findings and
+ * 2 fixed ones — for an edit that touched neither. Keyed on the window, as it now is, the same edit
+ * reports exactly the 1 finding that was actually written.
+ */
+test('a new finding above two existing ones leaves both their fingerprints alone', () => {
+  const before = "import { a } from 'x'\nimport { b } from 'y'\n"
+  const after = "import { c } from 'z'\nimport { a } from 'x'\nimport { b } from 'y'\n"
+  const runWith = (fileSource: string, raws: readonly RawDiagnostic[]) =>
+    normalizeDiagnostics({
+      engine: 'oxlint',
+      raws,
+      entries,
+      owners,
+      sourceOf: () => fileSource,
+      levelOf: () => undefined,
+    })
+  const unusedImport = (range: { start: number; end: number }): RawDiagnostic =>
+    raw({ engineRuleId: 'no-unused-vars', message: 'unused import', range })
+
+  const original = runWith(before, [unusedImport({ start: 0, end: 21 }), unusedImport({ start: 22, end: 43 })])
+  const grown = runWith(after, [
+    unusedImport({ start: 0, end: 21 }),
+    unusedImport({ start: 22, end: 43 }),
+    unusedImport({ start: 44, end: 65 }),
+  ])
+
+  const kept = original.map((diagnostic) => diagnostic.fingerprint)
+  const now = grown.map((diagnostic) => diagnostic.fingerprint)
+  expect(kept).toHaveLength(2)
+  expect(now).toHaveLength(3)
+  // Both survivors still match, and exactly one fingerprint in the grown run is new. Asserted in both
+  // directions: "the old two are still there" alone would also pass if every fingerprint collapsed to
+  // one value.
+  expect(now).toEqual(expect.arrayContaining(kept))
+  expect(now.filter((fingerprint) => !kept.includes(fingerprint))).toHaveLength(1)
+})
+
 test('gives the same finding in two files distinct fingerprints', () => {
   const [a, b] = run([
     raw({ engineRuleId: 'no-debugger', message: 'debugger', file: 'src/a.ts' }),

@@ -7,7 +7,8 @@ import { isCoverageGap } from '@misaon/slop-gate-reporters'
  * structure of a single `check` result cannot tell different stories.
  */
 export type CoverageGap = {
-  readonly kind: 'engine-failed' | 'engine-unavailable'
+  readonly kind: 'engine-failed' | 'engine-unavailable' | 'baseline-accepted'
+  /** Absent for `baseline-accepted`, which is a property of the run rather than of any one engine. */
   readonly engine?: string
   readonly detail: string
   /** What the caller can do about it, when there is anything. Absent means there is nothing to run. */
@@ -69,6 +70,28 @@ export function coverageGaps(result: CheckResult): CoverageGap[] {
         'Nothing it would have reported appears in this result; do not read an empty findings list as clean.',
       ...(engine.install === undefined ? {} : { remedy: engine.install }),
       concepts: engine.displaced.map((record) => record.concept),
+    })
+  }
+
+  // A baseline is not a *coverage* gap in the literal sense — every engine ran and saw everything — and
+  // it is one here anyway, because this type's job is not to classify causes but to make `clean`
+  // unreachable when the result is not the whole truth. A run whose findings were all accepted returns
+  // an empty `diagnostics` array, and that is exactly the state a caller must not read as a pass.
+  // Reusing the mechanism rather than adding an `outcome` member keeps one definition of "partial":
+  // `checkOutcome` and the `agent` reporter's `coverage:` line stay in agreement by construction, and
+  // the declared `outputSchema` already requires `gaps`, so this cannot be dropped by an edit.
+  //
+  // `--require-engines` is unaffected: `resolveExitCode` reads `unavailableEngines`, not `gaps`, so a
+  // baselined run does not become exit 3.
+  const baseline = result.baseline
+  if (baseline !== null && baseline.accepted > 0) {
+    gaps.push({
+      kind: 'baseline-accepted',
+      detail:
+        `a baseline accepted ${baseline.accepted} finding${baseline.accepted === 1 ? '' : 's'} — ${baseline.path}. ` +
+        'They are real findings, absent from this result; do not read an empty findings list as clean.',
+      remedy: 'sgate check --no-baseline',
+      concepts: baseline.acceptedByConcept.map((group) => group.concept),
     })
   }
 

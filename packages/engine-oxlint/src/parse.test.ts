@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { parseOxlintOutput } from './parse.ts'
+import { ANCHOR_LABELS, parseOxlintOutput } from './parse.ts'
 
 const SAMPLE = JSON.stringify({
   diagnostics: [
@@ -155,4 +155,88 @@ test('maps a diagnostic scope oxlint spells differently from its own rule catalo
     'nextjs/no-img-element',
     'react/exhaustive-deps',
   ])
+})
+
+// Payload captured verbatim from oxlint 1.76.0 on a two-function file. Both labels are real; the
+// first one names a *different* function than the message does.
+const MULTI_LABEL = JSON.stringify({
+  diagnostics: [
+    {
+      message: 'Function `innerHelper` does not capture any variables from its parent scope',
+      code: 'unicorn(consistent-function-scoping)',
+      severity: 'error',
+      causes: [],
+      url: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/consistent-function-scoping.html',
+      help: 'Move `innerHelper` to the outer scope to avoid recreating it on every call.',
+      filename: 'cfs.js',
+      labels: [
+        { label: 'Outer scope where this function is defined', span: { offset: 16, length: 15, line: 1, column: 17 } },
+        {
+          label: 'This function does not use any variables from the parent function',
+          span: { offset: 93, length: 11, line: 4, column: 12 },
+        },
+      ],
+      related: [],
+    },
+  ],
+  number_of_rules: 1,
+})
+
+test('anchors a declared rule on the label naming the offending node, not on the first label', () => {
+  const [found] = parseOxlintOutput(MULTI_LABEL, '/repo')
+  expect(found?.range).toEqual({ start: 93, end: 104 })
+})
+
+test('still takes the first label when the declared anchor text is not among the labels', () => {
+  // What an oxc reword looks like from here. Falling back to the first label reproduces the old
+  // behaviour rather than guessing at an index, so a reword costs the anchor and nothing else.
+  const reworded = MULTI_LABEL.replace('This function does not use any variables from the parent function', 'Reworded upstream')
+  expect(parseOxlintOutput(reworded, '/repo')[0]?.range).toEqual({ start: 16, end: 31 })
+})
+
+test('leaves every rule with no declared anchor on its first label', () => {
+  // The measured property this table protects: for every multi-label rule other than the ones named
+  // in `ANCHOR_LABELS`, label 0 is the offending node, so nothing may move them.
+  const twoLabels = JSON.stringify({
+    diagnostics: [
+      {
+        message: "Variable 'x' is used before its declaration",
+        code: 'eslint(no-use-before-define)',
+        severity: 'error',
+        filename: 'a.ts',
+        labels: [
+          { label: 'used here', span: { offset: 10, length: 1 } },
+          { label: 'defined here', span: { offset: 40, length: 1 } },
+        ],
+      },
+      {
+        message: 'Key is duplicated',
+        code: 'eslint(no-dupe-keys)',
+        severity: 'error',
+        filename: 'a.ts',
+        labels: [
+          { label: 'Key is first defined here', span: { offset: 4, length: 1 } },
+          { label: 'and duplicated here', span: { offset: 9, length: 1 } },
+        ],
+      },
+    ],
+    number_of_rules: 2,
+  })
+  expect(parseOxlintOutput(twoLabels, '/repo').map((d) => d.range)).toEqual([
+    { start: 10, end: 11 },
+    { start: 4, end: 5 },
+  ])
+})
+
+test('anchors on the declared label wherever oxlint puts it in the array', () => {
+  // Label order is not sorted by offset in oxlint's own output (`no-duplicate-imports` emits
+  // 4:40 before 3:31), so matching on the text rather than on an index is what keeps a reordering
+  // upstream from silently moving a finding.
+  const reversed = JSON.parse(MULTI_LABEL) as { diagnostics: Array<{ labels: unknown[] }> }
+  reversed.diagnostics[0]!.labels.reverse()
+  expect(parseOxlintOutput(JSON.stringify(reversed), '/repo')[0]?.range).toEqual({ start: 93, end: 104 })
+})
+
+test('declares an anchor only for rules whose first label is not the offending node', () => {
+  expect(Object.keys(ANCHOR_LABELS)).toEqual(['unicorn/consistent-function-scoping'])
 })
