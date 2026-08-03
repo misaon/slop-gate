@@ -339,7 +339,9 @@ test('typechecks every package of a workspace with no root project of its own', 
     const found = await collect(engine.run({ files: [] }, handle, { rootDir: repo, tmpDir: join(repo, '.cache') }, AbortSignal.timeout(120_000)))
     await handle.dispose()
 
-    expect(found.map((d) => d.file)).toEqual([join('packages', 'broken', 'src', 'index.ts')])
+    // A literal POSIX path, not `join`: `parseTscOutput` runs every file through `toRepoRelative`, so the
+    // separator is `/` on Windows too — composing the expectation with `join` is what broke this on CI.
+    expect(found.map((d) => d.file)).toEqual(['packages/broken/src/index.ts'])
     expect(found[0]?.message).toContain('not assignable')
   } finally {
     await rm(repo, { recursive: true, force: true })
