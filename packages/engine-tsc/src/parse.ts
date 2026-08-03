@@ -10,8 +10,8 @@ import { createLineIndex, EngineError, toRepoRelative, type LineIndex, type RawD
 export const TYPE_ERROR_RULE_ID = 'type-error'
 
 /**
- * `tsc`'s plain-text (non-`--pretty`) diagnostic format, reverse-engineered against the real 5.9.3 binary rather
- * than assumed (`.superpowers/engine-tsc-report.md` holds the captured-output log). Two shapes:
+ * `tsc`'s plain-text (non-`--pretty`) diagnostic format, reverse-engineered by capturing the real 5.9.3 binary's
+ * stdout rather than assumed. Every shape below was observed in that capture; none was inferred. Two shapes:
  *
  * - **Located**: `<file>(<line>,<column>): error TS<code>: <message>` — a real source position.
  * - **Global**: `error TS<code>: <message>` — no location at all, observed for an unreadable tsconfig (TS5058,

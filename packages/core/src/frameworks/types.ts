@@ -49,17 +49,6 @@ export type FrameworkMeasurement = {
 }
 
 /**
- * A framework's consequence for one of the two consumers.
- *
- * `disable-concept` and `engine-setting` are **set contributions** and neither can express a conflict
- * (spec §23.3). `enable-concept` can — two profiles may name the same concept at different levels, and
- * a union has no meaning for a scalar — and is admitted anyway, made safe by two properties rather than
- * by a precedence table: the merge is still a join, over the level chain rather than the powerset (`off`
- * absorbs, otherwise the strictest wins — commutative, associative and idempotent exactly as the union
- * was, `frameworkRuleLayers`), and the level is a *floor*, never a ceiling, because the cascade drops an
- * addition that would lower what an earlier layer already set (`materialize`).
- */
-/**
  * Repo-relative POSIX globs the adjustment's level is confined to, matched by the *same* `picomatch`
  * pass `overrides` already runs (`config/resolve.ts`), as another entry in that list with its own
  * `source` rather than a second path matcher with its own rounding errors.
@@ -79,6 +68,17 @@ export type FrameworkMeasurement = {
  */
 type PathScope = { readonly paths?: readonly string[] }
 
+/**
+ * A framework's consequence for one of the two consumers.
+ *
+ * `disable-concept` and `engine-setting` are **set contributions** and neither can express a conflict
+ * (spec §23.3). `enable-concept` can — two profiles may name the same concept at different levels, and
+ * a union has no meaning for a scalar — and is admitted anyway, made safe by two properties rather than
+ * by a precedence table: the merge is still a join, over the level chain rather than the powerset (`off`
+ * absorbs, otherwise the strictest wins — commutative, associative and idempotent exactly as the union
+ * was, `frameworkRuleLayers`), and the level is a *floor*, never a ceiling, because the cascade drops an
+ * addition that would lower what an earlier layer already set (`materialize`).
+ */
 export type FrameworkAdjustment =
   | ({ readonly kind: 'disable-concept'; readonly concept: ConceptId; readonly reason: string } & PathScope)
   | ({
@@ -99,7 +99,7 @@ export type FrameworkAdjustment =
       readonly reason: string
     }
 
-export type ManifestDependency = { readonly name: string; readonly field: DependencyField }
+type ManifestDependency = { readonly name: string; readonly field: DependencyField }
 
 export type Manifest = {
   /** Repo-relative POSIX path of the `package.json` itself. */

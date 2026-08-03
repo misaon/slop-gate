@@ -14,7 +14,7 @@
  * verbatim reads as a real directive too — deliberate, the same trade-off ESLint and oxlint accept, because
  * distinguishing "inside a comment" from "inside a string" is a per-language parser.
  */
-export type SuppressionKind = 'disable-next-line' | 'disable-line' | 'disable-file'
+type SuppressionKind = 'disable-next-line' | 'disable-line' | 'disable-file'
 
 export type SuppressionDirective = {
   /** Block `disable`/`enable` pairs are deliberately not supported — they are the form most often opened and

@@ -32,7 +32,7 @@ export type RuleOptions = readonly unknown[]
  */
 export type RuleSetting = RuleLevel | readonly [RuleLevel, ...RuleOptions]
 
-export type EngineRuleKey = `${EngineId}/${string}`
+type EngineRuleKey = `${EngineId}/${string}`
 
 export type RuleKey = ConceptId | EngineRuleKey
 
@@ -45,7 +45,7 @@ export type OverrideBlock = {
 
 export type PresetName = 'recommended' | 'strict' | 'slop'
 
-export type EngineOptions = { readonly enabled?: boolean | 'auto' }
+type EngineOptions = { readonly enabled?: boolean | 'auto' }
 
 /**
  * What to do about findings in machine-written files (`discovery/detect-generated.ts`). `'skip'` is the default

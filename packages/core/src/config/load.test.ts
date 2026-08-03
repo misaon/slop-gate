@@ -115,10 +115,11 @@ test('prefers .ts over .js when both exist', async () => {
 // CommonJS-or-ESM detection, so the real MODULE_TYPELESS_PACKAGE_JSON warning never actually fires
 // under vitest regardless of this fix — confirmed by running the existing CLI-level fixtures
 // (which already combine a typeless `package.json` with a `.ts` config) under `vitest run` and
-// finding zero occurrences even before this change existed. The real, load-bearing proof that Node
-// itself no longer prints it is the external, plain-`node` scratch-project verification in
-// `.superpowers/rules-commands-report.md`; these two tests instead pin the wrapper's own
-// removal/filter/restore contract, which vitest can observe directly and reliably.
+// finding zero occurrences even before this change existed. That Node itself no longer prints it was
+// proven outside vitest instead, and this is the result: a plain-`node` scratch project pairing a
+// typeless `package.json` with a `.ts` config prints the warning, and prints nothing once the wrapper
+// is installed. These two tests pin the wrapper's own removal/filter/restore contract, which vitest
+// can observe directly and reliably.
 
 test('suppresses only the MODULE_TYPELESS_PACKAGE_JSON code, letting any other warning code through', async () => {
   const seen: string[] = []
@@ -163,6 +164,111 @@ test('restores the previous listeners afterwards, so a later unrelated warning s
   } finally {
     process.removeListener('warning', listener)
   }
+})
+
+test('two overlapping suppressions still restore the original listeners, in either finish order', async () => {
+  // The non-re-entrant version installed a filter closing over "whatever was installed when *I*
+  // started". Two in flight at once and the inner one finishing second reinstalled the outer one's
+  // filter as the only 'warning' listener — for the rest of the process, which is the opposite of
+  // the scoping this wrapper's whole design is for.
+  const before = process.listeners('warning')
+
+  const outerGate = Promise.withResolvers<void>()
+  const innerGate = Promise.withResolvers<void>()
+  const outer = suppressModuleTypelessPackageJsonWarning(() => outerGate.promise)
+  const inner = suppressModuleTypelessPackageJsonWarning(() => innerGate.promise)
+
+  outerGate.resolve()
+  await outer
+  innerGate.resolve()
+  await inner
+
+  expect(process.listeners('warning')).toEqual(before)
+})
+
+test('a suppression still in flight keeps filtering after an overlapping one finishes', async () => {
+  const seen: string[] = []
+  const listener = (warning: NodeJS.ErrnoException): void => {
+    seen.push(warning.code ?? warning.message)
+  }
+  process.on('warning', listener)
+
+  const gate = Promise.withResolvers<void>()
+  try {
+    const outer = suppressModuleTypelessPackageJsonWarning(() => gate.promise)
+    await suppressModuleTypelessPackageJsonWarning(async () => {})
+
+    process.emitWarning('still loading', { code: 'MODULE_TYPELESS_PACKAGE_JSON' })
+    process.emitWarning('unrelated', { code: 'STILL_LOADING_OTHER_CODE' })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    gate.resolve()
+    await outer
+  } finally {
+    process.removeListener('warning', listener)
+  }
+
+  expect(seen).toEqual(['STILL_LOADING_OTHER_CODE'])
+})
+
+test('rejects a config key whose value is the wrong shape, naming the key and the file', async () => {
+  // `extends: 'recommended'` reads as correct to a human and is the single most likely mistake in
+  // this file. Unvalidated it reached `resolveConfig`, which iterated the string character by
+  // character and failed with a bare `Cannot convert undefined or null to object` — a TypeError's
+  // own words, naming neither the config file nor the key.
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { extends: 'recommended' }`)
+
+  await expect(loadConfig(dir)).rejects.toThrow(/slop-gate\.config\.ts/)
+  await expect(loadConfig(dir)).rejects.toThrow(/`extends`/)
+  await expect(loadConfig(dir)).rejects.not.toThrow(/Cannot convert/)
+})
+
+test('rejects a single override block written where a list belongs', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { overrides: { files: ['a'], rules: {} } }`)
+  await expect(loadConfig(dir)).rejects.toThrow(/`overrides`/)
+})
+
+test('rejects a string where a list of ignore patterns belongs, rather than reading it as characters', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { ignore: 'dist' }`)
+  await expect(loadConfig(dir)).rejects.toThrow(/`ignore`/)
+})
+
+test('rejects a non-object where a rule map belongs', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { rules: 'nope' }`)
+  await expect(loadConfig(dir)).rejects.toThrow(/`rules`/)
+})
+
+test('accepts every documented key at its documented shape', async () => {
+  // The other half of the shape check: a valid config must not be refused by it. Every key of
+  // `SlopGateConfig` at once, so a validator that is too strict about any one of them fails here.
+  await writeFile(
+    join(dir, 'slop-gate.config.ts'),
+    `export default {
+       extends: ['recommended'],
+       workspaces: 'auto',
+       rules: { 'style.no-var': 'error', 'oxlint/no-debugger': ['warn', 'smart'] },
+       overrides: [{ files: ['src/**'], rules: { 'style.no-var': 'off' } }],
+       owners: { 'correctness.parse-error': 'oxlint' },
+       engines: { oxlint: { enabled: true } },
+       ignore: ['dist/**'],
+       generated: 'skip',
+     }`,
+  )
+
+  const loaded = await loadConfig(dir)
+  expect(loaded?.config.workspaces).toBe('auto')
+  expect(loaded?.config.generated).toBe('skip')
+  expect(loaded?.config.overrides?.[0]?.files).toEqual(['src/**'])
+})
+
+test('accepts an explicit list of workspaces as well as auto', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { workspaces: ['packages/*'] }`)
+  expect((await loadConfig(dir))?.config.workspaces).toEqual(['packages/*'])
+})
+
+test('reports an unknown top-level key rather than accepting it in silence', async () => {
+  await writeFile(join(dir, 'slop-gate.config.ts'), `export default { ignoer: ['dist/**'] }`)
+  await expect(loadConfig(dir)).rejects.toThrow(/`ignoer`/)
 })
 
 test('prefers .ts over .mts when both exist', async () => {

@@ -3,7 +3,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { writeFileAtomic } from '../cache/atomic-write.ts'
 import { hashJson } from '../cache/keys.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
-import type { SlopGateConfig } from '../config/types.ts'
+import type { RuleKey, SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Edit, FixKind } from '../diagnostics/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
 import type { Engine, EngineRuleSelection, FixTarget, RunContext } from '../engine/types.ts'
@@ -23,7 +23,7 @@ import { parseRuleRefKey, ruleRefKey, type EngineId, type RuleEntry } from '../r
 import { runCheck } from './check.ts'
 import { resolveRun } from './resolve-run.ts'
 
-export const DEFAULT_MAX_PASSES = 10
+const DEFAULT_MAX_PASSES = 10
 
 export type FixOptions = {
   rootDir: string
@@ -43,7 +43,7 @@ export type FixOptions = {
   worktree?: InspectWorktreeOptions
 }
 
-export type FixedFile = {
+type FixedFile = {
   readonly file: string
   /** Every rule that contributed an applied edit to this file, deduplicated and sorted. */
   readonly rules: readonly string[]
@@ -52,7 +52,7 @@ export type FixedFile = {
   readonly diff: string
 }
 
-export type FixRefusal = {
+type FixRefusal = {
   readonly reason: 'dirty-worktree' | 'no-git' | 'worktree-unknown' | 'engine-failed'
   readonly message: string
 }
@@ -313,6 +313,9 @@ type DeriveContext = {
   signal: AbortSignal
 }
 
+/** An engine that implements the optional `deriveFixes`, so calling it needs no non-null assertion. */
+type FixDeriver = Engine & { readonly deriveFixes: NonNullable<Engine['deriveFixes']> }
+
 /**
  * Asks every engine implementing `Engine.deriveFixes` for edits covering the diagnostics it owns that
  * arrived without one. Running here rather than inside the engine's own `run()` makes the targets
@@ -327,7 +330,7 @@ type DeriveContext = {
  * diagnostic and disappear with it when it is suppressed.
  */
 async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveContext): Promise<Diagnostic[]> {
-  const providers = ctx.engines.filter((engine) => engine.deriveFixes !== undefined)
+  const providers = ctx.engines.filter((engine): engine is FixDeriver => engine.deriveFixes !== undefined)
   if (providers.length === 0) return [...diagnostics]
 
   const fixKinds = new Map(ctx.entries.map((entry) => [ruleRefKey(entry), entry.fixKind]))
@@ -372,7 +375,7 @@ async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveC
       fixTier: ctx.tier,
     }
     const selection = ctx.selectionByEngine.get(engine.id) ?? new Map()
-    for (const derived of await engine.deriveFixes!(targets, selection, context, ctx.signal)) {
+    for (const derived of await engine.deriveFixes(targets, selection, context, ctx.signal)) {
       editsByKey.set(`${engine.id}\0${derived.file}\0${derived.engineRuleId}`, derived.edits)
     }
   }
@@ -527,7 +530,7 @@ function oscillationDiagnostic(
   resolver: RuleSetResolver,
 ): Diagnostic | null {
   const concept = 'config.fix-oscillation'
-  const level = resolver.base.rules.get(concept as never)?.level
+  const level = resolver.base.rules.get(concept as RuleKey)?.level
   if (level === undefined || level === 'off') return null
 
   const message =

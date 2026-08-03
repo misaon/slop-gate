@@ -3,6 +3,7 @@ import { access, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, parse as parsePath } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ConfigError } from '../errors.ts'
+import { PRESETS } from './presets.ts'
 import type { SlopGateConfig } from './types.ts'
 
 const CONFIG_BASENAMES = [
@@ -31,6 +32,49 @@ export async function findConfigFile(cwd: string): Promise<string | null> {
   }
 }
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const isStringList = (value: unknown): boolean => Array.isArray(value) && value.every((item) => typeof item === 'string')
+
+/** What one top-level key must look like, and how to say so to whoever wrote it. */
+type KeyShape = { readonly expected: string; readonly ok: (value: unknown) => boolean }
+
+/**
+ * The coarse shape of every `SlopGateConfig` key, checked before the cast in `loadConfig` — the only
+ * point where a hand-written module becomes a typed value the rest of the run trusts.
+ *
+ * **Coarse on purpose, and it stops exactly where `RuleOptions` says core's opinion stops.** A rule
+ * map's *values* are not checked here: the engine adapter that owns the elected rule is what gives an
+ * option shape meaning, and oxlint refuses to parse its own config and names the offending key.
+ * What is checked is every place a wrong shape is silently absorbed or crashes with a TypeError's own
+ * words — `extends: 'recommended'` iterated as characters, `ignore: 'dist'` read as five patterns, a
+ * single `overrides` block written where the list belongs.
+ *
+ * Declared as a `Record` over `keyof SlopGateConfig` via `satisfies`, so adding a config key without
+ * a shape for it does not compile.
+ */
+const CONFIG_SHAPE = new Map<string, KeyShape>(
+  Object.entries({
+    extends: {
+      expected: `an array of preset names (${Object.keys(PRESETS).join(', ')})`,
+      ok: (value) => Array.isArray(value) && value.every((name) => typeof name === 'string' && Object.hasOwn(PRESETS, name)),
+    },
+    workspaces: { expected: "'auto' or an array of directory globs", ok: (value) => value === 'auto' || isStringList(value) },
+    rules: { expected: 'an object mapping rule keys to levels', ok: isPlainObject },
+    overrides: {
+      expected: 'an array of `{ files, rules }` blocks',
+      ok: (value) =>
+        Array.isArray(value) &&
+        value.every((block) => isPlainObject(block) && isStringList(block.files) && (block.rules === undefined || isPlainObject(block.rules))),
+    },
+    owners: { expected: 'an object mapping concept ids to engine ids', ok: isPlainObject },
+    engines: { expected: 'an object mapping engine ids to their options', ok: isPlainObject },
+    ignore: { expected: 'an array of path globs', ok: isStringList },
+    generated: { expected: "'skip' or 'check'", ok: (value) => value === 'skip' || value === 'check' },
+  } satisfies Record<keyof SlopGateConfig, KeyShape>),
+)
+
 export async function loadConfig(
   cwd: string,
 ): Promise<{ config: SlopGateConfig; file: string } | null> {
@@ -43,8 +87,24 @@ export async function loadConfig(
   if (exported === undefined) {
     throw new ConfigError(`${file} has no default export. Use \`export default defineConfig({ ... })\`.`)
   }
-  if (typeof exported !== 'object' || exported === null || Array.isArray(exported)) {
-    throw new ConfigError(`${file} must export a configuration object, received ${typeof exported}.`)
+  if (!isPlainObject(exported)) {
+    throw new ConfigError(
+      `${file} must export a configuration object, received ${Array.isArray(exported) ? 'an array' : typeof exported}.`,
+    )
+  }
+
+  for (const [key, value] of Object.entries(exported)) {
+    const shape = CONFIG_SHAPE.get(key)
+    if (shape === undefined) {
+      throw new ConfigError(
+        `${file} sets an unknown top-level key \`${key}\`. Known keys: ${[...CONFIG_SHAPE.keys()].join(', ')}.`,
+      )
+    }
+    // `undefined` is how an optional key is spelled when it is computed, so it has to mean absent
+    // rather than "present and the wrong shape".
+    if (value !== undefined && !shape.ok(value)) {
+      throw new ConfigError(`${file}: \`${key}\` must be ${shape.expected}.`)
+    }
   }
 
   return { config: exported as SlopGateConfig, file }
@@ -124,14 +184,28 @@ const MODULE_TYPELESS_WARNING_CODE = 'MODULE_TYPELESS_PACKAGE_JSON'
  *
  * Matches on `warning.code`, never on `warning.message`: the message is Node's prose to reword at any time,
  * `code` is the stable documented identifier (see nodejs.org/api/module.html#module_typeless_package_json).
+ *
+ * **Re-entrant, via a depth count over one shared filter rather than a filter per call.** With a filter
+ * per call, each one captured "whatever was installed when *I* started", so two overlapping calls
+ * finishing in the other order reinstalled the first call's filter as the process's only 'warning'
+ * listener and left it there — the exact opposite of the scoping above. One filter and a count restore
+ * the real listeners once, when the last call in flight finishes.
  */
+let suppressionDepth = 0
+let suppressedListeners: Array<(warning: Error) => void> = []
+
+const filterWarning = (warning: NodeJS.ErrnoException): void => {
+  if (warning.code === MODULE_TYPELESS_WARNING_CODE) return
+  for (const listener of suppressedListeners) listener(warning)
+}
+
 export async function suppressModuleTypelessPackageJsonWarning<T>(fn: () => Promise<T>): Promise<T> {
-  const previousListeners = process.listeners('warning') as Array<(warning: Error) => void>
-  process.removeAllListeners('warning')
-  process.on('warning', (warning: NodeJS.ErrnoException) => {
-    if (warning.code === MODULE_TYPELESS_WARNING_CODE) return
-    for (const listener of previousListeners) listener(warning)
-  })
+  if (suppressionDepth === 0) {
+    suppressedListeners = process.listeners('warning') as Array<(warning: Error) => void>
+    process.removeAllListeners('warning')
+    process.on('warning', filterWarning)
+  }
+  suppressionDepth++
 
   try {
     return await fn()
@@ -139,17 +213,17 @@ export async function suppressModuleTypelessPackageJsonWarning<T>(fn: () => Prom
     await new Promise<void>((resolve) => {
       setImmediate(resolve)
     })
-    process.removeAllListeners('warning')
-    for (const listener of previousListeners) process.on('warning', listener)
+    suppressionDepth--
+    if (suppressionDepth === 0) {
+      process.removeAllListeners('warning')
+      for (const listener of suppressedListeners) process.on('warning', listener)
+      suppressedListeners = []
+    }
   }
 }
 
 function isModuleNotFound(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { code?: unknown }).code === 'ERR_MODULE_NOT_FOUND'
-  )
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ERR_MODULE_NOT_FOUND'
 }
 
 function describe(error: unknown): string {

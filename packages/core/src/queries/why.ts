@@ -1,4 +1,4 @@
-import { isConceptId, SLOP_GATE_SERVICED_CONCEPTS } from '../concepts/catalogue.ts'
+import { isConceptId, SLOP_GATE_SERVICED_CONCEPTS, type ConceptId } from '../concepts/catalogue.ts'
 import type { RuleLevel } from '../config/types.ts'
 import type {
   EnabledLevel,
@@ -109,7 +109,7 @@ export function explainConcept(concept: string, resolved: ResolvedRun): ConceptW
     servicedBySlopGate: SLOP_GATE_SERVICED_CONCEPTS.has(concept),
     enablement: resolveEnablement(resolver, concept),
     pinnedOwner: resolver.base.pinnedOwners[concept],
-    candidates: entries.filter((entry) => entry.concepts.includes(concept as never)),
+    candidates: entries.filter((entry) => entry.concepts.includes(concept as ConceptId)),
     ownership: election.owners.get(concept) ?? [],
     overlaps: election.overlaps.filter((record) => record.concept === concept),
     ineligible: election.ineligible.filter((record) => record.concept === concept),

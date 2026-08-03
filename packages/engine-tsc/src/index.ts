@@ -115,11 +115,11 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       return materializeTscConfig(selection, tsconfigPath)
     },
 
-    run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
-      // `batch` is accepted only to satisfy `Engine.run`'s shape — a project-granularity engine takes its file
-      // set from its own tsconfig's `include`/`files`. Passing `batch.files` alongside `-p` is rejected
-      // outright: confirmed directly, `tsc -p tsconfig.json src/a.ts` fails with "error TS5042: Option
-      // 'project' cannot be mixed with source files on a command line."
+    run(_batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
+      // Underscored because it is genuinely unread, accepted only to satisfy `Engine.run`'s shape — a
+      // project-granularity engine takes its file set from its own tsconfig's `include`/`files`. Passing those
+      // files alongside `-p` is rejected outright: confirmed directly, `tsc -p tsconfig.json src/a.ts` fails
+      // with "error TS5042: Option 'project' cannot be mixed with source files on a command line."
       return execute(required(), handle, cacheDir, context, signal)
     },
   }

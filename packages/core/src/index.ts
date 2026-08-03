@@ -22,7 +22,16 @@ export { ConfigError, EngineError } from './errors.ts'
 
 export { ENGINE_PREFERENCE, ruleRefKey, type EngineId, type RuleEntry, type RuleRef } from './registry/types.ts'
 export { RULE_ENTRIES } from './registry/entries.ts'
-export type { ConceptOwnership, IneligibleCandidate, RuleOverlap } from './registry/elect.ts'
+// `IneligibilityReason` and `OverlapReason` have no importer. They stay listed only because dropping
+// `export` in `registry/elect.ts` is the fix and that file is being edited elsewhere; remove them here
+// and there together.
+export type {
+  ConceptOwnership,
+  IneligibilityReason,
+  IneligibleCandidate,
+  OverlapReason,
+  RuleOverlap,
+} from './registry/elect.ts'
 
 export {
   splitRuleSetting,
@@ -79,7 +88,9 @@ export type {
 } from './engine/types.ts'
 export { LEVEL_TO_SEVERITY } from './engine/normalize.ts'
 
-export { runCheck, streamCheck, type CheckEvent, type CheckResult } from './run/check.ts'
+// `EngineCacheStats` has no importer either, and for the same reason: the `export` to drop lives in
+// `run/check.ts`.
+export { runCheck, streamCheck, type CheckEvent, type CheckResult, type EngineCacheStats } from './run/check.ts'
 export type { MeasuredPhase, TimingReport } from './run/timing.ts'
 export { resolveRun, type ResolvedRun, type UnavailableEngine } from './run/resolve-run.ts'
 

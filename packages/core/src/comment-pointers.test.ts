@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync, globSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,6 +33,13 @@ const ILLUSTRATIVE = new Set([
   'packages/emails',
   'packages/ui/**',
 ])
+
+/**
+ * Dot-directory roots a comment may name that are not part of this repository: the directory `sgate`
+ * creates in the repo it analyses, a git internal, a temp tree a test builds, a user's docs tooling,
+ * and `.json` as prose about a file extension. `.github` needs no entry — this repo tracks one.
+ */
+const FOREIGN_ROOTS = new Set(['.git', '.json', '.slop-gate', '.test-tmp', '.vitepress'])
 
 type Pointer = { readonly at: string; readonly text: string }
 
@@ -147,6 +155,38 @@ test('every repo-relative path in a comment resolves, or is a declared illustrat
     .filter((pointer) => !ILLUSTRATIVE.has(pointer.text) && !resolves(pointer))
     .map((pointer) => `${pointer.at} -> ${pointer.text}`)
   expect([...new Set(broken)].sort(compareStrings)).toEqual([])
+})
+
+/**
+ * `existsSync` cannot catch this class of pointer, so the check above cannot either: a gitignored
+ * scratch directory resolves on the machine that wrote the comment and on no other clone, which reads
+ * as a valid pointer here and as nothing anywhere else. Asked of git rather than the filesystem, so
+ * the answer is the same on every checkout.
+ */
+test('no comment points into a dot-directory this repository does not track', () => {
+  const tracked = new Set(
+    execFileSync('git', ['ls-files', '-z'], { cwd: repoRoot, encoding: 'utf8' })
+      .split('\0')
+      .filter((path) => path !== '')
+      .map((path) => path.split('/')[0] as string),
+  )
+  const shape = /(?<![\w/.@-])(\.[A-Za-z0-9_-]+)\//g
+
+  const mentioned = new Set<string>()
+  const broken: string[] = []
+  for (const file of scannedFiles()) {
+    for (const { line, text } of commentLines(readFileSync(resolve(repoRoot, file), 'utf8'))) {
+      for (const match of text.matchAll(shape)) {
+        const root = match[1] as string
+        mentioned.add(root)
+        if (FOREIGN_ROOTS.has(root) || tracked.has(root)) continue
+        broken.push(`${file}:${line} -> ${root}`)
+      }
+    }
+  }
+
+  expect([...new Set(broken)].sort(compareStrings)).toEqual([])
+  expect([...FOREIGN_ROOTS].filter((root) => !mentioned.has(root)).sort(compareStrings)).toEqual([])
 })
 
 test('no illustration is listed that no comment mentions any more', () => {

@@ -42,7 +42,7 @@ export type Capability = 'types' | 'project-graph' | 'workspace-graph'
 export type FixDomain = 'imports' | 'statements' | 'expressions' | 'jsx' | 'formatting'
 
 /** 0 = native, 1 = native with type information, 2 = JavaScript or WebAssembly. */
-export type EngineTier = 0 | 1 | 2
+type EngineTier = 0 | 1 | 2
 
 /**
  * Attributes one finding of a multi-concept rule to a single concept. `concepts` says what a rule may
@@ -57,7 +57,9 @@ export type ClassifyRule = {
 export type RuleEntry = {
   readonly engine: EngineId
   readonly engineRuleId: string
-  readonly concepts: readonly ConceptId[]
+  /** At least one, always: a rule owning no concept can win no election and classify no finding, so it
+   *  would sit in the registry doing nothing. A tuple makes that state unrepresentable. */
+  readonly concepts: readonly [ConceptId, ...ConceptId[]]
   readonly classify?: readonly ClassifyRule[]
   readonly tier: EngineTier
   /** Tiebreaker for conflicting fixes. Reserved: not consulted during arbitration in M0. */

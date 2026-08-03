@@ -18,7 +18,7 @@ export type RawSeverity = 'error' | 'warning' | 'advice' | 'info'
  * would be a second, unreviewed source of truth for the one decision the three-tier design rests on,
  * and a rule the registry says is unfixable could smuggle an edit past `sgate rules`.
  */
-export type RawFix = {
+type RawFix = {
   readonly description?: string
   readonly edits: readonly Edit[]
 }
@@ -63,7 +63,7 @@ export type EngineRuleSetting = readonly [RuleLevel, ...RuleOptions]
  *  published contract and a caller can construct one by hand. */
 export type EngineRuleSelection = ReadonlyMap<string, EngineRuleSetting>
 
-export type EngineCapabilities = {
+type EngineCapabilities = {
   readonly languages: readonly LanguageId[]
   readonly granularity: 'file' | 'project'
   readonly provides: readonly Capability[]

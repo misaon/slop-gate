@@ -1,7 +1,7 @@
 import { hashContent } from '../cache/keys.ts'
 import { compareStrings } from '../ordering.ts'
 
-export type Oscillation = {
+type Oscillation = {
   /** Every rule that applied an edit to this file between the repeated state and now, sorted. */
   readonly rules: readonly string[]
   /** How many passes the cycle spans. Two rules trading one edit each gives 2. */

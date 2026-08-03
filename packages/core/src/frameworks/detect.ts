@@ -90,7 +90,7 @@ function parseManifest(path: string, workspace: string, source: string): Manifes
  * parsed once. Bounded by the workspace count rather than the file count (spec §23.1's cost argument)
  * and it walks nothing — `inventory.files` is already sorted, which is this pass's determinism.
  */
-export async function buildDetectionContext(
+async function buildDetectionContext(
   inventory: FileInventory,
   readText?: (path: string) => Promise<string | null>,
 ): Promise<DetectionContext> {

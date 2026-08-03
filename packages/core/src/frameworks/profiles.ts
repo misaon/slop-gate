@@ -4,7 +4,7 @@ import { RULE_ENTRIES } from '../registry/entries.ts'
 import { defineProfile, dependencyEvidence, inventoryFilesMatching, relativeToWorkspace } from './detect.ts'
 import { extractStringLiteral } from './literal.ts'
 import { resolveJsx, TSCONFIG, type JsxTransform } from './tsconfig.ts'
-import type { AnyFrameworkProfile, FrameworkAdjustment } from './types.ts'
+import type { AnyFrameworkProfile, FrameworkAdjustment, FrameworkEvidence } from './types.ts'
 
 /** Orders two `[file, …]` pairs, so an evidence list never depends on `Map` insertion order. */
 const byFile = (a: readonly [string, unknown], b: readonly [string, unknown]): number => compareStrings(a[0], b[0])
@@ -590,11 +590,12 @@ const testFramework = defineProfile<TestFrameworkLayout>({
   summary: 'Test framework — elects the scope whose plugin rules are not duplicates',
   async detect(context) {
     const found = TEST_SCOPES.map((scope) => ({ scope, evidence: dependencyEvidence(context, [scope]) })).filter(
-      (candidate) => candidate.evidence !== null,
+      (candidate): candidate is { scope: (typeof TEST_SCOPES)[number]; evidence: FrameworkEvidence } =>
+        candidate.evidence !== null,
     )
-    const disabledScopes = found.length === 1 ? TEST_SCOPES.filter((scope) => scope !== found[0]!.scope) : [...TEST_SCOPES]
+    const disabledScopes = found.length === 1 ? TEST_SCOPES.filter((scope) => scope !== found[0]?.scope) : [...TEST_SCOPES]
     return {
-      evidence: found.map((candidate) => candidate.evidence!),
+      evidence: found.map((candidate) => candidate.evidence),
       parameters: { disabledScopes, jest: found.some((candidate) => candidate.scope === 'jest') },
     }
   },

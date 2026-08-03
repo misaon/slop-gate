@@ -6,7 +6,7 @@ import { ConfigError } from '../errors.ts'
 import { compareStrings } from '../ordering.ts'
 import { BASELINE_VERSION, type BaselineEntry, type BaselineFile } from './types.ts'
 
-export const BASELINE_FILENAME = 'baseline.json'
+const BASELINE_FILENAME = 'baseline.json'
 
 /**
  * `.slop-gate/baseline.json`, as spec §12.2 names it — beside the cache rather than at the repository root,
@@ -64,19 +64,19 @@ export function parseBaseline(text: string, path: string): BaselineFile {
     throw new ConfigError(`${path} must hold a json object.`)
   }
   const record = parsed as Record<string, unknown>
-  if (record.version !== BASELINE_VERSION) {
+  if (record['version'] !== BASELINE_VERSION) {
     throw new ConfigError(
-      `${path} is version ${String(record.version)}; this slop-gate reads version ${BASELINE_VERSION}. ` +
+      `${path} is version ${String(record['version'])}; this slop-gate reads version ${BASELINE_VERSION}. ` +
         `Regenerate it with \`sgate baseline create --force\`.`,
     )
   }
-  if (!Array.isArray(record.accepted)) {
+  if (!Array.isArray(record['accepted'])) {
     throw new ConfigError(`${path} has no \`accepted\` array.`)
   }
   // Sorted on the way in, not only on the way out. The file is hand-editable, and everything a run derives from it
   // in order — the stale list a report prints — has to be the same for one repository state whether or not someone
   // shuffled the lines.
-  const accepted = sortEntries(record.accepted.map((raw, index) => parseEntry(raw, path, index)))
+  const accepted = sortEntries(record['accepted'].map((raw, index) => parseEntry(raw, path, index)))
   return { version: BASELINE_VERSION, accepted }
 }
 

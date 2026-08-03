@@ -268,9 +268,9 @@ test('--no-cache reaches the command as cache: false through citty real argv par
   // have exposed that: it skips the parser and lands directly on the field the bug prevented
   // `--no-cache` from ever reaching.
   const argsDef = check.args as never
-  expect(parseArgs([], argsDef).cache).toBe(true)
-  expect(parseArgs(['--no-cache'], argsDef).cache).toBe(false)
-  expect(parseArgs(['--cache'], argsDef).cache).toBe(true)
+  expect(parseArgs([], argsDef)['cache']).toBe(true)
+  expect(parseArgs(['--no-cache'], argsDef)['cache']).toBe(false)
+  expect(parseArgs(['--cache'], argsDef)['cache']).toBe(true)
 })
 
 test('--require-engines is off unless asked for, and reaches the command through the real argv parser', () => {

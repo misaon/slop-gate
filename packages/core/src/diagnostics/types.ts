@@ -15,7 +15,7 @@ export type Edit = { range: ByteRange; replacement: string }
 
 export type Fix = { kind: FixKind; description: string; edits: Edit[] }
 
-export type RelatedLocation = { file: string; range: ByteRange; message: string }
+type RelatedLocation = { file: string; range: ByteRange; message: string }
 
 export type Diagnostic = {
   concept: string

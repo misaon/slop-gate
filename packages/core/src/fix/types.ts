@@ -28,7 +28,7 @@ export type CandidateEdit = {
   readonly severity: Severity
 }
 
-export type DropReason =
+type DropReason =
   /** Lost spec §11 step 2's overlap tiebreak. Re-run next pass. */
   | 'overlap'
   /** `range` does not lie within the buffer. Never clamped — clamping is how a file gets corrupted. */

@@ -22,7 +22,7 @@ import type { ClassifyRule } from './types.ts'
  *   state the measurement here, or the cap applies.
  */
 export type RuleOverride = {
-  readonly concepts?: readonly ConceptId[]
+  readonly concepts?: readonly [ConceptId, ...ConceptId[]]
   readonly classify?: readonly ClassifyRule[]
   readonly severityDefault?: Severity
 }

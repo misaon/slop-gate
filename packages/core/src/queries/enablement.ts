@@ -1,5 +1,5 @@
 import type { ProvenanceLayer, ProvenanceStep, RuleSetResolver } from '../config/resolve.ts'
-import type { RuleLevel, RuleOptions, RuleSetting } from '../config/types.ts'
+import type { RuleKey, RuleLevel, RuleOptions, RuleSetting } from '../config/types.ts'
 import { splitRuleSetting } from '../config/types.ts'
 
 /**
@@ -38,8 +38,8 @@ export function resolveEnablement(resolver: RuleSetResolver, concept: string): C
     enabled: resolver.anyEnabledConcepts.has(concept),
     level: resolver.maxLevelOf(concept),
     options: resolver.optionsOf(concept),
-    optionsFrom: resolver.base.rules.get(concept as never)?.optionsFrom,
-    baseProvenance: resolver.base.rules.get(concept as never)?.provenance ?? [],
+    optionsFrom: resolver.base.rules.get(concept as RuleKey)?.optionsFrom,
+    baseProvenance: resolver.base.rules.get(concept as RuleKey)?.provenance ?? [],
     overrides: resolver.overridesFor(concept),
   }
 }

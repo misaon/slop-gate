@@ -298,7 +298,7 @@ function buildGeneratedConcepts(generated: readonly GeneratedEntry[]): readonly 
     // always has exactly one concept (only an override can populate `classify`/multiple concepts).
     if (RULE_OVERRIDES[engineRuleId]?.concepts !== undefined) continue
 
-    const conceptId = entry.concepts[0]!
+    const conceptId = entry.concepts[0]
     if (known.has(conceptId) || byId.has(conceptId)) continue
 
     byId.set(conceptId, {

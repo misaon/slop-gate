@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import type { ConceptId } from '../concepts/catalogue.ts'
 import { createRuleSetResolver } from '../config/resolve.ts'
-import type { RuleLevel } from '../config/types.ts'
+import type { RuleKey, RuleLevel } from '../config/types.ts'
 import { frameworkOverrideLayers, frameworkRuleLayers } from './adjustments.ts'
 import type { FrameworkAdjustment, FrameworkApplication, FrameworkDetection, FrameworkId } from './types.ts'
 
@@ -102,14 +102,14 @@ const resolve = (rules: Record<string, RuleLevel>, ...applications: readonly Fra
     frameworks: frameworkRuleLayers(detection(...applications)),
   })
 
-const levelOf = (concept: ConceptId, resolver: ReturnType<typeof resolve>) => resolver.base.rules.get(concept as never)?.level
+const levelOf = (concept: ConceptId, resolver: ReturnType<typeof resolve>) => resolver.base.rules.get(concept as RuleKey)?.level
 
 /** The property the task called non-negotiable, and the one `rules why` has to be able to say. */
 test('a user writing `off` beats a profile enabling the same concept at `error`', () => {
   const resolver = resolve({ [UNSTABLE]: 'off' }, applied('nestjs', [enable(UNSTABLE, 'error')]))
   expect(levelOf(UNSTABLE, resolver)).toBe('off')
   expect(resolver.anyEnabledConcepts.has(UNSTABLE)).toBe(false)
-  expect(resolver.base.rules.get(UNSTABLE as never)?.provenance.map((step) => [step.layer, step.setting])).toEqual([
+  expect(resolver.base.rules.get(UNSTABLE as RuleKey)?.provenance.map((step) => [step.layer, step.setting])).toEqual([
     ['framework', 'error'],
     ['root-config', 'off'],
   ])
@@ -129,7 +129,7 @@ test('a profile enabling below what an earlier layer already set changes nothing
     config: { extends: ['recommended'], rules: {} },
     frameworks: frameworkRuleLayers(detection(applied('nestjs', [enable(UNSTABLE, 'info')]))),
   })
-  const resolution = resolver.base.rules.get(UNSTABLE as never)
+  const resolution = resolver.base.rules.get(UNSTABLE as RuleKey)
   expect(resolution?.level).toBe('warn')
   expect(resolution?.provenance.map((step) => step.layer)).toEqual(['preset'])
 })
@@ -139,7 +139,7 @@ test('a profile enabling above what an earlier layer set does apply, and is reco
     config: { extends: ['recommended'], rules: {} },
     frameworks: frameworkRuleLayers(detection(applied('nestjs', [enable(UNSTABLE, 'error')]))),
   })
-  const resolution = resolver.base.rules.get(UNSTABLE as never)
+  const resolution = resolver.base.rules.get(UNSTABLE as RuleKey)
   expect(resolution?.level).toBe('error')
   expect(resolution?.provenance.map((step) => [step.layer, step.setting])).toEqual([
     ['preset', 'warn'],
@@ -153,7 +153,7 @@ test('a profile disabling a concept a preset set at `warn` still applies', () =>
     config: { extends: ['recommended'], rules: {} },
     frameworks: frameworkRuleLayers(detection(applied('nestjs', [disable(UNSTABLE)]))),
   })
-  expect(resolver.base.rules.get(UNSTABLE as never)?.level).toBe('off')
+  expect(resolver.base.rules.get(UNSTABLE as RuleKey)?.level).toBe('off')
 })
 
 /**
@@ -169,8 +169,8 @@ test('raising the level of an optioned preset rule leaves its options alone', ()
     config: { extends: ['recommended'], rules: {} },
     frameworks: frameworkRuleLayers(detection(applied('nestjs', [enable(UNSTABLE, 'error')]))),
   })
-  expect(resolver.base.rules.get(UNSTABLE as never)?.options).toEqual([{ allowAsProps: true }])
-  expect(withFramework.base.rules.get(UNSTABLE as never)?.optionsFrom?.layer).not.toBe('framework')
+  expect(resolver.base.rules.get(UNSTABLE as RuleKey)?.options).toEqual([{ allowAsProps: true }])
+  expect(withFramework.base.rules.get(UNSTABLE as RuleKey)?.optionsFrom?.layer).not.toBe('framework')
 })
 
 // --- path-scoped adjustments ---------------------------------------------------------------------
@@ -208,15 +208,15 @@ test('an adjustment naming `paths` leaves the base cascade alone and becomes an 
 
 test('the scoped level reaches only the files its globs match', () => {
   const resolver = scoped(applied('nextjs', [scopedDisable(UNSTABLE, ['packages/ui/**'])]))
-  expect(resolver.forFile('packages/ui/Button.tsx').rules.get(UNSTABLE as never)?.level).toBe('off')
-  expect(resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as never)?.level).toBe('warn')
-  expect(resolver.base.rules.get(UNSTABLE as never)?.level).toBe('warn')
+  expect(resolver.forFile('packages/ui/Button.tsx').rules.get(UNSTABLE as RuleKey)?.level).toBe('off')
+  expect(resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as RuleKey)?.level).toBe('warn')
+  expect(resolver.base.rules.get(UNSTABLE as RuleKey)?.level).toBe('warn')
 })
 
 test('the provenance names the profile and the globs, not an anonymous override block', () => {
   const resolver = scoped(applied('nextjs', [scopedDisable(UNSTABLE, ['packages/ui/**', 'packages/email/**'])]))
   expect(
-    resolver.forFile('packages/ui/Button.tsx').rules.get(UNSTABLE as never)?.provenance.map((step) => [step.layer, step.source, step.setting]),
+    resolver.forFile('packages/ui/Button.tsx').rules.get(UNSTABLE as RuleKey)?.provenance.map((step) => [step.layer, step.source, step.setting]),
   ).toEqual([
     ['preset', 'recommended', 'warn'],
     ['framework-override', 'framework nextjs (packages/email/**, packages/ui/**)', 'off'],
@@ -235,13 +235,13 @@ test('a user writing `off` still beats a path-scoped profile enabling the same c
     frameworks: frameworkRuleLayers(detection(application)),
     frameworkOverrides: frameworkOverrideLayers(detection(application)),
   })
-  expect(resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as never)?.level).toBe('off')
+  expect(resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as RuleKey)?.level).toBe('off')
 })
 
 /** A floor, never a ceiling — the property that keeps a narrower scope from being a hidden subtraction. */
 test('a path-scoped level below what the base cascade holds changes nothing there', () => {
   const resolver = scoped(applied('nextjs', [scopedEnable(UNSTABLE, 'info', ['apps/web/**'])]))
-  const resolution = resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as never)
+  const resolution = resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as RuleKey)
   expect(resolution?.level).toBe('warn')
   expect(resolution?.provenance.map((step) => step.layer)).toEqual(['preset'])
 })
@@ -253,11 +253,11 @@ test('a path-scoped level below what the base cascade holds changes nothing ther
  */
 test('a concept only a scoped addition enables still counts as enabled somewhere', () => {
   const resolver = scoped(applied('nextjs', [scopedEnable(HOOKS, 'error', ['apps/web/**'])]))
-  expect(resolver.base.rules.get(HOOKS as never)).toBeUndefined()
+  expect(resolver.base.rules.get(HOOKS as RuleKey)).toBeUndefined()
   expect(resolver.anyEnabledConcepts.has(HOOKS)).toBe(true)
   expect(resolver.maxLevelOf(HOOKS)).toBe('error')
-  expect(resolver.forFile('packages/ui/Button.tsx').rules.get(HOOKS as never)).toBeUndefined()
-  expect(resolver.forFile('apps/web/page.tsx').rules.get(HOOKS as never)?.level).toBe('error')
+  expect(resolver.forFile('packages/ui/Button.tsx').rules.get(HOOKS as RuleKey)).toBeUndefined()
+  expect(resolver.forFile('apps/web/page.tsx').rules.get(HOOKS as RuleKey)?.level).toBe('error')
 })
 
 test('a scoped and an unscoped opinion about one concept stay two facts rather than one join', () => {

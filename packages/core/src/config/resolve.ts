@@ -1,5 +1,5 @@
 import picomatch from 'picomatch'
-import { isConceptId } from '../concepts/catalogue.ts'
+import { isConceptId, type ConceptId } from '../concepts/catalogue.ts'
 import type { FrameworkOverrideLayer, FrameworkRuleLayer } from '../frameworks/adjustments.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { ruleRefKey, type EngineId } from '../registry/types.ts'
@@ -29,7 +29,7 @@ export type ProvenanceStep = {
   setting: RuleSetting
 }
 
-export type RuleResolution = {
+type RuleResolution = {
   key: RuleKey
   level: RuleLevel
   /** Empty when no layer supplied any — never `undefined`, which is a per-*layer* fact only. */
@@ -39,7 +39,7 @@ export type RuleResolution = {
   provenance: ProvenanceStep[]
 }
 
-export type ResolvedRuleSet = {
+type ResolvedRuleSet = {
   rules: ReadonlyMap<RuleKey, RuleResolution>
   enabledConcepts: ReadonlySet<string>
   pinnedOwners: Readonly<Record<string, EngineId>>
@@ -75,6 +75,9 @@ export type RuleSetResolver = {
    * Concepts enabled by the base config **or by any override block**. The planner elects and configures
    * against this, not against `base`: an override that enables a concept only under `legacy/**` must still
    * cause the engine to run that rule, or the override is silently dead.
+   *
+   * Keyed by `string`, not `ConceptId`, because `sgate rules why <id>` probes it with whatever the user
+   * typed: "is this enabled" has to be answerable for an id the catalogue has never heard of.
    */
   anyEnabledConcepts: ReadonlySet<string>
   /** The strongest level any layer assigns to a concept, or `off` if no layer mentions it. */
@@ -171,7 +174,7 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
     }
   }
   const anyEnabledConcepts = new Set(
-    [...maxLevels].filter(([key, level]) => level !== 'off' && isConceptId(key)).map(([key]) => key),
+    [...maxLevels].filter((entry): entry is [ConceptId, RuleLevel] => entry[1] !== 'off' && isConceptId(entry[0])).map(([key]) => key),
   )
 
   return {

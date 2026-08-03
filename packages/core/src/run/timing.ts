@@ -30,7 +30,7 @@ export type MeasuredPhase = {
  * Our own share of a rule's cost lands in the `normalize:<engine>` and `arbitrate` phases. See §12.4 for the
  * amended promise.
  */
-export type RuleFindings = { ruleRefKey: string; findings: number }
+type RuleFindings = { ruleRefKey: string; findings: number }
 
 /**
  * **`startupMs + Σ phases + unattributedMs === stats.durationMs`**, to within the 0.1 ms each is rounded to.
