@@ -188,3 +188,16 @@ test('accepts the elected type set in any order', async () => {
   const stdout = JSON.stringify({ issues: [row('src/a.ts', { exports: [], files: [] })] })
   expect(await collect(parseKnipOutput(stdout, dir, { issueTypes: ['files', 'exports'] }))).toEqual([])
 })
+
+test('parses the report when knip prefixes it with its dotenv banner', async () => {
+  // Verbatim from a real repository with a `.env` file. The banner's own `{ debug: true }` is what the
+  // previous first-brace scan locked onto, taking the entire run down with exit 3.
+  await writeFile(join(dir, 'src/a.ts'), 'export const unused = 1\n')
+  const banner = '◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }'
+  const report = JSON.stringify({ issues: [row('src/a.ts', { exports: [{ name: 'unused', line: 1, col: 14 }] })] })
+
+  const found = await collect(parseKnipOutput(`${banner}\n${report}`, dir))
+
+  expect(found).toHaveLength(1)
+  expect(found[0]?.file).toBe('src/a.ts')
+})

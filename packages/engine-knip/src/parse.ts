@@ -82,9 +82,13 @@ export async function* parseKnipOutput(
   const trimmed = stdout.trim()
   if (trimmed === '') throw new EngineError('knip', 'knip produced no output at all')
 
-  // knip writes progress and configuration hints to stderr, so `--reporter json` is today's only stdout
-  // writer — but parsing from the first brace costs nothing and keeps a future banner from taking a run down.
-  const jsonStart = trimmed.indexOf('{')
+  // The report is the last thing on stdout and starts a line of its own; anything before it is a banner.
+  //
+  // **A brace at the start of a line, not the first brace anywhere.** The first-brace version was written to
+  // survive exactly this and did not: knip's dotenv notice is `◇ injected env (0) from .env // tip: ⌘ enable
+  // debugging { debug: true }`, whose own brace is the one it found, so `JSON.parse` started mid-banner and
+  // every repository with a `.env` file failed the whole run with exit 3.
+  const jsonStart = trimmed.startsWith('{') ? 0 : trimmed.indexOf('\n{')
   if (jsonStart === -1) {
     throw new EngineError('knip', `knip produced no json output: ${trimmed.slice(0, 200)}`)
   }
