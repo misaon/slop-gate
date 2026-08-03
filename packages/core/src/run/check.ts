@@ -76,6 +76,12 @@ export type CheckResult = {
     filesScanned: number
     /** Files assigned to at least one engine by the plan — the denominator `filesFromCache` is a count of. */
     filesAnalysed: number
+    /**
+     * How many of `filesAnalysed` no engine had to examine this run. **Files, not cache entries**: the
+     * result cache is keyed per (engine, file), so a file five engines claim has five entries, and a
+     * file counts here only when every assignment that claimed it was a hit. Bounded above by
+     * `filesAnalysed` by construction, which is what a reporter printing "N analysed, M cached" needs.
+     */
     filesFromCache: number
     enginesRun: number
     durationMs: number
@@ -194,7 +200,6 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
 
   const collected: Diagnostic[] = []
   const engineFailures: Array<{ engine: string; message: string }> = []
-  let filesFromCache = 0
   let enginesRun = 0
 
   // `config.unused-suppression` and `config.suppression-missing-reason` are synthesised inside
@@ -236,7 +241,26 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // engine assignment (a `.json`, a `.md`, a lockfile — nothing in the registry claims those
   // languages) was never a caching candidate in the first place, which is the distinction `stats`
   // needs to stop reading a merely-uncovered file as a cache miss.
-  const filesAnalysed = new Set(plan.flatMap((assignment) => assignment.files.map((file) => file.path))).size
+  //
+  // Counted per file with its assignment *count*, because `filesFromCache` is reported against this
+  // number and the cache underneath is keyed per **(engine, file)**: a file five engines claim has five
+  // cache entries. Counting entries let `filesFromCache` exceed `filesAnalysed` outright — a warm
+  // `sgate check` on this repository printed `337 analysed · 1246 cached` — and left `pretty.ts`'s
+  // "(all cached)" branch unreachable on any repository where one file reaches two engines.
+  const assignmentsByFile = new Map<string, number>()
+  for (const assignment of plan) {
+    for (const file of assignment.files) assignmentsByFile.set(file.path, (assignmentsByFile.get(file.path) ?? 0) + 1)
+  }
+  const filesAnalysed = assignmentsByFile.size
+
+  // A file counts as served from cache only when **every** assignment that claimed it was a hit. Any
+  // engine that still had to examine it means something looked at the file this run, and an engine that
+  // *failed* records no hit at all — so a run that fell over cannot report its files as cached, which
+  // counting misses instead of hits would have allowed.
+  const cacheHitsByFile = new Map<string, number>()
+  const recordCacheHit = (path: string): void => {
+    cacheHitsByFile.set(path, (cacheHitsByFile.get(path) ?? 0) + 1)
+  }
 
   // Wrapped so a consumer that stops iterating early (breaking out of a `for await`) still
   // triggers this `finally` via the generator's implicit `return()` — otherwise every hash
@@ -298,7 +322,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             // All-or-nothing, matching the cache entry itself: either every assigned file was
             // covered by one aggregate hit, or none were (a miss re-checks the whole program, not a
             // subset of it).
-            if (projectStats.cacheHit) filesFromCache += assignment.files.length
+            if (projectStats.cacheHit) for (const file of assignment.files) recordCacheHit(file.path)
           } finally {
             await handle.dispose()
           }
@@ -328,7 +352,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               pending.push(file)
               continue
             }
-            filesFromCache += 1
+            recordCacheHit(file.path)
             for (const diagnostic of hit) {
               if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
               collected.push(diagnostic)
@@ -421,6 +445,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 }
   for (const diagnostic of collected) counts[diagnostic.severity] += 1
 
+  let filesFromCache = 0
+  for (const [path, assignments] of assignmentsByFile) {
+    if (cacheHitsByFile.get(path) === assignments) filesFromCache += 1
+  }
+
   yield {
     type: 'done',
     result: {
@@ -508,8 +537,8 @@ type ProjectAssignmentContext = {
  *   costs nothing extra here since there is already no fixed per-file batch to reconcile against.
  *
  * `stats` is a small out-parameter (mutated, not returned) rather than a second return channel,
- * matching how the rest of `streamCheck` already tracks `filesFromCache`/`enginesRun` as plain outer
- * variables — an async generator's own return value is awkward to read from a `for await` consumer,
+ * matching how the rest of `streamCheck` already tracks `enginesRun` and its cache-hit tally as plain
+ * outer state — an async generator's own return value is awkward to read from a `for await` consumer,
  * and a project assignment has exactly one hit/miss decision to report, not per-diagnostic ones.
  *
  * @yields Every diagnostic for this assignment — a cache hit's full stored array, or a cache miss's
