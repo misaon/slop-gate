@@ -19,7 +19,10 @@ import { TYPE_ERROR_RULE_ID } from './parse.ts'
  * with a second, weaker check would just produce a worse error message for the same problem.
  */
 export async function materializeTscConfig(selection: EngineRuleSelection, tsconfigPath: string): Promise<EngineConfigHandle> {
-  const level = selection.get(TYPE_ERROR_RULE_ID) ?? 'off'
+  // The level alone, not the whole setting: `type-error` has no options — the thing that decides what
+  // `tsc` reports is the tsconfig, whose content is hashed below — so folding the option half in would
+  // invalidate a whole project cache entry over a value this adapter never reads.
+  const level = selection.get(TYPE_ERROR_RULE_ID)?.[0] ?? 'off'
 
   let tsconfigContent: string | null
   try {

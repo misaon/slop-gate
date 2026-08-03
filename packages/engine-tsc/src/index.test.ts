@@ -54,7 +54,7 @@ test('declares project granularity and ts/tsx languages', () => {
 
 test('materializeConfig returns the tsconfig path itself as handle.path, writing nothing to disk', async () => {
   const engine = createTscEngine({ rootDir: dir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   expect(handle.path).toBe(join(dir, 'tsconfig.json'))
   await handle.dispose()
@@ -64,12 +64,12 @@ test('materializeConfig returns the tsconfig path itself as handle.path, writing
 
 test('materializeConfig produces the same rulesetHash for identical inputs, a different one when tsconfig content changes', async () => {
   const engine = createTscEngine({ rootDir: dir })
-  const a = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
-  const b = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const a = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
+  const b = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
   expect(b.rulesetHash).toBe(a.rulesetHash)
 
   await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { strict: false, noEmit: true } }))
-  const c = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const c = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
   expect(c.rulesetHash).not.toBe(a.rulesetHash)
 
   await a.dispose()
@@ -77,10 +77,29 @@ test('materializeConfig produces the same rulesetHash for identical inputs, a di
   await c.dispose()
 })
 
+test('materializeConfig reads the level out of the setting and ignores the options half', async () => {
+  // This adapter has no enablement comparison to invert — `buildPlan` has already dropped an off rule,
+  // and `run` shells out to `tsc -p` regardless — so the failure the widened setting invites here is
+  // the cache one: hashing the whole setting would make `['error', …]` a different ruleset from
+  // `['error']` and re-check a whole program for a value this adapter never reads. `type-error` has no
+  // options grammar; what `tsc` reports is decided by the tsconfig, which is hashed separately.
+  const engine = createTscEngine({ rootDir: dir })
+  const bare = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
+  const withOptions = await engine.materializeConfig(new Map([['type-error', ['error', { probe: true }] as const]]), context)
+  const off = await engine.materializeConfig(new Map([['type-error', ['off'] as const]]), context)
+
+  expect(withOptions.rulesetHash).toBe(bare.rulesetHash)
+  expect(off.rulesetHash).not.toBe(bare.rulesetHash)
+
+  await bare.dispose()
+  await withOptions.dispose()
+  await off.dispose()
+})
+
 test('finds a real type error in a real file', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export function f(): number {\n  const x: number = "hello"\n  return x\n}\n')
   const engine = createTscEngine({ rootDir: dir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   const found = await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -98,7 +117,7 @@ test('run() ignores the batch argument: tsc checks whatever the tsconfig itself 
   // arguments at all (confirmed directly: mixing them is a hard `tsc` error, TS5042).
   await writeFile(join(dir, 'src/a.ts'), 'export const a: number = "bad"\n')
   const engine = createTscEngine({ rootDir: dir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   const found = await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -109,7 +128,7 @@ test('run() ignores the batch argument: tsc checks whatever the tsconfig itself 
 test('yields nothing for a clean project', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export function f(): number {\n  return 42\n}\n')
   const engine = createTscEngine({ rootDir: dir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()
@@ -118,7 +137,7 @@ test('yields nothing for a clean project', async () => {
 test('surfaces a genuine syntax error', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  const x: = 5\n  return x\n}\n')
   const engine = createTscEngine({ rootDir: dir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   const found = await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -131,7 +150,7 @@ test('surfaces a genuine syntax error', async () => {
 test('raises an EngineError when the tsconfig is missing', async () => {
   await rm(join(dir, 'tsconfig.json'))
   const engine = createTscEngine({ rootDir: dir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   await expect(
     collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000))),
@@ -142,7 +161,7 @@ test('raises an EngineError when the tsconfig is missing', async () => {
 test('raises an EngineError when the binary is missing', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
   const engine = createTscEngine({ rootDir: dir, binaryPath: join(dir, 'does-not-exist') })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   await expect(
     collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000))),
@@ -154,7 +173,7 @@ test('writes --incremental build info under cacheDir/tsc, never inside the analy
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
   const cacheDir = join(dir, '.slop-gate', 'cache')
   const engine = createTscEngine({ rootDir: dir, cacheDir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -173,7 +192,7 @@ test('writes --incremental build info under cacheDir/tsc, never inside the analy
 test('yields nothing for an empty batch on a clean project without throwing', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
   const engine = createTscEngine({ rootDir: dir })
-  const handle = await engine.materializeConfig(new Map([['type-error', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()

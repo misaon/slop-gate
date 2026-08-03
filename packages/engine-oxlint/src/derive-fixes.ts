@@ -6,6 +6,7 @@ import {
   compareStrings,
   editsFromRewrite,
   type DerivedFix,
+  type EngineRuleSelection,
   type FixTarget,
   type RunContext,
 } from '@misaon/slop-gate-core'
@@ -61,10 +62,35 @@ export async function loadFixCatalogue(invocation: OxlintInvocation): Promise<Ma
 export type DeriveOxlintFixesOptions = {
   invocation: OxlintInvocation
   targets: readonly FixTarget[]
+  /**
+   * The check run's own selection, read for one thing only: the target rule's options. Losing them
+   * here is not a cosmetic difference, because `--fix` rewrites every occurrence the rule finds — a
+   * derivation configured with `eqeqeq`'s default `always` would rewrite the `== null` comparisons a
+   * check configured with `smart` deliberately exempted, producing edits for findings the user was
+   * never shown. See `singleRuleSelection`.
+   */
+  selection: EngineRuleSelection
   context: RunContext
   signal: AbortSignal
   /** Injectable so a test can drive the derivation without the real catalogue subprocess. */
   catalogue?: Map<string, string>
+}
+
+/**
+ * The one-rule selection each derivation subprocess is configured from.
+ *
+ * The level is forced to `'error'` rather than carried over: oxlint applies a `--fix*` flag to any
+ * rule that is on, and the level a finding is *reported* at was already decided upstream by
+ * `normalizeDiagnostics` from the resolved ruleset. The options are carried over verbatim, because
+ * those change what the rule matches.
+ *
+ * A rule absent from the selection gets no options rather than being skipped: every target here came
+ * off a diagnostic that survived arbitration, so its rule was elected by construction, and inventing
+ * a reason to drop it would silently lose fixes rather than say anything.
+ */
+function singleRuleSelection(engineRuleId: string, selection: EngineRuleSelection): EngineRuleSelection {
+  const [, ...options] = selection.get(engineRuleId) ?? ['error']
+  return new Map([[engineRuleId, ['error', ...options] as const]])
 }
 
 /**
@@ -139,7 +165,7 @@ export async function deriveOxlintFixes(options: DeriveOxlintFixesOptions): Prom
         await writeFile(join(sandbox, file), bytes)
       }
 
-      const handle = await materializeOxlintConfig(new Map([[engineRuleId, 'error' as const]]), {
+      const handle = await materializeOxlintConfig(singleRuleSelection(engineRuleId, options.selection), {
         ...options.context,
         tmpDir: sandbox,
       })

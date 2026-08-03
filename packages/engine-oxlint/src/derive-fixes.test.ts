@@ -53,6 +53,7 @@ test('a real safe fix is derived from the real binary and reproduces oxlint own 
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'prefer-const')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -64,6 +65,36 @@ test('a real safe fix is derived from the real binary and reproduces oxlint own 
   expect(await readFile(join(dir, 'a.ts'), 'utf8')).toBe('let z = 3\nexport { z }\n')
 })
 
+test('the derivation runs the rule at the options the check run used, not at oxlint\'s defaults', async () => {
+  // Against the real binary, because this is the whole reason the selection reaches `deriveFixes` at
+  // all. `eqeqeq` under its default `always` rewrites both comparisons; under `smart` it exempts the
+  // `== null` one — which is exactly the finding a check configured with `smart` never showed the user.
+  // Derive with an empty selection and the first edit reappears, applying a fix for a finding nobody saw.
+  await writeFile(join(dir, 'a.ts'), 'export const f = (a: unknown, b: unknown) => a == null || a == b\n')
+
+  const strict = await deriveOxlintFixes({
+    invocation,
+    targets: [target('a.ts', 'eqeqeq')],
+    selection: new Map([['eqeqeq', ['warn'] as const]]),
+    context: context(),
+    signal: new AbortController().signal,
+  })
+  const smart = await deriveOxlintFixes({
+    invocation,
+    targets: [target('a.ts', 'eqeqeq')],
+    selection: new Map([['eqeqeq', ['warn', 'smart'] as const]]),
+    context: context(),
+    signal: new AbortController().signal,
+  })
+
+  expect(await applyDerived('a.ts', strict[0]!.edits)).toBe(
+    'export const f = (a: unknown, b: unknown) => a === null || a === b\n',
+  )
+  expect(await applyDerived('a.ts', smart[0]!.edits)).toBe(
+    'export const f = (a: unknown, b: unknown) => a == null || a === b\n',
+  )
+})
+
 // `unicorn/no-useless-spread` is `fixable_dangerous_fix` in the catalogue, so it needs
 // `--fix-dangerously`; `--fix` happens to apply it too, but `--fix-suggestions` does not. Choosing
 // the flag from the catalogue value rather than from the requested tier is what makes this work.
@@ -73,6 +104,7 @@ test('a dangerous fix is derived using the flag its catalogue entry calls for', 
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'unicorn/no-useless-spread')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -86,6 +118,7 @@ test('two occurrences of one rule in a file become two separate edits, not one s
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'prefer-const')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -103,6 +136,7 @@ test('a rule with no fix in the catalogue is never run and yields nothing', asyn
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'no-unused-vars')],
+    selection: new Map(),
     context: context(),
     catalogue: new Map([['no-unused-vars', 'none']]),
     signal: new AbortController().signal,
@@ -117,6 +151,7 @@ test('a rule whose fix does not apply to this file yields no edits rather than a
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'prefer-const')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -128,6 +163,7 @@ test('no targets means no subprocess and no catalogue load', async () => {
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -141,6 +177,7 @@ test('the sandbox is removed afterwards, leaving no copies of the user source be
   await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'prefer-const')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -156,6 +193,7 @@ test('a file whose content is multi-byte survives the copy-fix-diff round trip',
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'prefer-const')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -171,6 +209,7 @@ test('two rules over the same file are derived independently, each attributed to
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('a.ts', 'prefer-const'), target('a.ts', 'unicorn/no-useless-spread')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })
@@ -193,6 +232,7 @@ test('a nested path is copied into the sandbox with its directory structure inta
   const derived = await deriveOxlintFixes({
     invocation,
     targets: [target('packages/core/src/a.ts', 'prefer-const')],
+    selection: new Map(),
     context: context(),
     signal: new AbortController().signal,
   })

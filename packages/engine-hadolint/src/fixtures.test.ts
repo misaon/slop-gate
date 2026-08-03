@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import type { InventoryFile, RawDiagnostic, RunContext } from '@misaon/slop-gate-core'
+import type { EngineRuleSelection, InventoryFile, RawDiagnostic, RunContext } from '@misaon/slop-gate-core'
 import { HADOLINT_RULE_IDS, createHadolintEngine, resolveHadolintBinary } from './index.ts'
 
 /**
@@ -37,9 +37,12 @@ afterAll(async () => {
 })
 
 async function runOn(file: string): Promise<RawDiagnostic[]> {
+  return runWith(file, new Map(HADOLINT_RULE_IDS.map((rule) => [rule, ['error'] as const])))
+}
+
+async function runWith(file: string, selection: EngineRuleSelection): Promise<RawDiagnostic[]> {
   const engine = createHadolintEngine()
   const context: RunContext = { rootDir: root, tmpDir: join(root, '.slop-gate', 'tmp') }
-  const selection = new Map(HADOLINT_RULE_IDS.map((rule) => [rule, 'error' as const]))
   const handle = await engine.materializeConfig(selection, context)
   const batch = { files: [{ path: file, language: 'dockerfile' } as InventoryFile] }
   const found: RawDiagnostic[] = []
@@ -88,6 +91,17 @@ test.skipIf(noBinary)('DL3066 fires on a named non-root user, and is excluded fo
   // recommended practice. Pinned as raw output so the exclusion's reasoning stays checkable.
   expect(await rawCodes('Dockerfile.named-user.excluded')).toContain('DL3066')
   expect(await runOn('Dockerfile.named-user.excluded')).toEqual([])
+})
+
+test.skipIf(noBinary)('a rule set to off with options is still off', async () => {
+  // The `-c` config below carries no ruleset we trust, so the set `materializeConfig` hands to `run` *is*
+  // this engine's enablement decision — and it used to be built from `selection.keys()`, which reads any
+  // present setting as enabled, an `['off', …]` value included. `DL3007` is the rule the fixture fires.
+  const only = await runWith('Dockerfile.base-image.positive', new Map([['DL3007', ['error']]]))
+  expect(only.map((diagnostic) => diagnostic.engineRuleId)).toContain('DL3007')
+
+  const off = await runWith('Dockerfile.base-image.positive', new Map([['DL3007', ['off', { probe: true }]]]))
+  expect(off).toEqual([])
 })
 
 async function rawCodes(file: string): Promise<string[]> {

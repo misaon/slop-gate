@@ -119,9 +119,15 @@ export function createHadolintEngine(options: { binaryPath?: string } = {}): Eng
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
-      const rulesetHash = hashJson([...selection].map(([rule, level]) => [rule, level]).sort())
+      // The level is read even though the config file below carries no ruleset, because `parse.ts`
+      // gates every finding on membership of `selections` — so that set *is* this engine's enablement
+      // decision, and building it from the keys alone would make an `['off', …]` setting read as
+      // enabled. Options are dropped and correspondingly absent from the hash: hadolint's rules take
+      // none.
+      const enabled = [...selection].filter(([, [level]]) => level !== 'off')
+      const rulesetHash = hashJson(enabled.map(([rule, [level]]) => [rule, level]).sort())
       const path = join(context.tmpDir, `hadolint.${rulesetHash.slice(0, 12)}.yaml`)
-      selections.set(path, new Set(selection.keys()))
+      selections.set(path, new Set(enabled.map(([rule]) => rule)))
       await mkdir(context.tmpDir, { recursive: true })
       // The content is nearly inert; an *existing* file at a path we chose is the point. Without `-c`,
       // hadolint discovers `.hadolint.yaml` in the analysed repository and silently changes its own

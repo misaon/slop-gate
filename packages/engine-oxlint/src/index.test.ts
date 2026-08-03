@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import type { InventoryFile, RawDiagnostic, RuleLevel } from '@misaon/slop-gate-core'
+import type { EngineRuleSetting, InventoryFile, RawDiagnostic } from '@misaon/slop-gate-core'
 import { createOxlintEngine } from './index.ts'
 
 let dir: string
@@ -46,8 +46,8 @@ test('declares file granularity and script languages', () => {
 test('materialises a config containing only the selected rules', async () => {
   const handle = await createOxlintEngine().materializeConfig(
     new Map([
-      ['no-debugger', 'error'],
-      ['no-var', 'off'],
+      ['no-debugger', ['error'] as const],
+      ['no-var', ['off'] as const],
     ]),
     context,
   )
@@ -73,8 +73,8 @@ test('never writes the synthetic parse-error rule id into the materialised confi
   // the failure this pins: oxlint's config parser hard-rejects an unknown rule id outright.
   const handle = await createOxlintEngine().materializeConfig(
     new Map([
-      ['no-debugger', 'error'],
-      ['parse-error', 'error'],
+      ['no-debugger', ['error'] as const],
+      ['parse-error', ['error'] as const],
     ]),
     context,
   )
@@ -85,11 +85,27 @@ test('never writes the synthetic parse-error rule id into the materialised confi
   await handle.dispose()
 })
 
+test('a rule set to off with options is still off', async () => {
+  // The guard on the one failure this adapter's shape used to invite. When the level and the options
+  // travelled separately, enablement was `level !== 'off'` against the whole selection value; once a
+  // value can be `['off', …]`, that comparison is false for a *disabled* rule and every rule in this
+  // engine flips state, with nothing in the output to see it by. Restore the comparison against the
+  // undestructured setting and this test reports `eqeqeq` in the config; nothing else here notices.
+  const handle = await createOxlintEngine().materializeConfig(
+    new Map([
+      ['no-debugger', ['error'] as const],
+      ['eqeqeq', ['off', 'smart'] as const],
+    ]),
+    context,
+  )
+
+  expect(JSON.parse(await readFile(handle.path, 'utf8')).rules).toEqual({ 'no-debugger': 'error' })
+  expect(handle.ruleCount).toBe(1)
+  await handle.dispose()
+})
+
 test('writes a rule\'s options into the config as oxlint\'s positional option list', async () => {
-  const handle = await createOxlintEngine().materializeConfig(new Map([['eqeqeq', 'warn']]), {
-    ...context,
-    ruleOptions: new Map([['eqeqeq', ['smart']]]),
-  })
+  const handle = await createOxlintEngine().materializeConfig(new Map([['eqeqeq', ['warn', 'smart'] as const]]), context)
   const written = JSON.parse(await readFile(handle.path, 'utf8')) as { rules: Record<string, unknown> }
 
   expect(written.rules).toEqual({ eqeqeq: ['warn', 'smart'] })
@@ -103,10 +119,9 @@ test('the ruleset hash changes when only a rule\'s options change', async () => 
   // `configHash` each produced before they were fixed. Verified by removing the options from the
   // hashed object: this test fails, the other three in this group do not.
   const engine = createOxlintEngine()
-  const selection = new Map([['eqeqeq', 'warn' as const]])
-  const smart = await engine.materializeConfig(selection, { ...context, ruleOptions: new Map([['eqeqeq', ['smart']]]) })
-  const always = await engine.materializeConfig(selection, { ...context, ruleOptions: new Map([['eqeqeq', ['always']]]) })
-  const bare = await engine.materializeConfig(selection, context)
+  const smart = await engine.materializeConfig(new Map([['eqeqeq', ['warn', 'smart'] as const]]), context)
+  const always = await engine.materializeConfig(new Map([['eqeqeq', ['warn', 'always'] as const]]), context)
+  const bare = await engine.materializeConfig(new Map([['eqeqeq', ['warn'] as const]]), context)
 
   expect(smart.rulesetHash).not.toBe(always.rulesetHash)
   expect(smart.rulesetHash).not.toBe(bare.rulesetHash)
@@ -115,29 +130,26 @@ test('the ruleset hash changes when only a rule\'s options change', async () => 
   await bare.dispose()
 })
 
-test('an option-free selection hashes exactly as it did before options existed', async () => {
-  const engine = createOxlintEngine()
-  const selection = new Map([['no-debugger', 'error' as const]])
-  const without = await engine.materializeConfig(selection, context)
-  const withEmpty = await engine.materializeConfig(selection, { ...context, ruleOptions: new Map() })
+test('an option-free selection writes the bare level, as it did before options existed', async () => {
+  // oxlint accepts both `"error"` and `["error"]`, but they hash differently, so emitting the tuple
+  // for a rule with no options would invalidate every existing cache entry for a difference oxlint
+  // cannot act on.
+  const handle = await createOxlintEngine().materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
-  expect(withEmpty.rulesetHash).toBe(without.rulesetHash)
-  expect(JSON.parse(await readFile(without.path, 'utf8')).rules).toEqual({ 'no-debugger': 'error' })
-  await without.dispose()
-  await withEmpty.dispose()
+  expect(JSON.parse(await readFile(handle.path, 'utf8')).rules).toEqual({ 'no-debugger': 'error' })
+  await handle.dispose()
 })
 
 test('runs a rule at its configured options against the real binary', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const f = (a: unknown, b: unknown) => a == null || a == b\n')
   const engine = createOxlintEngine()
 
-  const strict = await engine.materializeConfig(new Map([['eqeqeq', 'warn']]), context)
+  const strict = await engine.materializeConfig(new Map([['eqeqeq', ['warn'] as const]]), context)
   const strictFindings = await collect(engine.run({ files: [file('src/a.ts')] }, strict, context, new AbortController().signal))
   await strict.dispose()
 
-  const smartContext = { ...context, ruleOptions: new Map([['eqeqeq', ['smart']]]) }
-  const smart = await engine.materializeConfig(new Map([['eqeqeq', 'warn']]), smartContext)
-  const smartFindings = await collect(engine.run({ files: [file('src/a.ts')] }, smart, smartContext, new AbortController().signal))
+  const smart = await engine.materializeConfig(new Map([['eqeqeq', ['warn', 'smart'] as const]]), context)
+  const smartFindings = await collect(engine.run({ files: [file('src/a.ts')] }, smart, context, new AbortController().signal))
   await smart.dispose()
 
   expect(strictFindings).toHaveLength(2)
@@ -146,8 +158,8 @@ test('runs a rule at its configured options against the real binary', async () =
 
 test('produces the same ruleset hash regardless of selection order', async () => {
   const engine = createOxlintEngine()
-  const a = await engine.materializeConfig(new Map([['no-debugger', 'error'], ['no-var', 'warn']]), context)
-  const b = await engine.materializeConfig(new Map([['no-var', 'warn'], ['no-debugger', 'error']]), context)
+  const a = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const], ['no-var', ['warn'] as const]]), context)
+  const b = await engine.materializeConfig(new Map([['no-var', ['warn'] as const], ['no-debugger', ['error'] as const]]), context)
 
   expect(b.rulesetHash).toBe(a.rulesetHash)
   await a.dispose()
@@ -157,7 +169,7 @@ test('produces the same ruleset hash regardless of selection order', async () =>
 test('finds a real violation in a real file', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
   const engine = createOxlintEngine()
-  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -170,7 +182,7 @@ test('finds a real violation in a real file', async () => {
 test('does not report a default-on rule the registry did not elect', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const dupe = { a: 1, a: 2 }\nexport function f() {\n  debugger\n}\n')
   const engine = createOxlintEngine()
-  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -182,7 +194,7 @@ test('does not report a default-on rule the registry did not elect', async () =>
 test('yields nothing for a clean file', async () => {
   await writeFile(join(dir, 'src/clean.ts'), 'export const a = 1\n')
   const engine = createOxlintEngine()
-  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
   expect(await collect(engine.run({ files: [file('src/clean.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()
@@ -190,7 +202,7 @@ test('yields nothing for a clean file', async () => {
 
 test('yields nothing for an empty batch without spawning a process', async () => {
   const engine = createOxlintEngine()
-  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(1000)))).toEqual([])
   await handle.dispose()
@@ -201,7 +213,7 @@ test('surfaces a genuine parse error instead of silently dropping the file', asy
   // parse-failure diagnostics have no `code` field, unlike every rule-based finding.
   await writeFile(join(dir, 'src/broken.ts'), 'export function f() {\n  const x: = 5\n  return x\n}\n')
   const engine = createOxlintEngine()
-  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/broken.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -257,13 +269,13 @@ test('fires each of a representative sample of the M0 registry expansion against
     ].join('\n'),
   )
   const engine = createOxlintEngine()
-  const selection = new Map<string, RuleLevel>([
-    ['no-self-assign', 'error'],
-    ['no-eval', 'error'],
-    ['use-isnan', 'error'],
-    ['no-unreachable', 'error'],
-    ['no-extend-native', 'warn'],
-    ['preserve-caught-error', 'warn'],
+  const selection = new Map<string, EngineRuleSetting>([
+    ['no-self-assign', ['error'] as const],
+    ['no-eval', ['error'] as const],
+    ['use-isnan', ['error'] as const],
+    ['no-unreachable', ['error'] as const],
+    ['no-extend-native', ['warn'] as const],
+    ['preserve-caught-error', ['warn'] as const],
   ])
   const handle = await engine.materializeConfig(selection, context)
 
@@ -293,7 +305,7 @@ test('reports a binding that shadows an outer-scope declaration', async () => {
     ].join('\n'),
   )
   const engine = createOxlintEngine()
-  const handle = await engine.materializeConfig(new Map([['no-shadow', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['no-shadow', ['warn'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -323,7 +335,7 @@ test('anchors a multi-label finding on the offending node against the real binar
     ].join('\n'),
   )
   const engine = createOxlintEngine()
-  const handle = await engine.materializeConfig(new Map([['unicorn/consistent-function-scoping', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['unicorn/consistent-function-scoping', ['warn'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -335,7 +347,7 @@ test('anchors a multi-label finding on the offending node against the real binar
 
 test('raises an EngineError when the binary is missing', async () => {
   const engine = createOxlintEngine({ binaryPath: join(dir, 'does-not-exist') })
-  const handle = await engine.materializeConfig(new Map([['no-debugger', 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
 
   await expect(

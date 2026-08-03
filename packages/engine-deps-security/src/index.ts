@@ -173,8 +173,10 @@ export function createDepsSecurityEngine(options: CreateDepsSecurityEngineOption
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext): Promise<EngineConfigHandle> {
+      // This engine's rules take no options (see `rules.ts` — the vocabulary is three fixed ids), so
+      // only the level half of each setting is read and `rulesetHash` need not fold the rest in.
       const enabled = [...selection.entries()]
-        .filter(([, level]) => level !== 'off')
+        .filter(([, [level]]) => level !== 'off')
         .map(([rule]) => rule)
         .sort(compareStrings)
       // The caller owns `tmpDir` but does not guarantee it exists — the same `mkdir` every other

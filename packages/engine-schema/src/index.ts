@@ -48,7 +48,7 @@ export function createSchemaEngine(): Engine {
   const validate = createSchemaValidator()
   // Keyed by the handle's `path`, which is unique per handle, so two concurrent assignments cannot
   // read each other's selection.
-  const selections = new Map<string, EngineRuleSelection>()
+  const selections = new Map<string, ReadonlySet<string>>()
 
   return {
     id: 'schema',
@@ -78,14 +78,19 @@ export function createSchemaEngine(): Engine {
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
-      const rulesetHash = hashJson([...selection].map(([rule, level]) => [rule, level]).sort())
+      // `run` below gates each check on membership of this set, so it *is* this engine's enablement
+      // decision and has to be built from the levels rather than the keys — otherwise an `['off', …]`
+      // setting would read as enabled. Options are dropped and correspondingly absent from the hash:
+      // these checks are this package's own and take none.
+      const enabled = [...selection].filter(([, [level]]) => level !== 'off')
+      const rulesetHash = hashJson(enabled.map(([rule, [level]]) => [rule, level]).sort())
       const path = join(context.tmpDir, `schema-selection.${rulesetHash.slice(0, 12)}.json`)
-      selections.set(path, selection)
+      selections.set(path, new Set(enabled.map(([rule]) => rule)))
 
       return {
         path,
         rulesetHash,
-        ruleCount: selection.size,
+        ruleCount: enabled.length,
         async dispose() {
           selections.delete(path)
         },
@@ -93,7 +98,7 @@ export function createSchemaEngine(): Engine {
     },
 
     async *run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
-      const selection = selections.get(handle.path) ?? new Map<string, never>()
+      const selection = selections.get(handle.path) ?? new Set<string>()
       const enabled = (rule: SchemaRuleId): boolean => selection.has(rule)
 
       for (const file of batch.files) {

@@ -45,7 +45,7 @@ afterAll(async () => {
 
 async function findingLines(engineRuleId: string, file: string): Promise<{ lines: number[]; source: string }> {
   const engine = createSchemaEngine()
-  const handle = await engine.materializeConfig(new Map([[engineRuleId, 'error']]), context)
+  const handle = await engine.materializeConfig(new Map([[engineRuleId, ['error'] as const]]), context)
   const source = await readFile(join(FIXTURES, file), 'utf8')
   const inventoryFile: InventoryFile = {
     path: file,

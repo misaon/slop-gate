@@ -28,7 +28,68 @@ elect rules declaring `requires: ['types']`.
 
 ---
 
-## Restructure before M2, not after
+## Restructure before M2, not after — **withdrawn at nine engines, on measurement**
+
+Kept in full below, because the reasoning was sound when written and it is the record of why the split
+was deferred four times. What follows is why it should not be done at all.
+
+**The structural argument did not survive.** It predicted `buildPlan` would need restructuring once
+several engines existed. Three engines later it has needed none: `tsc` (first project-granularity) zero
+changes, `knip` (second) zero, and the `EngineRuleSelection` widening above changed its value type
+without touching its structure. `streamCheck` branches on `engine.capabilities.granularity`, which the
+`Engine` interface already declared.
+
+**The cache-aware planner is the same item, not a cheaper alternative to it.** "Move the cache filter
+into the plan" reads like a smaller, concrete piece of work; it is not, because a cache lookup needs
+`deriveResultKey`'s `engineVersion` and `engineRulesetHash`, and those come from `engine.version()` and
+`engine.materializeConfig()`. A planner that filtered by cache would have to call both — that *is* the
+"prepare phase moves into the planner" half of the split. There is no ordering in which the filter
+happens first. The paragraph below already contained the refutation ("it genuinely cannot move into
+`buildPlan` as written") and then proposed it anyway two paragraphs later.
+
+**Measured, because the cost was the stated reason.** `runCheck` with every engine wrapped, this
+repository (357 files, 6 engines assigned) and a generated 3,001-file fixture (4 engines):
+
+| | warm total | `version()` | `materializeConfig()` | `run()` |
+|---|---|---|---|---|
+| this repo | 192–220 ms | 76–79 ms (38–41%) | 2–5 ms | **0 ms, never entered** |
+| 3,001 files | 504–505 ms | 65–66 ms (13%) | 1–2 ms | **0 ms, never entered** |
+
+Three things follow, and two of them contradict the paragraph below:
+
+- **A fully-cached run already enters no engine's `run()`.** `pending` is empty so the batch loop never
+  iterates, and `runProjectAssignment` returns before `engine.run` on an aggregate hit. The expensive
+  part is already skipped; nothing needs restructuring to skip it.
+- **`materializeConfig()` is not a cost.** 1–5 ms across six engines. The "temp-file write and delete"
+  is real and irrelevant.
+- **`version()` is a real cost — 38% of a warm run here — and the split cannot recover it**, for the
+  circularity above. It is a fixed per-engine cost, so its *share* falls as the repository grows (41% →
+  13%), and two engines are essentially all of it: oxlint ~27 ms and `tsc` ~35 ms, each a process spawn
+  to print a version string.
+
+**"A missing engine binary fails the run with exit 3 even when every result is cached" is stale.**
+`resolveRun` probes `Engine.availability` before arbitration, `electOwners` excludes an absent engine,
+and `buildPlan` never assigns it — so `version()` is never reached and the outcome is a coverage gap at
+exit 0. Verified: `sgate check` on this repository with no advisory snapshot installed reports
+`deps-security` as a COVERAGE GAP and exits 0. What remains is a *bundled* engine whose install is
+broken, and failing there is correct rather than a defect: the cache cannot be validated against a
+toolchain whose version cannot be read.
+
+**What the measurement did justify** is in `check.ts` and is unrelated to scheduling: `filesFromCache`
+counted cache *entries* while being reported against `filesAnalysed`, a count of files. A warm
+`sgate check` here printed `337 analysed · 1246 cached`, and `pretty.ts`'s "(all cached)" branch was
+unreachable on any repository where one file reaches two engines. Fixed; a file now counts only when
+every assignment that claimed it hit.
+
+**Still open, and genuinely narrower than a split** (recorded rather than done here, because it touches
+the cache key): `engine-tsc`'s `version()` spawns `node tsc --version` for ~35 ms per run. The `tsc`
+section below claims it "reads `typescript`'s own `package.json` directly rather than spawning" — that
+is not what `packages/engine-tsc/src/index.ts` does. `resolveScriptBin` already resolves
+`typescript/package.json` to find `bin/tsc`, so the version is available from the same resolution
+without a process; doing it would need `ScriptBinInvocation` to carry that path so there is one
+resolution rather than two disagreeing ones.
+
+The original entry follows.
 
 **`streamCheck` (`packages/core/src/run/check.ts`) owns too much for a multi-engine scheduler.** One
 generator currently derives cache keys, looks up the cache, batches, invokes engines, normalizes,
@@ -1574,7 +1635,34 @@ changes output every `fix` test asserts on.
 
 ## Found making per-rule options reach engine adapters (spec §6.2)
 
-### `EngineRuleSelection` should carry the options, and does not
+### `EngineRuleSelection` should carry the options, and does not — **done, with two corrections**
+
+`EngineRuleSelection` is now `ReadonlyMap<string, EngineRuleSetting>` where `EngineRuleSetting` is
+`readonly [RuleLevel, ...RuleOptions]`. `RunContext.ruleOptions` and `EngineAssignment.ruleOptions` are
+gone, `Engine.deriveFixes` takes the selection as its second parameter (`runFix` re-materialises
+oxlint's config outside `runCheck`, so the options had to reach it or `--fix` would rewrite what the
+check exempted), and all nine adapters read the level out of the setting. One test per adapter asserts
+that an `['off', …]` value still disables; each was verified to fail when its adapter's guard is
+reverted.
+
+Two things this section got wrong, both worth reading before trusting the rest of it:
+
+- **It is `readonly [RuleLevel, ...RuleOptions]`, always a tuple — not the union below.** The union
+  keeps `setting !== 'off'` compiling, which is the whole failure. Against the tuple that comparison is
+  TS2367 (*the types `readonly [RuleLevel, ...unknown[]]` and `string` have no overlap*), so an adapter
+  is forced to destructure and the migrated comparison is right by construction. Both forms were
+  compiled to check: the union produced no diagnostic, the tuple produced one per call site.
+- **The inversion was not reachable, and the count was wrong.** It named four adapters; the widening
+  produced TS2367 in five (oxlint, ast-grep, biome-css, knip, deps-security) and none in `engine-tsc`,
+  which folds the value into a hash and never compares it. Three more (actionlint, hadolint, schema)
+  decided enablement by `selection.has()`/`.keys()` — so an `'off'` setting *already* read as enabled
+  there, the very inversion this section feared, live in three adapters. It was harmless for one reason
+  only: `RuleSetResolver.anyEnabledConcepts` drops an `off` concept before `electOwners` runs, so no
+  `off` rule was ever elected and `buildPlan`'s own `level === 'off'` guard is itself unreachable. The
+  real debt paid here is therefore two parallel maps that had to stay in sync, plus a contract that was
+  true by accident in three adapters and is now true by construction in nine — not a live inversion.
+
+The original entry, kept because its reasoning about *why* the shape was deferred still stands:
 
 The shape options belong in is `Map<engineRuleId, { level, options }>`. They are on
 `RunContext.ruleOptions` instead, a second map keyed the same way, and the reason is not that the

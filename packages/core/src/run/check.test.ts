@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import { createWalkFileSource } from '../discovery/inventory.ts'
-import type { Engine, RawDiagnostic } from '../engine/types.ts'
+import type { Engine, EngineRuleSelection, RawDiagnostic } from '../engine/types.ts'
 import type { Capability, EngineId, RuleEntry } from '../registry/types.ts'
 import { runCheck, streamCheck } from './check.ts'
 
@@ -33,12 +33,14 @@ const stubEngine = (options: {
   findings?: RawDiagnostic[]
   fail?: string
   onRun?: () => void
+  /** Changing this between two runs is how a test makes one engine miss the cache while another hits. */
+  rulesetHash?: string
 }): Engine =>
   ({
     id: options.id ?? 'oxlint',
     capabilities: { languages: ['ts'], granularity: 'file', provides: options.provides ?? [], fixes: false },
     version: async () => '1.75.0',
-    materializeConfig: async () => ({ path: 'stub', rulesetHash: 'stubhash', dispose: async () => {} }),
+    materializeConfig: async () => ({ path: 'stub', rulesetHash: options.rulesetHash ?? 'stubhash', dispose: async () => {} }),
     run: (batch) =>
       (async function* () {
         options.onRun?.()
@@ -79,16 +81,16 @@ afterEach(async () => {
 
 test('hands an engine the options configured for its elected rules', async () => {
   // The seam between the planner and the adapter. Every other part of this path has its own test —
-  // the cascade resolves them (`config/resolve.test.ts`), the planner attaches them to the
-  // assignment (`planner/plan.test.ts`), the adapter writes them into its config and its hash
-  // (`engine-oxlint`) — and none of those would notice `streamCheck` forgetting to pass the
-  // assignment's `ruleOptions` into the `RunContext` it builds.
-  const seen: Array<ReadonlyMap<string, readonly unknown[]> | undefined> = []
+  // the cascade resolves them (`config/resolve.test.ts`), the planner folds them into the setting
+  // (`planner/plan.test.ts`), the adapter writes them into its config and its hash (`engine-oxlint`)
+  // — and none of those would notice `streamCheck` handing `materializeConfig` something other than
+  // the assignment's own selection.
+  const seen: EngineRuleSelection[] = []
   const engine = stubEngine({})
   const recording: Engine = {
     ...engine,
     materializeConfig: async (selection, context) => {
-      seen.push(context.ruleOptions)
+      seen.push(selection)
       return engine.materializeConfig(selection, context)
     },
   }
@@ -100,7 +102,7 @@ test('hands an engine the options configured for its elected rules', async () =>
   })
 
   expect(seen).toHaveLength(1)
-  expect([...(seen[0] ?? new Map())]).toEqual([['no-debugger', [{ probe: true }]]])
+  expect([...(seen[0] ?? new Map())]).toEqual([['no-debugger', ['error', { probe: true }]]])
 })
 
 test('reports nothing for a generated file, and everything for it once asked', async () => {
@@ -816,6 +818,45 @@ const TWO_ENGINE_ENTRIES: RuleEntry[] = [
 ]
 
 const TWO_ENGINE_RULES = { 'correctness.no-debugger': 'error', 'slop.double-cast': 'warn', 'config.unused-suppression': 'warn' }
+
+const twoEngineOptions = (engines: Engine[]) => ({
+  ...baseOptions(),
+  entries: TWO_ENGINE_ENTRIES,
+  config: { rules: TWO_ENGINE_RULES } as never,
+  engines,
+})
+
+test('filesFromCache counts files, not cache entries, so it can never exceed filesAnalysed', async () => {
+  // The cache is keyed per **(engine, file)** — two engines over one file is two entries — but this
+  // number is reported against `filesAnalysed`, which counts distinct files (see `CheckResult.stats`,
+  // which calls `filesAnalysed` "the denominator `filesFromCache` is a count of"). Counting entries
+  // made a warm `sgate check` on this repository print `337 analysed · 1246 cached`, and made
+  // `pretty.ts`'s own "(all cached)" branch unreachable on any repository where a file reaches more
+  // than one engine — which, since the strict-by-default change, is every TypeScript repository.
+  //
+  // Both engines must really be assigned the file or this proves nothing — see `TWO_ENGINE_ENTRIES`.
+  await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
+
+  await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep' })]))
+  const warm = await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep' })]))
+
+  expect(warm.stats.filesAnalysed).toBe(1)
+  expect(warm.stats.filesFromCache).toBe(1)
+})
+
+test('a file one engine still had to look at is not counted as served from cache', async () => {
+  // The other half of the definition, and the one that decides between "any assignment hit" and "every
+  // assignment hit". ast-grep's ruleset changed, so it re-examines the file while oxlint is served from
+  // cache. Something looked at the file this run, so reporting it as cached would overstate the cache
+  // in exactly the direction a user would notice least.
+  await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
+
+  await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'before' })]))
+  const warm = await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'after' })]))
+
+  expect(warm.stats.filesAnalysed).toBe(1)
+  expect(warm.stats.filesFromCache).toBe(0)
+})
 
 test('a directive is reported once, not once per file-granularity engine', async () => {
   // Two file-granularity engines assigned the same file each run their own `normalizeDiagnostics`

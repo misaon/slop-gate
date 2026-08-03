@@ -49,14 +49,18 @@ export type MaterializedAstGrepConfig = {
  * claiming one concept would make arbitration elect one and silently discard the other's findings.
  */
 export function buildAstGrepConfig(selection: EngineRuleSelection): MaterializedAstGrepConfig {
+  // These rules are this package's own, written here rather than configured, so the option half of a
+  // setting has nothing to apply to and is deliberately dropped — which is also why `rulesetHash`
+  // below need not fold it in (`EngineRuleSetting`: an adapter that ignores options owes nothing,
+  // because identical inputs really do produce identical findings).
   const enabled = [...selection]
-    .filter(([, level]) => level !== 'off')
+    .filter(([, [level]]) => level !== 'off')
     .sort(([a], [b]) => compareStrings(a, b))
 
   const documents: { engineRuleId: string; language: AstGrepLanguage }[] = []
   const blocks: string[] = []
 
-  for (const [engineRuleId, level] of enabled) {
+  for (const [engineRuleId, [level]] of enabled) {
     const rule = astGrepRuleById(engineRuleId)
     // Arbitration only ever selects an id that came off a `RuleEntry`, so reaching this means the
     // registry and this package have drifted apart — the exact failure oxlint's `number_of_rules`

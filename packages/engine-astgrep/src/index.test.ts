@@ -42,7 +42,7 @@ test('declares file granularity and exactly the four languages its rule document
 test('finds a real violation in a real file', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
-  const handle = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -59,7 +59,7 @@ test('does not report a rule the registry did not elect', async () => {
     'declare const v: unknown\nexport const a = v as unknown as string\nexport function f() {\n  try { g() } catch {}\n}\ndeclare function g(): void\n',
   )
   const engine = createAstGrepEngine()
-  const handle = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 
@@ -70,7 +70,7 @@ test('does not report a rule the registry did not elect', async () => {
 test('yields nothing for a clean file', async () => {
   await writeFile(join(dir, 'src/clean.ts'), 'export const a = 1\n')
   const engine = createAstGrepEngine()
-  const handle = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
   expect(await collect(engine.run({ files: [file('src/clean.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()
@@ -82,7 +82,7 @@ test('yields nothing for an empty batch instead of scanning the whole repository
   // planner never assigned.
   await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
-  const handle = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
   expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
   await handle.dispose()
@@ -105,7 +105,7 @@ test('fails loudly when ast-grep loads a different number of rule documents than
   // reach the branch without an ast-grep that actually misbehaves.
   await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
-  const real = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const real = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
   const lying: EngineConfigHandle = { ...real, ruleCount: 99, dispose: real.dispose }
 
   await expect(
@@ -121,7 +121,7 @@ test('fails loudly when ast-grep skips a file instead of caching it as clean', a
   const huge = `declare const v: unknown\nexport const a = v as unknown as string\n${'const x = 1\n'.repeat(400_000)}`
   await writeFile(join(dir, 'src/huge.ts'), huge)
   const engine = createAstGrepEngine()
-  const handle = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
   await expect(
     collect(
@@ -139,7 +139,7 @@ test('fails loudly when ast-grep skips a file instead of caching it as clean', a
 test('raises an EngineError when the binary is missing', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
   const engine = createAstGrepEngine({ binaryPath: join(dir, 'does-not-exist') })
-  const handle = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
   await expect(
     collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000))),
@@ -155,7 +155,7 @@ test('scans a file git ignores, because the planner has already decided what to 
   await writeFile(join(dir, '.gitignore'), 'src/hidden.ts\n')
   await writeFile(join(dir, 'src/hidden.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
-  const handle = await engine.materializeConfig(new Map([['slop-double-cast', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
   const found = await collect(engine.run({ files: [file('src/hidden.ts')] }, handle, context, AbortSignal.timeout(30_000)))
 

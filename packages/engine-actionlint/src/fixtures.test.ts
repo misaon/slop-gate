@@ -76,7 +76,7 @@ async function findings(engineRuleId: string, file: string): Promise<{ diagnosti
   }
 
   const engine = createActionlintEngine()
-  const handle = await engine.materializeConfig(new Map([[engineRuleId, 'warn' as const]]), context)
+  const handle = await engine.materializeConfig(new Map([[engineRuleId, ['warn'] as const]]), context)
   const diagnostics: RawDiagnostic[] = []
   try {
     for await (const diagnostic of engine.run({ files: [inventoryFile] }, handle, context, AbortSignal.timeout(30_000))) {

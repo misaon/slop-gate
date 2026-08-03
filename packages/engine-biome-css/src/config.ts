@@ -51,9 +51,12 @@ export async function materializeBiomeCssConfig(
   selection: EngineRuleSelection,
   context: RunContext,
 ): Promise<BiomeCssConfigHandle> {
-  const elected = [...selection].filter(([, level]) => level !== 'off').map(([engineRuleId]) => engineRuleId)
+  // Biome's CSS rules that this adapter elects take no options (`rules.ts` declares none), so the
+  // option half of a setting is dropped and `rulesetHash` below need not fold it in — see
+  // `EngineRuleSetting` on what an adapter that ignores options does and does not owe.
+  const elected = [...selection].filter(([, [level]]) => level !== 'off').map(([engineRuleId]) => engineRuleId)
   const enabled = [...selection]
-    .filter(([engineRuleId, level]) => {
+    .filter(([engineRuleId, [level]]) => {
       if (level === 'off') return false
       // Both synthetic: one is the adapter's report that Biome could not parse a file, the other its
       // report that a file carries a `biome-ignore`. Neither is a rule Biome's config format knows,
@@ -63,7 +66,7 @@ export async function materializeBiomeCssConfig(
     .sort(([a], [b]) => compareStrings(a, b))
 
   const rules: Record<string, Record<string, string>> = {}
-  for (const [engineRuleId, level] of enabled) {
+  for (const [engineRuleId, [level]] of enabled) {
     const rule = ruleByEngineRuleId(engineRuleId)
     if (rule === undefined) {
       throw new EngineError('biome-css', `elected rule '${engineRuleId}' is not a known biome CSS rule`)

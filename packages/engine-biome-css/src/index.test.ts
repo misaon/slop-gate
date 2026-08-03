@@ -56,14 +56,14 @@ test('reports the installed biome version without its label', async () => {
 
 test('an empty batch never spawns anything', async () => {
   const engine = createBiomeCssEngine({ binaryPath: '/nonexistent/biome' })
-  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   expect(await collect(engine, handle, [])).toEqual([])
   await handle.dispose()
 })
 
 test('a missing binary fails with an engine error naming the engine', async () => {
   const engine = createBiomeCssEngine({ binaryPath: join(root, 'not-a-binary') })
-  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   await writeFile(join(root, 'a.css'), 'a { color: red; color: blue }\n', 'utf8')
   // The report file is the discriminator, not the exit code: biome exits 1 both for "found findings"
   // and for "could not run", so an adapter gating on the code cannot tell them apart.
@@ -80,7 +80,7 @@ test('rejects a config handle it did not materialise', async () => {
 
 test('finds a real duplicate through the whole adapter', async () => {
   const engine = createBiomeCssEngine()
-  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   const source = 'a {\n  display: flex;\n  display: flex;\n}\n'
   await writeFile(join(root, 'a.css'), source, 'utf8')
   const found = await collect(engine, handle, ['a.css'])
@@ -92,7 +92,7 @@ test('finds a real duplicate through the whole adapter', async () => {
 
 test('reports repo-relative paths for a nested stylesheet', async () => {
   const engine = createBiomeCssEngine()
-  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   const nested = join(root, 'web', 'styles')
   await mkdir(nested, { recursive: true })
   await writeFile(join(nested, 'a.css'), 'a {\n  display: flex;\n  display: flex;\n}\n', 'utf8')
@@ -107,7 +107,7 @@ test('converts a finding after an astral character to the right byte offset', as
   // The end-to-end version of the codepoint-column problem: biome counts columns in codepoints, the
   // rest of the pipeline works in bytes, and the two only disagree past the BMP.
   const engine = createBiomeCssEngine()
-  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   const source = 'a {\n  content: "😀😀😀";\n  display: flex;\n  display: flex;\n}\n'
   await writeFile(join(root, 'e.css'), source, 'utf8')
   const found = await collect(engine, handle, ['e.css'])
@@ -121,7 +121,7 @@ test('a rule not in the selection produces nothing rather than an error', async 
   // `noHexColors` is in biome's own recommended set and the file is full of colours; silence here is
   // what proves `recommended: false` took effect.
   const engine = createBiomeCssEngine()
-  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', 'warn']]), context)
+  const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   await writeFile(join(root, 'a.css'), 'a { color: #fff; }\n', 'utf8')
   expect(await collect(engine, handle, ['a.css'])).toEqual([])
   await handle.dispose()
