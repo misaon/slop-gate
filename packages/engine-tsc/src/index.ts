@@ -1,4 +1,4 @@
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import {
   EngineError,
@@ -15,9 +15,11 @@ import {
 } from '@misaon/slop-gate-core'
 import { materializeTscConfig } from './config.ts'
 import { parseTscOutput } from './parse.ts'
+import { discoverTscProjects } from './projects.ts'
 import { resolveTscAcrossWorkspaces, type TscInvocation, type TscResolution } from './resolve-binary.ts'
 
 export { TYPE_ERROR_RULE_ID, parseTscOutput } from './parse.ts'
+export { discoverTscProjects } from './projects.ts'
 export { resolveTscAcrossWorkspaces, resolveTscBinary, type TscInvocation, type TscResolution } from './resolve-binary.ts'
 
 /**
@@ -42,28 +44,6 @@ function unavailableReason(resolution: Exclude<TscResolution, { kind: 'resolved'
     `this workspace installs more than one \`typescript\` (${resolution.versions.join(', ')}), so there is no single ` +
     'version whose type errors would match every package\'s own build, and slop-gate will not pick one for you'
   )
-}
-
-/**
- * Whether `tsc -p` on this config would typecheck nothing.
- *
- * A monorepo root commonly holds `{"files": [], "references": [...]}` — a *solution* config, whose only job
- * is to list the real projects. `references` are followed by `tsc --build` and by nothing else, and this
- * engine runs `-p` (see `run()`), so on that shape tsc exits 0 having read no source at all. Reporting
- * "available, no type errors" from that is the worst of the three possible answers, because it is
- * indistinguishable from a repository that genuinely typechecks. Measured on a real monorepo whose root is
- * exactly this: `sgate check` ran tsc, found 0, and had typechecked 0 of 2,030 files.
- *
- * Comments and trailing commas are legal in a tsconfig, so this reads the shape with a tolerant scan rather
- * than `JSON.parse`, and errs toward *available*: a config it cannot make sense of is left to tsc, which
- * reports its own error rather than being silently skipped.
- */
-function isSolutionStyle(source: string): boolean {
-  const withoutComments = source.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/\/\/[^\n]*/g, '')
-  const hasReferences = /"references"\s*:\s*\[\s*\{/.test(withoutComments)
-  const emptyFiles = /"files"\s*:\s*\[\s*\]/.test(withoutComments)
-  const hasInclude = /"include"\s*:\s*\[\s*"/.test(withoutComments)
-  return hasReferences && emptyFiles && !hasInclude
 }
 
 export type CreateTscEngineOptions = {
@@ -101,6 +81,14 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
     const dirs = (graph?.nodes ?? []).map((node) => join(options.rootDir, node.dir)).filter((dir) => dir !== options.rootDir)
     return resolveTscAcrossWorkspaces(options.rootDir, dirs)
   }
+
+  let discovering: Promise<readonly string[]> | undefined
+  const projects = (): Promise<readonly string[]> =>
+    (discovering ??= (async () => {
+      const graph = await buildWorkspaceGraph(options.rootDir).catch(() => undefined)
+      const workspaceDirs = (graph?.nodes ?? []).map((node) => join(options.rootDir, node.dir))
+      return discoverTscProjects({ rootDir: options.rootDir, tsconfigPath, workspaceDirs })
+    })())
 
   const required = async (): Promise<TscInvocation> => {
     const resolved = await resolution()
@@ -148,22 +136,14 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
         }
       }
 
-      const source = await readFile(tsconfigPath, 'utf8').catch(() => undefined)
-      if (source === undefined) {
-        return {
-          available: false as const,
-          reason: `no tsconfig.json at ${tsconfigPath}, so nothing here declares what "the project" is and nothing was typechecked`,
-          install: 'a root tsconfig.json, or a tsconfigPath naming the project to check',
-        }
-      }
-
-      if (isSolutionStyle(source)) {
+      const found = await projects()
+      if (found.length === 0) {
         return {
           available: false as const,
           reason:
-            `${tsconfigPath} is a solution-style tsconfig — it declares \`references\` and no input files of its ` +
-            'own, so `tsc -p` on it would typecheck zero files and report a clean project either way',
-          install: 'a `tsc.tsconfigPath` naming one of the referenced projects',
+            `nothing here declares a TypeScript project to check: no inputs at ${tsconfigPath}, no \`references\` ` +
+            'resolving to one, and no workspace package carrying its own tsconfig.json',
+          install: 'a tsconfig.json that declares `include` or `files`, or a `tsc.tsconfigPath` naming one',
         }
       }
 
@@ -175,36 +155,41 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
     },
 
     async materializeConfig(selection: EngineRuleSelection) {
-      return materializeTscConfig(selection, tsconfigPath)
+      return materializeTscConfig(selection, await projects())
     },
 
     // A generator rather than an `async` function returning one: `Engine.run` is declared to return the
-    // iterable itself, so awaiting the now-async binary resolution has to happen *inside* it.
-    async *run(_batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
-      // Underscored because it is genuinely unread, accepted only to satisfy `Engine.run`'s shape — a
-      // project-granularity engine takes its file set from its own tsconfig's `include`/`files`. Passing those
-      // files alongside `-p` is rejected outright: confirmed directly, `tsc -p tsconfig.json src/a.ts` fails
-      // with "error TS5042: Option 'project' cannot be mixed with source files on a command line."
-      yield* execute(await required(), handle, cacheDir, context, signal)
+    // iterable itself, so awaiting the now-async project discovery has to happen *inside* it.
+    async *run(_batch: FileBatch, _handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
+      // The batch is genuinely unread, accepted only to satisfy `Engine.run`'s shape — a project-granularity
+      // engine takes its file set from its own tsconfig's `include`/`files`. Passing those files alongside `-p`
+      // is rejected outright: confirmed directly, `tsc -p tsconfig.json src/a.ts` fails with "error TS5042:
+      // Option 'project' cannot be mixed with source files on a command line."
+      //
+      // Sequential, not concurrent: tsc holds a whole program in memory, and a twenty-package monorepo running
+      // twenty of them at once would trade wall-clock for swapping. Worth measuring before changing.
+      const invocation = await required()
+      for (const project of await projects()) yield* execute(invocation, project, cacheDir, context, signal)
     },
   }
 }
 
 async function* execute(
   invocation: TscInvocation,
-  handle: EngineConfigHandle,
+  project: string,
   cacheDir: string,
   context: RunContext,
   signal: AbortSignal,
 ): AsyncIterable<RawDiagnostic> {
-  // Hashed per tsconfig rather than a fixed filename: two `createTscEngine` instances may share one `cacheDir`.
-  const buildInfoPath = join(cacheDir, 'tsc', `${hashContent(handle.path).slice(0, 16)}.tsbuildinfo`)
+  // Hashed per tsconfig rather than a fixed filename: one run now typechecks several projects through one
+  // `cacheDir`, and two `createTscEngine` instances may share it as well.
+  const buildInfoPath = join(cacheDir, 'tsc', `${hashContent(project).slice(0, 16)}.tsbuildinfo`)
   await mkdir(dirname(buildInfoPath), { recursive: true })
 
   const args = [
     ...invocation.prefixArgs,
     '-p',
-    handle.path,
+    project,
     '--noEmit',
     // Two argv entries, not a single `--pretty=false` token: confirmed directly against the real binary that
     // `execFile`'s array-argv form requires the value as its own element. Pinned rather than left to tsc's own
