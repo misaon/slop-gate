@@ -8,8 +8,12 @@ import type { Reporter, ReporterContext } from './index.ts'
  * `diagnostics` meant "clean", and in a v2 document it does not — an engine may have been skipped.
  * A reader that never learns the field exists must at least be able to learn that its assumption
  * expired.
+ *
+ * Bumped to 3 by `baseline`, for exactly that reason again and more sharply: in a v3 document an empty
+ * `diagnostics` array can mean "a baseline accepted every finding", so a v2 reader's equation of empty
+ * with clean has expired a second time.
  */
-export const JSON_REPORT_VERSION = 2
+export const JSON_REPORT_VERSION = 3
 
 export function createJsonReporter(context: ReporterContext): Reporter {
   return {
@@ -28,6 +32,11 @@ export function createJsonReporter(context: ReporterContext): Reporter {
             // this document is also the record of *which machine produced it*, and two machines
             // whose reports differ need the raw fact available to compare.
             unavailableEngines: event.result.unavailableEngines,
+            // `null` when no baseline was read, never omitted: a consumer has to be able to tell "no
+            // baseline" from "a field this producer does not emit". The accepted findings themselves
+            // are deliberately *not* here — `diagnostics` is the contract for what fails a build, and
+            // a caller that wants the whole truth runs `--no-baseline`.
+            baseline: event.result.baseline,
             diagnostics: event.result.diagnostics,
           },
           null,

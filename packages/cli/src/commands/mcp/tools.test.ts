@@ -7,6 +7,9 @@ import {
   SNAPSHOT_PATH_ENV,
   writeAdvisorySnapshot,
 } from '@misaon/slop-gate-engine-deps-security'
+import { baselinePathFor, entriesOf, runCheck, writeBaseline, type SlopGateConfig } from '@misaon/slop-gate-core'
+import { DEFAULT_CONFIG, loadCliConfig } from '../../config.ts'
+import { defaultEngines } from '../../engines.ts'
 import { callCheck, callExplain, callPropose, type ToolContext } from './tools.ts'
 
 let dir: string
@@ -40,6 +43,13 @@ afterEach(async () => {
 })
 
 const structured = <T>(result: { structuredContent?: Record<string, unknown> }): T => result.structuredContent as T
+
+/** The fixture's own config, resolved the way every command resolves it. */
+const loadedConfig = async (): Promise<SlopGateConfig> => {
+  const loaded = await loadCliConfig(dir, DEFAULT_CONFIG)
+  if (loaded.kind === 'error') throw new Error(loaded.message)
+  return loaded.config
+}
 
 type CheckStructured = {
   outcome: string
@@ -107,6 +117,39 @@ test('a clean run says clean, and says so in both channels', async () => {
   expect(data.gaps).toEqual([])
   expect(result.content[0]?.text).toContain('coverage: no findings. Nothing was omitted.')
   expect(result.isError).toBeUndefined()
+})
+
+test('a baseline that accepted every finding also makes an empty list unrepresentable as clean', async () => {
+  // Same failure as the absent-engine case below, from the other cause: every engine ran and saw
+  // everything, and the result is still not the whole truth. `baseline-accepted` is a `CoverageGap`
+  // for exactly that reason — reusing the mechanism is what keeps `outcome` and the report's own
+  // `coverage:` line from disagreeing about one run.
+  await writeFile(join(dir, 'dirty.ts'), 'export function f() {\n  debugger\n}\n')
+
+  const before = structured<CheckStructured>(await callCheck({}, context))
+  expect(before.outcome).toBe('findings')
+  expect(before.counts.error).toBeGreaterThan(0)
+
+  const run = await runCheck({
+    rootDir: dir,
+    config: await loadedConfig(),
+    engines: defaultEngines(dir, undefined, undefined),
+    useBaseline: false,
+  })
+  await writeBaseline(baselinePathFor(dir), entriesOf(run.diagnostics))
+
+  const data = structured<CheckStructured>(await callCheck({}, context))
+
+  expect(data.counts).toEqual({ error: 0, warn: 0, info: 0 })
+  expect(data.concepts).toEqual([])
+  expect(data.outcome).toBe('incomplete')
+  expect(data.complete).toBe(false)
+
+  const gap = data.gaps.find((entry) => entry.kind === 'baseline-accepted')
+  expect(gap?.engine).toBeUndefined()
+  expect(gap?.detail).toContain('do not read an empty findings list as clean')
+  expect(gap?.remedy).toBe('sgate check --no-baseline')
+  expect(gap?.concepts).toContain('correctness.no-debugger')
 })
 
 test('an absent engine that cost the run coverage makes an empty findings list unrepresentable as clean', async () => {

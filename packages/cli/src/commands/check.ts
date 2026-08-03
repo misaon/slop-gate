@@ -29,6 +29,8 @@ export const check = defineCommand({
     // `no-cache` silently keeps its default forever. Naming the flag `cache` lets citty's own
     // negation convention do what the CLI surface (`--no-cache`) already promises.
     cache: { type: 'boolean', default: true, negativeDescription: 'Ignore cached results' },
+    // Named for the same reason `cache` is — citty reads `--no-baseline` as "negate `baseline`".
+    baseline: { type: 'boolean', default: true, negativeDescription: 'Report every finding, including the accepted ones' },
     'require-engines': {
       type: 'boolean',
       default: false,
@@ -95,6 +97,7 @@ export const check = defineCommand({
         ...(loaded.kind === 'loaded' ? { configFile: loaded.configFile } : {}),
         engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined, loaded.config.ignore),
         useCache: args.cache,
+        useBaseline: args.baseline,
         signal: controller.signal,
       })) {
         reporter.onEvent(event)

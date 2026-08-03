@@ -472,7 +472,19 @@ function document(
     )
   }
   lines.push('')
-  lines.push(...coverageLines({ groups, shown, total, shownCount, omitted, gaps: gaps.length, budget, options }))
+  lines.push(
+    ...coverageLines({
+      groups,
+      shown,
+      total,
+      shownCount,
+      omitted,
+      gaps: gaps.length,
+      accepted: result.baseline?.accepted ?? 0,
+      budget,
+      options,
+    }),
+  )
 
   for (const section of ['automated', 'judgement'] as const) {
     const inSection = groups.filter((group) => group.section === section)
@@ -546,6 +558,52 @@ function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
   return lines
 }
 
+/**
+ * The baseline, under the same `INCOMPLETE:` prefix an absent engine gets — deliberately, because the
+ * consequence for this reader is identical: findings exist here that are not below. The cause differs
+ * (produced and accepted, rather than never produced) and the line says so, but a second vocabulary for
+ * "this report is partial" would let a model learn to grep for one token and miss the other.
+ *
+ * This is the specific failure the format exists to prevent, in its sharpest form: a model reads a
+ * section with no findings for a file and concludes the file is clean, when a baseline is doing the
+ * work. So the accepted concepts are named — a model that knows `slop.double-cast` is baselined here
+ * will not report it as absent — and the flag that reveals them is printed.
+ *
+ * A stale entry is the other direction and gets no `INCOMPLETE:`: nothing is missing from the report,
+ * a finding was fixed. Reported because that is how a baseline shrinks instead of becoming permanent.
+ *
+ * A baseline that accepted nothing and has nothing stale prints nothing at all — unlike `pretty`, which
+ * states it on every run. §12.3's rule is that an *omission* must never be inferred from silence, and a
+ * baseline that withheld nothing omitted nothing; a human wants to know the file is wired up, and a
+ * token-budgeted report for a model does not.
+ */
+function baselineLines(baseline: CheckResult['baseline']): string[] {
+  if (baseline === null) return []
+  const lines: string[] = []
+  if (baseline.accepted > 0) {
+    lines.push(
+      `INCOMPLETE: a baseline accepted ${baseline.accepted} finding${baseline.accepted === 1 ? '' : 's'} — ${baseline.path}. ` +
+        'They are real findings, absent from everything below; do not read a clean file or section as clean. ' +
+        'Run `sgate check --no-baseline` to see them.',
+    )
+    // Same cap as the `uncovered:` list, deliberately shared rather than duplicated as a second `8`:
+    // both answer "how many concept ids is it worth spending budget naming", and two constants would
+    // drift apart with no reason for the difference.
+    const listed = baseline.acceptedByConcept.slice(0, MAX_LISTED_UNCOVERED)
+    for (const group of listed) lines.push(`  accepted: ${group.concept} — ${group.count}`)
+    const more = baseline.acceptedByConcept.length - listed.length
+    if (more > 0) lines.push(`  accepted: +${more} more concept${more === 1 ? '' : 's'}`)
+  }
+  const stale = baseline.stale.length
+  if (stale > 0) {
+    lines.push(
+      `baseline: ${stale} accepted finding${stale === 1 ? ' is' : 's are'} fixed — ` +
+        `\`sgate baseline update\` prunes ${stale === 1 ? 'it' : 'them'}.`,
+    )
+  }
+  return lines
+}
+
 function incompletenessLines(result: CheckResult): string[] {
   const lines: string[] = []
   for (const failure of result.engineFailures) {
@@ -555,6 +613,7 @@ function incompletenessLines(result: CheckResult): string[] {
     )
   }
   lines.push(...unavailableLines(result.unavailableEngines))
+  lines.push(...baselineLines(result.baseline))
   if (result.ruleset.unknownKeys.length > 0) {
     lines.push(`config: ${result.ruleset.unknownKeys.length} rule key(s) in the config name nothing — run \`sgate rules list\`.`)
   }
@@ -576,6 +635,8 @@ type CoverageInput = {
   readonly shownCount: number
   readonly omitted: number
   readonly gaps: number
+  /** Findings a baseline withheld from this report. Zero when no baseline was read. */
+  readonly accepted: number
   readonly budget: number | undefined
   readonly options: DocumentOptions
 }
@@ -587,17 +648,26 @@ type CoverageInput = {
  * silence — and it names the admission rule, so an agent can tell what it is *not* looking at.
  */
 function coverageLines(input: CoverageInput): string[] {
-  const { total, budget, gaps } = input
+  const { total, budget, gaps, accepted } = input
   const sizing = input.options.sizing === true
   // Stated before the budget accounting, never after. A reader that takes only the first sentence of
   // the coverage line has to come away with the correction, not with the reassurance — and on a run
   // with no findings the reassurance is the entire rest of the sentence.
-  const engines = `${gaps} engine${gaps === 1 ? '' : 's'} could not run (see INCOMPLETE above)`
+  //
+  // A baseline sits in the same clause as an absent engine, and for the same reason: both mean the
+  // report is not the whole of what is wrong here. They differ only in whether the missing findings
+  // were never produced or were produced and accepted, which `INCOMPLETE:` above states.
+  const corrections: string[] = []
+  if (gaps > 0) corrections.push(`${gaps} engine${gaps === 1 ? '' : 's'} could not run (see INCOMPLETE above)`)
+  if (accepted > 0) {
+    corrections.push(`a baseline accepted ${accepted} finding${accepted === 1 ? '' : 's'} (see INCOMPLETE above)`)
+  }
+  const correction = corrections.join(' and ')
   if (total === 0) {
     return [
-      gaps === 0
+      corrections.length === 0
         ? 'coverage: no findings. Nothing was omitted.'
-        : `coverage: ${engines}, so this is not a clean result. No findings from what did run, and nothing was omitted.`,
+        : `coverage: ${correction}, so this is not a clean result. No findings from what did run, and nothing was omitted.`,
     ]
   }
 
@@ -608,7 +678,11 @@ function coverageLines(input: CoverageInput): string[] {
   const omitted = sizing ? total : input.omitted
   const scope = budget === undefined ? 'no --max-tokens set' : `--max-tokens ${budget}`
   const accounting = `${shownCount} of ${total} findings shown, ${omitted} omitted (${scope}).`
-  const lines = [gaps === 0 ? `coverage: ${accounting}` : `coverage: ${engines}, so this is not the whole picture. ${accounting}`]
+  const lines = [
+    corrections.length === 0
+      ? `coverage: ${accounting}`
+      : `coverage: ${correction}, so this is not the whole picture. ${accounting}`,
+  ]
   if (budget === undefined) return lines
 
   lines.push(

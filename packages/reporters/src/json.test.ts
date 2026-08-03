@@ -7,6 +7,7 @@ const result: CheckResult = {
   counts: { error: 0, warn: 0, info: 0 },
   engineFailures: [],
   unavailableEngines: [],
+  baseline: null,
   stats: { filesScanned: 1, filesAnalysed: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 },
   ruleset: { enabledConcepts: 2, suppressed: 0, uncovered: [], unknownKeys: [] },
 }
@@ -24,7 +25,7 @@ test('emits a single versioned json document on done', () => {
   reporter.onEvent({ type: 'done', result })
 
   const parsed = JSON.parse(output) as { version: number; counts: unknown; diagnostics: unknown[] }
-  expect(parsed.version).toBe(2)
+  expect(parsed.version).toBe(3)
   expect(parsed.diagnostics).toEqual([])
   expect(parsed.counts).toEqual({ error: 0, warn: 0, info: 0 })
 })
@@ -81,4 +82,50 @@ test('an engine that could not run is in the document, so no consumer reads empt
   expect(parsed.unavailableEngines[0]?.engine).toBe('astgrep')
   expect(parsed.unavailableEngines[0]?.install).toBe('brew install ast-grep')
   expect(parsed.unavailableEngines[0]?.displaced).toHaveLength(1)
+})
+
+test('emits the baseline block as null when no baseline was read, never omitted', () => {
+  let output = ''
+  const reporter = createReporter('json', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: () => null,
+  })
+  reporter.onEvent({ type: 'done', result })
+
+  expect(JSON.parse(output)).toHaveProperty('baseline', null)
+})
+
+test('carries the whole baseline summary, so an empty diagnostics array can be read correctly', () => {
+  let output = ''
+  const reporter = createReporter('json', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: () => null,
+  })
+  reporter.onEvent({
+    type: 'done',
+    result: {
+      ...result,
+      baseline: {
+        path: '.slop-gate/baseline.json',
+        entries: 3,
+        accepted: 2,
+        acceptedBySeverity: { error: 1, warn: 1, info: 0 },
+        acceptedByConcept: [{ concept: 'slop.double-cast', count: 2 }],
+        stale: [{ file: 'src/gone.ts', concept: 'slop.double-cast', fingerprint: 'zzzz' }],
+      },
+    },
+  })
+
+  const parsed = JSON.parse(output) as { diagnostics: unknown[]; baseline: { accepted: number; stale: unknown[] } }
+  expect(parsed.diagnostics).toEqual([])
+  expect(parsed.baseline.accepted).toBe(2)
+  expect(parsed.baseline.stale).toHaveLength(1)
 })

@@ -1,5 +1,8 @@
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
+import { createBaselineMatcher, type BaselineMatcher } from '../baseline/apply.ts'
+import { baselinePathFor, readBaseline } from '../baseline/file.ts'
+import type { BaselineSummary } from '../baseline/types.ts'
 import { deriveProjectResultKey, deriveResultKey, hashJson, type ProjectResultKeyInput, type ResultKeyInput } from '../cache/keys.ts'
 import { openProjectResultStore, openResultStore, type ProjectResultStore } from '../cache/result-store.ts'
 import { openStatIndex, type StatIndex } from '../cache/stat-index.ts'
@@ -27,6 +30,15 @@ export type CheckOptions = {
   fileSource?: FileSource
   cacheDir?: string
   useCache?: boolean
+  /**
+   * Reads `.slop-gate/baseline.json` and withholds the findings it accepts (spec §12.2). Defaults to
+   * true, so a repository that has committed a baseline gets it without every caller remembering —
+   * `sgate baseline create|update` is the one caller that turns it off, because it has to see the run
+   * the baseline is derived from.
+   */
+  useBaseline?: boolean
+  /** Absolute path to the baseline, for a caller that keeps it somewhere else. */
+  baselineFile?: string
   batchSize?: number
   /**
    * Asks every engine for fix data (spec §11 step 1), capped at this tier. Absent on a plain
@@ -51,6 +63,15 @@ export type CheckResult = {
    * for a CI job that meant to have the tool installed.
    */
   unavailableEngines: readonly UnavailableEngine[]
+  /**
+   * The baseline that was in force, or `null` when there was no baseline file to read.
+   *
+   * Required for the reason `unavailableEngines` is: a run that is green only because a baseline
+   * accepted its findings is not a clean run, and the shape of the mistake is a reporter having no
+   * reason to look. Accepted findings are absent from `diagnostics` and from `counts` — so they cannot
+   * fail a build — which is precisely why the count of them has to travel with the result.
+   */
+  baseline: BaselineSummary | null
   stats: {
     filesScanned: number
     /** Files assigned to at least one engine by the plan — the denominator `filesFromCache` is a count of. */
@@ -96,6 +117,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   const signal = options.signal ?? new AbortController().signal
   const cacheDir = options.cacheDir ?? join(options.rootDir, '.slop-gate', 'cache')
   const useCache = options.useCache ?? true
+  // Read here rather than folded into `configHash`, and applied after the cache rather than inside
+  // `normalizeDiagnostics`: baseline acceptance must not be baked into a per-file cache entry, or
+  // editing the baseline would leave a warm run serving the acceptance decisions of the old one. The
+  // consequence is that the cache never has to be invalidated when a baseline changes.
+  const baseline = (options.useBaseline ?? true) ? await openBaseline(options) : null
   // Deliberately not defaulted to a literal filename: when no config file was found, `configFile`
   // stays `undefined` all the way through to `configDiagnostics`, which attributes those
   // diagnostics to `file: null` rather than a path the user does not have on disk.
@@ -198,6 +224,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   }
 
   for (const diagnostic of configDiagnostics({ resolver, election, configFile })) {
+    if (baseline?.accepts(diagnostic) === true) continue
     collected.push(diagnostic)
     yield { type: 'diagnostic', diagnostic }
   }
@@ -265,7 +292,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               },
               projectStats,
             )) {
-              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic)) continue
+              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
             }
@@ -304,7 +331,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             }
             filesFromCache += 1
             for (const diagnostic of hit) {
-              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic)) continue
+              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
               collected.push(diagnostic)
               yield { type: 'diagnostic', diagnostic }
             }
@@ -363,7 +390,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               // what the user actually sees.
               if (useCache) await resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!)
               for (const diagnostic of normalized) {
-                if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic)) continue
+                if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
                 collected.push(diagnostic)
                 yield { type: 'diagnostic', diagnostic }
               }
@@ -402,6 +429,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       counts,
       engineFailures,
       unavailableEngines,
+      baseline: baseline === null ? null : baseline.summarise(),
       stats: {
         filesScanned: inventory.files.length,
         filesAnalysed,
@@ -419,6 +447,21 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       },
     },
   }
+}
+
+/**
+ * `null` when there is no baseline file. A malformed or unreadable one throws (`ConfigError` from
+ * `parseBaseline`) rather than being treated as absent: silently ignoring a broken baseline would fail
+ * the build on findings a team already agreed to carry, with the reason nowhere on screen.
+ *
+ * `BaselineSummary.path` is repo-relative so the same repository state prints the same report from any
+ * working directory — the property `e2e.test.ts` pins for the whole `agent` report.
+ */
+async function openBaseline(options: CheckOptions): Promise<BaselineMatcher | null> {
+  const path = options.baselineFile ?? baselinePathFor(options.rootDir)
+  const file = await readBaseline(path)
+  if (file === null) return null
+  return createBaselineMatcher({ path: relative(options.rootDir, path).replaceAll('\\', '/'), file })
 }
 
 type ProjectAssignmentContext = {

@@ -84,15 +84,15 @@ export const CHECK_OUTPUT = z.object({
   outcome: z
     .enum(['clean', 'findings', 'incomplete', 'incomplete-with-findings'])
     .describe(
-      'There is no value meaning "nothing found" on its own: a run that could not check everything is ' +
-        '`incomplete` or `incomplete-with-findings` even with an empty findings list. Never read a zero count as a pass ' +
-        'without reading this.',
+      'There is no value meaning "nothing found" on its own: a run that could not check everything, or whose findings a ' +
+        'baseline accepted, is `incomplete` or `incomplete-with-findings` even with an empty findings list. Never read a ' +
+        'zero count as a pass without reading this.',
     ),
   complete: z.boolean().describe('False when anything below reduced coverage. `gaps` says what.'),
   gaps: z
     .array(
       z.object({
-        kind: z.enum(['engine-failed', 'engine-unavailable']),
+        kind: z.enum(['engine-failed', 'engine-unavailable', 'baseline-accepted']),
         engine: z.string().optional(),
         detail: z.string(),
         remedy: z.string().optional(),

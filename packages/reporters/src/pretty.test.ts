@@ -27,6 +27,7 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   counts: { error: 1, warn: 0, info: 0 },
   engineFailures: [],
   unavailableEngines: [],
+  baseline: null,
   stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
   ruleset: { enabledConcepts: 5, suppressed: 1, uncovered: [], unknownKeys: [] },
   ...over,
@@ -530,4 +531,67 @@ test('clamps frame width between 60 and 100 regardless of the reported terminal 
   const wideBorder = wide.split('\n').find((line) => line.includes('╭'))
   expect(wideBorder).toBeDefined()
   expect(displayWidth(wideBorder!)).toBe(100 + 2)
+})
+
+const baselineSummary = (over: Partial<NonNullable<CheckResult['baseline']>> = {}): NonNullable<CheckResult['baseline']> => ({
+  path: '.slop-gate/baseline.json',
+  entries: 609,
+  accepted: 609,
+  acceptedBySeverity: { error: 211, warn: 398, info: 0 },
+  acceptedByConcept: [{ concept: 'correctness.shadows-outer-binding', count: 128 }],
+  stale: [],
+  ...over,
+})
+
+test('withholds the green tick when the run is green only because the baseline accepted findings', () => {
+  const output = capture([
+    { type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 }, baseline: baselineSummary() }) },
+  ])
+  expect(output).toContain('No issues found, but 609 baselined findings')
+  expect(output).not.toContain('✓')
+})
+
+test('names both causes when an engine was absent and the baseline accepted findings', () => {
+  const output = capture([
+    {
+      type: 'done',
+      result: result({ counts: { error: 0, warn: 0, info: 0 }, unavailableEngines: [absent()], baseline: baselineSummary() }),
+    },
+  ])
+  expect(output).toContain('No issues found, but 1 engine could not run and 609 baselined findings')
+})
+
+test('states the baseline on a run where it accepted nothing, so silence never means "no baseline"', () => {
+  const output = capture([
+    {
+      type: 'done',
+      result: result({ counts: { error: 0, warn: 0, info: 0 }, baseline: baselineSummary({ accepted: 0, entries: 4 }) }),
+    },
+  ])
+  expect(output).toContain('.slop-gate/baseline.json holds 4 findings, none found here')
+  expect(output).toContain('✓')
+})
+
+test('reports stale entries as fixed findings and names the command that prunes them', () => {
+  const output = capture([
+    {
+      type: 'done',
+      result: result({
+        counts: { error: 0, warn: 0, info: 0 },
+        baseline: baselineSummary({
+          accepted: 1,
+          stale: [
+            { file: 'src/gone.ts', concept: 'slop.double-cast', fingerprint: 'zzzz' },
+            { file: 'src/fixed.ts', concept: 'slop.as-any-cast', fingerprint: 'yyyy' },
+          ],
+        }),
+      }),
+    },
+  ])
+  expect(output).toContain('2 accepted findings are fixed — run `sgate baseline update`')
+})
+
+test('says nothing about a baseline when there is none', () => {
+  const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
+  expect(output).not.toContain('baseline')
 })

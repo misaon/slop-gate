@@ -47,6 +47,13 @@ test('writes an .mts config, a gitignore entry and an AGENTS.md section for a no
   expect(await readFile(join(dir, 'AGENTS.md'), 'utf8')).toContain('sgate check')
 })
 
+test('exempts the baseline and the gitignore itself from the directory-wide ignore', async () => {
+  // `*` alone matched both. A baseline nobody can commit is read by no CI job, and a `.gitignore`
+  // that ignores itself is re-created untracked on every teammate's first run.
+  await runInit({ rootDir: dir })
+  expect(await readFile(join(dir, '.slop-gate', '.gitignore'), 'utf8')).toBe('*\n!.gitignore\n!baseline.json\n')
+})
+
 test('writes a .ts config for a project that already declares "type": "module"', async () => {
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture', type: 'module' }))
   const result = await runInit({ rootDir: dir })

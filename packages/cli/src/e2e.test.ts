@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { loadConfig, runCheck, toPosix, type CheckResult } from '@misaon/slop-gate-core'
+import { baselinePathFor, entriesOf, loadConfig, runCheck, toPosix, writeBaseline, type CheckResult } from '@misaon/slop-gate-core'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { createReporter } from '@misaon/slop-gate-reporters'
 
@@ -14,7 +14,7 @@ let dir: string
 const suppressedFileConcepts = (result: { diagnostics: readonly { file: string | null; concept: string }[] }): string[] =>
   result.diagnostics.filter((d) => d.file === 'src/suppressed.ts').map((d) => d.concept)
 
-const check = async (useCache: boolean) => {
+const check = async (useCache: boolean, useBaseline = true) => {
   // Mirrors what `sgate check` itself does (packages/cli/src/commands/check.ts): `loadConfig`
   // resolves the fixture's own `slop-gate.config.ts` to an absolute path, which the caller must
   // relativize before it reaches `streamCheck` — `configFile` lands verbatim in every `config.*`
@@ -28,6 +28,7 @@ const check = async (useCache: boolean) => {
     ...(loaded === null || loaded === undefined ? {} : { configFile: toPosix(relative(dir, loaded.file)) }),
     engines: [createOxlintEngine()],
     useCache,
+    useBaseline,
   })
 }
 
@@ -189,3 +190,74 @@ test('the suppressed finding and the unused-suppression diagnostic both survive 
   expect(suppressedFileConcepts(warm)).toContain('config.unused-suppression')
   expect(warm.stats.filesFromCache).toBeGreaterThan(0)
 }, 60_000)
+
+test('a baseline built from a run accepts exactly that run, byte-identically twice over', async () => {
+  const cold = await check(false)
+  expect(cold.baseline).toBeNull()
+  expect(cold.diagnostics.length).toBeGreaterThan(0)
+
+  const path = baselinePathFor(dir)
+  await writeBaseline(path, entriesOf(cold.diagnostics))
+  const first = readFileSync(path, 'utf8')
+
+  // Determinism, on the one artefact that is committed and reviewed: rebuilding it from a second run
+  // over unchanged sources must produce the same bytes, or every `sgate baseline update` would show a
+  // diff nobody made. `useBaseline: false` is what `sgate baseline create` itself passes — derived
+  // through the baseline it replaces, a rebuild would only ever re-accept what was already accepted.
+  await writeBaseline(path, entriesOf((await check(false, false)).diagnostics))
+  expect(readFileSync(path, 'utf8')).toBe(first)
+
+  const gated = await check(false)
+  expect(gated.diagnostics).toEqual([])
+  expect(gated.counts).toEqual({ error: 0, warn: 0, info: 0 })
+  expect(gated.baseline?.accepted).toBe(cold.diagnostics.length)
+  expect(gated.baseline?.stale).toEqual([])
+}, 120_000)
+
+test('the baseline accepts the same findings whether the run was served cold or from cache', async () => {
+  // Acceptance is applied after the cache, never folded into a cache entry (`run/check.ts`). Were it
+  // baked in, editing the baseline would leave a warm run enforcing the previous one — a gate whose
+  // verdict depends on which files happened to be cached.
+  await writeBaseline(baselinePathFor(dir), entriesOf((await check(false, false)).diagnostics))
+
+  const cold = await check(true)
+  const warm = await check(true)
+
+  expect(warm.stats.filesFromCache).toBeGreaterThan(0)
+  expect(warm.diagnostics).toEqual(cold.diagnostics)
+  expect(warm.baseline?.accepted).toBe(cold.baseline?.accepted)
+  expect(warm.baseline?.stale).toEqual(cold.baseline?.stale)
+}, 120_000)
+
+test('a stale entry is reported rather than pruned, and does not fail the run', async () => {
+  await writeBaseline(baselinePathFor(dir), [
+    ...entriesOf((await check(false, false)).diagnostics),
+    { file: 'src/long-gone.ts', concept: 'correctness.no-debugger', fingerprint: 'f'.repeat(32) },
+  ])
+
+  const result = await check(false)
+
+  expect(result.baseline?.stale).toEqual([
+    { file: 'src/long-gone.ts', concept: 'correctness.no-debugger', fingerprint: 'f'.repeat(32) },
+  ])
+  expect(result.counts).toEqual({ error: 0, warn: 0, info: 0 })
+}, 120_000)
+
+test('the agent report on a fully baselined run is still not readable as clean', async () => {
+  await writeBaseline(baselinePathFor(dir), entriesOf((await check(false, false)).diagnostics))
+  const result = await check(false)
+
+  let output = ''
+  const reporter = createReporter('agent', {
+    write: (chunk) => (output += chunk),
+    color: false,
+    unicode: true,
+    width: 80,
+    version: '0.0.0',
+    readSource: () => null,
+  })
+  reporter.onEvent({ type: 'done', result })
+
+  expect(output).toContain('INCOMPLETE: a baseline accepted')
+  expect(output).toContain('so this is not a clean result')
+}, 120_000)

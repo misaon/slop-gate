@@ -28,6 +28,18 @@ Rules are configured by *concept* (for example \`dead-code.unused-import\`) in
 competing config file will be ignored.
 `
 
+/**
+ * `.slop-gate/` holds the cache and the engines' scratch directory, neither of which belongs in git —
+ * hence `*`. Two files in it are exceptions and both have to be named, because `*` matches them too:
+ *
+ * - **`.gitignore` itself.** Without the negation the file ignores itself, so `sgate init`'s own
+ *   output cannot be committed and every teammate's first run re-creates it untracked.
+ * - **`baseline.json`.** A baseline that is not committed is not a baseline: CI clones the repository
+ *   and would read none, so the build a team just agreed to make green fails on the first push.
+ *   `sgate baseline create` checks this negation is present and says so when it is not.
+ */
+export const SLOP_GATE_GITIGNORE = '*\n!.gitignore\n!baseline.json\n'
+
 const readIfPresent = async (path: string): Promise<string | null> =>
   readFile(path, 'utf8').then(
     (content) => content,
@@ -83,7 +95,7 @@ export async function runInit(options: {
   }
 
   await mkdir(join(options.rootDir, '.slop-gate'), { recursive: true })
-  await writeFile(join(options.rootDir, '.slop-gate', '.gitignore'), '*\n', 'utf8')
+  await writeFile(join(options.rootDir, '.slop-gate', '.gitignore'), SLOP_GATE_GITIGNORE, 'utf8')
 
   const agentsPath = join(options.rootDir, 'AGENTS.md')
   const existingAgents = (await readIfPresent(agentsPath)) ?? ''

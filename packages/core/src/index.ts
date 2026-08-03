@@ -14,6 +14,22 @@ export { createLineIndex, type LineIndex } from './diagnostics/position.ts'
 export { fingerprint, normalizedWindow, type FingerprintInput } from './diagnostics/fingerprint.ts'
 
 export {
+  BASELINE_VERSION,
+  type BaselineEntry,
+  type BaselineFile,
+  type BaselineSummary,
+} from './baseline/types.ts'
+export {
+  BASELINE_FILENAME,
+  baselinePathFor,
+  entriesOf,
+  parseBaseline,
+  readBaseline,
+  serializeBaseline,
+  writeBaseline,
+} from './baseline/file.ts'
+
+export {
   CONCEPTS,
   CONCEPT_GROUPS,
   GENERATED_CONCEPT_IDS,
