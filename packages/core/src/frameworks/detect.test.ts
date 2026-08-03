@@ -477,6 +477,48 @@ test('both installed disables both scopes — the double report would be genuine
   )
 })
 
+/**
+ * oxlint 1.76.0 omits `eslint-plugin-unicorn`'s own `jest.mock()` exemption for
+ * `consistent-function-scoping` (`rules/consistent-function-scoping.js:105-122`,
+ * `isInsideJestMockFactory`, unicorn 72.0.0) and carries the shape in its own `fail` vector instead.
+ * Measured on a four-file fixture: oxlint 5 findings, three of them functions declared inside a
+ * `jest.mock()` factory; ESLint 10.8.0 with the real plugin, 2. A jest factory *cannot* reference
+ * anything outside itself (jest hoists the call above the imports), so "move it to the outer scope"
+ * is advice that breaks the test — every one of the three is false.
+ *
+ * Confined to jest's own default `testMatch`, so the rule keeps working on application code, which is
+ * where it earns its place.
+ */
+test('a jest repository turns the mock-factory false positive off in test files only', async () => {
+  const detection = await detect({ 'package.json': manifest({ jest: '^30.0.0' }, 'devDependencies') })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+  const level = (path: string) =>
+    resolver.forFile(path).rules.get('suspicious.consistent-function-scoping' as never)?.level
+
+  expect(level('src/service.test.ts')).toBe('off')
+  expect(level('src/__tests__/service.ts')).toBe('off')
+  expect(level('src/service.ts')).toBe('warn')
+})
+
+test('a vitest-only repository keeps the mock-factory rule on, because upstream exempts only jest', async () => {
+  const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+
+  // Measured on the same fixture: the real plugin reports the `vi.mock()` factory too, so this is
+  // upstream's own position rather than an oversight of ours to route around. See the M0 follow-ups.
+  expect(resolver.forFile('src/service.test.ts').rules.get('suspicious.consistent-function-scoping' as never)?.level).toBe(
+    'warn',
+  )
+})
+
 test('neither installed disables both scopes, degrading to the exclusion this replaces', async () => {
   const both = await detect({ 'package.json': manifest({ jest: '^30.0.0', vitest: '^3.0.0' }, 'devDependencies') })
   const neither = await detect({ 'package.json': manifest({}) })

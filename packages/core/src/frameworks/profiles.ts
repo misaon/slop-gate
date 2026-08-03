@@ -515,6 +515,62 @@ function describeRoots(appRoots: readonly string[]): string {
 const TEST_SCOPES = ['jest', 'vitest'] as const
 
 /**
+ * jest's own default `testMatch` (jest 30), copied rather than approximated — an approximation would
+ * be a second, worse specification of "a test file" for a tool that already publishes one. Verified
+ * against picomatch 4.0.5, which handles both extglobs verbatim.
+ *
+ * A repository that overrides `testMatch`, or writes `jest.mock()` in a `setupFiles` module outside
+ * these globs, still reports. Reading `testMatch` would need an array-valued config probe, which
+ * `frameworks/literal.ts` deliberately does not have (spec §23, "the `literal` probe is one file, one
+ * property path, string literals only").
+ */
+const JEST_TEST_FILES = ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'] as const
+
+type TestFrameworkLayout = {
+  /** Scopes whose dual-firing concepts go off, sorted by `TEST_SCOPES` order. */
+  readonly disabledScopes: readonly string[]
+  /** Whether any manifest declares `jest` — what makes the mock-factory exemption below apply at all. */
+  readonly jest: boolean
+}
+
+/**
+ * oxlint 1.76.0 omits an exemption `eslint-plugin-unicorn` has, and the omission is deliberate on
+ * oxlint's side: `unicorn/consistent-function-scoping` exempts any function nested inside a
+ * `jest.mock()` factory upstream (`rules/consistent-function-scoping.js:105-122`,
+ * `isInsideJestMockFactory`, unicorn 72.0.0), and oxlint's own Rust rule has no such check while
+ * carrying `jest.mock('@kbn/i18n-react', () => { return { I18nProvider: function
+ * MockI18nProvider() {} } })` in its `fail` vector.
+ *
+ * Measured rather than reasoned about, on a four-file fixture with three mock factories and one
+ * genuine violation: **oxlint 1.76.0 reports 5, all `code: "unicorn(consistent-function-scoping)"`;
+ * ESLint 10.8.0 with the real plugin reports 2.** The three extra are functions declared inside a
+ * `jest.mock()` factory, and every one is false for a mechanical reason rather than a stylistic one:
+ * jest hoists the `jest.mock()` call above the imports, so its factory may not reference anything
+ * outside itself — "move it to the outer scope" produces a test that throws.
+ *
+ * The concept is `unicorn`-scope, so no amount of test-scope arbitration reaches it and the
+ * dual-firing subtraction above cannot help. It is `warn`, so nobody's build breaks either way; what
+ * it costs is one wrong finding per mock factory on a codebase that may have hundreds.
+ *
+ * **Path-scoped rather than repository-wide**, which is the whole reason this waited for §23.6: the
+ * rule is worth keeping on application code, and every instance of this false positive is in a file
+ * jest itself would run.
+ */
+function jestMockFactoryFalsePositive(): FrameworkAdjustment {
+  return {
+    kind: 'disable-concept',
+    concept: 'suspicious.consistent-function-scoping',
+    paths: [...JEST_TEST_FILES],
+    reason:
+      'oxlint omits `eslint-plugin-unicorn`’s own `jest.mock()` exemption for this rule, so every ' +
+      'function declared inside a mock factory is reported. A jest mock factory is hoisted above the ' +
+      'imports and may not reference anything outside itself, so moving the function out — the only ' +
+      'thing this rule can advise — would break the test. Measured: 3 of oxlint 1.76.0’s 5 findings ' +
+      'on a jest fixture, against 2 from the real plugin. Confined to jest’s own default `testMatch`.',
+  }
+}
+
+/**
  * oxlint's `jest` and `vitest` plugins pattern-match the generic `describe`/`it`/`expect` call shape
  * rather than checking which package it came from, so on a repository using one of them, both plugins'
  * rules fire on the identical line — under two different concept ids, which arbitration cannot merge
@@ -529,18 +585,21 @@ const TEST_SCOPES = ['jest', 'vitest'] as const
  * that applies with no evidence — the absence *is* the finding, and it disables rather than enables,
  * so the failure direction stays safe.
  */
-const testFramework = defineProfile<readonly string[]>({
+const testFramework = defineProfile<TestFrameworkLayout>({
   id: 'test-framework',
   summary: 'Test framework — elects the scope whose plugin rules are not duplicates',
   async detect(context) {
     const found = TEST_SCOPES.map((scope) => ({ scope, evidence: findDependency(context, [scope]) })).filter(
       (candidate) => candidate.evidence !== null,
     )
-    const disabled = found.length === 1 ? TEST_SCOPES.filter((scope) => scope !== found[0]!.scope) : [...TEST_SCOPES]
-    return { evidence: found.map((candidate) => candidate.evidence!), parameters: disabled }
+    const disabledScopes = found.length === 1 ? TEST_SCOPES.filter((scope) => scope !== found[0]!.scope) : [...TEST_SCOPES]
+    return {
+      evidence: found.map((candidate) => candidate.evidence!),
+      parameters: { disabledScopes, jest: found.some((candidate) => candidate.scope === 'jest') },
+    }
   },
-  consequences: (disabled) =>
-    disabled.flatMap((scope) => {
+  consequences: (layout) => [
+    ...layout.disabledScopes.flatMap((scope) => {
       const counterpart = TEST_SCOPES.find((other) => other !== scope)!
       return dualFiringConcepts(scope, counterpart).map(
         (concept): FrameworkAdjustment => ({
@@ -552,6 +611,8 @@ const testFramework = defineProfile<readonly string[]>({
         }),
       )
     }),
+    ...(layout.jest ? [jestMockFactoryFalsePositive()] : []),
+  ],
 })
 
 /** Strips a leading `./` and any trailing `/` so `'./src/migrations/'` and `'src/migrations'` agree. */
