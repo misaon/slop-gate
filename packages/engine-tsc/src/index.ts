@@ -1,10 +1,10 @@
-import { execFile } from 'node:child_process'
 import { access, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { promisify } from 'node:util'
 import {
   EngineError,
   hashContent,
+  runEngineTool,
+  toolVersion,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -18,8 +18,6 @@ import { resolveTscBinary, type TscInvocation } from './resolve-binary.ts'
 
 export { TYPE_ERROR_RULE_ID, parseTscOutput } from './parse.ts'
 export { resolveTscBinary, type TscInvocation } from './resolve-binary.ts'
-
-const run = promisify(execFile)
 
 /**
  * A cold run with real diagnostics exits `2`; a warm `--incremental` rerun reporting the exact same,
@@ -79,7 +77,7 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       languages: ['ts', 'tsx'],
       granularity: 'project',
       // Deliberately empty, not `['types']` — see the long comment on the `tsc` entry in
-      // packages/core/src/registry/entries.manual.ts for why declaring that capability here would be
+      // packages/core/src/registry/entries.uncatalogued.ts for why declaring that capability here would be
       // actively wrong (it would let arbitration elect a tsgolint-owned type-aware rule the moment
       // `tsc` is merely registered, regardless of whether tsgolint's own wiring can run it yet).
       provides: [],
@@ -142,9 +140,7 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
     },
 
     async version() {
-      const resolved = required()
-      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
-      return stdout.trim().replace(/^Version\s+/i, '')
+      return toolVersion(required(), /^Version\s+/i)
     },
 
     async materializeConfig(selection: EngineRuleSelection) {
@@ -198,22 +194,14 @@ async function* execute(
     buildInfoPath,
   ]
 
-  let stdout: string
-  try {
-    ;({ stdout } = await run(invocation.command, args, {
-      cwd: context.rootDir,
-      signal,
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024 * 256,
-    }))
-  } catch (error) {
-    const failure = error as { code?: number | string; stdout?: string; stderr?: string }
-    if (typeof failure.code === 'number' && failure.code <= MAX_FINDINGS_EXIT_CODE) {
-      stdout = failure.stdout ?? ''
-    } else {
-      throw new EngineError('tsc', `tsc failed: ${failure.stderr?.trim() || String(failure.code)}`, { cause: error })
-    }
-  }
+  const { stdout } = await runEngineTool({
+    engine: 'tsc',
+    command: invocation.command,
+    args,
+    cwd: context.rootDir,
+    signal,
+    maxFindingsExitCode: MAX_FINDINGS_EXIT_CODE,
+  })
 
   yield* parseTscOutput(stdout, context.rootDir)
 }

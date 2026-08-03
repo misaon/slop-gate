@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
-import { HadolintInstallError, installHadolint } from './download.ts'
+import { HadolintInstallError, installHadolint } from './install.ts'
 import { HADOLINT_VERSION } from './release.ts'
 import { hadolintCacheDir } from './resolve-binary.ts'
 

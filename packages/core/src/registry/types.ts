@@ -81,3 +81,18 @@ export type RuleRef = { readonly engine: EngineId; readonly engineRuleId: string
 export function ruleRefKey(ref: RuleRef): string {
   return `${ref.engine}/${ref.engineRuleId}`
 }
+
+/**
+ * Splits on the **first** `/` only: an `engineRuleId` may contain more of them
+ * (`eslint/@typescript-eslint/no-unused-vars`), so splitting on the last or on all of them would
+ * silently truncate the rule.
+ *
+ * `engine` is a plain string rather than `EngineId` because not every key names an engine:
+ * `slop-gate/<concept>` marks a diagnostic the orchestrator emitted itself, and an unqualified key
+ * yields an empty engine.
+ */
+export function parseRuleRefKey(key: string): { readonly engine: string; readonly engineRuleId: string } {
+  const slash = key.indexOf('/')
+  if (slash === -1) return { engine: '', engineRuleId: key }
+  return { engine: key.slice(0, slash), engineRuleId: key.slice(slash + 1) }
+}

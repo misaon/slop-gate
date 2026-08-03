@@ -1,8 +1,8 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import {
   EngineError,
   SCRIPT_LANGUAGES,
+  runEngineTool,
+  toolVersion,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -18,8 +18,6 @@ import { resolveOxlintBinary, type OxlintInvocation } from './resolve-binary.ts'
 export { deriveOxlintFixes, loadFixCatalogue, type DeriveOxlintFixesOptions } from './derive-fixes.ts'
 export { PARSE_ERROR_RULE_ID, parseOxlintOutput, toEngineRuleId } from './parse.ts'
 export { resolveOxlintBinary, type OxlintInvocation } from './resolve-binary.ts'
-
-const run = promisify(execFile)
 
 /** oxlint exits 1 when it reports findings; only higher codes are real failures. */
 const MAX_FINDINGS_EXIT_CODE = 1
@@ -56,9 +54,7 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
     },
 
     async version() {
-      const resolved = required()
-      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
-      return stdout.trim().replace(/^version:\s*/i, '')
+      return toolVersion(required(), /^version:\s*/i)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
@@ -97,24 +93,14 @@ async function* execute(
     ...batch.files.map((file) => file.path),
   ]
 
-  let stdout: string
-  try {
-    ;({ stdout } = await run(invocation.command, args, {
-      cwd: context.rootDir,
-      signal,
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024 * 256,
-    }))
-  } catch (error) {
-    const failure = error as { code?: number | string; stdout?: string; stderr?: string }
-    if (typeof failure.code === 'number' && failure.code <= MAX_FINDINGS_EXIT_CODE) {
-      stdout = failure.stdout ?? ''
-    } else {
-      throw new EngineError('oxlint', `oxlint failed: ${failure.stderr?.trim() || String(failure.code)}`, {
-        cause: error,
-      })
-    }
-  }
+  const { stdout } = await runEngineTool({
+    engine: 'oxlint',
+    command: invocation.command,
+    args,
+    cwd: context.rootDir,
+    signal,
+    maxFindingsExitCode: MAX_FINDINGS_EXIT_CODE,
+  })
 
   const expected = handle.ruleCount === undefined ? undefined : { ruleCount: handle.ruleCount }
   yield* parseOxlintOutput(stdout, context.rootDir, expected)

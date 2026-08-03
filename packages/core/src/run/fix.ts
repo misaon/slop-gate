@@ -19,7 +19,7 @@ import { FIX_TIER_RANK, type CandidateEdit, type DroppedEdit, type FixTier } fro
 import { inspectWorktree, type InspectWorktreeOptions, type WorktreeState } from '../fix/worktree.ts'
 import { compareStrings } from '../ordering.ts'
 import { buildPlan } from '../planner/plan.ts'
-import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
+import { parseRuleRefKey, ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
 import { runCheck } from './check.ts'
 import { resolveRun } from './resolve-run.ts'
 
@@ -64,7 +64,7 @@ export type FixResult = {
   /** Files whose content changed. Empty for a clean run and for a refusal. */
   readonly files: readonly FixedFile[]
   /** Applied edits per rule, ordered by count descending then rule id. */
-  readonly rules: readonly { readonly ruleId: string; readonly count: number }[]
+  readonly rules: readonly { readonly ruleRefKey: string; readonly count: number }[]
   /** `config.fix-oscillation` diagnostics, one per file that had to stop (spec §11 step 5). */
   readonly oscillations: readonly Diagnostic[]
   readonly passes: number
@@ -260,7 +260,7 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       if (applied.length === 0) continue
 
       const next = applyEdits(state.current, applied)
-      const rules = [...new Set(applied.map((edit) => edit.ruleId))].sort(compareStrings)
+      const rules = [...new Set(applied.map((edit) => edit.ruleRefKey))].sort(compareStrings)
 
       // Recorded *before* the write, and the write is skipped when it fires: the buffer being
       // recorded is one this file has already been in, so putting it on disk is the step that makes
@@ -276,8 +276,8 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
       state.current = next
       state.edits += applied.length
       for (const edit of applied) {
-        state.rules.add(edit.ruleId)
-        appliedByRule.set(edit.ruleId, (appliedByRule.get(edit.ruleId) ?? 0) + 1)
+        state.rules.add(edit.ruleRefKey)
+        appliedByRule.set(edit.ruleRefKey, (appliedByRule.get(edit.ruleRefKey) ?? 0) + 1)
       }
       changedThisPass = true
 
@@ -312,8 +312,8 @@ export async function runFix(options: FixOptions): Promise<FixResult> {
     }
 
     const rules = [...appliedByRule]
-      .map(([ruleId, count]) => ({ ruleId, count }))
-      .sort((a, b) => b.count - a.count || compareStrings(a.ruleId, b.ruleId))
+      .map(([key, count]) => ({ ruleRefKey: key, count }))
+      .sort((a, b) => b.count - a.count || compareStrings(a.ruleRefKey, b.ruleRefKey))
 
     return { tier, dryRun, files, rules, oscillations, passes, truncated, initial, skipped, engineFailures }
   }
@@ -373,12 +373,12 @@ async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveC
   for (const diagnostic of diagnostics) {
     if (diagnostic.fix !== undefined || diagnostic.file === null) continue
     if (!ctx.writable.has(diagnostic.file)) continue
-    const kind = fixKinds.get(diagnostic.ruleId)
+    const kind = fixKinds.get(diagnostic.ruleRefKey)
     if (kind === undefined || kind === 'none' || FIX_TIER_RANK[kind] > FIX_TIER_RANK[ctx.tier]) continue
     if (!providers.some((engine) => engine.id === diagnostic.engine)) continue
     if (!(await isSuppressionFree(diagnostic.file))) continue
 
-    const engineRuleId = diagnostic.ruleId.slice(diagnostic.ruleId.indexOf('/') + 1)
+    const { engineRuleId } = parseRuleRefKey(diagnostic.ruleRefKey)
     const targets = targetsByEngine.get(diagnostic.engine) ?? []
     targets.push({ file: diagnostic.file, engineRuleId, range: diagnostic.range })
     targetsByEngine.set(diagnostic.engine, targets)
@@ -408,9 +408,9 @@ async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveC
   const claimed = new Set<string>()
   return diagnostics.map((diagnostic) => {
     if (diagnostic.fix !== undefined || diagnostic.file === null) return diagnostic
-    const kind = fixKinds.get(diagnostic.ruleId)
+    const kind = fixKinds.get(diagnostic.ruleRefKey)
     if (kind === undefined || kind === 'none') return diagnostic
-    const engineRuleId = diagnostic.ruleId.slice(diagnostic.ruleId.indexOf('/') + 1)
+    const { engineRuleId } = parseRuleRefKey(diagnostic.ruleRefKey)
     const key = `${diagnostic.engine}\0${diagnostic.file}\0${engineRuleId}`
     const edits = editsByKey.get(key)
     if (edits === undefined || claimed.has(key)) return diagnostic
@@ -494,9 +494,9 @@ function gather(diagnostics: readonly Diagnostic[], ctx: GatherContext): Map<str
         range: edit.range,
         replacement: edit.replacement,
         kind: fix.kind,
-        ruleId: diagnostic.ruleId,
+        ruleRefKey: diagnostic.ruleRefKey,
         concept: diagnostic.concept,
-        priority: ctx.priorities.get(diagnostic.ruleId) ?? 0,
+        priority: ctx.priorities.get(diagnostic.ruleRefKey) ?? 0,
         severity: diagnostic.severity,
       })
     }
@@ -566,7 +566,7 @@ function oscillationDiagnostic(
 
   return {
     concept,
-    ruleId: `slop-gate/${concept}`,
+    ruleRefKey: `slop-gate/${concept}`,
     engine: 'slop-gate',
     severity: LEVEL_TO_SEVERITY[level],
     message,

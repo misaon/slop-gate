@@ -5,7 +5,7 @@
  * purpose. `src/generator.ts` and `src/generated.ts` are not markers and must not match, which is
  * what the `.` on both sides is for.
  */
-const MARKER = /(^|\/)__generated__\/|\.(gen|generated)\.[^/]+$/
+const GENERATED_PATH_MARKERS = /(^|\/)__generated__\/|\.(gen|generated)\.[^/]+$/
 
 /**
  * True when nothing a human wrote lives at `path`, so a finding there is unactionable whether or not
@@ -32,5 +32,5 @@ const MARKER = /(^|\/)__generated__\/|\.(gen|generated)\.[^/]+$/
  * `__generated__` is.
  */
 export function isGeneratedPath(path: string): boolean {
-  return MARKER.test(path)
+  return GENERATED_PATH_MARKERS.test(path)
 }

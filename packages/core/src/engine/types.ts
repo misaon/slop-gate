@@ -1,7 +1,7 @@
 import type { ByteRange, Edit } from '../diagnostics/types.ts'
 import type { FixTier } from '../fix/types.ts'
 import type { InventoryFile } from '../discovery/types.ts'
-import type { EngineAdjustments } from '../frameworks/types.ts'
+import type { EngineSettings } from '../frameworks/types.ts'
 import type { LanguageId } from '../languages.ts'
 import type { RuleLevel, RuleOptions } from '../config/types.ts'
 import type { Capability, EngineId } from '../registry/types.ts'
@@ -103,7 +103,7 @@ export type RunContext = {
    * thing. `key` is this engine's own vocabulary — core does not interpret it, the adapter does,
    * including how the union maps onto whatever merge semantics the engine's config format has.
    */
-  readonly adjustments?: EngineAdjustments
+  readonly adjustments?: EngineSettings
   /**
    * Set by `sgate fix` (spec §11) to the highest fix tier this run will apply, and absent on every
    * `sgate check`. An adapter that can report fixes should populate `RawDiagnostic.fix` when it is

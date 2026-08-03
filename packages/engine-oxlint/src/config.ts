@@ -51,11 +51,11 @@ export async function materializeOxlintConfig(
       // oxlint's config format knows how to enable — writing it into `rules` makes oxlint reject
       // the whole config with "Rule 'parse-error' not found in plugin 'eslint'" (confirmed against
       // the real binary), failing every run that elects `correctness.parse-error`.
-      .filter(([ruleId, [level]]) => level !== 'off' && ruleId !== PARSE_ERROR_RULE_ID)
+      .filter(([engineRuleId, [level]]) => level !== 'off' && engineRuleId !== PARSE_ERROR_RULE_ID)
       .sort(([a], [b]) => compareStrings(a, b))
-      .map(([ruleId, [level, ...options]]) => {
+      .map(([engineRuleId, [level, ...options]]) => {
         const oxlintLevel = LEVEL_TO_OXLINT[level] ?? 'warn'
-        return [ruleId, options.length === 0 ? oxlintLevel : [oxlintLevel, ...options]]
+        return [engineRuleId, options.length === 0 ? oxlintLevel : [oxlintLevel, ...options]]
       }),
   )
 

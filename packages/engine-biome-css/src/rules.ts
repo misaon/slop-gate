@@ -32,7 +32,7 @@ const rule = (group: BiomeCssRule['group'], engineRuleId: string): BiomeCssRule 
 
 /**
  * The seventeen rules in the `recommended` preset, plus the nine that have a registry entry but are
- * held out of it by `MANUAL_RULE_EXCLUSIONS`. All twenty-six live here together because this list
+ * held out of it by `NOT_RECOMMENDED_UNCATALOGUED`. All twenty-six live here together because this list
  * answers "may the adapter enable this?", and a user who opts into an excluded concept must get a
  * config that turns the rule on.
  */
@@ -79,7 +79,7 @@ export type ExcludedRule = {
   readonly engineRuleId: string
   /**
    * Why this rule has no registry entry at all, as opposed to the nine that have one and are merely
-   * out of `recommended` (`MANUAL_RULE_EXCLUSIONS`). The distinction is deliberate: those nine are
+   * out of `recommended` (`NOT_RECOMMENDED_UNCATALOGUED`). The distinction is deliberate: those nine are
    * rules someone might legitimately want, so they stay enableable by concept. These nine are ones
    * nobody should be handed — the check is wrong, or it cannot fire, or it reports something that is
    * not a property of the file.
@@ -158,7 +158,7 @@ export const EXCLUDED_RULES: readonly ExcludedRule[] = [
       "Did not fire on an authored fixture built to trigger it (`.a.b.c.d.e.f`), and produced zero " +
       "findings on the corpus, so nothing here establishes what it does. `nursery` upstream. A rule " +
       "whose behaviour we cannot demonstrate must not be shipped as coverage — that is the " +
-      "`no-implied-eval` argument in `registry/exclusions.ts` applied to a rule we can still see " +
+      "`no-implied-eval` argument in `registry/not-recommended.ts` applied to a rule we can still see " +
       "into rather than one we could not.",
   },
   {
@@ -188,6 +188,6 @@ export const EXCLUDED_RULE_IDS: ReadonlySet<string> = new Set(EXCLUDED_RULES.map
  * The synthetic rule id the adapter assigns its own report that a stylesheet carries a
  * `biome-ignore` comment. Not a Biome rule — see `suppressions.ts` for why this is the adapter's
  * job rather than the engine's, and the `biome-css/foreign-suppression` entry in
- * `packages/core/src/registry/entries.manual.ts` for what it maps to.
+ * `packages/core/src/registry/entries.uncatalogued.ts` for what it maps to.
  */
 export const FOREIGN_SUPPRESSION_RULE_ID = 'foreign-suppression'

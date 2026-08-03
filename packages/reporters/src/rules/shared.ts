@@ -1,5 +1,5 @@
 import { LEVEL_TO_SEVERITY, ruleRefKey, type RuleEntry, type RuleLevel, type RuleRef } from '@misaon/slop-gate-core'
-import type { FrameKit } from '../frame.ts'
+import type { FrameKit } from '../box.ts'
 import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_STYLE } from '../severity.ts'
 import type { RulesReporterContext } from './context.ts'
 

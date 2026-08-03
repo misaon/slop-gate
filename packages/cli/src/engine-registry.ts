@@ -60,7 +60,7 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
  * never reaches it. The remaining held-out concepts — knip's other five, ast-grep's
  * `slop.swallowed-error` and `slop.emoji-in-code` — are opted into by concept, each with the
  * measurement that kept it out recorded in `packages/core/src/config/presets.ts` and
- * `packages/core/src/registry/entries.manual.ts`.
+ * `packages/core/src/registry/entries.uncatalogued.ts`.
  *
  * `deps-security` needs no binding either, and is the **second optional engine** — but what it waits
  * for is data rather than a binary. Its `availability()` is a `stat` on the advisory snapshot that

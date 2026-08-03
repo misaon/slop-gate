@@ -403,7 +403,7 @@ export const HAND_WRITTEN_CONCEPTS = [
   // matters when reading a finding: each of these is only as good as the reachability graph knip built,
   // and that graph is exactly what a repository with an undeclared workspace layout, a runtime-loaded
   // convention directory or a framework-injected entry point can invalidate. See the measured
-  // false-positive rates recorded on each entry in registry/entries.manual.ts.
+  // false-positive rates recorded on each entry in registry/entries.uncatalogued.ts.
   {
     id: 'dead-code.unused-file',
     group: 'dead-code',
@@ -571,7 +571,7 @@ export const HAND_WRITTEN_CONCEPTS = [
   },
   // The pattern-shaped half of the slop ruleset (spec §14), owned by ast-grep
   // (`packages/engine-astgrep/src/rules.ts`). Each concept's measured accuracy is recorded on its
-  // `RuleEntry` in registry/entries.manual.ts, not here: a description says what a finding *means*,
+  // `RuleEntry` in registry/entries.uncatalogued.ts, not here: a description says what a finding *means*,
   // an entry says how much to trust it, and only the second changes when a rule is re-measured.
   {
     id: 'slop.double-cast',
@@ -670,7 +670,7 @@ export const HAND_WRITTEN_CONCEPTS = [
     id: 'config.rule-overlap',
     group: 'config',
     title: 'Overlapping rules',
-    description: 'Two enabled rules detect the same concept; one was suppressed by arbitration.',
+    description: 'Two enabled rules detect the same concept; one lost arbitration.',
     servicedBySlopGate: true,
   },
   {
@@ -1129,7 +1129,7 @@ export const HAND_WRITTEN_CONCEPTS = [
   // `security.dockerfile-root-user` concept, because **hadolint cannot detect a missing `USER`** — a
   // Dockerfile with no `USER` instruction is silent, and `DL3002` fires only on an explicit
   // `USER root`. And there is no concept for secrets in `ARG`/`ENV`, because the rule that would carry
-  // that rule (`DL3064`) is a substring matcher that scored 7 of 25; see `MANUAL_RULE_EXCLUSIONS`.
+  // that rule (`DL3064`) is a substring matcher that scored 7 of 25; see `NOT_RECOMMENDED_UNCATALOGUED`.
   // Not "it (`DL3064`)": `vitest/no-commented-out-tests` reads `it (` in prose as a disabled test,
   // which is a fair reading of the token and the reason this sentence is phrased around it.
   // Two concepts rather than one, and the split is forced rather than stylistic. Untagged and

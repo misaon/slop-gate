@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { ActionlintInstallError, extractTarGzEntry, installActionlint } from './download.ts'
+import { ActionlintInstallError, extractTarGzEntry, installActionlint } from './install.ts'
 import { ACTIONLINT_CHECKSUMS, ACTIONLINT_VERSION, actionlintAsset } from './release.ts'
 
 const run = promisify(execFile)

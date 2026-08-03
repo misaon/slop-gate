@@ -1,10 +1,11 @@
-import { buildRulesList, ENGINE_PREFERENCE, type EngineId, type RulesListOptions } from '@misaon/slop-gate-core'
+import { buildRulesList, ENGINE_PREFERENCE, isOneOf, type RulesListOptions } from '@misaon/slop-gate-core'
 import { renderRulesListJson, renderRulesListPretty, REPORTER_NAMES } from '@misaon/slop-gate-reporters'
 import { defineCommand } from 'citty'
 import { EXIT_CODES } from '../../exit-codes.ts'
+import { validateFormat } from '../../format.ts'
 import { supportsColor, supportsUnicode } from '../../terminal.ts'
 import { readCliVersion } from '../../version.ts'
-import { prepareRulesRun, validateFormat } from './shared.ts'
+import { prepareRulesRun } from './shared.ts'
 
 export const list = defineCommand({
   meta: { name: 'list', description: 'List the effective ruleset: concept, level, owner and why it is enabled' },
@@ -19,7 +20,7 @@ export const list = defineCommand({
     const rootDir = args.cwd ?? process.cwd()
     if (!validateFormat(args.format)) return
 
-    if (args.engine !== undefined && !ENGINE_PREFERENCE.includes(args.engine as EngineId)) {
+    if (args.engine !== undefined && !isOneOf(args.engine, ENGINE_PREFERENCE)) {
       process.stderr.write(`unknown engine: ${args.engine}. Expected one of ${ENGINE_PREFERENCE.join(', ')}.\n`)
       process.exitCode = EXIT_CODES.config
       return
@@ -30,7 +31,7 @@ export const list = defineCommand({
 
     const options: RulesListOptions = {
       ...(args.only === undefined ? {} : { only: args.only }),
-      ...(args.engine === undefined ? {} : { engine: args.engine as EngineId }),
+      ...(args.engine === undefined ? {} : { engine: args.engine }),
       ...(args.uncovered ? { uncoveredOnly: true } : {}),
     }
     const entries = buildRulesList(resolved, options)

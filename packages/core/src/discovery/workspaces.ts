@@ -1,9 +1,9 @@
 import { glob, readFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import picomatch from 'picomatch'
 import { parse as parseYaml } from 'yaml'
 import { ConfigError } from '../errors.ts'
-import { toPosix } from '../paths.ts'
+import { relativePosix, toPosix } from '../paths.ts'
 
 export type WorkspaceNode = {
   readonly name: string
@@ -70,7 +70,7 @@ export async function buildWorkspaceGraph(rootDir: string): Promise<WorkspaceGra
       // start. `WorkspaceNode.dir` is contractually repo-relative and downstream code joins it
       // onto the root, so a pattern like `../shared/*` or `packages/../../shared/*` must not
       // produce a node at all.
-      const dir = toPosix(relative(rootDir, resolve(rootDir, dirname(match))))
+      const dir = relativePosix(rootDir, resolve(rootDir, dirname(match)))
       if (dir === '..' || dir.startsWith('../')) {
         throw new ConfigError(`workspace pattern "${pattern}" resolves outside the repository root`)
       }
@@ -91,8 +91,4 @@ export async function buildWorkspaceGraph(rootDir: string): Promise<WorkspaceGra
       return byDepth.find((node) => path.startsWith(`${node.dir}/`)) ?? rootNode
     },
   }
-}
-
-export function relativePosix(root: string, absolute: string): string {
-  return toPosix(relative(root, absolute))
 }

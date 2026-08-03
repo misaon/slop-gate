@@ -1,10 +1,8 @@
-export type RuleExclusion = {
+export type NotRecommended = {
   /**
-   * Why this rule never enters `recommended`, stated plainly enough that nobody re-adds it later
-   * thinking its absence was an oversight (design plan decision 3). Excluded rules still get a full
-   * generated `RuleEntry` — they remain available to anyone who wants to enable them by concept —
-   * this only removes them from the policy `packages/core/src/config/presets.ts` uses to compute
-   * the `recommended` preset.
+   * Stated plainly enough that nobody re-adds the rule later thinking its absence was an oversight
+   * (design plan decision 3). The rule keeps its full `RuleEntry` and stays available to anyone who
+   * enables it by concept — only `recommended` (`packages/core/src/config/presets.ts`) leaves it out.
    */
   readonly reason: string
 }
@@ -42,7 +40,7 @@ export type RuleExclusion = {
  * `oxlint -c <config with {"__probe":1}>` prints the accepted field names for *most* rules, but read
  * the caution at the end of this comment before trusting a silent answer.
  *
- * That sweep has been done once, across every oxlint entry in `RULE_EXCLUSIONS`. **Five of the six
+ * That sweep has been done once, across every oxlint entry in `NOT_RECOMMENDED_GENERATED`. **Five of the six
  * are not rescued and the sixth is an open question, not a promotion.** Recorded per entry below so
  * it is not repeated:
  *
@@ -69,19 +67,19 @@ export type RuleExclusion = {
  * `ruleRefKey` (`<engine>/<engineRuleId>`) because those ids are not unique across engines the way
  * oxlint's are within it.
  *
- * It has to be a second table rather than more rows in `RULE_EXCLUSIONS`: that one is consumed only
+ * It has to be a second table rather than more rows in `NOT_RECOMMENDED_GENERATED`: that one is consumed only
  * by the oxlint registry generator, keyed by bare rule id, and an `actionlint` row there would either
  * be ignored or — worse, for a name like `id` or `matrix` — silently exclude an oxlint rule that
  * happens to share it.
  *
- * Unlike `RULE_EXCLUSIONS`, which the generator applies, this table is *checked* rather than applied:
- * a manual engine's rules reach `recommended` only by being listed in `config/presets.ts`, so the
+ * Unlike `NOT_RECOMMENDED_GENERATED`, which the generator applies, this table is *checked* rather than applied:
+ * an uncatalogued engine's rules reach `recommended` only by being listed in `config/presets.ts`, so the
  * exclusion is enforced by `entries.test.ts` asserting that no concept named here appears in that
  * preset. That keeps the reason and the effect from drifting apart — which is exactly what happened
  * to the two `slop.*` exclusions, whose reasons live in a comment in `presets.ts` with nothing
  * checking them. Backfilling those (and knip's) into this table is a follow-up.
  */
-export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
+export const NOT_RECOMMENDED_UNCATALOGUED: Readonly<Record<string, NotRecommended>> = {
   'knip/files': {
     reason:
       'Promoted into `recommended` once, on a re-measurement taken against the NestJS-shaped fixture ' +
@@ -195,7 +193,7 @@ export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
   // divide into three kinds that this file deliberately does not blur together: house style that was
   // never a defect, a right rule defeated by the wrong context, and a right rule whose precision is
   // simply too low. The measurement behind all of them is the same 1729-file corpus documented on
-  // `BIOME_CSS_RULE_ENTRIES` in entries.manual.ts.
+  // `BIOME_CSS_RULE_ENTRIES` in entries.uncatalogued.ts.
   'biome-css/noHexColors': {
     reason:
       '**House style, not a defect — the largest single class in the whole measurement.** 5815 ' +
@@ -210,7 +208,7 @@ export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
       'defects down with it.\n\n' +
       '**Not a verdict on the rule.** A project that has adopted a colour-model convention and wants ' +
       'it enforced enables `style.css-hex-color` and gets exactly this. That is what the full entry ' +
-      'in entries.manual.ts is for. What is being rejected is only the claim that it belongs in a ' +
+      'in entries.uncatalogued.ts is for. What is being rejected is only the claim that it belongs in a ' +
       'default quality gate.',
   },
   'biome-css/noDescendingSpecificity': {
@@ -317,7 +315,7 @@ export const MANUAL_RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
   },
 }
 
-export const RULE_EXCLUSIONS: Readonly<Record<string, RuleExclusion>> = {
+export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>> = {
   'vitest/valid-expect': {
     reason:
       "A narrow oxlint defect, reproduced directly against 1.76.0 and stated in terms of the `code` " +

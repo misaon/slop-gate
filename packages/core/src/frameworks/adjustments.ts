@@ -2,7 +2,7 @@ import type { ConceptId } from '../concepts/catalogue.ts'
 import { LEVEL_STRENGTH, type RuleKey, type RuleLevel, type RuleMap } from '../config/types.ts'
 import { compareStrings } from '../ordering.ts'
 import type { EngineId } from '../registry/types.ts'
-import type { EngineAdjustments, EngineSetting, FrameworkAdjustment, FrameworkDetection, FrameworkId } from './types.ts'
+import type { EngineSettings, EngineSetting, FrameworkAdjustment, FrameworkDetection, FrameworkId } from './types.ts'
 
 export type FrameworkRuleLayer = { readonly source: FrameworkId; readonly rules: RuleMap }
 
@@ -187,7 +187,7 @@ export function frameworkOverrideLayers(detection: FrameworkDetection): readonly
  * profile order, detection order, or how many profiles said the same thing. There is no shape here
  * that assigns a value to a key, so there is nothing for a precedence rule to arbitrate.
  */
-export function engineAdjustmentsFor(engine: EngineId, detection: FrameworkDetection): EngineAdjustments {
+export function engineAdjustmentsFor(engine: EngineId, detection: FrameworkDetection): EngineSettings {
   const merged = new Map<string, { workspace: string; key: string; values: Set<string> }>()
 
   for (const application of detection.applied) {
@@ -210,7 +210,7 @@ export function engineAdjustmentsFor(engine: EngineId, detection: FrameworkDetec
 }
 
 /** The union of one key's values across every workspace scope — for a setting an engine writes once. */
-export function settingValues(adjustments: EngineAdjustments, key: string): readonly string[] {
+export function settingValues(adjustments: EngineSettings, key: string): readonly string[] {
   const values = new Set<string>()
   for (const setting of adjustments) if (setting.key === key) for (const value of setting.values) values.add(value)
   return [...values].sort(compareStrings)
@@ -218,7 +218,7 @@ export function settingValues(adjustments: EngineAdjustments, key: string): read
 
 /** One key's values for one workspace, `[]` when no profile contributed any. */
 export function settingValuesFor(
-  adjustments: EngineAdjustments,
+  adjustments: EngineSettings,
   key: string,
   workspace: string,
 ): readonly string[] {

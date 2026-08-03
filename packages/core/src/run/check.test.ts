@@ -293,7 +293,7 @@ test('emits a diagnostic naming both rules when two rules overlap', async () => 
     // Both engines must actually participate, or arbitration now drops the `eslint` entry before
     // it can even compete — this run is the one deliberately proving a real overlap resolves
     // correctly when both sides of it are actually present, not a run reproducing the M0 defect
-    // where an entry for an absent engine still generated a suppression.
+    // where an entry for an absent engine still generated an overlap.
     engines: [stubEngine({}), stubEngine({ id: 'eslint' })],
   })
 
@@ -423,7 +423,7 @@ test('an engine that provides a capability lets a capability-requiring rule be e
   // tier-2, no-requirements entry wins by default, and a rule that should have been elected never
   // is. Only one of the two engines' findings should survive ownership filtering.
   expect(result.diagnostics).toHaveLength(1)
-  expect(result.diagnostics[0]?.ruleId).toBe('tsgolint/typed-rule')
+  expect(result.diagnostics[0]?.ruleRefKey).toBe('tsgolint/typed-rule')
   expect(result.ruleset.uncovered).toEqual([])
 })
 
@@ -856,6 +856,67 @@ test('a file one engine still had to look at is not counted as served from cache
 
   expect(warm.stats.filesAnalysed).toBe(1)
   expect(warm.stats.filesFromCache).toBe(0)
+})
+
+test('an engine whose version cannot be resolved fails alone, and the rest of the plan still runs', async () => {
+  // `version()` is resolved for every planned engine before the plan loop, and concurrently, because
+  // it is only ever a cache-key component — nothing in the run depends on when it lands. That hoist
+  // must not turn one engine's missing binary into a failed *run*: the rejection is carried to this
+  // engine's own turn in the plan and thrown there, so it reaches the same `catch`, and produces the
+  // same `engine-failed` event, as any other failure of its. Resolving them with a bare `Promise.all`
+  // would fail everything on the first rejection instead.
+  const broken: Engine = {
+    ...stubEngine({ id: 'astgrep' }),
+    version: async () => {
+      throw new Error('ast-grep is not installed')
+    },
+  }
+
+  const events: string[] = []
+  let done: Awaited<ReturnType<typeof runCheck>> | null = null
+  for await (const event of streamCheck(
+    twoEngineOptions([stubEngine({ id: 'oxlint', findings: [debuggerFinding('src/a.ts')] }), broken]),
+  )) {
+    if (event.type === 'diagnostic') events.push(`diagnostic:${event.diagnostic.concept}`)
+    if (event.type === 'engine-failed') events.push(`failed:${event.engine}:${event.message}`)
+    if (event.type === 'done') done = event.result
+  }
+
+  expect(events).toContain('failed:astgrep:ast-grep is not installed')
+  expect(events).toContain('diagnostic:correctness.no-debugger')
+  expect(done?.engineFailures).toEqual([{ engine: 'astgrep', message: 'ast-grep is not installed' }])
+  // Attributed before the engine was ever configured, exactly as it was when `version()` was awaited
+  // inside the loop: the working engine is the only one that counts as having run.
+  expect(done?.stats.enginesRun).toBe(1)
+})
+
+test('an assignment streams its files in plan order, whether served fresh or from the cache', async () => {
+  // The per-file cache probes — one content hash and one result-store read each — are issued with
+  // `Promise.all` and therefore settle in whatever order the filesystem returns them. Their *results*
+  // are consumed in `assignment.files` order regardless, and that ordering is load-bearing twice
+  // over: the stream is what `pretty` prints as it arrives, and `isDuplicateSynthetic` keeps the
+  // first occurrence of an orchestrator-synthesised diagnostic. Consuming in completion order would
+  // make both depend on the disk.
+  //
+  // Asserted against the fresh run as well as the warm one, because the two paths are separate code
+  // (the batch loop versus the cache branch) and a user must not be able to tell which served them.
+  const paths = Array.from({ length: 24 }, (_unused, i) => `src/f${String(i).padStart(2, '0')}.ts`)
+  for (const path of paths) await writeFile(join(dir, path), 'export function f() {\n  debugger\n}\n')
+
+  const options = () => ({ ...baseOptions(), engines: [stubEngine({ findings: paths.map(debuggerFinding) })] })
+  const streamed = async (): Promise<string[]> => {
+    const files: string[] = []
+    for await (const event of streamCheck(options())) {
+      if (event.type === 'diagnostic' && event.diagnostic.file !== null) files.push(event.diagnostic.file)
+    }
+    return files
+  }
+
+  const fresh = await streamed()
+  const warm = await streamed()
+
+  expect(fresh).toEqual(paths)
+  expect(warm).toEqual(paths)
 })
 
 test('a directive is reported once, not once per file-granularity engine', async () => {

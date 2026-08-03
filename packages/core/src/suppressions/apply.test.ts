@@ -4,7 +4,7 @@ import type { SuppressionDirective } from './parse.ts'
 import { applySuppressions } from './apply.ts'
 
 const diagnostic = (over: Partial<Diagnostic> & Pick<Diagnostic, 'concept'>): Diagnostic => ({
-  ruleId: 'oxlint/no-shadow',
+  ruleRefKey: 'oxlint/no-shadow',
   engine: 'oxlint',
   severity: 'warn',
   message: 'x',
@@ -59,7 +59,7 @@ test('a directive naming a target only matches that concept', () => {
 })
 
 test('a directive can name an engine rule id instead of a concept', () => {
-  const finding = diagnostic({ concept: 'correctness.shadows-outer-binding', ruleId: 'oxlint/no-shadow', position: { startLine: 3, startColumn: 1, endLine: 3, endColumn: 2 } })
+  const finding = diagnostic({ concept: 'correctness.shadows-outer-binding', ruleRefKey: 'oxlint/no-shadow', position: { startLine: 3, startColumn: 1, endLine: 3, endColumn: 2 } })
   const result = applySuppressions([directive({ kind: 'disable-line', appliesToLine: 3, targets: ['oxlint/no-shadow'] })], [finding])
 
   expect(result.diagnostics[0]?.suppressed).toBeDefined()

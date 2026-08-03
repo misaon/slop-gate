@@ -110,7 +110,7 @@ function toFinding(error: ErrorObject, binding: SchemaBinding, document: Documen
       ? `\`${extra}\` is not a property the ${binding.title} defines here.`
       : `${describe(pointer)} ${error.message ?? 'is invalid'} (${binding.title}).`
 
-  return { message, pointer, ...rangeOf(document, pointer) }
+  return { message, pointer, ...utf16SpanOfPointer(document, pointer) }
 }
 
 function describe(pointer: string): string {
@@ -119,14 +119,12 @@ function describe(pointer: string): string {
 }
 
 /**
- * The source range for a JSON pointer.
- *
  * Points at the **key**, not the value, whenever the pointer names a mapping entry: `ports: 8080` is
  * reported against `ports`, because that is the token a reader scans for and the one whose spelling
  * may itself be the defect. Falls back to the value node, then to the document start — a pointer the
  * parser cannot resolve must still yield a usable finding rather than an exception.
  */
-function rangeOf(document: Document, pointer: string): { offset: number; endOffset: number } {
+function utf16SpanOfPointer(document: Document, pointer: string): { offset: number; endOffset: number } {
   const segments = pointer.split('/').filter((segment) => segment.length > 0).map(unescapePointer)
   if (segments.length === 0) return { offset: 0, endOffset: 0 }
 

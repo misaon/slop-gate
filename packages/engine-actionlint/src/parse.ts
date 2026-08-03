@@ -1,4 +1,4 @@
-import { createLineIndex, EngineError, type ByteRange, type RawDiagnostic } from '@misaon/slop-gate-core'
+import { createLineIndex, EngineError, toPosix, type ByteRange, type RawDiagnostic } from '@misaon/slop-gate-core'
 import { DISABLED_INTEGRATION_RULES, MESSAGE_EXCLUSIONS, MESSAGE_REWRITES } from './rules.ts'
 
 /** One element of `actionlint -format '{{json .}}'`. Field names are actionlint's own. */
@@ -24,8 +24,8 @@ const encoder = new TextEncoder()
 
 /**
  * `actionlint -format '{{json .}}'` output as a list. Separate from `parseActionlintOutput` because
- * the caller needs the file names before it can supply their text: `rangeOf` works on source, and
- * only the files that actually produced a finding are worth reading.
+ * the caller needs the file names before it can supply their text: `rangeFromLineColumn` works on
+ * source, and only the files that actually produced a finding are worth reading.
  *
  * Clean output is the empty string rather than `[]` when no file was linted, so an empty document is
  * no findings, not a malformed one.
@@ -71,15 +71,13 @@ export function parseActionlintOutput(
       // registry's `severityDefault` is the only thing that decides how a finding is shown.
       severity: 'error',
       file,
-      range: rangeOf(error, source),
+      range: rangeFromLineColumn(error, source),
     })
   }
   return diagnostics
 }
 
 /**
- * actionlint's `line`/`column` translated into a UTF-8 byte range.
- *
  * **`end_column` is deliberately not used, and it is wrong in two independent ways.** First the
  * units: `column` is a 1-based *byte* offset into the line — `getIndicator` slices with
  * `line[Column-1:]`, which is Go string indexing — while `end_column` is `len(indicator)`, and the
@@ -98,7 +96,7 @@ export function parseActionlintOutput(
  * emits it when a failure happens before any node has a location (the unresolved-anchor case the M0
  * follow-ups record). It maps to an empty range at the top of the file.
  */
-export function rangeOf(error: Pick<ActionlintError, 'line' | 'column'>, source: string | undefined): ByteRange {
+export function rangeFromLineColumn(error: Pick<ActionlintError, 'line' | 'column'>, source: string | undefined): ByteRange {
   if (source === undefined || error.line <= 0) return { start: 0, end: 0 }
 
   const index = createLineIndex(source)
@@ -139,7 +137,3 @@ function rewrite(engineRuleId: string, message: string): string {
   return message
 }
 
-/** `RawDiagnostic.file` is repo-relative with POSIX separators; actionlint uses the host's. */
-function toPosix(path: string): string {
-  return path.replaceAll('\\', '/')
-}

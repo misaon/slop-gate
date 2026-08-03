@@ -32,7 +32,7 @@ export type SuppressionDirective = {
    */
   readonly appliesToLine: number | null
   /**
-   * Concept ids or `engine/ruleId` keys — the same `RuleKey` shape `config.rules` accepts (§6.1),
+   * Concept ids or `<engine>/<engineRuleId>` keys — the same `RuleKey` shape `config.rules` accepts (§6.1),
    * so an engine rule id works as an escape hatch exactly where it already does in config. Empty
    * means the directive named no target, which silences every concept at this location. Targets
    * are matched as opaque strings, not validated against the concept catalogue or registry here: a

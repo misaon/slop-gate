@@ -1,3 +1,4 @@
+import { alignLines, type AlignKind } from './align.ts'
 import { decodeUtf8 } from './apply.ts'
 
 /** Unchanged lines shown either side of a change, and the gap below which two hunks merge. */
@@ -28,66 +29,26 @@ type Op = { readonly kind: ' ' | '-' | '+'; readonly line: Line }
  *  file gaining or losing its final newline show up as a change rather than rendering identically. */
 const same = (a: Line, b: Line): boolean => a.text === b.text && a.newline === b.newline
 
+const OP_KIND: Record<AlignKind, Op['kind']> = { same: ' ', removed: '-', added: '+' }
+
 /**
- * Longest common subsequence over lines, after trimming the common head and tail.
+ * Lines paired up by `alignLines`, then relabelled into diff vocabulary.
  *
- * The trim is what makes an O(n·m) table affordable on a real source file: a fix changes a handful
- * of lines, so the window that actually differs is tiny even in a thousand-line file. `MAX_CELLS`
- * bounds the pathological case (a whole file rewritten) by falling back to "delete everything, add
- * everything", which is correct output, just not a minimal one.
+ * The alignment itself lives in `align.ts` because `editsFromRewrite` needs exactly the same one, and
+ * the two disagreeing about it is a real defect rather than a stylistic one — see that module. When
+ * the window is too large to align, "delete everything, add everything" is what this renders: correct
+ * output, just not a minimal one.
  */
-const MAX_CELLS = 4_000_000
-
 function diffLines(before: readonly Line[], after: readonly Line[]): Op[] {
-  let head = 0
-  while (head < before.length && head < after.length && same(before[head]!, after[head]!)) head += 1
-
-  let tail = 0
-  while (
-    tail < before.length - head &&
-    tail < after.length - head &&
-    same(before[before.length - 1 - tail]!, after[after.length - 1 - tail]!)
-  ) {
-    tail += 1
-  }
-
-  const oldWindow = before.slice(head, before.length - tail)
-  const newWindow = after.slice(head, after.length - tail)
+  const { head, tail, oldWindow, newWindow, steps } = alignLines(before, after, same)
 
   const ops: Op[] = before.slice(0, head).map((line) => ({ kind: ' ' as const, line }))
-
-  if (oldWindow.length * newWindow.length > MAX_CELLS) {
+  if (steps === null) {
     ops.push(...oldWindow.map((line) => ({ kind: '-' as const, line })))
     ops.push(...newWindow.map((line) => ({ kind: '+' as const, line })))
   } else {
-    const table: number[][] = Array.from({ length: oldWindow.length + 1 }, () => Array.from<number>({ length: newWindow.length + 1 }).fill(0))
-    for (let i = oldWindow.length - 1; i >= 0; i -= 1) {
-      for (let j = newWindow.length - 1; j >= 0; j -= 1) {
-        table[i]![j] = same(oldWindow[i]!, newWindow[j]!)
-          ? table[i + 1]![j + 1]! + 1
-          : Math.max(table[i + 1]![j]!, table[i]![j + 1]!)
-      }
-    }
-
-    let i = 0
-    let j = 0
-    while (i < oldWindow.length && j < newWindow.length) {
-      if (same(oldWindow[i]!, newWindow[j]!)) {
-        ops.push({ kind: ' ', line: oldWindow[i]! })
-        i += 1
-        j += 1
-      } else if (table[i + 1]![j]! >= table[i]![j + 1]!) {
-        ops.push({ kind: '-', line: oldWindow[i]! })
-        i += 1
-      } else {
-        ops.push({ kind: '+', line: newWindow[j]! })
-        j += 1
-      }
-    }
-    for (; i < oldWindow.length; i += 1) ops.push({ kind: '-', line: oldWindow[i]! })
-    for (; j < newWindow.length; j += 1) ops.push({ kind: '+', line: newWindow[j]! })
+    for (const step of steps) ops.push({ kind: OP_KIND[step.kind], line: step.line })
   }
-
   ops.push(...before.slice(before.length - tail).map((line) => ({ kind: ' ' as const, line })))
   return ops
 }

@@ -34,9 +34,7 @@ export type RulesListEntry = {
    * actually is.
    */
   languageMismatch: boolean
-  /** How many other candidates lost arbitration for this concept — `election.suppressed` entries
-   *  naming it, not a boolean, so a listing can distinguish "one overlap" from "four". */
-  suppressedCount: number
+  overlapCount: number
   enablement: ConceptEnablement
 }
 
@@ -56,9 +54,9 @@ export type RulesListOptions = {
  * layer, so `--format json` and `--format pretty` are guaranteed to agree on which rows exist.
  */
 export function buildRulesList(resolved: ResolvedRun, options: RulesListOptions = {}): RulesListEntry[] {
-  const suppressedCounts = new Map<string, number>()
-  for (const record of resolved.election.suppressed) {
-    suppressedCounts.set(record.concept, (suppressedCounts.get(record.concept) ?? 0) + 1)
+  const overlapCounts = new Map<string, number>()
+  for (const record of resolved.election.overlaps) {
+    overlapCounts.set(record.concept, (overlapCounts.get(record.concept) ?? 0) + 1)
   }
 
   const isMatch = options.only === undefined ? null : picomatch(options.only)
@@ -86,7 +84,7 @@ export function buildRulesList(resolved: ResolvedRun, options: RulesListOptions 
       // participates, no missing capability, not deprecated) and fails solely on language — the
       // exact condition that keeps a concept out of `uncovered` in the first place.
       languageMismatch: ownership.length === 0 && !uncovered && !servicedBySlopGate,
-      suppressedCount: suppressedCounts.get(concept) ?? 0,
+      overlapCount: overlapCounts.get(concept) ?? 0,
       enablement: resolveEnablement(resolved.resolver, concept),
     })
   }

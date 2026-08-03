@@ -1,7 +1,7 @@
 import { defineCommand } from 'citty'
 import { runFix, type FixResult, type FixTier } from '@misaon/slop-gate-core'
 import { DEFAULT_CONFIG, loadCliConfig } from '../config.ts'
-import { defaultEngines } from '../engines.ts'
+import { defaultEngines } from '../engine-registry.ts'
 import { EXIT_CODES } from '../exit-codes.ts'
 
 /**
@@ -105,7 +105,7 @@ export function renderFixSummary(result: FixResult): string {
     for (const file of result.files) lines.push(`  ${file.file} — ${plural(file.edits, 'edit')}`)
     lines.push('')
     lines.push('Rules applied:')
-    for (const rule of result.rules) lines.push(`  ${rule.ruleId} — ${rule.count}`)
+    for (const rule of result.rules) lines.push(`  ${rule.ruleRefKey} — ${rule.count}`)
   }
 
   // Always reported, including on a clean run: "0 of 65 findings are fixable here" is the answer to

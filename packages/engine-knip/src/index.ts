@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 import {
   EngineError,
+  isExecFileFailure,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -96,7 +97,7 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
       granularity: 'project',
       // knip consumes a workspace graph; it does not make one available to other engines' rules. Same
       // reasoning as the `tsc` entry's `provides: []` — see the long comment on it in
-      // packages/core/src/registry/entries.manual.ts.
+      // packages/core/src/registry/entries.uncatalogued.ts.
       provides: [],
       // knip has a real `--fix`, including file deletion. Wiring it into the fix pipeline (spec §11)
       // is its own milestone; claiming the capability before then would let `sgate fix` promise edits
@@ -179,7 +180,7 @@ async function* execute(
       maxBuffer: 1024 * 1024 * 256,
     }))
   } catch (error) {
-    const failure = error as { code?: number | string; stdout?: string; stderr?: string }
+    const failure = isExecFileFailure(error) ? error : {}
     throw new EngineError('knip', `knip failed: ${failure.stderr?.trim() || String(failure.code)}`, { cause: error })
   }
 

@@ -16,7 +16,7 @@ const optionedRules: RuleMap = Object.fromEntries(
  * slop-gate that finds no slop by default has failed at the one thing its name promises — and
  * because the evidence for the two rules at the centre of it is better than the evidence for most of
  * what `recommended` already ships: `slop.narrative-comment` and `slop.stub-implementation` each
- * measured **0 false positives across 3,529 files**, recorded per rule in `registry/entries.manual.ts`.
+ * measured **0 false positives across 3,529 files**, recorded per rule in `registry/entries.uncatalogued.ts`.
  *
  * Spread rather than folded so the measurements stay attached to the thing they measure: a reader
  * asking "what does the slop ruleset consist of, and what is the evidence" gets one list and one
@@ -43,7 +43,7 @@ const slop: RuleMap = {
   //
   // It goes in anyway, and the reason is that these are not false positives. Every one is a real hole in the
   // type system, which is the distinction between this and the four house-style CSS rules in
-  // `registry/exclusions.ts`: those produced 11,525 findings and zero defects, this produces findings
+  // `registry/not-recommended.ts`: those produced 11,525 findings and zero defects, this produces findings
   // whose content is precisely the thing the user asked to be pedantic about. A library whose job is
   // type-level construction should turn it off in one line; an application that has accumulated three
   // `any`s per file should be told.
@@ -57,14 +57,14 @@ const slop: RuleMap = {
  * Computed from the generated registry by policy, not listed by hand (design plan Task 3):
  * `GENERATED_RECOMMENDED_RULES` (registry/entries.generated.ts) already carries every concept whose
  * source rule is oxlint's `correctness` or `suspicious` category, non-type-aware, and not in
- * `registry/exclusions.ts` — see the generator's `buildGeneratedRecommended`. `correctness` alone
+ * `registry/not-recommended.ts` — see the generator's `buildGeneratedRecommended`. `correctness` alone
  * would silently drop five already-shipped, already-measured-useful rules (`no-shadow` chief among
  * them — see registry/overrides.ts) that are `suspicious`-category in oxlint's own taxonomy; the
  * plan's own grounding measurement reports `correctness` and `suspicious` together (319 rules) for
  * exactly this reason, so both categories are the policy, not `correctness` read literally.
  *
  * `correctness.parse-error` is the one concept this preset still lists by hand: it comes from
- * `entries.manual.ts`'s synthetic `oxlint/parse-error` entry, which no generator can produce because
+ * `entries.uncatalogued.ts`'s synthetic `oxlint/parse-error` entry, which no generator can produce because
  * it is not a real `--rules`-listed rule at all (see that file). The three `config.*` concepts below
  * are slop-gate's own orchestrator diagnostics (`ConceptDefinition.servicedBySlopGate`) — no
  * `RuleEntry` claims them either, generated or otherwise.
@@ -108,7 +108,7 @@ const recommended: RuleMap = {
   // one inside a directory the config explicitly excluded**. `buildIgnore` now forwards them; the
   // count went 28 -> 7.
   //
-  // **`dead-code.unused-file` went back out again**, and the entry in `registry/exclusions.ts` has
+  // **`dead-code.unused-file` went back out again**, and the entry in `registry/not-recommended.ts` has
   // the measurement: a 145k-line React monorepo produced 105 findings, of which at least 98 are a
   // file loaded by a convention no import graph can see — and by *six unrelated* conventions, which
   // is the part that matters. The re-measurement above was taken on a fixture built from the very
@@ -141,7 +141,7 @@ const recommended: RuleMap = {
   'deps.unresolved-import': 'error',
 
   // The `deps-security` engine (spec §13.7). Three of its four concepts are in; the exclusion of the
-  // fourth is recorded in registry/exclusions.ts.
+  // fourth is recorded in registry/not-recommended.ts.
   //
   // **This is the only group here promoted on an exact-agreement measurement rather than a
   // false-positive count.** Six real lockfiles, 10,671 resolved packages, 682 advisories, scanned
@@ -204,7 +204,7 @@ const recommended: RuleMap = {
   // distinguishes one from a vestigial declaration. The 550 literals it also drops are the same
   // story one level down — `T extends {}`, `S extends Schema = {}`, `: {}` conditional branches —
   // type-level machinery, not holes. Same verdict as `unicorn/no-array-sort`
-  // (`registry/exclusions.ts`): the option changes the count and not the content.
+  // (`registry/not-recommended.ts`): the option changes the count and not the content.
   //
   ...optionedRules,
   'pedantic.prefer-ts-expect-error': 'warn',
@@ -270,10 +270,10 @@ const recommended: RuleMap = {
   // is only ever emitted by `sgate fix`, so it costs a `sgate check` nothing.
   'config.fix-oscillation': 'error',
   // The thirteen GitHub Actions concepts the `actionlint` engine owns — every one it has except the
-  // three in `MANUAL_RULE_EXCLUSIONS` (`config.workflow-runner-label`, `config.workflow-action`,
+  // three in `NOT_RECOMMENDED_UNCATALOGUED` (`config.workflow-runner-label`, `config.workflow-action`,
   // `config.workflow-syntax`), whose exclusion is enforced against this map by `entries.test.ts`.
   //
-  // `warn` uniformly, on the measurement recorded per entry in `registry/entries.manual.ts`: over 403
+  // `warn` uniformly, on the measurement recorded per entry in `registry/entries.uncatalogued.ts`: over 403
   // workflow files from 17 repositories these thirteen produced **29 findings, 29 true positives, no
   // false positives**, with eight of them silent across thousands of opportunities. `error` is the
   // `schema` engine's bar and is deliberately not claimed on a first release.
@@ -298,10 +298,10 @@ const recommended: RuleMap = {
   // The five Dockerfile concepts the `hadolint` engine owns. Out of roughly seventy rules upstream
   // ships, which is the whole story of this engine: over 275 real Dockerfiles from 32 repositories
   // hadolint measured **25% precision**, with thirteen rules producing 552 findings (68% of its
-  // output) and **zero** true positives. Those thirteen are in `MANUAL_RULE_EXCLUSIONS`, and
+  // output) and **zero** true positives. Those thirteen are in `NOT_RECOMMENDED_UNCATALOGUED`, and
   // `entries.test.ts` asserts none of them reaches this map.
   //
-  // `warn` uniformly, on the per-entry measurement in `registry/entries.manual.ts`: the six shipped
+  // `warn` uniformly, on the per-entry measurement in `registry/entries.uncatalogued.ts`: the six shipped
   // rules produced **150 true positives**, and three of them (`DL3007` 18/18, `DL3029` 10/10,
   // `DL3042` 8/8) had no false positives at all. hadolint's own severity is deliberately not mapped —
   // `DL3020` is `error` upstream and measured zero true positives, while `DL4006` is `warning` and
@@ -317,7 +317,7 @@ const recommended: RuleMap = {
   'config.dockerfile-pipefail': 'warn',
   'config.dockerfile-platform': 'warn',
   // The seventeen CSS concepts the `biome-css` engine owns, out of the twenty-six it has; the other
-  // nine are in `MANUAL_RULE_EXCLUSIONS`, and `entries.test.ts` asserts none of them reaches this map.
+  // nine are in `NOT_RECOMMENDED_UNCATALOGUED`, and `entries.test.ts` asserts none of them reaches this map.
   //
   // **This set is deliberately quiet, and that is the design rather than an accident to fix later.**
   // Thirteen of the seventeen produced zero findings across 1729 production stylesheets from ten

@@ -202,7 +202,7 @@ export type EngineSetting = {
 }
 
 /** Sorted by `(workspace, key)`. What an engine adapter receives on its `RunContext`. */
-export type EngineAdjustments = readonly EngineSetting[]
+export type EngineSettings = readonly EngineSetting[]
 
 export function isApplied(
   outcome: FrameworkApplication | InapplicableFramework,

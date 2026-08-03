@@ -74,7 +74,7 @@ test('writes the elected level in ast-grep spelling', () => {
 })
 
 test('throws rather than silently dropping an elected id this package has no rule for', () => {
-  // Reaching this means the registry (`entries.manual.ts`) and `ASTGREP_RULES` have drifted apart.
+  // Reaching this means the registry (`entries.uncatalogued.ts`) and `ASTGREP_RULES` have drifted apart.
   // Dropping it would produce a run that looks clean; the ruleset assertion in `run` cannot catch it
   // either, because the expected count is derived from what was written.
   expect(() => buildAstGrepConfig(new Map([['slop-invented-rule', ['warn'] as const]]))).toThrow(/slop-invented-rule/)

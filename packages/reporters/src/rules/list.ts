@@ -1,11 +1,13 @@
-import { CONCEPT_GROUPS, ruleRefKey, type RulesListEntry } from '@misaon/slop-gate-core'
+import { CONCEPT_GROUPS, isOneOf, ruleRefKey, type RulesListEntry } from '@misaon/slop-gate-core'
 import { displayWidth, padEndDisplay, truncateEnd } from '../display-width.ts'
-import type { FrameKit } from '../frame.ts'
-import { createFrameKit, plural } from '../frame.ts'
+import type { FrameKit } from '../box.ts'
+import { createFrameKit, plural } from '../box.ts'
 import type { RulesReporterContext } from './context.ts'
 import { levelGlyph, LEVEL_COLUMN_WIDTH } from './shared.ts'
 
-export const RULES_LIST_JSON_VERSION = 1
+/** Bumped to 2 by `suppressedCount` becoming `overlapCount`: a v1 reader finds the old key missing
+ *  rather than renamed, and would read that absence as "no rule overlapped on this concept". */
+export const RULES_LIST_JSON_VERSION = 2
 
 const CONCEPT_COLUMN_WIDTH = 40
 
@@ -71,7 +73,7 @@ export function renderRulesListPretty(entries: readonly RulesListEntry[], contex
     // silently drop it.
     const orderedGroups = [
       ...CONCEPT_GROUPS.filter((group) => byGroup.has(group)),
-      ...[...byGroup.keys()].filter((group) => !(CONCEPT_GROUPS as readonly string[]).includes(group)),
+      ...[...byGroup.keys()].filter((group) => !isOneOf(group, CONCEPT_GROUPS)),
     ]
 
     for (const group of orderedGroups) {
@@ -82,7 +84,7 @@ export function renderRulesListPretty(entries: readonly RulesListEntry[], contex
         const level = padEndDisplay(entry.level, LEVEL_COLUMN_WIDTH)
         const concept = padEndDisplay(truncateEnd(entry.concept, CONCEPT_COLUMN_WIDTH), CONCEPT_COLUMN_WIDTH)
         const owner = ownerText(entry, paint)
-        const overlap = entry.suppressedCount > 0 ? paint('dim', ` · ${plural(entry.suppressedCount, 'overlap')}`) : ''
+        const overlap = entry.overlapCount > 0 ? paint('dim', ` · ${plural(entry.overlapCount, 'overlap')}`) : ''
         const tag = paint('dim', `[${enablementTag(entry)}]`)
         lines.push(`    ${glyph}  ${level}  ${concept}  ${owner}${overlap}  ${tag}`)
       }
@@ -92,7 +94,7 @@ export function renderRulesListPretty(entries: readonly RulesListEntry[], contex
 
   const uncoveredCount = entries.filter((entry) => entry.uncovered).length
   const languageMismatchCount = entries.filter((entry) => entry.languageMismatch).length
-  const overlapCount = entries.reduce((sum, entry) => sum + entry.suppressedCount, 0)
+  const overlapCount = entries.reduce((sum, entry) => sum + entry.overlapCount, 0)
 
   const footer = [`  ${plural(entries.length, 'enabled concept')}`]
   if (overlapCount > 0) {

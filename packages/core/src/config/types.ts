@@ -1,3 +1,4 @@
+import { isOneOf } from '../guards.ts'
 import type { ConceptId } from '../concepts/catalogue.ts'
 import type { EngineId } from '../registry/types.ts'
 
@@ -50,7 +51,7 @@ export type PresetName = 'recommended' | 'strict' | 'slop'
 export type EngineOptions = { readonly enabled?: boolean | 'auto' }
 
 /**
- * What to do about findings in machine-written files (`discovery/generated.ts`). `'skip'` is the
+ * What to do about findings in machine-written files (`discovery/detect-generated.ts`). `'skip'` is the
  * default and marks them suppressed; `'check'` reports them like any other file.
  *
  * A switch rather than an `ignore` entry because the two are not the same operation: `ignore` takes
@@ -77,7 +78,7 @@ const RULE_LEVELS: readonly RuleLevel[] = ['off', 'info', 'warn', 'error']
 export const LEVEL_STRENGTH: Readonly<Record<RuleLevel, number>> = { off: 0, info: 1, warn: 2, error: 3 }
 
 export function isRuleLevel(value: unknown): value is RuleLevel {
-  return typeof value === 'string' && RULE_LEVELS.includes(value as RuleLevel)
+  return typeof value === 'string' && isOneOf(value, RULE_LEVELS)
 }
 
 /**

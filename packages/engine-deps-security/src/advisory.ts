@@ -1,4 +1,4 @@
-import { compareStrings } from '@misaon/slop-gate-core'
+import { compareStrings, isOneOf } from '@misaon/slop-gate-core'
 
 /**
  * One affected-version window, flattened out of OSV's event stream. `bound` is `null` for a range
@@ -31,8 +31,6 @@ export type DistilledAffected = {
   readonly packageName: string
   readonly record: AdvisoryRecord
 }
-
-const SEVERITIES: ReadonlySet<string> = new Set(ADVISORY_SEVERITIES)
 
 type OsvEvent = { introduced?: string; fixed?: string; last_affected?: string }
 type OsvRange = { type?: string; events?: readonly OsvEvent[] }
@@ -76,7 +74,7 @@ export function distillAdvisory(document: unknown): readonly DistilledAffected[]
 
   const kind: AdvisoryKind = id.startsWith('MAL-') ? 'malicious' : 'vulnerable'
   const severityText = advisory.database_specific?.severity
-  const severity = typeof severityText === 'string' && SEVERITIES.has(severityText) ? (severityText as AdvisorySeverity) : null
+  const severity = typeof severityText === 'string' && isOneOf(severityText, ADVISORY_SEVERITIES) ? severityText : null
   const summary = typeof advisory.summary === 'string' ? advisory.summary : ''
 
   const out: DistilledAffected[] = []

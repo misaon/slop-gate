@@ -125,7 +125,7 @@ test('a single safe fix is applied and the file is rewritten', async () => {
 
   expect(await read('src/a.ts')).toBe('if (a === 1) {}\n')
   expect(result.files.map((f) => f.file)).toEqual(['src/a.ts'])
-  expect(result.rules).toEqual([{ ruleId: 'oxlint/r', count: 1 }])
+  expect(result.rules).toEqual([{ ruleRefKey: 'oxlint/r', count: 1 }])
   expect(result.truncated).toBe(false)
 })
 
@@ -196,8 +196,8 @@ test('two rules overlapping on the same range: the higher-priority one wins and 
   expect(await read('src/a.ts')).toBe('BBzz\n')
   expect(result.skipped.overlap).toBe(1)
   expect(result.rules).toEqual([
-    { ruleId: 'oxlint/high', count: 1 },
-    { ruleId: 'oxlint/low', count: 1 },
+    { ruleRefKey: 'oxlint/high', count: 1 },
+    { ruleRefKey: 'oxlint/low', count: 1 },
   ])
 })
 

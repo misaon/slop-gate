@@ -70,7 +70,7 @@ type Section = 'automated' | 'judgement'
  * structure would be worse than either alone. Sharing `collectGroups` is what makes that
  * unrepresentable rather than merely unlikely.
  *
- * `findings` is the *true* count, never the shown one — the structural half of "a group header is
+ * `findingCount` is the *true* count, never the shown one — the structural half of "a group header is
  * never dropped", so a caller that bounded the prose still gets the complete inventory here.
  */
 export type AgentGroupSummary = {
@@ -78,9 +78,9 @@ export type AgentGroupSummary = {
   readonly section: Section
   readonly tier: FixKind | null
   readonly severity: Severity
-  readonly findings: number
-  readonly files: number
-  readonly ruleIds: readonly string[]
+  readonly findingCount: number
+  readonly fileCount: number
+  readonly ruleRefKeys: readonly string[]
   readonly docsUrl: string | null
 }
 
@@ -90,18 +90,18 @@ export function summariseAgentGroups(result: CheckResult, options: AgentReporter
     section: group.section,
     tier: group.tier,
     severity: group.primarySeverity,
-    findings: group.diagnostics.length,
-    files: group.files.size,
-    ruleIds: group.ruleIds,
+    findingCount: group.diagnostics.length,
+    fileCount: group.files.size,
+    ruleRefKeys: group.ruleRefKeys,
     docsUrl: group.docsUrl,
   }))
 }
 
-type Finding = {
+/** Rendered once and priced once, so admitting one to the report is a set membership decision rather
+ *  than a second rendering pass that could disagree with the cost it was budgeted at. */
+type PricedFinding = {
   readonly diagnostic: Diagnostic
-  /** The finding's rendered block, complete and self-contained, so admitting it is a set membership
-   *  decision rather than a second rendering pass that could disagree with the cost it was budgeted at. */
-  readonly text: string
+  readonly renderedBlock: string
   readonly tokens: number
 }
 
@@ -117,7 +117,7 @@ type GroupCore = {
   readonly section: Section
   readonly tier: FixKind | null
   readonly fixTouches: readonly string[]
-  readonly ruleIds: readonly string[]
+  readonly ruleRefKeys: readonly string[]
   readonly severities: ReadonlyMap<Severity, number>
   readonly primarySeverity: Severity
   readonly files: ReadonlySet<string>
@@ -125,13 +125,13 @@ type GroupCore = {
   /** The concept's curated description, or `null` when the registry generator wrote it — see
    *  `GENERATED_CONCEPT_IDS`. A generated description restates the rule's name and is not a reason. */
   readonly why: string | null
-  /** Hoisted to the group when every finding in it says the same thing, which is the common case for
+  /** Non-null only when every finding in the group says the same thing, which is the common case for
    *  a rule with a fixed message and is where most of the repetition in a large report lives. */
-  readonly message: string | null
+  readonly hoistedMessage: string | null
   readonly help: string | null
 }
 
-type Group = GroupCore & { readonly findings: readonly Finding[] }
+type Group = GroupCore & { readonly findings: readonly PricedFinding[] }
 
 /**
  * The `agent` reporter — spec §12's "differentiator".
@@ -171,22 +171,22 @@ function render(result: CheckResult, context: ReporterContext, entries: readonly
   const budget = context.maxTokens
 
   const everything = new Set(groups.flatMap((group) => group.findings))
-  if (budget === undefined) return document(result, groups, everything, budget)
+  if (budget === undefined) return renderDocument(result, groups, everything, budget)
 
   // Tried whole first. A complete report carries none of the bookkeeping a truncated one needs — no
   // omission list, no statement of the admission rule — so it can be *smaller* than the reservation
   // that would be set aside to truncate it. Without this, a budget in that band produced a larger
   // document than a generous budget did, and said findings were dropped when the complete report
   // would have fitted.
-  const complete = document(result, groups, everything, budget)
+  const complete = renderDocument(result, groups, everything, budget)
   if (estimateTokens(complete) <= budget) return complete
 
   // The reservation is a *sizing* render: no finding admitted, every optional block present, and
   // every count printed at its widest. That makes it a true upper bound on the fixed sections rather
   // than an estimate of them — every real render is a subset of it — which is what keeps the
   // finished document inside the budget without a render-and-shrink loop.
-  const reserved = estimateTokens(document(result, groups, new Set(), budget, { sizing: true, overBudget: true }))
-  const shown = new Set<Finding>()
+  const reserved = estimateTokens(renderDocument(result, groups, new Set(), budget, { sizing: true, overBudget: true }))
+  const shown = new Set<PricedFinding>()
   let spent = 0
   for (const finding of rotation(groups)) {
     if (reserved + spent + finding.tokens > budget) continue
@@ -194,7 +194,7 @@ function render(result: CheckResult, context: ReporterContext, entries: readonly
     spent += finding.tokens
   }
 
-  return document(result, groups, shown, budget, { overBudget: reserved > budget })
+  return renderDocument(result, groups, shown, budget, { overBudget: reserved > budget })
 }
 
 /**
@@ -207,8 +207,8 @@ function render(result: CheckResult, context: ReporterContext, entries: readonly
  * concept for as long as the budget allows, which is what makes a truncated report still a usable
  * map of the repository rather than a detailed view of one corner of it.
  */
-function rotation(groups: readonly Group[]): Finding[] {
-  const ordered: Finding[] = []
+function rotation(groups: readonly Group[]): PricedFinding[] {
+  const ordered: PricedFinding[] = []
   const deepest = Math.max(0, ...groups.map((group) => group.findings.length))
   for (let index = 0; index < deepest; index += 1) {
     for (const group of groups) {
@@ -229,14 +229,14 @@ function buildGroups(result: CheckResult, context: ReporterContext, entries: rea
   return collectGroups(result, entries).map((group) => ({
     ...group,
     findings: group.diagnostics.map((diagnostic) => {
-      const text = renderFinding(diagnostic, { hoistedMessage: group.message, readSource })
-      return { diagnostic, text, tokens: estimateTokens(text) }
+      const renderedBlock = renderBlock(diagnostic, { hoistedMessage: group.hoistedMessage, readSource })
+      return { diagnostic, renderedBlock, tokens: estimateTokens(renderedBlock) }
     }),
   }))
 }
 
 function collectGroups(result: CheckResult, entries: readonly RuleEntry[]): GroupCore[] {
-  const byRuleId = new Map(entries.map((entry) => [ruleRefKey(entry), entry]))
+  const byRuleRefKey = new Map(entries.map((entry) => [ruleRefKey(entry), entry]))
 
   const collected = new Map<string, Diagnostic[]>()
   for (const diagnostic of result.diagnostics) {
@@ -247,8 +247,8 @@ function collectGroups(result: CheckResult, entries: readonly RuleEntry[]): Grou
 
   const groups: GroupCore[] = []
   for (const [concept, diagnostics] of collected) {
-    const ruleIds = [...new Set(diagnostics.map((diagnostic) => diagnostic.ruleId))].sort(compareStrings)
-    const rules = ruleIds.map((ruleId) => byRuleId.get(ruleId))
+    const ruleRefKeys = [...new Set(diagnostics.map((diagnostic) => diagnostic.ruleRefKey))].sort(compareStrings)
+    const rules = ruleRefKeys.map((key) => byRuleRefKey.get(key))
     const tier = groupTier(rules)
 
     const severities = new Map<Severity, number>()
@@ -266,13 +266,13 @@ function collectGroups(result: CheckResult, entries: readonly RuleEntry[]): Grou
       section: tier === null ? 'judgement' : 'automated',
       tier,
       fixTouches: [...new Set(rules.flatMap((rule) => rule?.fixTouches ?? []))].sort(compareStrings),
-      ruleIds,
+      ruleRefKeys,
       severities,
       primarySeverity: SEVERITY_ORDER.find((severity) => severities.has(severity)) ?? 'info',
       files: new Set(diagnostics.map((diagnostic) => diagnostic.file ?? CONFIG_LOCATION)),
       docsUrl: diagnostics.find((diagnostic) => diagnostic.docsUrl !== undefined)?.docsUrl ?? null,
       why: curatedDescription(concept),
-      message: hoistedMessage,
+      hoistedMessage,
       help: uniformHelp ? (diagnostics[0]!.help ?? null) : null,
     })
   }
@@ -322,12 +322,12 @@ function curatedDescription(concept: string): string | null {
   return conceptById(concept).description
 }
 
-type FindingContext = {
+type BlockContext = {
   readonly hoistedMessage: string | null
   readonly readSource: (file: string) => string | null
 }
 
-function renderFinding(diagnostic: Diagnostic, context: FindingContext): string {
+function renderBlock(diagnostic: Diagnostic, context: BlockContext): string {
   const lines = [
     context.hoistedMessage === null ? `- ${location(diagnostic)} — ${diagnostic.message}` : `- ${location(diagnostic)}`,
   ]
@@ -411,7 +411,7 @@ function renderDiff(diagnostic: Diagnostic, readSource: (file: string) => string
         range: edit.range,
         replacement: edit.replacement,
         kind: fix.kind,
-        ruleId: diagnostic.ruleId,
+        ruleRefKey: diagnostic.ruleRefKey,
         concept: diagnostic.concept,
         priority: 0,
         severity: diagnostic.severity,
@@ -435,10 +435,10 @@ type DocumentOptions = {
   readonly overBudget?: boolean
 }
 
-function document(
+function renderDocument(
   result: CheckResult,
   groups: readonly Group[],
-  shown: ReadonlySet<Finding>,
+  shown: ReadonlySet<PricedFinding>,
   budget: number | undefined,
   options: DocumentOptions = {},
 ): string {
@@ -630,7 +630,7 @@ function incompletenessLines(result: CheckResult): string[] {
 
 type CoverageInput = {
   readonly groups: readonly Group[]
-  readonly shown: ReadonlySet<Finding>
+  readonly shown: ReadonlySet<PricedFinding>
   readonly total: number
   readonly shownCount: number
   readonly omitted: number
@@ -760,7 +760,7 @@ function sectionLines(section: Section, groups: readonly Group[]): string[] {
   return lines
 }
 
-function groupLines(group: Group, shown: ReadonlySet<Finding>, options: DocumentOptions): string[] {
+function groupLines(group: Group, shown: ReadonlySet<PricedFinding>, options: DocumentOptions): string[] {
   const severity =
     group.severities.size === 1
       ? group.primarySeverity
@@ -775,16 +775,16 @@ function groupLines(group: Group, shown: ReadonlySet<Finding>, options: Document
   if (group.tier !== null) facets.push(`tier ${group.tier}`)
   if (group.fixTouches.length > 0) facets.push(`touches ${group.fixTouches.join(', ')}`)
 
-  const lines = [`### ${group.concept} — ${facets.join(' · ')}`, `rule: ${group.ruleIds.join(', ')}`]
+  const lines = [`### ${group.concept} — ${facets.join(' · ')}`, `rule: ${group.ruleRefKeys.join(', ')}`]
   if (group.why !== null) lines.push(`why: ${group.why}`)
-  if (group.message !== null) lines.push(`message: ${group.message}`)
+  if (group.hoistedMessage !== null) lines.push(`message: ${group.hoistedMessage}`)
   if (group.help !== null) lines.push(`help: ${group.help}`)
   if (group.docsUrl !== null) lines.push(`docs: ${group.docsUrl}`)
 
   const kept = group.findings.filter((finding) => shown.has(finding))
   const shownHere = options.sizing === true ? group.findings.length : kept.length
   if (kept.length < group.findings.length) lines.push(`showing ${shownHere} of ${group.findings.length}`)
-  if (options.sizing !== true) for (const finding of kept) lines.push(finding.text)
+  if (options.sizing !== true) for (const finding of kept) lines.push(finding.renderedBlock)
 
   return lines
 }

@@ -160,7 +160,7 @@ export async function detectFrameworks(options: DetectFrameworksOptions): Promis
  * `dependency` probe. Returns evidence rather than a boolean, so the caller can say which manifest
  * and which field it came from.
  */
-export function findDependency(context: DetectionContext, names: readonly string[]): FrameworkEvidence | null {
+export function dependencyEvidence(context: DetectionContext, names: readonly string[]): FrameworkEvidence | null {
   const wanted = new Set(names)
   for (const manifest of context.manifests) {
     for (const dependency of manifest.dependencies) {
@@ -183,7 +183,7 @@ export function findDependency(context: DetectionContext, names: readonly string
  * caller can also read the workspace a match was attributed to, which is what scopes a knip setting
  * to the right package.
  */
-export function findFiles(
+export function inventoryFilesMatching(
   context: DetectionContext,
   predicate: (path: string) => boolean,
 ): readonly InventoryFile[] {

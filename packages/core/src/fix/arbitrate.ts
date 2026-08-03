@@ -39,7 +39,7 @@ function compareEditPrecedence(a: CandidateEdit, b: CandidateEdit): number {
   return (
     b.priority - a.priority ||
     SEVERITY_STRENGTH[b.severity] - SEVERITY_STRENGTH[a.severity] ||
-    compareStrings(a.ruleId, b.ruleId) ||
+    compareStrings(a.ruleRefKey, b.ruleRefKey) ||
     a.range.start - b.range.start ||
     a.range.end - b.range.end ||
     compareStrings(a.replacement, b.replacement)

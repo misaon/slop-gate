@@ -43,8 +43,10 @@ export { validateCatalogue } from './concepts/validate.ts'
 
 export { LANGUAGES, SCRIPT_LANGUAGES, type LanguageId } from './languages.ts'
 export { compareStrings } from './ordering.ts'
+export { isOneOf } from './guards.ts'
 export {
   ENGINE_PREFERENCE,
+  parseRuleRefKey,
   ruleRefKey,
   type Capability,
   type ClassifyRule,
@@ -63,8 +65,8 @@ export {
   type ElectionResult,
   type IneligibilityReason,
   type IneligibleCandidate,
-  type SuppressionReason,
-  type SuppressionRecord,
+  type OverlapReason,
+  type RuleOverlap,
 } from './registry/elect.ts'
 export { filterOwned, isOwned, owningEngines, type OwnerMap, type OwnershipCandidate } from './registry/ownership.ts'
 
@@ -89,6 +91,17 @@ export { OPTIONED_RECOMMENDED_RULES, type OptionedRule } from './config/rule-opt
 
 export { ConfigError, EngineError } from './errors.ts'
 export { resolveScriptBin, type ResolveScriptBinOptions, type ScriptBinInvocation } from './exec/resolve-script-bin.ts'
+export { isExecFileFailure, runEngineTool, toolVersion, type ExecFileFailure, type RunEngineToolOptions } from './exec/spawn.ts'
+export {
+  CACHE_DIR_ENV,
+  resolveToolBinary,
+  toolBinaryName,
+  toolCacheDir,
+  type ResolveToolBinaryOptions,
+  type ToolBinaryResolution,
+  type ToolBinarySource,
+  type ToolBinarySpec,
+} from './exec/resolve-tool-binary.ts'
 export { findConfigFile, loadConfig } from './config/load.ts'
 
 export {
@@ -102,14 +115,9 @@ export {
 } from './config/resolve.ts'
 
 export type { FileInventory, InventoryFile } from './discovery/types.ts'
-export { isGeneratedPath } from './discovery/generated.ts'
+export { isGeneratedPath } from './discovery/detect-generated.ts'
 export { detectLanguage } from './discovery/language.ts'
-export {
-  buildWorkspaceGraph,
-  relativePosix,
-  type WorkspaceGraph,
-  type WorkspaceNode,
-} from './discovery/workspaces.ts'
+export { buildWorkspaceGraph, type WorkspaceGraph, type WorkspaceNode } from './discovery/workspaces.ts'
 
 export {
   buildInventory,
@@ -120,7 +128,7 @@ export {
   type FileSource,
 } from './discovery/inventory.ts'
 
-export { toPosix } from './paths.ts'
+export { absolutePrefixes, toPosix, toRepoRelative } from './paths.ts'
 
 // --- Framework awareness (spec §23): one detection pass, two consumers ---------------------------
 export {
@@ -136,9 +144,9 @@ export {
   EMPTY_DETECTION,
   buildDetectionContext,
   defineProfile,
+  dependencyEvidence,
   detectFrameworks,
-  findDependency,
-  findFiles,
+  inventoryFilesMatching,
   relativeToWorkspace,
   type DetectFrameworksOptions,
 } from './frameworks/detect.ts'
@@ -150,8 +158,8 @@ export type {
   DependencyField,
   DetectionContext,
   EnabledLevel,
-  EngineAdjustments,
   EngineSetting,
+  EngineSettings,
   FrameworkAdjustment,
   FrameworkApplication,
   FrameworkDetection,
@@ -223,13 +231,13 @@ export { resolveRun, type ResolveRunOptions, type ResolvedRun, type UnavailableE
 
 export { LEVEL_STRENGTH } from './config/types.ts'
 
-// --- `sgate rules` governance commands: pure data-shaping over an already-resolved run ------------
+// --- `sgate rules` subcommands, one answer each ---------------------------------------------------
 export {
   resolveEnablement,
   wasEnabledBeforeBeingDisabled,
   type ConceptEnablement,
   type OverrideMention,
-} from './rules/enablement.ts'
-export { explainConcept, type ConceptWhy } from './rules/why.ts'
-export { buildRulesList, type RulesListEntry, type RulesListOptions } from './rules/list.ts'
-export { buildRulesConflicts, type RulesConflicts } from './rules/conflicts.ts'
+} from './queries/enablement.ts'
+export { explainConcept, type ConceptWhy } from './queries/why.ts'
+export { buildRulesList, type RulesListEntry, type RulesListOptions } from './queries/list.ts'
+export { buildRulesConflicts, type RulesConflicts } from './queries/conflicts.ts'

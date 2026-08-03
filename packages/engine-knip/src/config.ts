@@ -6,7 +6,7 @@ import {
   settingValues,
   settingValuesFor,
   toPosix,
-  type EngineAdjustments,
+  type EngineSettings,
   type EngineConfigHandle,
   type EngineRuleSelection,
   type InventoryFile,
@@ -208,7 +208,7 @@ function buildIgnore(options: MaterializeKnipConfigOptions): string[] {
 export async function mergeWorkspacesIntoConfig(
   path: string,
   workspaces: readonly string[],
-  adjustments: EngineAdjustments = [],
+  adjustments: EngineSettings = [],
 ): Promise<{ include: string[] }> {
   const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
   config['workspaces'] = Object.fromEntries(workspaces.map((dir) => [dir, buildWorkspaceConfig(dir, adjustments)]))
@@ -230,7 +230,7 @@ export async function mergeWorkspacesIntoConfig(
  * slop-gate's, where the root is `''`. That one translation is the only thing this function knows
  * about either vocabulary.
  */
-function buildWorkspaceConfig(dir: string, adjustments: EngineAdjustments): Record<string, unknown> {
+function buildWorkspaceConfig(dir: string, adjustments: EngineSettings): Record<string, unknown> {
   const workspace = dir === ROOT_WORKSPACE ? '' : dir
   const config: Record<string, unknown> = {}
 

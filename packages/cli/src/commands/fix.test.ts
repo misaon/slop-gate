@@ -49,7 +49,7 @@ test('a run that changed files lists both the files and the rules applied', () =
   const output = renderFixSummary(
     result({
       files: [{ file: 'src/a.ts', rules: ['oxlint/prefer-const'], edits: 2, diff: '' }],
-      rules: [{ ruleId: 'oxlint/prefer-const', count: 2 }],
+      rules: [{ ruleRefKey: 'oxlint/prefer-const', count: 2 }],
       initial: { findings: 2, withFix: { safe: 2, suggested: 0, unsafe: 0 } },
     }),
   )
@@ -66,7 +66,7 @@ test('a dry run says "would change" and prints the diff ahead of the summary', (
       dryRun: true,
       truncated: true,
       files: [{ file: 'src/a.ts', rules: ['oxlint/prefer-const'], edits: 1, diff }],
-      rules: [{ ruleId: 'oxlint/prefer-const', count: 1 }],
+      rules: [{ ruleRefKey: 'oxlint/prefer-const', count: 1 }],
     }),
   )
 
@@ -87,7 +87,7 @@ test('an oscillation is printed with its message and its help', () => {
       oscillations: [
         {
           concept: 'config.fix-oscillation',
-          ruleId: 'slop-gate/config.fix-oscillation',
+          ruleRefKey: 'slop-gate/config.fix-oscillation',
           engine: 'slop-gate',
           severity: 'error',
           message: '`oxlint/a` and `oxlint/b` rewrite the same code in src/a.ts',

@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
-import { createLineIndex, EngineError, type LineIndex, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
+import { join } from 'node:path'
+import { createLineIndex, EngineError, toRepoRelative, type LineIndex, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
 
 /**
  * The single synthetic engine rule id every `tsc` diagnostic is attributed to, regardless of its own
  * TS error code (TS2307, TS2322, ...). See the `tsc/type-error` entry in
- * `packages/core/src/registry/entries.manual.ts` for why one rule id — and one concept,
+ * `packages/core/src/registry/entries.uncatalogued.ts` for why one rule id — and one concept,
  * `types.type-error` — covers the whole domain rather than mapping each code to its own concept.
  */
 export const TYPE_ERROR_RULE_ID = 'type-error'
@@ -164,15 +164,4 @@ export async function* parseTscOutput(stdout: string, rootDir: string): AsyncGen
       range: { start, end },
     }
   }
-}
-
-/** Mirrors `engine-oxlint`'s own `toRepoRelative` (parse.ts): tsc reports paths relative to its own
- *  cwd when one is already relative (see resolve-binary.ts's caller, which always sets `cwd:
- *  context.rootDir`), so the common case is a plain passthrough; an absolute path (defensive — not
- *  observed in practice given that cwd convention, but cheap to handle) is converted the same way. */
-function toRepoRelative(filename: string, rootDir: string): string {
-  const normalized = filename.replaceAll('\\', '/')
-  const root = rootDir.replaceAll('\\', '/')
-  if (!normalized.startsWith('/') && !/^[a-z]:\//i.test(normalized)) return normalized
-  return relative(root, normalized).replaceAll('\\', '/')
 }

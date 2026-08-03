@@ -2,9 +2,10 @@ import { explainConcept } from '@misaon/slop-gate-core'
 import { renderRulesWhyJson, renderRulesWhyPretty, REPORTER_NAMES } from '@misaon/slop-gate-reporters'
 import { defineCommand } from 'citty'
 import { EXIT_CODES } from '../../exit-codes.ts'
+import { validateFormat } from '../../format.ts'
 import { supportsColor, supportsUnicode } from '../../terminal.ts'
 import { readCliVersion } from '../../version.ts'
-import { prepareRulesRun, validateFormat } from './shared.ts'
+import { prepareRulesRun } from './shared.ts'
 
 export const why = defineCommand({
   meta: { name: 'why', description: 'Explain why a concept is (or is not) enabled, and who owns it' },

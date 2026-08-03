@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineCommand } from 'citty'
 import { streamCheck, type CheckResult } from '@misaon/slop-gate-core'
-import { REPORTER_NAMES, createReporter, type ReporterName } from '@misaon/slop-gate-reporters'
+import { REPORTER_NAMES, createReporter } from '@misaon/slop-gate-reporters'
 import { DEFAULT_CONFIG, loadCliConfig } from '../config.ts'
-import { defaultEngines } from '../engines.ts'
+import { defaultEngines } from '../engine-registry.ts'
 import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
+import { validateFormat } from '../format.ts'
 import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
 
@@ -41,11 +42,7 @@ export const check = defineCommand({
   async run({ args }) {
     const rootDir = args.cwd ?? process.cwd()
 
-    if (!REPORTER_NAMES.includes(args.format as ReporterName)) {
-      process.stderr.write(`unknown format: ${args.format}. Expected one of ${REPORTER_NAMES.join(', ')}.\n`)
-      process.exitCode = EXIT_CODES.config
-      return
-    }
+    if (!validateFormat(args.format)) return
 
     // Rejected rather than coerced or ignored. `--max-tokens` is the one flag whose whole purpose is
     // to make the report drop findings; a typo silently falling back to "no limit" would hand an
@@ -69,7 +66,7 @@ export const check = defineCommand({
     process.once('SIGINT', onInterrupt)
     process.once('SIGTERM', onInterrupt)
 
-    const reporter = createReporter(args.format as ReporterName, {
+    const reporter = createReporter(args.format, {
       write: (chunk) => process.stdout.write(chunk),
       color: supportsColor(),
       unicode: supportsUnicode(),

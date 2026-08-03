@@ -13,7 +13,7 @@ import { BIOME_CSS_RULES, CSS_PARSE_ERROR_RULE_ID, FOREIGN_SUPPRESSION_RULE_ID, 
  * Those thirteen produced **zero findings across 1729 production stylesheets**. That measured a
  * false-positive rate of zero and a true-positive rate of nothing whatsoever, so on the corpus alone
  * there would be no evidence they do anything — a rule that never fires is worse than no rule (see
- * `no-implied-eval` in `registry/exclusions.ts`). Every file here is the missing half: one authored
+ * `no-implied-eval` in `registry/not-recommended.ts`). Every file here is the missing half: one authored
  * construct per rule, run against the real binary, proving the check is live.
  *
  * Reported separately from the corpus and never summed with it, because they answer different
@@ -32,7 +32,7 @@ import { BIOME_CSS_RULES, CSS_PARSE_ERROR_RULE_ID, FOREIGN_SUPPRESSION_RULE_ID, 
  *   sees, plus a nesting case that a first, wrong reading of the corpus had claimed was a false
  *   positive. This is the polarity that catches a rule firing on ordinary CSS.
  * - `excluded` — the rule fires, correctly by its own lights, on input that is not a defect. These
- *   are the measured false-positive classes behind `MANUAL_RULE_EXCLUSIONS`, kept executable so
+ *   are the measured false-positive classes behind `NOT_RECOMMENDED_UNCATALOGUED`, kept executable so
  *   those reasons stay true instead of becoming folklore.
  * - `synthetic` — the adapter's own reports (`css-parse-error`, `foreign-suppression`), which come
  *   from the adapter rather than from any Biome rule.
@@ -40,7 +40,7 @@ import { BIOME_CSS_RULES, CSS_PARSE_ERROR_RULE_ID, FOREIGN_SUPPRESSION_RULE_ID, 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures'), 'tree')
 const MARKER = '/* HIT */'
 
-/** Every rule in `recommended`, i.e. everything not held out by `MANUAL_RULE_EXCLUSIONS`. */
+/** Every rule in `recommended`, i.e. everything not held out by `NOT_RECOMMENDED_UNCATALOGUED`. */
 const EXCLUDED_FROM_RECOMMENDED = new Set([
   'noHexColors',
   'noDescendingSpecificity',
@@ -64,7 +64,7 @@ const CASES: readonly Case[] = [
   { engineRuleId: 'noDuplicateProperties', file: 'excluded.progressive-fallback.css', polarity: 'excluded' },
   // The corrected claim, kept executable: biome does *not* report a duplicate across a nesting
   // boundary. A first reading of the corpus said it did; this fixture said otherwise, and the
-  // fixture was right — see `noDuplicateProperties` in `registry/entries.manual.ts`.
+  // fixture was right — see `noDuplicateProperties` in `registry/entries.uncatalogued.ts`.
   { engineRuleId: 'noDuplicateProperties', file: 'negative.nested-context.css', polarity: 'negative' },
   { engineRuleId: 'useGenericFontNames', file: 'excluded.icon-font.css', polarity: 'excluded' },
   { engineRuleId: 'noUnknownAtRules', file: 'excluded.preprocessor-at-rule.css', polarity: 'excluded' },
@@ -136,7 +136,7 @@ test.each(CASES.filter((c) => c.polarity === 'excluded'))(
   '$engineRuleId still fires on $file, which is why it is excluded',
   async ({ engineRuleId, file }) => {
     // Asserted from this end deliberately. If upstream ever fixed one of these, the exclusion reason
-    // in `MANUAL_RULE_EXCLUSIONS` would quietly become false, and nothing else would notice.
+    // in `NOT_RECOMMENDED_UNCATALOGUED` would quietly become false, and nothing else would notice.
     const found = await lint(file, [engineRuleId])
     expect(found.map((d) => d.engineRuleId)).toContain(engineRuleId)
     const source = await readFile(join(workspace, file), 'utf8')

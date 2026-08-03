@@ -10,7 +10,7 @@ let cacheDir: string
 
 const diagnostic: Diagnostic = {
   concept: 'correctness.no-debugger',
-  ruleId: 'oxlint/no-debugger',
+  ruleRefKey: 'oxlint/no-debugger',
   engine: 'oxlint',
   severity: 'error',
   message: '`debugger` statement is not allowed',

@@ -13,7 +13,7 @@ export const CACHE_DIR_ENV = 'SLOP_GATE_CACHE_DIR'
  */
 export const SNAPSHOT_FORMAT_VERSION = 1
 
-export const MANIFEST_FILE = 'snapshot.json'
+export const SNAPSHOT_MANIFEST_FILENAME = 'snapshot.json'
 export const VULNERABLE_FILE = 'vulnerable.json'
 export const MALICIOUS_FILE = 'malicious.json'
 
@@ -83,7 +83,7 @@ export function advisorySnapshotDir(options: SnapshotLocationOptions = {}): stri
  * installed" would make an explain-only command do the engine's work.
  */
 export function readSnapshotManifest(directory: string): SnapshotManifest | undefined {
-  const path = join(directory, MANIFEST_FILE)
+  const path = join(directory, SNAPSHOT_MANIFEST_FILENAME)
   if (!existsSync(path)) return undefined
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<SnapshotManifest>

@@ -20,7 +20,7 @@ const asCandidate = (file: string, edit: { range: { start: number; end: number }
   range: edit.range,
   replacement: edit.replacement,
   kind: 'safe',
-  ruleId: 'oxlint/r',
+  ruleRefKey: 'oxlint/r',
   concept: 'correctness.m',
   priority: 50,
   severity: 'warn',

@@ -22,7 +22,7 @@ import {
   parseLockfile,
   type LockfileKind,
 } from './lockfile.ts'
-import { scanDependencies, type ManifestFile } from './scan.ts'
+import type { PackageManifest } from './scan.ts'
 import { DEPS_SECURITY_RULES, type DepsSecurityRuleId } from './rules.ts'
 import {
   INSTALL_COMMAND,
@@ -45,7 +45,13 @@ export {
   type AdvisoryTables,
   type DistilledAffected,
 } from './advisory.ts'
-export { advisoryAffects } from './match.ts'
+// `advisoryAffects` and `scanDependencies` are deliberately absent from this barrel. Both reach
+// `./match.ts` and therefore `semver`, ~6 ms of module load, which `execute()`'s dynamic import below
+// keeps out of every run that never scans a lockfile — including `sgate rules why`, a fully-cached
+// `sgate check`, and every machine with no advisory snapshot installed, where `availability()` means
+// this engine never runs at all. A static re-export here would put `semver` straight back in the
+// entry graph and undo it. Both remain importable from their own modules, which is how their tests
+// reach them.
 export {
   LOCKFILES,
   LockfileParseError,
@@ -59,12 +65,12 @@ export {
   type ResolvedPackage,
 } from './lockfile.ts'
 export { findDependencyRange } from './manifest.ts'
-export { scanDependencies, type ManifestFile, type ScanInput } from './scan.ts'
+export type { PackageManifest, ScanInput } from './scan.ts'
 export {
   DEPS_SECURITY_RULES,
   DEPS_SECURITY_RULE_IDS,
   advisoryUrl,
-  conceptOf,
+  conceptForEngineRuleId,
   type DepsSecurityRuleId,
 } from './rules.ts'
 export {
@@ -79,8 +85,8 @@ export {
   CACHE_DIR_ENV,
   INSTALL_COMMAND,
   MALICIOUS_FILE,
-  MANIFEST_FILE,
   SNAPSHOT_FORMAT_VERSION,
+  SNAPSHOT_MANIFEST_FILENAME,
   SNAPSHOT_PATH_ENV,
   STALE_AFTER_DAYS,
   VULNERABLE_FILE,
@@ -245,6 +251,11 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
     enabled.has('malware') ? readTable(input.directory, MALICIOUS_FILE) : Promise.resolve({}),
   ])
 
+  // Loaded here rather than at the top of the module: this is the first point at which a scan is
+  // certainly going to happen — the rules are enabled, the snapshot is present and a readable lockfile
+  // has already been parsed — so `semver` is paid for only by runs that use it. See the note beside
+  // this module's export list.
+  const { scanDependencies } = await import('./scan.ts')
   yield* scanDependencies({
     lockfile: found,
     parsed,
@@ -273,7 +284,7 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
 function* noLockfile(
   input: ExecuteInput,
   enabled: ReadonlySet<DepsSecurityRuleId>,
-  manifests: readonly ManifestFile[],
+  manifests: readonly PackageManifest[],
 ): Generator<RawDiagnostic> {
   if (!enabled.has('coverage-gap')) return
   if (!manifests.some((manifest) => manifestDependencies(manifest.source).length > 0)) return
@@ -313,8 +324,8 @@ function findUnsupportedLockfiles(rootDir: string): readonly { readonly file: st
  * inventory's own exclusions apply — a project engine picks its own files and would otherwise report
  * on directories the user excluded, which is the defect the knip adapter records having had.
  */
-async function readManifests(batch: FileBatch, rootDir: string): Promise<readonly ManifestFile[]> {
-  const manifests: ManifestFile[] = []
+async function readManifests(batch: FileBatch, rootDir: string): Promise<readonly PackageManifest[]> {
+  const manifests: PackageManifest[] = []
   for (const file of batch.files) {
     if (!isManifest(file.path)) continue
     manifests.push({ file: file.path, source: await readFile(join(rootDir, file.path), 'utf8') })

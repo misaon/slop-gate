@@ -80,7 +80,7 @@ export function buildMcpServer(options: BuildServerOptions): McpServer {
       description:
         'Explain why one concept is enabled or disabled in this repository, which engine rule owns it, what ' +
         'lost arbitration for it, and whether an absent engine would have owned it instead. Takes the `concept` ' +
-        'of a finding, not its `ruleId`. Runs no engines.',
+        'of a finding, not its `ruleRefKey`. Runs no engines.',
       inputSchema: EXPLAIN_INPUT,
       outputSchema: EXPLAIN_OUTPUT,
       annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },

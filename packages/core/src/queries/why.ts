@@ -7,7 +7,7 @@ import type {
   FrameworkMeasurement,
   InapplicableFramework,
 } from '../frameworks/types.ts'
-import type { ConceptOwnership, DisplacedOwner, IneligibleCandidate, SuppressionRecord } from '../registry/elect.ts'
+import type { ConceptOwnership, DisplacedOwner, IneligibleCandidate, RuleOverlap } from '../registry/elect.ts'
 import type { EngineId, RuleEntry } from '../registry/types.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
 import { resolveEnablement, type ConceptEnablement } from './enablement.ts'
@@ -24,7 +24,7 @@ export type ConceptWhy = {
   enablement: ConceptEnablement
   pinnedOwner: EngineId | undefined
   /** Every registry entry that declares this concept, applicable or not — the full candidate set
-   *  `owner`/`suppressed`/`ineligible` below are each a partition of. */
+   *  `ownership`/`overlaps`/`ineligible` below are each a partition of. */
   candidates: readonly RuleEntry[]
   /**
    * Every rule owning this concept, with the languages each won. Usually one entry; more than one
@@ -32,7 +32,7 @@ export type ConceptWhy = {
    * two languages. Empty means no owner, and `uncovered` says whether that is a real gap.
    */
   ownership: readonly ConceptOwnership[]
-  suppressed: readonly SuppressionRecord[]
+  overlaps: readonly RuleOverlap[]
   ineligible: readonly IneligibleCandidate[]
   /**
    * Ownership an absent engine would have taken. Rendered as one extra line in the owners block —
@@ -136,7 +136,7 @@ export function explainConcept(concept: string, resolved: ResolvedRun): ConceptW
     pinnedOwner: resolver.base.pinnedOwners[concept],
     candidates: entries.filter((entry) => entry.concepts.includes(concept as never)),
     ownership: election.owners.get(concept) ?? [],
-    suppressed: election.suppressed.filter((record) => record.concept === concept),
+    overlaps: election.overlaps.filter((record) => record.concept === concept),
     ineligible: election.ineligible.filter((record) => record.concept === concept),
     displaced: election.displaced.filter((record) => record.concept === concept),
     uncovered: election.uncovered.includes(concept),

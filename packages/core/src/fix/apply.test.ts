@@ -5,7 +5,7 @@ import type { CandidateEdit } from './types.ts'
 const edit = (over: Partial<CandidateEdit> & Pick<CandidateEdit, 'range' | 'replacement'>): CandidateEdit => ({
   file: 'src/a.ts',
   kind: 'safe',
-  ruleId: 'oxlint/rule',
+  ruleRefKey: 'oxlint/rule',
   concept: 'correctness.m',
   priority: 50,
   severity: 'warn',

@@ -53,5 +53,5 @@ export function applySuppressions(
 function directiveMatches(directive: SuppressionDirective, diagnostic: Diagnostic): boolean {
   if (directive.appliesToLine !== null && diagnostic.position.startLine !== directive.appliesToLine) return false
   if (directive.targets.length === 0) return true
-  return directive.targets.some((target) => target === diagnostic.concept || target === diagnostic.ruleId)
+  return directive.targets.some((target) => target === diagnostic.concept || target === diagnostic.ruleRefKey)
 }

@@ -12,18 +12,18 @@ const capture = (conflicts: RulesConflicts, contextOver: Partial<RulesReporterCo
 }
 
 test('says so plainly when there is nothing to report', () => {
-  const output = capture({ suppressed: [], deadOverrides: [] })
+  const output = capture({ overlaps: [], deadOverrides: [] })
   expect(output).toMatch(/no rule overlaps or dead overrides/i)
 })
 
-test('lists a suppressed overlap with its winner and reason', () => {
+test('lists a rule overlap with its winner and reason', () => {
   const output = capture({
-    suppressed: [
+    overlaps: [
       {
         concept: 'dead-code.unused-variable',
         languages: ['ts'],
         winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
-        suppressed: { engine: 'eslint', engineRuleId: '@typescript-eslint/no-unused-vars' },
+        loser: { engine: 'eslint', engineRuleId: '@typescript-eslint/no-unused-vars' },
         reason: 'lower-tier',
       },
     ],
@@ -36,11 +36,11 @@ test('lists a suppressed overlap with its winner and reason', () => {
   expect(output).toContain('lower-tier')
 })
 
-test('groups multiple suppressions for the same concept under one winner', () => {
+test('groups multiple overlaps for the same concept under one winner', () => {
   const output = capture({
-    suppressed: [
-      { concept: 'style.no-var', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'a' }, suppressed: { engine: 'astgrep', engineRuleId: 'b' }, reason: 'engine-preference' },
-      { concept: 'style.no-var', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'a' }, suppressed: { engine: 'knip', engineRuleId: 'c' }, reason: 'lower-tier' },
+    overlaps: [
+      { concept: 'style.no-var', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'a' }, loser: { engine: 'astgrep', engineRuleId: 'b' }, reason: 'engine-preference' },
+      { concept: 'style.no-var', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'a' }, loser: { engine: 'knip', engineRuleId: 'c' }, reason: 'lower-tier' },
     ],
     deadOverrides: [],
   })
@@ -51,14 +51,14 @@ test('groups multiple suppressions for the same concept under one winner', () =>
 })
 
 test('lists a dead override with the same message text check itself uses', () => {
-  const output = capture({ suppressed: [], deadOverrides: ['oxlint/no-such-rule'] })
+  const output = capture({ overlaps: [], deadOverrides: ['oxlint/no-such-rule'] })
   expect(output).toContain('oxlint/no-such-rule')
   expect(output).toContain('does not name a known concept or a rule any engine provides')
 })
 
 test('summarises overlap and dead-override counts in the footer', () => {
   const output = capture({
-    suppressed: [{ concept: 'a', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'x' }, suppressed: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
+    overlaps: [{ concept: 'a', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'x' }, loser: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
     deadOverrides: ['oxlint/no-such-rule'],
   })
   expect(output).toMatch(/1 rule overlap/)
@@ -67,10 +67,10 @@ test('summarises overlap and dead-override counts in the footer', () => {
 
 test('never puts a wide or fullwidth character in a framed line', () => {
   const busy: RulesConflicts = {
-    suppressed: [{ concept: 'a', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'x' }, suppressed: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
+    overlaps: [{ concept: 'a', languages: ['ts'], winner: { engine: 'oxlint', engineRuleId: 'x' }, loser: { engine: 'eslint', engineRuleId: 'y' }, reason: 'lower-tier' }],
     deadOverrides: ['oxlint/no-such-rule'],
   }
-  const outputs = [capture({ suppressed: [], deadOverrides: [] }), capture(busy)]
+  const outputs = [capture({ overlaps: [], deadOverrides: [] }), capture(busy)]
 
   for (const output of outputs) {
     const framedLines = output.split('\n').filter((line) => /^ {2}[│╭╰]/.test(line))
@@ -82,7 +82,7 @@ test('never puts a wide or fullwidth character in a framed line', () => {
 test('json output is versioned and carries both fields', () => {
   let output = ''
   const context: RulesReporterContext = { write: (chunk) => (output += chunk), color: false, unicode: true, width: 80, version: '0.0.0' }
-  const conflicts: RulesConflicts = { suppressed: [], deadOverrides: ['oxlint/no-such-rule'] }
+  const conflicts: RulesConflicts = { overlaps: [], deadOverrides: ['oxlint/no-such-rule'] }
   renderRulesConflictsJson(conflicts, context)
 
   const parsed = JSON.parse(output) as { version: number; deadOverrides: string[] }

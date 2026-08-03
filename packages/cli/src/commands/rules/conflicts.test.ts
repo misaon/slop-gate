@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { RulesConflicts } from '@misaon/slop-gate-core'
+import { RULES_CONFLICTS_JSON_VERSION } from '@misaon/slop-gate-reporters'
 import { conflicts } from './conflicts.ts'
 
 let dir: string
@@ -39,8 +40,8 @@ test('reports no overlaps and no dead overrides with only oxlint registered and 
   const output = await runConflictsCapturingStdout()
   const parsed = JSON.parse(output) as { version: number } & RulesConflicts
 
-  expect(parsed.version).toBe(1)
-  expect(parsed.suppressed).toEqual([])
+  expect(parsed.version).toBe(RULES_CONFLICTS_JSON_VERSION)
+  expect(parsed.overlaps).toEqual([])
   expect(parsed.deadOverrides).toEqual([])
 })
 

@@ -1,9 +1,10 @@
 import { buildRulesConflicts } from '@misaon/slop-gate-core'
 import { renderRulesConflictsJson, renderRulesConflictsPretty, REPORTER_NAMES } from '@misaon/slop-gate-reporters'
 import { defineCommand } from 'citty'
+import { validateFormat } from '../../format.ts'
 import { supportsColor, supportsUnicode } from '../../terminal.ts'
 import { readCliVersion } from '../../version.ts'
-import { prepareRulesRun, validateFormat } from './shared.ts'
+import { prepareRulesRun } from './shared.ts'
 
 export const conflicts = defineCommand({
   meta: { name: 'conflicts', description: 'Show overlapping rules, shadowed candidates and dead overrides' },

@@ -38,13 +38,13 @@ export function applyEdits(buffer: Uint8Array, edits: readonly CandidateEdit[]):
     const { start, end } = edit.range
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > buffer.length) {
       throw new Error(
-        `fix edit from ${edit.ruleId} is out of range for ${edit.file}: [${start}, ${end}) in a ${buffer.length}-byte buffer`,
+        `fix edit from ${edit.ruleRefKey} is out of range for ${edit.file}: [${start}, ${end}) in a ${buffer.length}-byte buffer`,
       )
     }
     const next = ordered[index + 1]
     if (next !== undefined && rangesConflict(next.range, edit.range)) {
       throw new Error(
-        `fix edits from ${next.ruleId} and ${edit.ruleId} overlap in ${edit.file}: ` +
+        `fix edits from ${next.ruleRefKey} and ${edit.ruleRefKey} overlap in ${edit.file}: ` +
           `[${next.range.start}, ${next.range.end}) and [${start}, ${end})`,
       )
     }

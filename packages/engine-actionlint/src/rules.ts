@@ -53,7 +53,7 @@ export type MessageExclusion = {
 
 /**
  * Findings dropped by message, inside rules that are otherwise shipped. First-class data with a
- * written reason for the same purpose `registry/exclusions.ts` serves at rule granularity: so that
+ * written reason for the same purpose `registry/not-recommended.ts` serves at rule granularity: so that
  * nobody deletes one later believing its absence from the output was accidental.
  *
  * Every entry is a measured false-positive class from the 403-workflow corpus (17 repositories,
@@ -141,6 +141,6 @@ export const MESSAGE_REWRITES: readonly MessageRewrite[] = [
   },
 ]
 
-export function conceptOf(engineRuleId: string): string | undefined {
+export function conceptForEngineRuleId(engineRuleId: string): string | undefined {
   return ACTIONLINT_RULES.find((rule) => rule.engineRuleId === engineRuleId)?.concept
 }

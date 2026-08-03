@@ -13,7 +13,7 @@ const explanation = (over: Partial<ConceptWhy> = {}): ConceptWhy => ({
   candidates: [],
   ownership: [],
   displaced: [],
-  suppressed: [],
+  overlaps: [],
   ineligible: [],
   uncovered: false,
   frameworks: [],
@@ -234,11 +234,11 @@ test('never puts a wide or fullwidth character in a framed line', () => {
   const busy = explanation({
     concept: 'dead-code.unused-variable',
     ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }],
-    suppressed: [
+    overlaps: [
       {
         concept: 'dead-code.unused-variable',
         languages: ['ts'],
-        suppressed: { engine: 'eslint', engineRuleId: 'x' },
+        loser: { engine: 'eslint', engineRuleId: 'x' },
         winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
         reason: 'lower-tier',
       },

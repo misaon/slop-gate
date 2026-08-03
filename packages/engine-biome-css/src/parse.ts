@@ -141,7 +141,7 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
     return indexes.get(file)
   }
 
-  const rangeOf = (file: string, location: BiomeDiagnostic['location']) => {
+  const rangeFromCodepointLocation = (file: string, location: BiomeDiagnostic['location']) => {
     const index = indexOf(file)
     if (index === undefined || location?.start === undefined) return { start: 0, end: 0 }
     const start = index.offsetAtCodepointColumn(location.start)
@@ -180,7 +180,7 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
       message: diagnostic.message,
       severity: SEVERITIES[diagnostic.severity] ?? 'warning',
       file,
-      range: rangeOf(file, diagnostic.location),
+      range: rangeFromCodepointLocation(file, diagnostic.location),
       ...(help === undefined ? {} : { help }),
     })
   }
@@ -194,7 +194,7 @@ export function parseBiomeOutput(report: string, options: ParseOptions): RawDiag
         'directives) is the usual cause, and is not a defect in the file.',
       severity: 'warning',
       file,
-      range: rangeOf(file, first.location),
+      range: rangeFromCodepointLocation(file, first.location),
     })
   }
   return results

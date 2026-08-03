@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
-import { EngineError, createLineIndex, type LineIndex, type RawDiagnostic } from '@misaon/slop-gate-core'
+import { join } from 'node:path'
+import { EngineError, createLineIndex, toRepoRelative, type LineIndex, type RawDiagnostic } from '@misaon/slop-gate-core'
 import { KNIP_ISSUE_TYPES, isSurfacedIssueType, type KnipIssueType } from './issue-types.ts'
 
 type KnipItem = {
@@ -179,14 +179,4 @@ function assertReportedTypes(entries: readonly KnipEntry[], expected?: { issueTy
     `expected knip to report [${wanted.join(', ')}], it reported [${reported.join(', ')}]. ` +
       'The materialised config is not selecting exactly the elected ruleset.',
   )
-}
-
-/** Mirrors `engine-oxlint`'s and `engine-tsc`'s own `toRepoRelative`: knip reports paths relative to
- *  the cwd it was spawned in (always `context.rootDir` — see index.ts), so the common case is a plain
- *  passthrough; an absolute path is converted the same way. */
-function toRepoRelative(filename: string, rootDir: string): string {
-  const normalized = filename.replaceAll('\\', '/')
-  const root = rootDir.replaceAll('\\', '/')
-  if (!normalized.startsWith('/') && !/^[a-z]:\//i.test(normalized)) return normalized
-  return relative(root, normalized).replaceAll('\\', '/')
 }

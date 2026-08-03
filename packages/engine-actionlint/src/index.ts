@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
+  absolutePrefixes,
   EngineError,
   hashJson,
+  runEngineTool,
   type Engine,
   type EngineAvailability,
   type EngineConfigHandle,
@@ -24,15 +26,15 @@ export {
   ACTIONLINT_VERSION,
   actionlintAsset,
 } from './release.ts'
-export { ActionlintInstallError, extractTarGzEntry, installActionlint, type InstallActionlintResult } from './download.ts'
-export { parseActionlintOutput, rangeOf, readActionlintErrors, sanitize, type ActionlintError } from './parse.ts'
+export { ActionlintInstallError, extractTarGzEntry, installActionlint, type InstallActionlintResult } from './install.ts'
+export { parseActionlintOutput, rangeFromLineColumn, readActionlintErrors, sanitize, type ActionlintError } from './parse.ts'
 export {
   ACTIONLINT_RULES,
   ACTIONLINT_RULE_IDS,
   DISABLED_INTEGRATION_RULES,
   MESSAGE_EXCLUSIONS,
   MESSAGE_REWRITES,
-  conceptOf,
+  conceptForEngineRuleId,
   type ActionlintRuleId,
 } from './rules.ts'
 export {
@@ -206,29 +208,19 @@ async function* execute(
     ...batch.files.map((file) => file.path),
   ]
 
-  let stdout: string
-  try {
-    ;({ stdout } = await run(invocation.command, args, {
-      cwd: context.rootDir,
-      signal,
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024 * 256,
-    }))
-  } catch (error) {
-    const failure = error as { code?: number | string; stdout?: string; stderr?: string }
-    if (typeof failure.code === 'number' && failure.code <= MAX_FINDINGS_EXIT_CODE) {
-      stdout = failure.stdout ?? ''
-    } else {
-      throw new EngineError('actionlint', `actionlint failed: ${failure.stderr?.trim() || String(failure.code)}`, {
-        cause: error,
-      })
-    }
-  }
+  const { stdout } = await runEngineTool({
+    engine: 'actionlint',
+    command: invocation.command,
+    args,
+    cwd: context.rootDir,
+    signal,
+    maxFindingsExitCode: MAX_FINDINGS_EXIT_CODE,
+  })
 
   const errors = readActionlintErrors(stdout)
 
   // Every file that produced a finding is read up front so `readSource` can stay synchronous:
-  // `rangeOf` needs the text, and threading a promise through the parser would buy nothing.
+  // `rangeFromLineColumn` needs the text, and threading a promise through the parser would buy nothing.
   const sources = new Map<string, string | undefined>()
   for (const error of errors) {
     const file = error.filepath.replaceAll('\\', '/')
@@ -247,18 +239,4 @@ async function* execute(
     enabled: (rule) => selected.has(rule),
     readSource: (file) => sources.get(file),
   })
-}
-
-async function absolutePrefixes(context: RunContext): Promise<readonly string[]> {
-  const prefixes = [context.rootDir, context.tmpDir]
-  // actionlint reports the resolved real path, which differs from `rootDir` wherever a symlink is in
-  // play — `/tmp` on macOS being `/private/tmp` is the case every test on this machine hits.
-  for (const path of [context.rootDir, context.tmpDir]) {
-    try {
-      prefixes.push(await realpath(path))
-    } catch {
-      // A path that cannot be resolved cannot appear in a message either.
-    }
-  }
-  return prefixes
 }

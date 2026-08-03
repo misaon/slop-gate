@@ -6,7 +6,7 @@ import { TYPE_ERROR_RULE_ID } from './parse.ts'
  * Unlike oxlint's `materializeOxlintConfig`, this writes nothing to disk: `tsc` reads the project's
  * own `tsconfig.json` directly via `-p`, and there is no per-rule selection to translate into an
  * engine-native config file — `selection` only ever contains `type-error` itself (see the `tsc`
- * `RuleEntry` in packages/core/src/registry/entries.manual.ts), already `off`-filtered by `buildPlan`
+ * `RuleEntry` in packages/core/src/registry/entries.uncatalogued.ts), already `off`-filtered by `buildPlan`
  * before this is even called. `handle.path` is the tsconfig path itself, reused directly by `run()` as
  * the `-p` argument — the same field oxlint's handle uses for its own materialised file, just pointing
  * at something this adapter did not create.

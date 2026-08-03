@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
-import { parseHadolintOutput, rangeOf, readHadolintFindings, type HadolintFinding } from './parse.ts'
+import { parseHadolintOutput, instructionKeywordRange, readHadolintFindings, stripPrefixes, type HadolintFinding } from './parse.ts'
 import { HADOLINT_RULE_IDS } from './rules.ts'
 
 const finding = (over: Partial<HadolintFinding> = {}): HadolintFinding => ({
@@ -38,7 +38,7 @@ test('an elected rule becomes a diagnostic with the range over its instruction k
 
 test('the range covers the keyword on an indented instruction too', () => {
   const source = 'FROM node:22\n  RUN echo hi\n'
-  expect(rangeOf({ line: 2 }, source)).toEqual({ start: 15, end: 18 })
+  expect(instructionKeywordRange({ line: 2 }, source)).toEqual({ start: 15, end: 18 })
 })
 
 test('a rule that was not elected is dropped', () => {
@@ -89,4 +89,22 @@ test('an absolute path is made repo-relative', () => {
 test('an unreadable file still reports, at the top', () => {
   const [diagnostic] = parseHadolintOutput([finding()], options(undefined))
   expect(diagnostic?.range).toEqual({ start: 0, end: 0 })
+})
+
+test('stripping is one function, because `index.ts` keys its source map on the same path this parser reports', () => {
+  // Two implementations that agree today is the failure mode: `readSource` would miss, every finding
+  // would collapse to {start:0,end:0}, and every baseline fingerprint would churn without a word.
+  expect(stripPrefixes('/repo/root/Dockerfile', ['/repo/root'])).toBe('Dockerfile')
+  // A trailing slash on the prefix strips identically — the two implementations spelled this
+  // differently (`endsWith` versus a `/\/?$/` replace) and that is one of the ways they could drift.
+  expect(stripPrefixes('/repo/root/Dockerfile', ['/repo/root/'])).toBe('Dockerfile')
+  // Longest first, so a nested prefix wins over the root it sits under.
+  expect(stripPrefixes('/repo/root/tmp/Dockerfile', ['/repo/root', '/repo/root/tmp'])).toBe('Dockerfile')
+  // Host separators are normalised before matching, on both sides.
+  expect(stripPrefixes('C:\\repo\\root\\Dockerfile', ['C:\\repo\\root'])).toBe('Dockerfile')
+  // A prefix that matches nothing, an empty prefix and no prefixes all pass the path through.
+  expect(stripPrefixes('docker/Dockerfile', ['/elsewhere', ''])).toBe('docker/Dockerfile')
+  expect(stripPrefixes('/repo/root/Dockerfile', [])).toBe('/repo/root/Dockerfile')
+  // A prefix equal to the whole path leaves nothing, which `index.ts` skips rather than read.
+  expect(stripPrefixes('/repo/root/', ['/repo/root'])).toBe('')
 })

@@ -11,15 +11,19 @@ import {
   type RunContext,
 } from '@misaon/slop-gate-core'
 import { SCHEMA_BINDINGS, bindSchema } from './catalogue.ts'
-import { createSchemaValidator } from './validate.ts'
 import { inspectYaml } from './yaml.ts'
+import type { SchemaValidator } from './validate.ts'
 
 export { SCHEMA_BINDINGS, SCHEMA_EXCLUSIONS, bindSchema, type SchemaBinding, type SchemaId } from './catalogue.ts'
-export { createSchemaValidator, type SchemaFinding, type SchemaValidator } from './validate.ts'
+// `createSchemaValidator` is deliberately **not** re-exported: a static re-export would put
+// `./validate.ts` — and with it `ajv`, ~11 ms of module load — back in this entry point's graph, which
+// is the whole thing `run()`'s dynamic import below exists to keep out of a run that never validates
+// a Compose file. The types are erased and cost nothing.
+export type { SchemaFinding, SchemaValidator } from './validate.ts'
 export { inspectYaml, type YamlFinding, type YamlInspection, type YamlRuleId } from './yaml.ts'
 
 /**
- * Every rule this engine can report. Exported so `entries.manual.ts`'s registry entries and this list
+ * Every rule this engine can report. Exported so `entries.uncatalogued.ts`'s registry entries and this list
  * can be asserted to agree — an engine that can report a rule the registry has never heard of would
  * emit diagnostics `normalizeDiagnostics` cannot attribute to a concept.
  */
@@ -45,7 +49,26 @@ export type SchemaRuleId = (typeof SCHEMA_RULE_IDS)[number]
  * engine's own `run` does, and this one has the selection in hand already.
  */
 export function createSchemaEngine(): Engine {
-  const validate = createSchemaValidator()
+  /**
+   * `ajv` is loaded, and the validator built, on the first file that actually needs schema validation
+   * — not here.
+   *
+   * `ajv` plus `ajv-formats` is ~11 ms of module evaluation, and this engine is constructed on every
+   * `sgate` invocation that builds the engine list, `sgate rules why` and a fully-cached `sgate check`
+   * included. Neither of those validates anything, and neither does a repository with no
+   * `compose.yaml` in it, so the cost was being paid by every run to serve a minority of them.
+   *
+   * Construction, `capabilities` and `availability()` stay synchronous and cheap on purpose:
+   * arbitration reads all three before any run, so making them wait on a module load would move the
+   * cost rather than remove it. Memoised, so a validator's compiled-schema cache still lives as long
+   * as the engine does.
+   */
+  let validator: Promise<SchemaValidator> | undefined
+  const loadValidator = (): Promise<SchemaValidator> => {
+    validator ??= import('./validate.ts').then((module) => module.createSchemaValidator())
+    return validator
+  }
+
   // Keyed by the handle's `path`, which is unique per handle, so two concurrent assignments cannot
   // read each other's selection.
   const selections = new Map<string, ReadonlySet<string>>()
@@ -103,7 +126,7 @@ export function createSchemaEngine(): Engine {
 
       for (const file of batch.files) {
         signal.throwIfAborted()
-        yield* inspectFile(file.path, context.rootDir, enabled, validate)
+        yield* inspectFile(file.path, context.rootDir, enabled, loadValidator)
       }
     },
   }
@@ -113,7 +136,7 @@ async function* inspectFile(
   relativePath: string,
   rootDir: string,
   enabled: (rule: SchemaRuleId) => boolean,
-  validate: ReturnType<typeof createSchemaValidator>,
+  loadValidator: () => Promise<SchemaValidator>,
 ): AsyncIterable<RawDiagnostic> {
   const binding = bindSchema(relativePath)
   const wantsStructure = enabled('duplicate-mapping-key') || enabled('parse-error')
@@ -156,6 +179,9 @@ async function* inspectFile(
   }
 
   if (!wantsSchema) return
+  // Past every cheaper check, so `ajv` is loaded only for a file that really is bound to a schema with
+  // that schema's rule enabled — the YAML-only findings above never reach it.
+  const validate = await loadValidator()
   for (const document of documents) {
     for (const finding of validate(binding, document)) {
       yield {

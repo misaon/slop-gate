@@ -12,8 +12,14 @@ import type { Reporter, ReporterContext } from './index.ts'
  * Bumped to 3 by `baseline`, for exactly that reason again and more sharply: in a v3 document an empty
  * `diagnostics` array can mean "a baseline accepted every finding", so a v2 reader's equation of empty
  * with clean has expired a second time.
+ *
+ * Bumped to 4 by two renames — the first changes here that are not additive, so a v3 reader finds the
+ * old keys missing rather than moved and would read that absence as a value:
+ * - `ruleset.suppressed` → `ruleset.overlaps`, read as "no rules overlapped". It counts rules that
+ *   lost arbitration; `suppressed` now means only a finding a human silenced.
+ * - each diagnostic's `ruleId` → `ruleRefKey`, read as "this finding has no rule".
  */
-export const JSON_REPORT_VERSION = 3
+export const JSON_REPORT_VERSION = 4
 
 export function createJsonReporter(context: ReporterContext): Reporter {
   return {

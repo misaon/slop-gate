@@ -32,7 +32,7 @@ function quote(value: string): string {
   return `'${value.replaceAll("'", "''")}'`
 }
 
-export type MaterializedAstGrepConfig = {
+export type AstGrepRuleFile = {
   /** Every (rule, language) document written, in emission order. The count is what `run` asserts ast-grep actually loaded. */
   readonly documents: readonly { readonly engineRuleId: string; readonly language: AstGrepLanguage }[]
   readonly text: string
@@ -48,7 +48,7 @@ export type MaterializedAstGrepConfig = {
  * still reports the shared id, which is what keeps one `engineRuleId` per concept: two rule entries
  * claiming one concept would make arbitration elect one and silently discard the other's findings.
  */
-export function buildAstGrepConfig(selection: EngineRuleSelection): MaterializedAstGrepConfig {
+export function buildAstGrepConfig(selection: EngineRuleSelection): AstGrepRuleFile {
   // These rules are this package's own, written here rather than configured, so the option half of a
   // setting has nothing to apply to and is deliberately dropped — which is also why `rulesetHash`
   // below need not fold it in (`EngineRuleSetting`: an adapter that ignores options owes nothing,

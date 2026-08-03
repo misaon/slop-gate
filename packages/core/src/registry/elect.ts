@@ -3,13 +3,13 @@ import type { LanguageId } from '../languages.ts'
 import { compareStrings } from '../ordering.ts'
 import { ENGINE_PREFERENCE, ruleRefKey, type Capability, type EngineId, type RuleEntry, type RuleRef } from './types.ts'
 
-export type SuppressionReason = 'lower-tier' | 'engine-preference' | 'rule-id-tiebreak' | 'pinned-owner'
+export type OverlapReason = 'lower-tier' | 'engine-preference' | 'rule-id-tiebreak' | 'pinned-owner'
 
-export type SuppressionRecord = {
+export type RuleOverlap = {
   concept: string
-  suppressed: RuleRef
+  loser: RuleRef
   winner: RuleRef
-  reason: SuppressionReason
+  reason: OverlapReason
   /**
    * The languages this rule actually lost on, sorted — never every language the concept spans. Two
    * rules that both cover `ts` collide there and nowhere else if that is all they share.
@@ -35,7 +35,7 @@ export type ConceptOwnership = {
 }
 
 /**
- * Why a candidate never reached arbitration at all — as opposed to `SuppressionReason`, which
+ * Why a candidate never reached arbitration at all — as opposed to `OverlapReason`, which
  * explains why a candidate that *did* contest a concept lost. Ordered to match the short-circuit
  * order `isCapable`/`isApplicable` already check in: a candidate failing more than one of these
  * (e.g. deprecated *and* the wrong language) is attributed to whichever one `electOwners` itself
@@ -57,10 +57,10 @@ export type IneligibilityReason =
    * `owners` pins this concept to a different engine, and every applicable, capable candidate here
    * belongs to some other engine — so none of them ever got a chance to contest it, even one that
    * would otherwise have won outright. Distinct from the ordinary `'pinned-owner'`
-   * `SuppressionReason`, which explains a candidate that *did* contest the concept and lost to the
+   * `OverlapReason`, which explains a candidate that *did* contest the concept and lost to the
    * pinned winner; this fires only when the pin leaves no winner at all (see the `'reports a
    * concept as uncovered when the pinned engine offers no rule'` test in `elect.test.ts`) and the
-   * concept goes `uncovered` with no owner to suppress in favour of.
+   * concept goes `uncovered` with no winner to record an overlap against.
    */
   | 'pinned-to-other-engine'
 
@@ -81,7 +81,7 @@ export type ElectionInput = {
    * Engine ids actually instantiated for this run (e.g. `options.engines.map(e => e.id)` in
    * `check.ts`). Required, not optional, so a future caller cannot forget it the way this field's
    * absence let arbitration forget it before: an entry whose engine never runs must not contest a
-   * concept or appear in a suppression record, or arbitration reports a suppression that never
+   * concept or appear in a `RuleOverlap`, or arbitration reports an overlap that never
    * happened (see the M0 follow-up this closes — the registry's synthetic `eslint` entry made
    * every real run report an oxlint/eslint overlap even though no eslint engine ever ran).
    */
@@ -94,7 +94,7 @@ export type ElectionInput = {
    * nothing is the difference between a gap we *have* and a gap we *elected*. actionlint outranks
    * the schema engine on workflow parse errors, so without this an uninstalled actionlint would
    * take workflow syntax checking down with it — while an always-present engine that could have
-   * reported it sat suppressed.
+   * reported it sat unelected.
    */
   unavailableEngines?: ReadonlySet<EngineId>
   pinnedOwners?: Readonly<Record<string, EngineId>>
@@ -109,7 +109,7 @@ export type ElectionResult = {
    */
   owners: Map<string, readonly ConceptOwnership[]>
   selection: Map<EngineId, Set<string>>
-  suppressed: SuppressionRecord[]
+  overlaps: RuleOverlap[]
   /**
    * Concepts with no elected owner for a reason *other* than "the repository does not contain the
    * language this concept applies to" — i.e. a genuine coverage gap: the concept's only candidates
@@ -125,7 +125,7 @@ export type ElectionResult = {
    * reason it was rejected — the data `isCapable`/`isApplicable` used to filter out and discard
    * silently. `why` (the `sgate rules why` CLI command) reads this rather than re-deriving it: a
    * concept with no owner is either here (a specific, recorded reason exists) or in neither
-   * `suppressed` nor `ineligible` at all, which itself means no `RuleEntry` ever claimed it in the
+   * `overlaps` nor `ineligible` at all, which itself means no `RuleEntry` ever claimed it in the
    * first place — see `servicedBySlopGate` for that last case.
    */
   ineligible: IneligibleCandidate[]
@@ -157,7 +157,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
 
   const owners = new Map<string, readonly ConceptOwnership[]>()
   const selection = new Map<EngineId, Set<string>>()
-  const suppressed: SuppressionRecord[] = []
+  const overlaps: RuleOverlap[] = []
   const uncovered: string[] = []
   const ineligible: IneligibleCandidate[] = []
   const displaced: DisplacedOwner[] = []
@@ -208,7 +208,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
     const ranked = candidates.filter(isApplicable).sort(compare)
 
     // Every candidate that did not make it into `ranked` is about to become invisible to both
-    // `suppressed` (which only ever records losers drawn from `ranked`) and `uncovered` (a bare
+    // `overlaps` (which only ever records losers drawn from `ranked`) and `uncovered` (a bare
     // concept id, no per-candidate detail) — record why each one specifically was rejected before
     // that happens, or a deprecated rule, one whose engine never ran, one missing a capability, or
     // one scoped to a language this repository doesn't contain vanishes without a trace.
@@ -229,7 +229,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
       .sort(compareStrings)
 
     const ownedLanguages = new Map<string, { entry: RuleEntry; languages: LanguageId[] }>()
-    const lostLanguages = new Map<string, { record: Omit<SuppressionRecord, 'languages'>; languages: LanguageId[] }>()
+    const lostLanguages = new Map<string, { record: Omit<RuleOverlap, 'languages'>; languages: LanguageId[] }>()
     const displacedLanguages = new Map<string, { entry: RuleEntry; instead: RuleEntry | undefined; languages: LanguageId[] }>()
 
     // The candidate set as it would be with everything installed, so a language whose *only*
@@ -285,7 +285,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
       for (const loser of here) {
         const loserKey = ruleRefKey(loser)
         if (loserKey === winnerKey) continue
-        // A pin only explains a suppression for a candidate that arbitration would otherwise have
+        // A pin only explains a loss for a candidate that arbitration would otherwise have
         // ranked ahead of the winner (`compare(loser, winner) < 0`) — checking `loser.engine !==
         // pinned` instead mislabels any non-pinned-engine loser as 'pinned-owner' even when it
         // would have lost to the winner anyway, so a pin that merely agrees with what arbitration
@@ -297,7 +297,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
         // language happened to be processed first.
         const key = `${loserKey} ${winnerKey} ${reason}`
         const lost = lostLanguages.get(key) ?? {
-          record: { concept, suppressed: refOf(loser), winner: refOf(winner), reason },
+          record: { concept, loser: refOf(loser), winner: refOf(winner), reason },
           languages: [],
         }
         lost.languages.push(language)
@@ -319,7 +319,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
       // language happened to be arbitrated first (see the entry-order-independence test).
       for (const key of [...lostLanguages.keys()].sort(compareStrings)) {
         const { record, languages } = lostLanguages.get(key)!
-        suppressed.push({ ...record, languages })
+        overlaps.push({ ...record, languages })
       }
       continue
     }
@@ -349,10 +349,10 @@ export function electOwners(input: ElectionInput): ElectionResult {
     }
   }
 
-  return { owners, selection, suppressed, uncovered, ineligible, displaced }
+  return { owners, selection, overlaps, uncovered, ineligible, displaced }
 }
 
-function reasonFor(winner: RuleEntry, loser: RuleEntry, pinOverrode: boolean): SuppressionReason {
+function reasonFor(winner: RuleEntry, loser: RuleEntry, pinOverrode: boolean): OverlapReason {
   if (pinOverrode) return 'pinned-owner'
   if (winner.tier !== loser.tier) return 'lower-tier'
   if (winner.engine !== loser.engine) return 'engine-preference'

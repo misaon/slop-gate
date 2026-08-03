@@ -10,7 +10,7 @@ const ANSI_ESCAPE = String.fromCharCode(27) + '['
 
 const diagnostic = (over: Partial<Diagnostic> = {}): Diagnostic => ({
   concept: 'correctness.no-debugger',
-  ruleId: 'oxlint/no-debugger',
+  ruleRefKey: 'oxlint/no-debugger',
   engine: 'oxlint',
   severity: 'error',
   message: '`debugger` statement is not allowed',
@@ -29,7 +29,7 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   unavailableEngines: [],
   baseline: null,
   stats: { filesScanned: 3, filesAnalysed: 3, filesFromCache: 2, enginesRun: 1, durationMs: 42 },
-  ruleset: { enabledConcepts: 5, suppressed: 1, uncovered: [], unknownKeys: [] },
+  ruleset: { enabledConcepts: 5, overlaps: 1, uncovered: [], unknownKeys: [] },
   ...over,
 })
 
@@ -225,7 +225,7 @@ test('an absent engine that would have owned nothing does not raise a gap', () =
   expect(output).toContain('No issues found')
 })
 
-test('mentions suppressed overlaps in the summary', () => {
+test('mentions rule overlaps in the summary', () => {
   const output = capture([{ type: 'done', result: result() }])
   expect(output).toMatch(/1 rule overlap/i)
 })
@@ -391,7 +391,7 @@ test('never puts a wide or fullwidth character in a framed line', () => {
   // real terminals disagree with the standard often enough that a framed line can never safely
   // contain one — see `hasWideOrFullwidthCharacter`'s doc comment. Stating this as an invariant, and
   // checking every framed line of the busiest footer this reporter draws (all three severities, the
-  // "Most frequent" block, a suppressed overlap and an uncovered concept together), is what stops a
+  // "Most frequent" block, a rule overlap and an uncovered concept together), is what stops a
   // future glyph added to the footer from quietly reintroducing the bug fix 2 closed.
   const busy = manyDiagnostics([
     { concept: 'dead-code.unused-variable', count: 7 },
@@ -401,14 +401,14 @@ test('never puts a wide or fullwidth character in a framed line', () => {
   const outputs = [
     // Clean run: header plus the "No issues found" footer.
     capture([{ type: 'done', result: result({ diagnostics: [], counts: { error: 0, warn: 0, info: 0 } }) }]),
-    // Every severity, "Most frequent", a suppressed overlap and an uncovered concept at once.
+    // Every severity, "Most frequent", a rule overlap and an uncovered concept at once.
     capture([
       {
         type: 'done',
         result: result({
           diagnostics: busy,
           counts: { error: 5, warn: 3, info: 2 },
-          ruleset: { enabledConcepts: 5, suppressed: 3, uncovered: ['style.no-var'], unknownKeys: [] },
+          ruleset: { enabledConcepts: 5, overlaps: 3, uncovered: ['style.no-var'], unknownKeys: [] },
         }),
       },
     ]),

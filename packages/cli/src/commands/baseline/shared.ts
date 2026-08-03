@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { compareStrings, entriesOf, runCheck, type BaselineEntry, type CheckResult } from '@misaon/slop-gate-core'
 import { DEFAULT_CONFIG, loadCliConfig } from '../../config.ts'
-import { defaultEngines } from '../../engines.ts'
+import { defaultEngines } from '../../engine-registry.ts'
 import { EXIT_CODES } from '../../exit-codes.ts'
 import { SLOP_GATE_GITIGNORE } from '../init.ts'
 

@@ -12,7 +12,7 @@ export type FixTier = FixKind
 export const FIX_TIER_RANK: Readonly<Record<FixKind, number>> = { safe: 0, suggested: 1, unsafe: 2 }
 
 /**
- * One `(range, replacement, kind, ruleId)` tuple as spec §11 step 1 defines it, plus the two fields
+ * One `(range, replacement, kind, ruleRefKey)` tuple as spec §11 step 1 defines it, plus the two fields
  * step 2's tiebreak needs (`priority` from the registry, `severity` from the resolved level) and the
  * `concept` the oscillation diagnostic reports against.
  *
@@ -25,7 +25,7 @@ export type CandidateEdit = {
   readonly range: ByteRange
   readonly replacement: string
   readonly kind: FixKind
-  readonly ruleId: string
+  readonly ruleRefKey: string
   readonly concept: string
   readonly priority: number
   readonly severity: Severity

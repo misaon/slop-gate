@@ -81,7 +81,7 @@ export {
   type Box,
   type FrameContext,
   type FrameKit,
-} from './frame.ts'
+} from './box.ts'
 export {
   SEVERITY_GLYPH,
   SEVERITY_GLYPH_ASCII,

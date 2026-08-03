@@ -9,7 +9,7 @@ const result: CheckResult = {
   unavailableEngines: [],
   baseline: null,
   stats: { filesScanned: 1, filesAnalysed: 1, filesFromCache: 0, enginesRun: 1, durationMs: 1 },
-  ruleset: { enabledConcepts: 2, suppressed: 0, uncovered: [], unknownKeys: [] },
+  ruleset: { enabledConcepts: 2, overlaps: 0, uncovered: [], unknownKeys: [] },
 }
 
 test('emits a single versioned json document on done', () => {
@@ -25,7 +25,7 @@ test('emits a single versioned json document on done', () => {
   reporter.onEvent({ type: 'done', result })
 
   const parsed = JSON.parse(output) as { version: number; counts: unknown; diagnostics: unknown[] }
-  expect(parsed.version).toBe(3)
+  expect(parsed.version).toBe(4)
   expect(parsed.diagnostics).toEqual([])
   expect(parsed.counts).toEqual({ error: 0, warn: 0, info: 0 })
 })

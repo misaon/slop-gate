@@ -27,7 +27,7 @@ export const DEPS_SECURITY_RULE_IDS: readonly DepsSecurityRuleId[] = (
   Object.keys(DEPS_SECURITY_RULES) as DepsSecurityRuleId[]
 ).sort(compareStrings)
 
-export function conceptOf(rule: DepsSecurityRuleId): string {
+export function conceptForEngineRuleId(rule: DepsSecurityRuleId): string {
   return DEPS_SECURITY_RULES[rule]
 }
 

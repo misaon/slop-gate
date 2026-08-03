@@ -10,7 +10,7 @@ const entry = (over: Partial<RulesListEntry> & Pick<RulesListEntry, 'concept' | 
   servicedBySlopGate: false,
   uncovered: false,
   languageMismatch: false,
-  suppressedCount: 0,
+  overlapCount: 0,
   enablement: { enabled: true, level: 'warn', options: [], optionsFrom: undefined, baseProvenance: [{ layer: 'preset', source: 'recommended', setting: 'warn' }], overrides: [] },
   ...over,
 })
@@ -25,7 +25,7 @@ const capture = (entries: readonly RulesListEntry[], contextOver: Partial<RulesR
 test('renders one row per entry, grouped by concept group, with the owner and level', () => {
   const output = capture([
     entry({ concept: 'correctness.no-debugger', group: 'correctness', level: 'error', ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-debugger' }, languages: ['ts'] }] }),
-    entry({ concept: 'dead-code.unused-variable', group: 'dead-code', ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }], suppressedCount: 1 }),
+    entry({ concept: 'dead-code.unused-variable', group: 'dead-code', ownership: [{ owner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' }, languages: ['ts'] }], overlapCount: 1 }),
   ])
 
   expect(output).toContain('correctness (1)')
@@ -66,7 +66,7 @@ test('says so plainly when no concepts are enabled', () => {
 
 test('summarises total, overlap, uncovered and language-mismatch counts in the footer', () => {
   const output = capture([
-    entry({ concept: 'a.one', group: 'a', suppressedCount: 2 }),
+    entry({ concept: 'a.one', group: 'a', overlapCount: 2 }),
     entry({ concept: 'a.two', group: 'a', uncovered: true, ownership: [] }),
     entry({ concept: 'a.three', group: 'a', languageMismatch: true, ownership: [] }),
   ])
@@ -87,7 +87,7 @@ test('never puts a wide or fullwidth character in a framed line', () => {
   // header and footer frames — see `hasWideOrFullwidthCharacter`'s doc comment for why a framed line
   // can never safely carry one, standards-correct width or not.
   const busy = [
-    entry({ concept: 'a.one', group: 'a', suppressedCount: 3 }),
+    entry({ concept: 'a.one', group: 'a', overlapCount: 3 }),
     entry({ concept: 'a.two', group: 'a', uncovered: true, ownership: [] }),
     entry({ concept: 'a.three', group: 'a', languageMismatch: true, ownership: [] }),
     entry({ concept: 'config.rule-overlap', group: 'config', servicedBySlopGate: true }),

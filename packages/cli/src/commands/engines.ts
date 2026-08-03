@@ -1,4 +1,5 @@
 import { defineCommand } from 'citty'
+import { isOneOf } from '@misaon/slop-gate-core'
 import { ActionlintInstallError, installActionlint } from '@misaon/slop-gate-engine-actionlint'
 import { AdvisoryInstallError, installAdvisorySnapshot } from '@misaon/slop-gate-engine-deps-security'
 import { HadolintInstallError, installHadolint } from '@misaon/slop-gate-engine-hadolint'
@@ -34,7 +35,7 @@ export const engines = defineCommand({
       },
       async run({ args }) {
         const target = String(args.engine)
-        if (!INSTALLABLE.includes(target as (typeof INSTALLABLE)[number])) {
+        if (!isOneOf(target, INSTALLABLE)) {
           process.stderr.write(`Unknown optional engine \`${target}\`. Available: ${INSTALLABLE.join(', ')}.\n`)
           process.exitCode = EXIT_CODES.config
           return

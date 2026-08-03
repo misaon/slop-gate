@@ -1,7 +1,7 @@
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import {
   EngineError,
+  runEngineTool,
+  toolVersion,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -15,12 +15,10 @@ import { readScanSummary, type AstGrepScanSummary } from './summary.ts'
 import { resolveAstGrepBinary, type AstGrepInvocation } from './resolve-binary.ts'
 
 export { ASTGREP_RULES, LANGUAGE_COVERAGE, astGrepRuleById, type AstGrepLanguage, type AstGrepRule } from './rules.ts'
-export { buildAstGrepConfig, materializeAstGrepConfig, type MaterializedAstGrepConfig } from './config.ts'
+export { buildAstGrepConfig, materializeAstGrepConfig, type AstGrepRuleFile } from './config.ts'
 export { parseAstGrepOutput } from './parse.ts'
 export { readScanSummary, type AstGrepScanSummary } from './summary.ts'
 export { resolveAstGrepBinary, type AstGrepInvocation, type ResolveAstGrepBinaryOptions } from './resolve-binary.ts'
-
-const run = promisify(execFile)
 
 /** `ast-grep scan` exits 1 when any `severity: error` rule matched; only higher codes are real failures. Confirmed against 0.45.0: a `warning`-severity match exits 0. */
 const MAX_FINDINGS_EXIT_CODE = 1
@@ -69,9 +67,7 @@ export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engi
     },
 
     async version() {
-      const resolved = required()
-      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
-      return stdout.trim().replace(/^ast-grep\s+/i, '')
+      return toolVersion(required(), /^ast-grep\s+/i)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
@@ -111,26 +107,15 @@ async function* execute(
     ...batch.files.map((file) => file.path),
   ]
 
-  let stdout: string
-  let stderr: string
-  try {
-    ;({ stdout, stderr } = await run(invocation.command, args, {
-      cwd: context.rootDir,
-      signal,
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024 * 256,
-    }))
-  } catch (error) {
-    const failure = error as { code?: number | string; stdout?: string; stderr?: string }
-    if (typeof failure.code === 'number' && failure.code <= MAX_FINDINGS_EXIT_CODE) {
-      stdout = failure.stdout ?? ''
-      stderr = failure.stderr ?? ''
-    } else {
-      throw new EngineError('astgrep', `ast-grep failed: ${failure.stderr?.trim() || String(failure.code)}`, {
-        cause: error,
-      })
-    }
-  }
+  const { stdout, stderr } = await runEngineTool({
+    engine: 'astgrep',
+    tool: 'ast-grep',
+    command: invocation.command,
+    args,
+    cwd: context.rootDir,
+    signal,
+    maxFindingsExitCode: MAX_FINDINGS_EXIT_CODE,
+  })
 
   assertSummary(readScanSummary(stderr), batch, handle)
 

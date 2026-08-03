@@ -1,7 +1,7 @@
 import type { ConceptId } from '../concepts/catalogue.ts'
 import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
-import { defineProfile, findDependency, findFiles, relativeToWorkspace } from './detect.ts'
+import { defineProfile, dependencyEvidence, inventoryFilesMatching, relativeToWorkspace } from './detect.ts'
 import { extractStringLiteral } from './literal.ts'
 import { resolveJsx, TSCONFIG, type JsxTransform } from './tsconfig.ts'
 import type { AnyFrameworkProfile, FrameworkAdjustment } from './types.ts'
@@ -54,7 +54,7 @@ export function dualFiringConcepts(scope: string, counterpart: string): ConceptI
 
 /**
  * Decorator-driven DI, and the registry's original framework-awareness case (spec §23, and the
- * measurement in `registry/exclusions.ts` this profile replaces): 11 of 11 findings on a real 95-file
+ * measurement in `registry/not-recommended.ts` this profile replaces): 11 of 11 findings on a real 95-file
  * NestJS project were an empty `@Module({...}) export class XModule {}`, one per `*.module.ts`. The
  * decorator carries the behaviour and the class body is *required* to be empty, so the rule is not
  * merely noisy here, it is asking for code that would not work.
@@ -63,7 +63,7 @@ const nestjs = defineProfile<void>({
   id: 'nestjs',
   summary: 'NestJS — decorator-driven dependency injection',
   async detect(context) {
-    const evidence = findDependency(context, ['@nestjs/core'])
+    const evidence = dependencyEvidence(context, ['@nestjs/core'])
     return evidence === null ? null : { evidence: [evidence], parameters: undefined }
   },
   consequences: () => [
@@ -98,7 +98,7 @@ const angular = defineProfile<void>({
   id: 'angular',
   summary: 'Angular — decorator-driven dependency injection',
   async detect(context) {
-    const evidence = findDependency(context, ['@angular/core'])
+    const evidence = dependencyEvidence(context, ['@angular/core'])
     return evidence === null ? null : { evidence: [evidence], parameters: undefined }
   },
   consequences: () => [
@@ -121,7 +121,7 @@ const nestjsExpress = defineProfile<void>({
   id: 'nestjs-express',
   summary: 'NestJS on Express — `express` arrives through `@nestjs/platform-express`',
   async detect(context) {
-    const evidence = findDependency(context, ['@nestjs/platform-express'])
+    const evidence = dependencyEvidence(context, ['@nestjs/platform-express'])
     return evidence === null ? null : { evidence: [evidence], parameters: undefined }
   },
   consequences: () => [
@@ -153,10 +153,10 @@ const mikroOrm = defineProfile<MikroOrmParameters>({
   id: 'mikro-orm',
   summary: 'MikroORM — migrations are loaded by the ORM, never imported',
   async detect(context) {
-    const dependency = findDependency(context, ['@mikro-orm/core'])
+    const dependency = dependencyEvidence(context, ['@mikro-orm/core'])
     if (dependency === null) return null
 
-    const configFile = findFiles(context, (path) => MIKRO_ORM_CONFIG.test(path))[0]
+    const configFile = inventoryFilesMatching(context, (path) => MIKRO_ORM_CONFIG.test(path))[0]
     if (configFile === undefined) {
       return {
         evidence: [dependency],
@@ -217,10 +217,10 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
   id: 'vitepress',
   summary: 'VitePress — the site root knip’s own plugin looks for at the workspace root',
   async detect(context) {
-    const dependency = findDependency(context, ['vitepress'])
+    const dependency = dependencyEvidence(context, ['vitepress'])
     if (dependency === null) return null
 
-    const configs = findFiles(context, (path) => path.split('/').includes('.vitepress'))
+    const configs = inventoryFilesMatching(context, (path) => path.split('/').includes('.vitepress'))
     if (configs.length === 0) {
       return { evidence: [dependency], blocked: 'no `.vitepress/` directory is present, so the site root is unknown' }
     }
@@ -314,7 +314,7 @@ const reactJsxTransform = defineProfile<void>({
   id: 'react-jsx-transform',
   summary: 'React — TypeScript is configured for the automatic JSX runtime',
   async detect(context) {
-    const configs = findFiles(context, (path) => TSCONFIG.test(path))
+    const configs = inventoryFilesMatching(context, (path) => TSCONFIG.test(path))
     const resolved = await Promise.all(
       configs.map(async (file) => ({ file: file.path, jsx: await resolveJsx(file.path, context.readText) })),
     )
@@ -449,8 +449,8 @@ const nextjs = defineProfile<NextJsLayout>({
     )
     if (declaring.length === 0) return null
 
-    const dependency = findDependency(context, ['next'])!
-    const configs = findFiles(context, (path) => NEXT_CONFIG.test(path))
+    const dependency = dependencyEvidence(context, ['next'])!
+    const configs = inventoryFilesMatching(context, (path) => NEXT_CONFIG.test(path))
     const configured = new Set(configs.map((file) => file.workspace))
     const appRoots = declaring
       .map((manifest) => manifest.workspace)
@@ -575,7 +575,7 @@ function jestMockFactoryFalsePositive(): FrameworkAdjustment {
  * rather than checking which package it came from, so on a repository using one of them, both plugins'
  * rules fire on the identical line — under two different concept ids, which arbitration cannot merge
  * because they *are* two concepts. Measured on this repository (vitest-only): every occurrence,
- * doubled. That is why 24 rules sit in `registry/exclusions.ts` with a reason naming this mechanism as
+ * doubled. That is why 24 rules sit in `registry/not-recommended.ts` with a reason naming this mechanism as
  * their unblocking condition.
  *
  * The rule, in full: **disable every scope that is not the unique installed one; if there is not
@@ -589,7 +589,7 @@ const testFramework = defineProfile<TestFrameworkLayout>({
   id: 'test-framework',
   summary: 'Test framework — elects the scope whose plugin rules are not duplicates',
   async detect(context) {
-    const found = TEST_SCOPES.map((scope) => ({ scope, evidence: findDependency(context, [scope]) })).filter(
+    const found = TEST_SCOPES.map((scope) => ({ scope, evidence: dependencyEvidence(context, [scope]) })).filter(
       (candidate) => candidate.evidence !== null,
     )
     const disabledScopes = found.length === 1 ? TEST_SCOPES.filter((scope) => scope !== found[0]!.scope) : [...TEST_SCOPES]

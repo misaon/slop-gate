@@ -88,7 +88,7 @@ export type CheckResult = {
   }
   ruleset: {
     enabledConcepts: number
-    suppressed: number
+    overlaps: number
     uncovered: readonly string[]
     unknownKeys: readonly string[]
   }
@@ -262,16 +262,44 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     cacheHitsByFile.set(path, (cacheHitsByFile.get(path) ?? 0) + 1)
   }
 
+  // `version()` is a cache-key component and nothing else, so nothing in the run depends on when it
+  // resolves — yet four of the engines implement it as a `<tool> --version` subprocess spawn, and
+  // resolving one per assignment at the top of the loop below put all four *sequentially* in front of
+  // the first cache lookup: 66-105 ms of a 240-250 ms warm run, spent before a single file could be
+  // served from cache. Hoisted here and resolved concurrently instead, once per distinct engine (a
+  // plan can hold more than one assignment for the same engine).
+  //
+  // **Settled here, thrown in the loop.** An engine that cannot report its own version is that
+  // engine's failure and has to stay one — the `catch` below turns it into an `engine-failed` event
+  // and the rest of the plan still runs. A bare `Promise.all` would instead fail the whole run on the
+  // first rejection *and* leave the other rejections unattached, which under Node's default
+  // `--unhandled-rejections=throw` is a crashed process rather than a warning. So each outcome is
+  // carried into the loop and rethrown at exactly the point the call used to be made.
+  const planned = new Map<string, { engine: Engine; version: string } | { engine: Engine; error: unknown }>()
+  await Promise.all(
+    [...new Set(plan.map((assignment) => assignment.engineId))].map(async (engineId) => {
+      const engine = engineById.get(engineId)
+      if (engine === undefined) return
+      try {
+        planned.set(engineId, { engine, version: await engine.version() })
+      } catch (error) {
+        planned.set(engineId, { engine, error })
+      }
+    }),
+  )
+
   // Wrapped so a consumer that stops iterating early (breaking out of a `for await`) still
   // triggers this `finally` via the generator's implicit `return()` — otherwise every hash
   // `statIndex.hashOf` computed so far this run would be lost, not just deferred.
   try {
     for (const assignment of plan) {
-      const engine = engineById.get(assignment.engineId)
-      if (engine === undefined) continue
+      const resolved = planned.get(assignment.engineId)
+      if (resolved === undefined) continue
+      const engine = resolved.engine
 
       try {
-        const version = await engine.version()
+        if ('error' in resolved) throw resolved.error
+        const version = resolved.version
         // One context per assignment, reused for `materializeConfig` and every `run` below: the
         // framework adjustments are narrowed to this engine, so building it twice would mean
         // narrowing twice and risking the two disagreeing.
@@ -330,24 +358,41 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
         }
 
         try {
+          // Hashing a file and reading its cache entry are both I/O, and there is one of each per
+          // assigned file — 307 for oxlint on this repository and 307 again for ast-grep, so 614
+          // round trips across the two file-granularity assignments — and awaiting them a file at a
+          // time made the whole cache lookup serial for no reason: no probe depends on any other.
+          // `runProjectAssignment` below already hashes its files with `Promise.all` at the same
+          // breadth, which is the precedent for the concurrency being safe here (`statIndex.hashOf`
+          // touches one distinct path per call, and a warm one does no I/O at all).
+          const probes = await Promise.all(
+            assignment.files.map(async (file) => {
+              const components = {
+                engineId: engine.id,
+                engineVersion: version,
+                engineRulesetHash: handle.rulesetHash,
+                filePath: file.path,
+                fileHash: await statIndex.hashOf(options.rootDir, file),
+                configHash,
+              }
+              const key = deriveResultKey(components)
+              return { file, components, key, hit: useCache ? await resultStore.get(key) : null }
+            }),
+          )
+
           const pending: InventoryFile[] = []
           const keys = new Map<string, string>()
           const keyInputs = new Map<string, ResultKeyInput>()
 
-          for (const file of assignment.files) {
-            const components = {
-              engineId: engine.id,
-              engineVersion: version,
-              engineRulesetHash: handle.rulesetHash,
-              filePath: file.path,
-              fileHash: await statIndex.hashOf(options.rootDir, file),
-              configHash,
-            }
-            const key = deriveResultKey(components)
+          // **Consumed in assignment order, not completion order.** Two things read from this loop and
+          // both make the order observable: the event stream, which is the user's output and is what
+          // `pretty` prints as it arrives, and `isDuplicateSynthetic`, which keeps the *first*
+          // occurrence of an orchestrator-synthesised diagnostic and would otherwise keep whichever
+          // file's probe happened to settle first.
+          for (const { file, components, key, hit } of probes) {
             keys.set(file.path, key)
             keyInputs.set(file.path, components)
 
-            const hit = useCache ? await resultStore.get(key) : null
             if (hit === null) {
               pending.push(file)
               continue
@@ -469,7 +514,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
         // `anyEnabledConcepts`, not `base`: a concept enabled only by an override is still checked
         // on the files it matches, so reporting the base count would undercount the run.
         enabledConcepts: resolver.anyEnabledConcepts.size,
-        suppressed: election.suppressed.length,
+        overlaps: election.overlaps.length,
         uncovered: election.uncovered,
         unknownKeys: resolver.base.unknownKeys,
       },
@@ -625,7 +670,7 @@ function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
     if (level === undefined || level === 'off') return null
     return {
       concept,
-      ruleId: `slop-gate/${concept}`,
+      ruleRefKey: `slop-gate/${concept}`,
       engine: 'slop-gate',
       severity: LEVEL_TO_SEVERITY[level],
       message,
@@ -662,11 +707,11 @@ function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
     if (diagnostic) diagnostics.push(diagnostic)
   }
 
-  for (const record of input.election.suppressed) {
+  for (const record of input.election.overlaps) {
     const diagnostic = emit(
       'config.rule-overlap',
-      `${ruleRefKey(record.winner)} and ${ruleRefKey(record.suppressed)} both detect ` +
-        `\`${record.concept}\`; ${ruleRefKey(record.suppressed)} was suppressed (${record.reason}).`,
+      `${ruleRefKey(record.winner)} and ${ruleRefKey(record.loser)} both detect ` +
+        `\`${record.concept}\`; ${ruleRefKey(record.loser)} lost arbitration (${record.reason}).`,
     )
     if (diagnostic) diagnostics.push(diagnostic)
   }

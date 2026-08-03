@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { buildAdvisoryTables, distillAdvisory, type AdvisoryTable, type DistilledAffected } from './advisory.ts'
 import {
   MALICIOUS_FILE,
-  MANIFEST_FILE,
+  SNAPSHOT_MANIFEST_FILENAME,
   SNAPSHOT_FORMAT_VERSION,
   VULNERABLE_FILE,
   advisorySnapshotDir,
@@ -154,7 +154,7 @@ export async function writeAdvisorySnapshot(
     await mkdir(staging, { recursive: true })
     await writeFile(join(staging, VULNERABLE_FILE), JSON.stringify(tables.vulnerable), 'utf8')
     await writeFile(join(staging, MALICIOUS_FILE), JSON.stringify(tables.malicious), 'utf8')
-    await writeFile(join(staging, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+    await writeFile(join(staging, SNAPSHOT_MANIFEST_FILENAME), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
     await mkdir(join(directory, '..'), { recursive: true })
     await rm(directory, { recursive: true, force: true })

@@ -4,7 +4,7 @@ import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import type { Engine, EngineRuleSelection, EngineRuleSetting } from '../engine/types.ts'
 import { compareStrings } from '../ordering.ts'
 import type { ElectionResult } from '../registry/elect.ts'
-import type { EngineId } from '../registry/types.ts'
+import { ruleRefKey, type EngineId } from '../registry/types.ts'
 
 export type EngineAssignment = {
   readonly engineId: EngineId
@@ -26,7 +26,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
   const conceptsByRule = new Map<string, string[]>()
   for (const [concept, ownership] of input.election.owners) {
     for (const { owner } of ownership) {
-      const key = `${owner.engine}/${owner.engineRuleId}`
+      const key = ruleRefKey(owner)
       conceptsByRule.set(key, [...(conceptsByRule.get(key) ?? []), concept])
     }
   }
@@ -34,16 +34,16 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
   const assignments: EngineAssignment[] = []
 
   for (const engine of [...input.engines].sort((a, b) => compareStrings(a.id, b.id))) {
-    const ruleIds = input.election.selection.get(engine.id)
-    if (ruleIds === undefined || ruleIds.size === 0) continue
+    const engineRuleIds = input.election.selection.get(engine.id)
+    if (engineRuleIds === undefined || engineRuleIds.size === 0) continue
 
     const supported = new Set(engine.capabilities.languages)
     const files = input.inventory.files.filter((file) => supported.has(file.language))
     if (files.length === 0) continue
 
     const selection = new Map<string, EngineRuleSetting>()
-    for (const ruleId of [...ruleIds].sort(compareStrings)) {
-      const concepts = conceptsByRule.get(`${engine.id}/${ruleId}`) ?? []
+    for (const engineRuleId of [...engineRuleIds].sort(compareStrings)) {
+      const concepts = conceptsByRule.get(`${engine.id}/${engineRuleId}`) ?? []
       const level = strongestLevel(concepts, input.resolver)
       // A guard, not the mechanism, and worth saying so: `RuleSetResolver.anyEnabledConcepts` already
       // drops an `off` concept before `electOwners` can elect a rule for it, so this branch is
@@ -51,7 +51,7 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
       // It stays because it is the last place that can keep an `off` setting from reaching an adapter,
       // and it is what lets `EngineRuleSelection` promise that presence means enabled.
       if (level === 'off') continue
-      selection.set(ruleId, [level, ...optionsFor(concepts, input.resolver)])
+      selection.set(engineRuleId, [level, ...optionsFor(concepts, input.resolver)])
     }
     if (selection.size === 0) continue
 

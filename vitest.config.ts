@@ -23,7 +23,7 @@ import { defineConfig } from 'vitest/config'
  * alias at all:
  *
  *   - packages/cli/src/main.test.ts — spawns `main.ts`, whose imports pull every engine's `dist`
- *     in through `cli/src/engines.ts`
+ *     in through `cli/src/engine-registry.ts`
  *   - packages/cli/src/commands/mcp/e2e.test.ts — spawns the published `bin/sgate.js` -> `dist/main.js`
  *   - packages/core/src/registry/entries.generated.test.ts — spawns `scripts/generate-registry.ts`,
  *     which imports `@misaon/slop-gate-engine-oxlint` by name

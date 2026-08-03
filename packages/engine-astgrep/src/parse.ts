@@ -1,5 +1,4 @@
-import { relative } from 'node:path'
-import { EngineError, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
+import { EngineError, toRepoRelative, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
 
 type AstGrepMatch = {
   ruleId?: string
@@ -98,15 +97,3 @@ function fixOf(match: AstGrepMatch): { fix: { edits: Array<{ range: { start: num
   return { fix: { edits: [{ range: { start, end }, replacement: match.replacement }] } }
 }
 
-/**
- * ast-grep echoes back the path exactly as it was given on the command line, so a run whose `cwd` is
- * `rootDir` and whose arguments are repo-relative already produces repo-relative output. The
- * absolute branch exists for the case where it does not — a caller passing absolute paths — and is
- * the same normalisation `engine-oxlint` and `engine-tsc` apply.
- */
-function toRepoRelative(file: string, rootDir: string): string {
-  const normalized = file.replaceAll('\\', '/')
-  const root = rootDir.replaceAll('\\', '/')
-  if (!normalized.startsWith('/') && !/^[a-z]:\//i.test(normalized)) return normalized
-  return relative(root, normalized).replaceAll('\\', '/')
-}

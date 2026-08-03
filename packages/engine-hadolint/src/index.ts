@@ -1,10 +1,12 @@
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
+  absolutePrefixes,
   EngineError,
   hashJson,
+  runEngineTool,
   type Engine,
   type EngineAvailability,
   type EngineConfigHandle,
@@ -13,7 +15,7 @@ import {
   type RawDiagnostic,
   type RunContext,
 } from '@misaon/slop-gate-core'
-import { parseHadolintOutput, readHadolintFindings } from './parse.ts'
+import { parseHadolintOutput, readHadolintFindings, stripPrefixes } from './parse.ts'
 import { HADOLINT_VERSION } from './release.ts'
 import { HADOLINT_PATH_ENV, resolveHadolintBinary, type HadolintResolution } from './resolve-binary.ts'
 
@@ -24,14 +26,14 @@ export {
   HADOLINT_VERSION,
   hadolintAsset,
 } from './release.ts'
-export { HadolintInstallError, installHadolint, type InstallHadolintResult } from './download.ts'
-export { parseHadolintOutput, rangeOf, readHadolintFindings, type HadolintFinding } from './parse.ts'
+export { HadolintInstallError, installHadolint, type InstallHadolintResult } from './install.ts'
+export { instructionKeywordRange, parseHadolintOutput, readHadolintFindings, type HadolintFinding } from './parse.ts'
 export {
   EMBEDDED_SHELLCHECK_PREFIX,
   HADOLINT_RULES,
   HADOLINT_RULE_IDS,
   SOURCE_EXCLUSIONS,
-  conceptOf,
+  conceptForEngineRuleId,
   type HadolintRuleId,
 } from './rules.ts'
 export {
@@ -65,7 +67,7 @@ const MAX_FINDINGS_EXIT_CODE = 1
  * repositories hadolint produced 893 findings at 25% precision, with 68% of its output coming from
  * thirteen rules that had **zero** true positives. What ships is the concentrated remainder. Two
  * findings from that measurement are worth not rediscovering, and both are recorded at length in
- * `rules.ts` and `registry/exclusions.ts`: hadolint **cannot detect a missing `USER`** (a Dockerfile
+ * `rules.ts` and `registry/not-recommended.ts`: hadolint **cannot detect a missing `USER`** (a Dockerfile
  * with no `USER` at all is silent; `DL3002` fires only on an explicit `USER root`), and `DL3066`
  * actively fires on the correct fix — 69 findings, on `USER nobody`, `USER node`, `USER appuser`.
  *
@@ -175,31 +177,23 @@ async function* execute(
   // relative names would be ambiguous once the output is parsed. `parse.ts` strips the prefix again.
   const args = ['-f', 'json', '--no-color', '-c', handle.path, ...batch.files.map((file) => join(context.rootDir, file.path))]
 
-  let stdout: string
-  try {
-    ;({ stdout } = await run(invocation.command, args, {
-      cwd: context.rootDir,
-      signal,
-      encoding: 'utf8',
-      maxBuffer: 1024 * 1024 * 256,
-    }))
-  } catch (error) {
-    const failure = error as { code?: number | string; stdout?: string; stderr?: string }
-    if (typeof failure.code === 'number' && failure.code <= MAX_FINDINGS_EXIT_CODE) {
-      stdout = failure.stdout ?? ''
-    } else {
-      throw new EngineError('hadolint', `hadolint failed: ${failure.stderr?.trim() || String(failure.code)}`, { cause: error })
-    }
-  }
+  const { stdout } = await runEngineTool({
+    engine: 'hadolint',
+    command: invocation.command,
+    args,
+    cwd: context.rootDir,
+    signal,
+    maxFindingsExitCode: MAX_FINDINGS_EXIT_CODE,
+  })
 
   const findings = readHadolintFindings(stdout)
   const prefixes = await absolutePrefixes(context)
 
   // Every file that produced a finding is read up front so `readSource` can stay synchronous: both
-  // `rangeOf` and the `DL3025` source exclusion need the text.
+  // `instructionKeywordRange` and the `DL3025` source exclusion need the text.
   const sources = new Map<string, string | undefined>()
   for (const finding of findings) {
-    const file = relativize(finding.file, prefixes)
+    const file = stripPrefixes(finding.file, prefixes)
     if (file === '' || sources.has(file)) continue
     try {
       sources.set(file, await readFile(join(context.rootDir, file), 'utf8'))
@@ -215,26 +209,4 @@ async function* execute(
     enabled: (rule) => selected.has(rule),
     readSource: (file) => sources.get(file),
   })
-}
-
-function relativize(file: string, prefixes: readonly string[]): string {
-  const posix = file.replaceAll('\\', '/')
-  for (const prefix of [...prefixes].filter((p) => p !== '').sort((a, b) => b.length - a.length)) {
-    const withSlash = prefix.replaceAll('\\', '/').replace(/\/?$/, '/')
-    if (posix.startsWith(withSlash)) return posix.slice(withSlash.length)
-  }
-  return posix
-}
-
-async function absolutePrefixes(context: RunContext): Promise<readonly string[]> {
-  const prefixes = [context.rootDir, context.tmpDir]
-  // macOS resolves `/tmp` to `/private/tmp`, which every test on that platform hits.
-  for (const path of [context.rootDir, context.tmpDir]) {
-    try {
-      prefixes.push(await realpath(path))
-    } catch {
-      // A path that cannot be resolved cannot appear in output either.
-    }
-  }
-  return prefixes
 }

@@ -42,7 +42,7 @@ export type UpstreamSeverity = {
  * category makes it `warn` here stays `warn`, because raising it would be an unmeasured escalation of
  * exactly the kind this table exists to stop. An `'off'` upstream level caps at `warn` rather than
  * removing the rule: whether a rule belongs in a preset at all is the separate, measured question
- * `registry/exclusions.ts` answers, and upstream not enabling something is not evidence about its
+ * `registry/not-recommended.ts` answers, and upstream not enabling something is not evidence about its
  * false-positive rate on real code.
  *
  * To keep `error` against a milder upstream, state the measurement on a `RULE_OVERRIDES`

@@ -13,12 +13,14 @@ import {
   type RuleSetting,
 } from '@misaon/slop-gate-core'
 import { displayWidth } from '../display-width.ts'
-import { createFrameKit, plural } from '../frame.ts'
+import { createFrameKit, plural } from '../box.ts'
 import { wrapText } from '../wrap-text.ts'
 import type { RulesReporterContext } from './context.ts'
 import { indexCandidates, levelGlyph, tierOf } from './shared.ts'
 
-export const RULES_WHY_JSON_VERSION = 1
+/** Bumped to 2 by `suppressed` becoming `overlaps`, and each record's own `suppressed` becoming
+ *  `loser` — see `RULES_CONFLICTS_JSON_VERSION`, which carries the same two fields. */
+export const RULES_WHY_JSON_VERSION = 2
 
 /** A monorepo can have a dozen Next.js applications; the reader needs two and a count, not twelve. */
 const EVIDENCE_SHOWN = 4
@@ -356,14 +358,14 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
       writeUnit([`  ${paint('dim', 'Not applicable')} — no files here in a language this concept covers. Not a coverage gap.`])
     }
 
-    if (explanation.suppressed.length > 0) {
-      const lines = [`  ${paint('bold', 'Suppressed candidates')} (lost arbitration to the owner above)`]
-      for (const record of explanation.suppressed) {
-        const tier = tierOf(candidateIndex, record.suppressed)
-        // The languages are what make a suppression checkable: "lost to oxlint on ts" is a claim a
+    if (explanation.overlaps.length > 0) {
+      const lines = [`  ${paint('bold', 'Lost arbitration to the owner above')}`]
+      for (const record of explanation.overlaps) {
+        const tier = tierOf(candidateIndex, record.loser)
+        // The languages are what make an overlap checkable: "lost to oxlint on ts" is a claim a
         // reader can verify, where a bare "lost" invites the question this whole change answers.
         const scope = explanation.ownership.length > 1 ? ` on ${record.languages.join(', ')}` : ''
-        lines.push(`    ${ruleRefKey(record.suppressed)}${tier === undefined ? '' : ` (tier ${tier})`} — ${record.reason}${scope}`)
+        lines.push(`    ${ruleRefKey(record.loser)}${tier === undefined ? '' : ` (tier ${tier})`} — ${record.reason}${scope}`)
       }
       writeUnit(lines)
     }

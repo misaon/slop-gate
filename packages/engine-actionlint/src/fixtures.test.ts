@@ -22,7 +22,7 @@ import { ACTIONLINT_RULES, createActionlintEngine, resolveActionlintBinary } fro
  *   it. Asserted from both ends: the raw binary output is required to be non-empty, so a fixture that
  *   stopped triggering the class would fail here rather than pass by accident.
  * - `excluded` — the rule fires, correctly by its own lights, on input that is not a defect. These are
- *   the measured false-positive classes behind `MANUAL_RULE_EXCLUSIONS`, kept executable so the
+ *   the measured false-positive classes behind `NOT_RECOMMENDED_UNCATALOGUED`, kept executable so the
  *   reasons in that table stay true.
  */
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures'), 'tree')

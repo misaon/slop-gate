@@ -1,7 +1,6 @@
 import { resolveRun, type ResolvedRun } from '@misaon/slop-gate-core'
-import { REPORTER_NAMES, type ReporterName } from '@misaon/slop-gate-reporters'
 import { DEFAULT_CONFIG, loadCliConfig } from '../../config.ts'
-import { defaultEngines } from '../../engines.ts'
+import { defaultEngines } from '../../engine-registry.ts'
 import { EXIT_CODES } from '../../exit-codes.ts'
 
 /**
@@ -28,15 +27,4 @@ export async function prepareRulesRun(rootDir: string): Promise<ResolvedRun | nu
     ...(loaded.kind === 'loaded' ? { configFile: loaded.configFile } : {}),
     engines: defaultEngines(rootDir, loaded.kind === 'loaded' ? loaded.configFile : undefined, loaded.config.ignore),
   })
-}
-
-/**
- * Validates `--format` the same way `check` does (same accepted values, same message), writing to
- * stderr and setting the config exit code on a bad value. `true` means the caller may proceed.
- */
-export function validateFormat(format: string): format is ReporterName {
-  if (REPORTER_NAMES.includes(format as ReporterName)) return true
-  process.stderr.write(`unknown format: ${format}. Expected one of ${REPORTER_NAMES.join(', ')}.\n`)
-  process.exitCode = EXIT_CODES.config
-  return false
 }

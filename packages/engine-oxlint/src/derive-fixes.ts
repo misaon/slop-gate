@@ -107,7 +107,7 @@ function singleRuleSelection(engineRuleId: string, selection: EngineRuleSelectio
  *
  * Handing the whole rewritten file to the fix pipeline is not an option — it would arrive as one
  * opaque buffer with no rule attached, and spec §11 step 2's arbitration is defined over
- * `(range, replacement, kind, ruleId)` tuples. So the run is done **one rule at a time**, which is
+ * `(range, replacement, kind, ruleRefKey)` tuples. So the run is done **one rule at a time**, which is
  * what makes each resulting edit attributable, and therefore arbitrable against another rule's.
  *
  * ## Why copies

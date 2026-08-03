@@ -48,11 +48,11 @@ test('elects the single candidate and selects it for its engine', () => {
 
   expect(ownerOf(result, 'correctness.no-debugger')).toEqual({ engine: 'oxlint', engineRuleId: 'no-debugger' })
   expect(result.selection.get('oxlint')).toEqual(new Set(['no-debugger']))
-  expect(result.suppressed).toEqual([])
+  expect(result.overlaps).toEqual([])
   expect(result.uncovered).toEqual([])
 })
 
-test('prefers the lower tier and records why the loser was suppressed', () => {
+test('prefers the lower tier and records why the loser lost', () => {
   const result = electOwners({
     entries: [
       entry({ engine: 'eslint', engineRuleId: 'no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 2 }),
@@ -66,11 +66,11 @@ test('prefers the lower tier and records why the loser was suppressed', () => {
 
   expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('oxlint')
   expect(result.selection.has('eslint')).toBe(false)
-  expect(result.suppressed).toEqual([
+  expect(result.overlaps).toEqual([
     {
       concept: 'dead-code.unused-variable',
       languages: ['ts'],
-      suppressed: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
+      loser: { engine: 'eslint', engineRuleId: 'no-unused-vars' },
       winner: { engine: 'oxlint', engineRuleId: 'no-unused-vars' },
       reason: 'lower-tier',
     },
@@ -90,7 +90,7 @@ test('breaks a tier tie by engine preference', () => {
   })
 
   expect(ownerOf(result, 'style.no-var')?.engine).toBe('oxlint')
-  expect(result.suppressed[0]?.reason).toBe('engine-preference')
+  expect(result.overlaps[0]?.reason).toBe('engine-preference')
 })
 
 test('breaks a same-engine tie by rule id so elections are total', () => {
@@ -106,7 +106,7 @@ test('breaks a same-engine tie by rule id so elections are total', () => {
   })
 
   expect(ownerOf(result, 'style.no-var')?.engineRuleId).toBe('alpha')
-  expect(result.suppressed[0]?.reason).toBe('rule-id-tiebreak')
+  expect(result.overlaps[0]?.reason).toBe('rule-id-tiebreak')
 })
 
 test('is order-independent: shuffling the entries changes nothing', () => {
@@ -131,7 +131,7 @@ test('is order-independent: shuffling the entries changes nothing', () => {
   })
 
   expect(reversed.owners).toEqual(forward.owners)
-  expect(reversed.suppressed).toEqual(forward.suppressed)
+  expect(reversed.overlaps).toEqual(forward.overlaps)
 })
 
 test('excludes candidates whose required capabilities are unavailable', () => {
@@ -153,7 +153,7 @@ test('excludes candidates whose required capabilities are unavailable', () => {
   })
 
   expect(ownerOf(result, 'slop.as-any-cast')?.engine).toBe('astgrep')
-  expect(result.suppressed).toEqual([])
+  expect(result.overlaps).toEqual([])
 })
 
 test('admits a capability-requiring candidate once the capability is present', () => {
@@ -182,7 +182,7 @@ test('excludes a candidate whose engine did not participate in this run', () => 
   // the caller never instantiated (the shipped registry's `eslint` entry exists purely so
   // `entries.test.ts` can prove a real overlap exists — see "the shipped registry contains a real
   // overlap"). A `RuleEntry` existing is not the same as its engine actually running, and arbitration
-  // must not elect — or suppress in favour of — a rule whose engine will never be invoked.
+  // must not elect — or record an overlap against — a rule whose engine will never be invoked.
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['dead-code.unused-variable'] }),
@@ -195,9 +195,9 @@ test('excludes a candidate whose engine did not participate in this run', () => 
   })
 
   expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('oxlint')
-  // Not just "oxlint wins" — the eslint entry must never appear as a suppressed loser either,
-  // or a run with only oxlint would still report a suppression that never happened.
-  expect(result.suppressed).toEqual([])
+  // Not just "oxlint wins" — the eslint entry must never appear as an overlap loser either,
+  // or a run with only oxlint would still report an overlap that never happened.
+  expect(result.overlaps).toEqual([])
 })
 
 test('reports a concept as uncovered when its only candidate belongs to a non-participating engine', () => {
@@ -279,10 +279,10 @@ test('honours a pinned owner even when a faster candidate exists', () => {
   })
 
   expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('knip')
-  expect(result.suppressed[0]).toEqual({
+  expect(result.overlaps[0]).toEqual({
     concept: 'dead-code.unused-variable',
     languages: ['ts'],
-    suppressed: { engine: 'oxlint', engineRuleId: 'fast' },
+    loser: { engine: 'oxlint', engineRuleId: 'fast' },
     winner: { engine: 'knip', engineRuleId: 'slow' },
     reason: 'pinned-owner',
   })
@@ -369,14 +369,14 @@ test('ignores concepts that are not enabled', () => {
   expect(result.uncovered).toEqual([])
 })
 
-test('suppression order is independent of entry order in the pinned path', () => {
+test('overlap order is independent of entry order in the pinned path', () => {
   const entries = [
     entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] }),
     entry({ engine: 'astgrep', engineRuleId: 'mid', concepts: ['style.no-var'] }),
     entry({ engine: 'tsc', engineRuleId: 'other', concepts: ['style.no-var'] }),
     entry({ engine: 'knip', engineRuleId: 'slow', concepts: ['style.no-var'], tier: 2 }),
   ]
-  const suppressedFor = (list: RuleEntry[]): string[] =>
+  const losersFor = (list: RuleEntry[]): string[] =>
     electOwners({
       entries: list,
       enabledConcepts: new Set(['style.no-var']),
@@ -384,12 +384,12 @@ test('suppression order is independent of entry order in the pinned path', () =>
       capabilities: NO_CAPABILITIES,
       languages: ALL_LANGUAGES,
       participatingEngines: ALL_ENGINES,
-    }).suppressed.map((s) => `${s.suppressed.engine}/${s.suppressed.engineRuleId}`)
+    }).overlaps.map((s) => `${s.loser.engine}/${s.loser.engineRuleId}`)
 
-  expect(suppressedFor([...entries].reverse())).toEqual(suppressedFor(entries))
+  expect(losersFor([...entries].reverse())).toEqual(losersFor(entries))
 })
 
-test('labels a pinned suppression only when the pin is what rejected the rule', () => {
+test('labels a pinned overlap only when the pin is what rejected the rule', () => {
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] }),
@@ -402,7 +402,7 @@ test('labels a pinned suppression only when the pin is what rejected the rule', 
     languages: ALL_LANGUAGES,
     participatingEngines: ALL_ENGINES,
   })
-  const reasonByRule = new Map(result.suppressed.map((s) => [s.suppressed.engineRuleId, s.reason]))
+  const reasonByRule = new Map(result.overlaps.map((s) => [s.loser.engineRuleId, s.reason]))
 
   expect(ownerOf(result, 'style.no-var')?.engineRuleId).toBe('alpha')
   expect(reasonByRule.get('fast')).toBe('pinned-owner')
@@ -422,7 +422,7 @@ test('a pin that agrees with arbitration still reports the real reason', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.suppressed[0]?.reason).toBe('lower-tier')
+  expect(result.overlaps[0]?.reason).toBe('lower-tier')
 })
 
 test('never records the winner as its own loser', () => {
@@ -435,7 +435,7 @@ test('never records the winner as its own loser', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.suppressed).toEqual([])
+  expect(result.overlaps).toEqual([])
 })
 
 // --- `ineligible`: the rejection reasons `isCapable`/`isApplicable` used to discard silently -----
@@ -454,7 +454,7 @@ test('records a deprecated candidate as ineligible instead of discarding it sile
   ])
 })
 
-test('records a candidate whose engine did not participate as ineligible, distinct from a suppressed loser', () => {
+test('records a candidate whose engine did not participate as ineligible, distinct from an overlap loser', () => {
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['dead-code.unused-variable'] }),
@@ -466,7 +466,7 @@ test('records a candidate whose engine did not participate as ineligible, distin
     participatingEngines: new Set(['oxlint']),
   })
 
-  expect(result.suppressed).toEqual([])
+  expect(result.overlaps).toEqual([])
   expect(result.ineligible).toEqual([
     {
       concept: 'dead-code.unused-variable',
@@ -534,7 +534,7 @@ test('records every otherwise-eligible candidate as ineligible when a pin names 
 
 test('does not record a pinned-elsewhere candidate as ineligible when the pin still elects a real winner', () => {
   // The 'pinned-to-other-engine' branch only fires when the pin leaves *no* winner at all. When a
-  // winner is elected, every non-winning `ranked` candidate already gets a `SuppressionRecord`
+  // winner is elected, every non-winning `ranked` candidate already gets a `RuleOverlap`
   // (reason 'pinned-owner' when the pin is what rejected it) — it must not *also* appear here.
   const result = electOwners({
     entries: [
@@ -589,10 +589,10 @@ test('orders rule ids by code unit rather than locale collation', () => {
 // file. These tests pin the corrected invariant.
 // ---------------------------------------------------------------------------
 
-test('two engines covering disjoint languages both own the concept, and neither is suppressed', () => {
+test('two engines covering disjoint languages both own the concept, and neither loses', () => {
   // The reproduction that motivated the change. Before it, oxlint won `correctness.parse-error`
   // outright in any repository containing both TypeScript and YAML, the YAML rule was recorded as
-  // `lower-tier` suppressed, and `sgate check` emitted a `config.rule-overlap` for an overlap that
+  // `lower-tier` loser, and `sgate check` emitted a `config.rule-overlap` for an overlap that
   // cannot happen — the two rules never see the same file.
   const result = electOwners({
     entries: [
@@ -615,12 +615,12 @@ test('two engines covering disjoint languages both own the concept, and neither 
     { owner: { engine: 'oxlint', engineRuleId: 'parse-error' }, languages: ['ts'] },
     { owner: { engine: 'schema', engineRuleId: 'parse-error' }, languages: ['yaml'] },
   ])
-  expect(result.suppressed).toEqual([])
+  expect(result.overlaps).toEqual([])
   expect(result.selection.get('oxlint')).toEqual(new Set(['parse-error']))
   expect(result.selection.get('schema')).toEqual(new Set(['parse-error']))
 })
 
-test('a genuine collision on a shared language is still suppressed, and names that language', () => {
+test('a genuine collision on a shared language still yields an overlap, and names that language', () => {
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'no-dupe-keys', concepts: ['correctness.no-duplicate-object-key'], tier: 0 }),
@@ -632,20 +632,20 @@ test('a genuine collision on a shared language is still suppressed, and names th
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.suppressed).toEqual([
+  expect(result.overlaps).toEqual([
     {
       concept: 'correctness.no-duplicate-object-key',
       languages: ['ts'],
-      suppressed: { engine: 'eslint', engineRuleId: 'no-dupe-keys' },
+      loser: { engine: 'eslint', engineRuleId: 'no-dupe-keys' },
       winner: { engine: 'oxlint', engineRuleId: 'no-dupe-keys' },
       reason: 'lower-tier',
     },
   ])
 })
 
-test('suppresses only on the languages the candidates actually share', () => {
+test('records an overlap only on the languages the candidates actually share', () => {
   // The partial-overlap case, which neither keying scheme handles by accident: oxlint owns `ts`
-  // uncontested, both contest `yaml`, and the suppression record names `yaml` alone.
+  // uncontested, both contest `yaml`, and the overlap record names `yaml` alone.
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'wide', concepts: ['correctness.parse-error'], tier: 0, languages: ['ts', 'yaml'] }),
@@ -660,18 +660,18 @@ test('suppresses only on the languages the candidates actually share', () => {
   expect(result.owners.get('correctness.parse-error')).toEqual([
     { owner: { engine: 'oxlint', engineRuleId: 'wide' }, languages: ['ts', 'yaml'] },
   ])
-  expect(result.suppressed).toEqual([
+  expect(result.overlaps).toEqual([
     {
       concept: 'correctness.parse-error',
       languages: ['yaml'],
-      suppressed: { engine: 'schema', engineRuleId: 'narrow' },
+      loser: { engine: 'schema', engineRuleId: 'narrow' },
       winner: { engine: 'oxlint', engineRuleId: 'wide' },
       reason: 'lower-tier',
     },
   ])
 })
 
-test('records one suppression per losing rule, not one per language it lost on', () => {
+test('records one overlap per losing rule, not one per language it lost on', () => {
   // Volume matters: a loser beaten across four languages is one fact about one rule, and reporting
   // it four times would make `rules conflicts` and `config.rule-overlap` noisier the moment this
   // change landed. The languages ride along on the single record instead.
@@ -686,8 +686,8 @@ test('records one suppression per losing rule, not one per language it lost on',
     participatingEngines: ALL_ENGINES,
   })
 
-  expect(result.suppressed).toHaveLength(1)
-  expect(result.suppressed[0]?.languages).toEqual(['js', 'jsx', 'ts', 'tsx'])
+  expect(result.overlaps).toHaveLength(1)
+  expect(result.overlaps[0]?.languages).toEqual(['js', 'jsx', 'ts', 'tsx'])
 })
 
 test('ownership lists only the languages the repository actually contains', () => {
@@ -750,9 +750,9 @@ test('hands the concept to the next-ranked engine when the winner is not install
   })
 
   expect(ownerOf(result, 'correctness.parse-error')).toEqual({ engine: 'schema', engineRuleId: 'parse-error' })
-  // Not a suppression: the actionlint rule never contested anything, so calling it a loser would
+  // Not an overlap: the actionlint rule never contested anything, so calling it a loser would
   // put a rule overlap in the output for two engines that never met.
-  expect(result.suppressed).toEqual([])
+  expect(result.overlaps).toEqual([])
   expect(result.ineligible).toEqual([
     {
       concept: 'correctness.parse-error',

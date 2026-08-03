@@ -1,6 +1,6 @@
 import type { CheckEvent, CheckResult, Diagnostic, Position, Severity } from '@misaon/slop-gate-core'
 import { displayWidth, padEndDisplay, padStartDisplay, truncateStart } from './display-width.ts'
-import { createFrameKit, plural } from './frame.ts'
+import { createFrameKit, plural } from './box.ts'
 import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_NOUN, SEVERITY_ORDER, SEVERITY_STYLE } from './severity.ts'
 import { wrapText } from './wrap-text.ts'
 import type { Reporter, ReporterContext } from './index.ts'
@@ -225,9 +225,9 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
         )
       }
     }
-    if (result.ruleset.suppressed > 0) {
+    if (result.ruleset.overlaps > 0) {
       lines.push(
-        `  ${paint('dim', `${plural(result.ruleset.suppressed, 'rule overlap')} resolved — run \`sgate rules conflicts\` for detail.`)}`,
+        `  ${paint('dim', `${plural(result.ruleset.overlaps, 'rule overlap')} resolved — run \`sgate rules conflicts\` for detail.`)}`,
       )
     }
     if (result.ruleset.uncovered.length > 0) {

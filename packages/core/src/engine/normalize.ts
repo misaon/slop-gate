@@ -2,10 +2,10 @@ import type { GeneratedPolicy, RuleLevel } from '../config/types.ts'
 import { fingerprint, normalizedWindow } from '../diagnostics/fingerprint.ts'
 import { createLineIndex, type LineIndex } from '../diagnostics/position.ts'
 import type { Diagnostic, Fix, Severity } from '../diagnostics/types.ts'
-import { isGeneratedPath } from '../discovery/generated.ts'
+import { isGeneratedPath } from '../discovery/detect-generated.ts'
 import { detectLanguage } from '../discovery/language.ts'
 import { isOwned, owningEngines, type OwnerMap } from '../registry/ownership.ts'
-import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
+import { parseRuleRefKey, ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
 import { applySuppressions } from '../suppressions/apply.ts'
 import { parseSuppressions, type SuppressionDirective } from '../suppressions/parse.ts'
 import type { RawDiagnostic } from './types.ts'
@@ -20,7 +20,7 @@ export type NormalizeInput = {
   /**
    * Files to scan for inline suppression directives even if no raw diagnostic in `raws` touches
    * them. Without this, a file the engine reports nothing for would never appear via `raws` at all
-   * (see `byRuleId`/the main loop below, which only ever learns about a file from a raw finding) —
+   * (see `byEngineRuleId`/the main loop below, which only ever learns about a file from a raw finding) —
    * and that is exactly the file most likely to hold a *stale* suppression comment: the code was
    * fixed, the finding stopped, the `sgate-disable-*` comment was not removed. `run/check.ts` passes
    * the one file it is currently processing here unconditionally, whether or not that file produced
@@ -42,7 +42,7 @@ export const LEVEL_TO_SEVERITY: Readonly<Record<Exclude<RuleLevel, 'off'>, Sever
 }
 
 export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
-  const byRuleId = new Map(
+  const byEngineRuleId = new Map(
     input.entries.filter((entry) => entry.engine === input.engine).map((entry) => [entry.engineRuleId, entry]),
   )
 
@@ -63,7 +63,7 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
   }
 
   for (const raw of input.raws) {
-    const entry = byRuleId.get(raw.engineRuleId)
+    const entry = byEngineRuleId.get(raw.engineRuleId)
     if (entry === undefined) continue
 
     const concept = classify(entry, raw.message)
@@ -98,7 +98,7 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
 
     diagnostics.push({
       concept,
-      ruleId: ruleRefKey({ engine: input.engine, engineRuleId: raw.engineRuleId }),
+      ruleRefKey: ruleRefKey({ engine: input.engine, engineRuleId: raw.engineRuleId }),
       engine: input.engine,
       severity,
       message: raw.message,
@@ -227,7 +227,7 @@ function judgedBy(directive: SuppressionDirective, engine: EngineId, owners: Own
   // One list of owning engines per target, because a concept split across languages has more than
   // one owner and any of them is reason enough for this engine to have an opinion.
   const engines = directive.targets.map((target) =>
-    target.includes('/') ? [target.slice(0, target.indexOf('/'))] : owningEngines(owners, target),
+    target.includes('/') ? [parseRuleRefKey(target).engine] : owningEngines(owners, target),
   )
   return engines.some((owners_) => owners_.includes(engine)) || engines.every((owners_) => owners_.length === 0)
 }
@@ -295,7 +295,7 @@ function suppressionDiagnostic(params: {
 
   return {
     concept: params.concept,
-    ruleId: `slop-gate/${params.concept}`,
+    ruleRefKey: `slop-gate/${params.concept}`,
     engine: 'slop-gate',
     severity: LEVEL_TO_SEVERITY[level],
     message: params.message,

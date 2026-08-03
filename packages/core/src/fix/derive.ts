@@ -1,4 +1,5 @@
 import type { Edit } from '../diagnostics/types.ts'
+import { alignLines } from './align.ts'
 import { decodeUtf8 } from './apply.ts'
 
 type SourceLine = { readonly text: string; readonly start: number; readonly end: number }
@@ -17,8 +18,12 @@ function splitLines(buffer: Uint8Array): SourceLine[] {
   return lines
 }
 
-/** Beyond this the LCS table is abandoned for one whole-buffer edit — correct, just not minimal. */
-const MAX_CELLS = 1_000_000
+/**
+ * Byte ranges are what this function is for, so two lines are the same when their *text* is —
+ * `unifiedDiff`'s stricter comparison, which also weighs trailing-newline status, would be wrong here
+ * because a `SourceLine` keeps its own terminator in `text` already.
+ */
+const sameText = (a: SourceLine, b: SourceLine): boolean => a.text === b.text
 
 /**
  * Recovers a set of byte-ranged edits from a before/after pair of buffers.
@@ -34,45 +39,25 @@ const MAX_CELLS = 1_000_000
  * **Tight ranges are the point, not a nicety.** A single edit spanning from the first change to the
  * last would conflict with every other rule's edit in between and drop them all, so a file with two
  * interleaved rules would converge one rule per pass, or not at all inside the pass limit. Hunks are
- * therefore separated per contiguous run of changed lines, then trimmed to the exact differing bytes
- * within each. The trim also makes an edit's range describe what it actually rewrites, which is what
- * the caller's own conflict detection is reasoning about.
+ * therefore separated per contiguous run of changed lines, then narrowed to the exact differing bytes
+ * within each. That narrowing also makes an edit's range describe what it actually rewrites, which is
+ * what the caller's own conflict detection is reasoning about.
  */
 export function editsFromRewrite(before: Uint8Array, after: Uint8Array): Edit[] {
   const oldLines = splitLines(before)
   const newLines = splitLines(after)
-
-  let head = 0
-  while (head < oldLines.length && head < newLines.length && oldLines[head]!.text === newLines[head]!.text) head += 1
-
-  let tail = 0
-  while (
-    tail < oldLines.length - head &&
-    tail < newLines.length - head &&
-    oldLines[oldLines.length - 1 - tail]!.text === newLines[newLines.length - 1 - tail]!.text
-  ) {
-    tail += 1
-  }
-
-  const oldWindow = oldLines.slice(head, oldLines.length - tail)
-  const newWindow = newLines.slice(head, newLines.length - tail)
+  const { head, tail, oldWindow, newWindow, steps } = alignLines(oldLines, newLines, sameText)
   if (oldWindow.length === 0 && newWindow.length === 0) return []
 
   // Where a pure insertion or deletion lands when its window is empty on one side.
   const anchor =
     oldWindow[0]?.start ?? oldLines[head - 1]?.end ?? oldLines[oldLines.length - tail]?.start ?? before.length
 
-  if (oldWindow.length * newWindow.length > MAX_CELLS) {
-    return [trim(before, oldWindow[0]?.start ?? anchor, oldWindow.at(-1)?.end ?? anchor, newWindow.map((l) => l.text).join(''))]
-  }
-
-  const table: number[][] = Array.from({ length: oldWindow.length + 1 }, () => Array.from<number>({ length: newWindow.length + 1 }).fill(0))
-  for (let i = oldWindow.length - 1; i >= 0; i -= 1) {
-    for (let j = newWindow.length - 1; j >= 0; j -= 1) {
-      table[i]![j] = oldWindow[i]!.text === newWindow[j]!.text
-        ? table[i + 1]![j + 1]! + 1
-        : Math.max(table[i + 1]![j]!, table[i]![j + 1]!)
-    }
+  // Window too large to align: one edit over the whole of it. Correct, just not minimal — and the
+  // reason `align.ts` picks the higher of the two bounds it inherited, since *this* is the fallback
+  // that costs something.
+  if (steps === null) {
+    return [narrowEditToChangedBytes(before, oldWindow[0]?.start ?? anchor, oldWindow.at(-1)?.end ?? anchor, newWindow.map((l) => l.text).join(''))]
   }
 
   const edits: Edit[] = []
@@ -94,40 +79,31 @@ export function editsFromRewrite(before: Uint8Array, after: Uint8Array): Edit[] 
   const flush = (): void => {
     if (removed.length === 0 && added.length === 0) return
     if (removed.length === added.length) {
-      removed.forEach((line, index) => edits.push(trim(before, line.start, line.end, added[index]!)))
+      removed.forEach((line, index) => edits.push(narrowEditToChangedBytes(before, line.start, line.end, added[index]!)))
     } else {
       const start = removed[0]?.start ?? pendingAt ?? anchor
       const end = removed.at(-1)?.end ?? start
-      edits.push(trim(before, start, end, added.join('')))
+      edits.push(narrowEditToChangedBytes(before, start, end, added.join('')))
     }
     removed = []
     added = []
     pendingAt = null
   }
 
-  let i = 0
-  let j = 0
   let cursor = anchor
-  while (i < oldWindow.length || j < newWindow.length) {
-    const sameHere = i < oldWindow.length && j < newWindow.length && oldWindow[i]!.text === newWindow[j]!.text
-    if (sameHere) {
+  for (const step of steps) {
+    if (step.kind === 'same') {
       flush()
-      cursor = oldWindow[i]!.end
-      i += 1
-      j += 1
+      cursor = step.line.end
       continue
     }
-    const takeOld = j >= newWindow.length || (i < oldWindow.length && table[i + 1]![j]! >= table[i]![j + 1]!)
-    if (takeOld) {
-      const line = oldWindow[i]!
-      removed.push(line)
-      cursor = line.end
-      i += 1
-    } else {
-      if (removed.length === 0 && pendingAt === null) pendingAt = cursor
-      added.push(newWindow[j]!.text)
-      j += 1
+    if (step.kind === 'removed') {
+      removed.push(step.line)
+      cursor = step.line.end
+      continue
     }
+    if (removed.length === 0 && pendingAt === null) pendingAt = cursor
+    added.push(step.line.text)
   }
   flush()
 
@@ -138,8 +114,6 @@ export function editsFromRewrite(before: Uint8Array, after: Uint8Array): Edit[] 
 const isContinuation = (byte: number | undefined): boolean => byte !== undefined && (byte & 0xc0) === 0x80
 
 /**
- * Narrows one line-granular hunk to the bytes that actually differ, by walking in from both ends.
- *
  * Trimming the suffix before the prefix would be wrong when the two overlap (`aXa` → `aa`), so the
  * suffix walk is bounded by what the prefix already consumed on both sides.
  *
@@ -151,7 +125,7 @@ const isContinuation = (byte: number | undefined): boolean => byte !== undefined
  * other check passing. Found by the round-trip test over `"\u{1F680}"` becoming `"\u{1F30D}"`, not by
  * inspection.
  */
-function trim(before: Uint8Array, start: number, end: number, replacement: string): Edit {
+function narrowEditToChangedBytes(before: Uint8Array, start: number, end: number, replacement: string): Edit {
   const removed = before.subarray(start, end)
   const inserted = new TextEncoder().encode(replacement)
 

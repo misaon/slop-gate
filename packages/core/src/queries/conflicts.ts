@@ -1,12 +1,11 @@
-import type { SuppressionRecord } from '../registry/elect.ts'
+import type { RuleOverlap } from '../registry/elect.ts'
 import type { ResolvedRun } from '../run/resolve-run.ts'
 
 export type RulesConflicts = {
-  /** One record per losing candidate — `election.suppressed`, unchanged. A concept with more than
-   *  one loser (three or more candidates contesting it) appears here more than once, by design: a
-   *  reader wants the reason for *each* suppressed rule, not a pre-grouped summary that hides how
-   *  many there were. */
-  suppressed: readonly SuppressionRecord[]
+  /** A concept with more than one loser (three or more candidates contesting it) appears here more
+   *  than once, by design: a reader wants the reason for *each* losing rule, not a pre-grouped
+   *  summary that hides how many there were. */
+  overlaps: readonly RuleOverlap[]
   /** `resolver.base.unknownKeys` — a config key that names neither a concept nor a rule any
    *  participating engine provides ("dead overrides", spec §5.4). */
   deadOverrides: readonly string[]
@@ -20,7 +19,7 @@ export type RulesConflicts = {
  */
 export function buildRulesConflicts(resolved: ResolvedRun): RulesConflicts {
   return {
-    suppressed: resolved.election.suppressed,
+    overlaps: resolved.election.overlaps,
     deadOverrides: resolved.resolver.base.unknownKeys,
   }
 }

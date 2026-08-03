@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
 import {
   detectFrameworks,
   engineAdjustmentsFor,
-  type EngineAdjustments,
+  type EngineSettings,
   type EngineRuleSelection,
   type InventoryFile,
   type RawDiagnostic,
@@ -328,7 +328,7 @@ test(
  * these tests exercise the real profiles rather than hand-written adjustments. `paths` is the
  * inventory the planner would have assigned.
  */
-const knipAdjustments = async (paths: readonly string[]): Promise<EngineAdjustments> => {
+const knipAdjustments = async (paths: readonly string[]): Promise<EngineSettings> => {
   const detection = await detectFrameworks({
     inventory: {
       root: dir,
@@ -343,7 +343,7 @@ const knipAdjustments = async (paths: readonly string[]): Promise<EngineAdjustme
 /** The same repository analysed twice: once as knip sees it today, once with the profiles applied. */
 const withAndWithout = async (
   paths: readonly string[],
-): Promise<{ before: string[]; after: string[]; adjustments: EngineAdjustments }> => {
+): Promise<{ before: string[]; after: string[]; adjustments: EngineSettings }> => {
   const engine = createKnipEngine()
   const files = paths.map((path) => file(path))
 

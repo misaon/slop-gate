@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { parseActionlintOutput, rangeOf, readActionlintErrors, sanitize, type ParseActionlintOptions } from './parse.ts'
+import { parseActionlintOutput, rangeFromLineColumn, readActionlintErrors, sanitize, type ParseActionlintOptions } from './parse.ts'
 
 const WORKFLOW = ['on: push', 'jobs:', '  a:', '    runs-on: ubuntu-lastest', '    steps:', '      - run: echo hi', ''].join(
   '\n',
@@ -163,8 +163,8 @@ test('malformed output is an engine error, not silence', () => {
   expect(() => readActionlintErrors('not json')).toThrow(/could not parse actionlint JSON output/)
 })
 
-test('rangeOf agrees with what the parser produces', () => {
-  const range = rangeOf({ line: 4, column: 14 }, WORKFLOW)
+test('rangeFromLineColumn agrees with what the parser produces', () => {
+  const range = rangeFromLineColumn({ line: 4, column: 14 }, WORKFLOW)
   expect(range).toEqual(parse([error()])[0]?.range)
   expect(WORKFLOW.slice(range.start, range.end)).toBe('ubuntu-lastest')
 })

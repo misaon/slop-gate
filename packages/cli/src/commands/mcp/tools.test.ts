@@ -9,7 +9,7 @@ import {
 } from '@misaon/slop-gate-engine-deps-security'
 import { baselinePathFor, entriesOf, runCheck, writeBaseline, type SlopGateConfig } from '@misaon/slop-gate-core'
 import { DEFAULT_CONFIG, loadCliConfig } from '../../config.ts'
-import { defaultEngines } from '../../engines.ts'
+import { defaultEngines } from '../../engine-registry.ts'
 import { callCheck, callExplain, callPropose, type ToolContext } from './tools.ts'
 
 let dir: string
@@ -56,7 +56,7 @@ type CheckStructured = {
   complete: boolean
   gaps: Array<{ kind: string; engine?: string; detail: string; remedy?: string; concepts: string[] }>
   counts: { error: number; warn: number; info: number }
-  concepts: Array<{ concept: string; section: string; findings: number; tier: string | null }>
+  concepts: Array<{ concept: string; section: string; findingCount: number; tier: string | null }>
   reportTruncated: boolean
   uncoveredConcepts: string[]
   unknownConfigKeys: number
@@ -231,7 +231,7 @@ test('a bounded report still reports every concept at its true count', async () 
   const squeezed = await callCheck({ maxTokens: 600 }, context)
   const bounded = structured<CheckStructured>(squeezed)
 
-  expect(full.concepts[0]?.findings).toBe(12)
+  expect(full.concepts[0]?.findingCount).toBe(12)
   expect(bounded.concepts).toEqual(full.concepts)
   expect(bounded.reportTruncated).toBe(true)
   expect(squeezed.content[0]?.text).toContain('omitted:')
@@ -284,12 +284,12 @@ test('a rootDir inside the root is analysed', async () => {
 
 test('explains an enabled concept and names the rule that owns it, without running an engine', async () => {
   const result = await callExplain({ concept: 'correctness.no-debugger' }, context)
-  const data = structured<{ known: boolean; enabled: boolean; owners: Array<{ ruleId: string }> }>(result)
+  const data = structured<{ known: boolean; enabled: boolean; owners: Array<{ ruleRefKey: string }> }>(result)
 
   expect(result.isError).toBeUndefined()
   expect(data.known).toBe(true)
   expect(data.enabled).toBe(true)
-  expect(data.owners.map((owner) => owner.ruleId)).toContain('oxlint/no-debugger')
+  expect(data.owners.map((owner) => owner.ruleRefKey)).toContain('oxlint/no-debugger')
   expect(result.content[0]?.text).toContain('correctness.no-debugger')
 })
 

@@ -4,9 +4,12 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   EngineError,
+  isExecFileFailure,
+  toolVersion,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
+  type ExecFileFailure,
   type FileBatch,
   type RawDiagnostic,
   type RunContext,
@@ -85,9 +88,7 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
     },
 
     async version() {
-      const resolved = required()
-      const { stdout } = await run(resolved.command, [...resolved.prefixArgs, '--version'], { encoding: 'utf8' })
-      return stdout.trim().replace(/^version:\s*/i, '')
+      return toolVersion(required(), /^version:\s*/i)
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
@@ -148,7 +149,7 @@ async function* execute(
     ...batch.files.map((file) => file.path),
   ]
 
-  let failure: { code?: number | string; stderr?: string; stdout?: string } | undefined
+  let failure: ExecFileFailure | undefined
   try {
     await run(invocation.command, args, {
       cwd: context.rootDir,
@@ -157,7 +158,7 @@ async function* execute(
       maxBuffer: 1024 * 1024 * 64,
     })
   } catch (error) {
-    failure = error as { code?: number | string; stderr?: string; stdout?: string }
+    failure = isExecFileFailure(error) ? error : {}
   }
 
   let report: string

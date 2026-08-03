@@ -1,5 +1,4 @@
-import { relative } from 'node:path'
-import { EngineError, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
+import { EngineError, toRepoRelative, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
 
 type OxlintSpan = { offset: number; length: number }
 type OxlintDiagnostic = {
@@ -178,11 +177,4 @@ function anchorSpan(diagnostic: OxlintDiagnostic, engineRuleId: string): OxlintS
     if (declared !== undefined) return declared.span
   }
   return diagnostic.labels?.[0]?.span
-}
-
-function toRepoRelative(filename: string, rootDir: string): string {
-  const normalized = filename.replaceAll('\\', '/')
-  const root = rootDir.replaceAll('\\', '/')
-  if (!normalized.startsWith('/') && !/^[a-z]:\//i.test(normalized)) return normalized
-  return relative(root, normalized).replaceAll('\\', '/')
 }

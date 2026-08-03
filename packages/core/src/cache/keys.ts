@@ -1,7 +1,17 @@
 import { createHash } from 'node:crypto'
 import { compareStrings } from '../ordering.ts'
 
-export const RESULT_SCHEMA_VERSION = 1
+/**
+ * The shape of a cached `Diagnostic`, not of the cache key. A stale entry is discarded rather than
+ * migrated, so this has to change whenever a field of `Diagnostic` is added, removed or **renamed** —
+ * a renamed field reads back as `undefined`, and a warm run would then quietly lose whatever depends
+ * on it rather than recompute.
+ *
+ * Bumped to 2 by `Diagnostic.ruleId` becoming `ruleRefKey`: an entry from before that rename would
+ * have left `run/fix.ts` unable to look up a rule's fix kind and `suppressions/apply.ts` unable to
+ * match a `<engine>/<engineRuleId>`-targeted directive — both silently, and only on a warm cache.
+ */
+export const RESULT_SCHEMA_VERSION = 2
 
 export function hashContent(content: string | Uint8Array): string {
   return createHash('sha256').update(content).digest('hex')
@@ -23,8 +33,8 @@ export function hashJson(value: unknown): string {
   return hashContent(stableStringify(value))
 }
 
-export function hashRuleSelection(ruleIds: Iterable<string>): string {
-  return hashJson([...ruleIds].sort(compareStrings))
+export function hashRuleSelection(ruleRefKeys: Iterable<string>): string {
+  return hashJson([...ruleRefKeys].sort(compareStrings))
 }
 
 export type ResultKeyInput = {
