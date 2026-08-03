@@ -1,30 +1,96 @@
+import type { Diagnostic } from '../diagnostics/types.ts'
+import { compareStrings } from '../ordering.ts'
+
 /**
- * SPIKE — not the shipping shape. Engine-boundary timing, to answer "why did my run take a
- * minute?" from inside the run rather than from a hand-rolled patch. Gated on `SGATE_TIMING=1`,
- * so with the flag off every instrumentation point is one indirect call through `NO_TIMING`.
+ * Where a run's time went — the measurement half of `--timing` (spec §12, §15). Core measures and puts
+ * the report on `CheckResult`; the reporters decide whether and how to print it. Nothing here writes to
+ * a stream, and nothing here reads an environment variable: a run is instrumented because the caller
+ * asked (`CheckOptions.timing`), which is the only thing a `--timing` flag can honestly mean.
  *
- * `performance.mark`/`measure` rather than bare `performance.now()` subtraction, so a run also
- * shows up in `--cpu-prof` traces and in anything reading the Node performance timeline.
+ * `performance.mark`/`measure` rather than bare `performance.now()` subtraction, so an instrumented run
+ * also shows up in `--cpu-prof` traces and in anything else reading the Node performance timeline.
  *
- * Measured off-state cost (hyperfine, 25 runs warm / 5 runs cold, this repository): warm
- * 170.6 ms -> 171.7 ms (+1.1 ms, 0.6%, inside 1 sigma); cold 5.886 s -> 5.888 s (+2 ms, 0.03%).
- * Free enough not to need a compile-time switch, even though `normalize`, `read-source` and
- * `cache-write` are instrumented per *file* (about 1,300 `NO_TIMING` calls on a cold run here)
- * rather than per assignment.
+ * **Off, this costs one indirect call through `NO_TIMING` per instrumentation point** — and there are
+ * about 1,300 of them on a cold run of this repository, because `read-source`, `normalize` and
+ * `cache-write` are measured per *file* rather than per assignment. Measured on this repository with
+ * hyperfine (30 runs warm, 6 cold), instrumentation absent vs. present with the flag off: warm
+ * 155.5 ms ± 2.2 -> 155.8 ms ± 2.5 (+0.2%, well inside 1σ), cold 5.949 s ± 0.055 -> 5.984 s ± 0.077
+ * (+0.6%, inside 1σ). Free enough not to need a compile-time switch.
  */
-type PhaseTiming = { name: string; durationMs: number; count: number }
+export type MeasuredPhase = {
+  /**
+   * `discover`, `run:oxlint`, `normalize:tsc` — the phase, with the engine it belongs to where one
+   * does. Engine-suffixed names are what makes the report "per engine" in the sense §12 promises.
+   */
+  name: string
+  durationMs: number
+  /** How many spans were summed: 1 for a whole-run phase, once per file for the per-file ones. */
+  count: number
+}
+
+/**
+ * Findings attributed to one registry rule.
+ *
+ * **A count, not a duration, and that is the whole point.** Spec §12 and §15 originally promised a
+ * `--timing` breakdown "per engine and rule"; per engine is measurable and is above, per rule is not.
+ * An engine here is an external process — we hand `tsc` a program and `oxlint` a file list and read
+ * what comes back — and neither reports how long any one of its own rules took, so any per-rule
+ * millisecond figure slop-gate printed would be invented. The count is what the boundary genuinely
+ * knows, and the time our own share of a rule's cost lands in is the `normalize:<engine>` and
+ * `arbitrate` phases above. See §12 for the amended promise.
+ */
+export type RuleFindings = { ruleRefKey: string; findings: number }
+
+/**
+ * **`startupMs + Σ phases + unattributedMs === stats.durationMs`**, to within the 0.1 ms each is
+ * rounded to. That identity is the whole design: `durationMs` measures from process start (see
+ * `CheckOptions.startedAt`), so a breakdown that reported only what happened inside `streamCheck`
+ * would leave a user subtracting to find the rest of their own run.
+ *
+ * Three fields rather than one array of named rows, because two of the three are not phases and a
+ * reporter would otherwise have to recognise them by their names to treat them differently — which it
+ * must, since they are the two it has to explain.
+ */
+export type TimingReport = {
+  /**
+   * Everything before `streamCheck` was entered. On a one-shot CLI process that is node boot, the ESM
+   * module graph and `loadCliConfig`, and **core cannot split it further because core was not running
+   * for any of it** — all it can see is the gap between `CheckOptions.startedAt` and its own first
+   * statement. `0` for a long-lived host, which has no process start to charge to this run.
+   */
+  startupMs: number
+  /**
+   * Each measured phase, longest first. The inventory walk is `discover`; rule-registry arbitration is
+   * `arbitrate`; an engine's own subprocess time is `run:<engine>`; our own work on what it returned is
+   * `normalize:<engine>`.
+   */
+  phases: readonly MeasuredPhase[]
+  /**
+   * `streamCheck`'s own span minus its phases. Two things live in here and both are real: the
+   * orchestrator's own glue (planning, the cache-hit tallies, the filters between a diagnostic and the
+   * stream), and **the consumer's time between yields** — `streamCheck` is an async generator, so while
+   * `pretty` renders a code frame the run is suspended inside a `yield` and the clock is still running.
+   *
+   * A negative value would mean two phases overlapped and one was counted twice; it is left unclamped
+   * so that reads as the instrumentation bug it is rather than as a plausible zero.
+   */
+  unattributedMs: number
+  /** Descending by count, then by `ruleRefKey`. See `RuleFindings` for why this is not a duration. */
+  rules: readonly RuleFindings[]
+}
 
 export type Timing = {
   phase<T>(name: string, fn: () => Promise<T>): Promise<T>
   wrap<T>(name: string, fn: () => T): T
-  report(): PhaseTiming[]
+  /** One row per distinct phase name, in first-entered order. Empty for `NO_TIMING`. */
+  measured(): readonly MeasuredPhase[]
   readonly enabled: boolean
 }
 
 export const NO_TIMING: Timing = {
   phase: (_name, fn) => fn(),
   wrap: (_name, fn) => fn(),
-  report: () => [],
+  measured: () => [],
   enabled: false,
 }
 
@@ -32,6 +98,9 @@ export function createTiming(): Timing {
   const totals = new Map<string, { durationMs: number; count: number }>()
   let sequence = 0
 
+  // In a `finally`, so a phase whose work threw is still measured: an engine that fails after 30
+  // seconds is exactly the run someone reaches for `--timing` to explain, and dropping its span would
+  // move that time into `unattributed` where it names nothing.
   const record = (name: string, startMark: string): void => {
     const measure = performance.measure(name, startMark)
     const entry = totals.get(name) ?? { durationMs: 0, count: 0 }
@@ -62,27 +131,39 @@ export function createTiming(): Timing {
         record(name, startMark)
       }
     },
-    report() {
-      return [...totals]
-        .map(([name, entry]) => ({ name, durationMs: Math.round(entry.durationMs * 10) / 10, count: entry.count }))
-        .sort((a, b) => b.durationMs - a.durationMs)
+    measured() {
+      return [...totals].map(([name, entry]) => ({ name, durationMs: entry.durationMs, count: entry.count }))
     },
   }
 }
 
-/** SPIKE-only sink. The shipping shape puts `report()` on `CheckResult` and lets a reporter print it. */
-export function writeTimingReport(timing: Timing, totalMs: number): void {
-  if (!timing.enabled) return
-  const rows = timing.report()
-  const width = Math.max(...rows.map((row) => row.name.length), 5)
-  const lines = [
-    '',
-    `  timing (SGATE_TIMING=1) — ${totalMs.toFixed(1)} ms measured inside streamCheck`,
-    ...rows.map(
-      (row) =>
-        `  ${row.name.padEnd(width)}  ${row.durationMs.toFixed(1).padStart(8)} ms  ${((row.durationMs / totalMs) * 100).toFixed(1).padStart(5)}%  ×${row.count}`,
-    ),
-    '',
-  ]
-  process.stderr.write(`${lines.join('\n')}\n`)
+export type TimingReportInput = {
+  /** `Timing.measured()`, unrounded. */
+  phases: readonly MeasuredPhase[]
+  /** `streamCheck`'s first statement minus `CheckOptions.startedAt`; `0` when the caller passed none. */
+  startupMs: number
+  /** `streamCheck`'s own span, from its first statement to the `done` event. */
+  insideMs: number
+  /** The run's visible findings, for the per-rule counts. */
+  diagnostics: readonly Diagnostic[]
+}
+
+/** Tenths of a millisecond: finer than the measurement is repeatable to, coarse enough to read. */
+const round1 = (ms: number): number => Math.round(ms * 10) / 10
+
+export function buildTimingReport(input: TimingReportInput): TimingReport {
+  const measured = [...input.phases].sort((a, b) => b.durationMs - a.durationMs || compareStrings(a.name, b.name))
+  const attributed = measured.reduce((sum, phase) => sum + phase.durationMs, 0)
+
+  const findings = new Map<string, number>()
+  for (const diagnostic of input.diagnostics) findings.set(diagnostic.ruleRefKey, (findings.get(diagnostic.ruleRefKey) ?? 0) + 1)
+
+  return {
+    startupMs: round1(input.startupMs),
+    phases: measured.map((phase) => ({ name: phase.name, durationMs: round1(phase.durationMs), count: phase.count })),
+    unattributedMs: round1(input.insideMs - attributed),
+    rules: [...findings]
+      .map(([ruleRefKey, count]) => ({ ruleRefKey, findings: count }))
+      .sort((a, b) => b.findings - a.findings || compareStrings(a.ruleRefKey, b.ruleRefKey)),
+  }
 }

@@ -317,3 +317,55 @@ test('--require-engines on a machine missing an optional engine exits 3 and name
     else process.env['SLOP_GATE_ACTIONLINT_PATH'] = saved
   }
 })
+
+test('--timing puts the breakdown in the json document, and its rows account for the reported duration', async () => {
+  const output = await runCheckCapturingStdout({ timing: true })
+  const report = JSON.parse(output) as {
+    stats: { durationMs: number }
+    timings: { startupMs: number; phases: Array<{ name: string; durationMs: number }>; unattributedMs: number }
+  }
+
+  // The four things that are not engine work, all accounted for: node boot, the module graph and
+  // `loadCliConfig` are `startupMs` (the CLI passes `startedAt: 0`), and the inventory walk is a phase.
+  expect(report.timings.startupMs).toBeGreaterThan(0)
+  expect(report.timings.phases.map((phase) => phase.name)).toContain('discover')
+
+  const summed =
+    report.timings.startupMs +
+    report.timings.phases.reduce((total, phase) => total + phase.durationMs, 0) +
+    report.timings.unattributedMs
+  expect(Math.abs(summed - report.stats.durationMs)).toBeLessThan(1)
+})
+
+test('a run without --timing produces no timings key, so the flag is what costs anything', async () => {
+  const output = await runCheckCapturingStdout()
+
+  expect('timings' in (JSON.parse(output) as object)).toBe(false)
+})
+
+test('--timing prints the breakdown under the pretty footer', async () => {
+  const output = await runCheckCapturingStdout({ format: 'pretty', timing: true })
+
+  expect(output.indexOf('timing')).toBeGreaterThan(output.lastIndexOf('╰'))
+  expect(output).toContain('startup')
+  expect(output).toContain('unattributed')
+})
+
+test('--timing with --format=agent says it is ignored rather than measuring a run it cannot print', async () => {
+  let written = ''
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    written += chunk
+    return true
+  })
+  let output = ''
+  try {
+    output = await runCheckCapturingStdout({ format: 'agent', timing: true })
+  } finally {
+    stderr.mockRestore()
+  }
+
+  expect(written).toContain('--timing is ignored by `--format=agent`')
+  // The report itself is untouched: that is the property the note exists to protect.
+  expect(output).toContain('slop-gate agent report v1')
+  expect(output).not.toContain('unattributed')
+})

@@ -671,3 +671,25 @@ test('a baseline that withheld nothing prints nothing, because there is no omiss
   expect(output).not.toContain('baseline')
   expect(coverageLine(output)).toBe('coverage: no findings. Nothing was omitted.')
 })
+
+test('a timing report reaches this reporter and changes nothing, which is the point of the report', () => {
+  const findings = [{ type: 'diagnostic' as const, diagnostic: diagnostic() }]
+  const clean = capture([...findings, { type: 'done', result: result({ counts: { error: 1, warn: 0, info: 0 } }) }])
+  const timed = capture([
+    ...findings,
+    {
+      type: 'done',
+      result: result({
+        counts: { error: 1, warn: 0, info: 0 },
+        timings: {
+          startupMs: 61.2,
+          phases: [{ name: 'run:oxlint', durationMs: 12.3, count: 1 }],
+          unattributedMs: 9.8,
+          rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 1 }],
+        },
+      }),
+    },
+  ])
+
+  expect(timed).toBe(clean)
+})

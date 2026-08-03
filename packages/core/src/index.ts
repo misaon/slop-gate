@@ -218,6 +218,7 @@ export {
   type CheckResult,
   type EngineCacheStats,
 } from './run/check.ts'
+export { buildTimingReport, type MeasuredPhase, type RuleFindings, type TimingReport } from './run/timing.ts'
 
 // --- `sgate fix` (spec §11) ----------------------------------------------------------------------
 export {

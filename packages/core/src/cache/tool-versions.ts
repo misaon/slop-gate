@@ -31,10 +31,14 @@ const INDEX_FILE = 'tool-versions.json'
  * **The whole reason this exists is that `version()` is a cache-key component and nothing else.**
  * Nothing in a run reads it, displays it or branches on it — it is hashed into every result key so
  * that upgrading a tool invalidates the results the old one produced. Four of the engines implement
- * it as a `<tool> --version` spawn, and measured on this repository (`SGATE_TIMING=1`) they cost
- * 36.5 ms (tsc), 25.4 ms (oxlint), 13.8 ms (actionlint) and 3.0 ms (ast-grep) — resolved
+ * it as a `<tool> --version` spawn, and measured on this repository with a span around each one they
+ * cost 36.5 ms (tsc), 25.4 ms (oxlint), 13.8 ms (actionlint) and 3.0 ms (ast-grep) — resolved
  * concurrently, so ~36 ms of a 111.6 ms internal warm run, every run, warm or cold, to learn
  * something that changes only when the machine's tooling does.
+ *
+ * Those per-engine figures are why this cache exists and are deliberately *not* what `--timing` shows:
+ * the probes overlap, so summing them would over-count the wall clock, and the breakdown reports the
+ * fan-out as one `versions` row instead (see `streamCheck`).
  *
  * ## What it is keyed on, and the staleness that buys
  *

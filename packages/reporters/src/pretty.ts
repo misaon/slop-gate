@@ -1,4 +1,4 @@
-import { compareStrings, type CheckEvent, type CheckResult, type Diagnostic, type Position, type Severity } from '@misaon/slop-gate-core'
+import { compareStrings, type CheckEvent, type CheckResult, type Diagnostic, type MeasuredPhase, type Position, type Severity } from '@misaon/slop-gate-core'
 import { displayWidth, padEndDisplay, padStartDisplay, truncateStart } from './display-width.ts'
 import { createFrameKit, plural } from './box.ts'
 import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_NOUN, SEVERITY_ORDER, SEVERITY_STYLE } from './severity.ts'
@@ -8,6 +8,19 @@ import type { Reporter, ReporterContext } from './index.ts'
 const CONFIG_HEADING = '(configuration)'
 const MOST_FREQUENT_THRESHOLD = 10
 const MOST_FREQUENT_TOP_N = 3
+/**
+ * `--timing`'s per-rule list is capped: a repository can have a hundred rules fire and the terminal is
+ * the wrong place to read all of them, so the block names the top offenders and points at the format
+ * that carries every one.
+ */
+const TIMING_RULES_TOP_N = 10
+/**
+ * Phases below this share of the run are summed into one row rather than printed. A real run of this
+ * repository measures 44 of them and 30 are under a millisecond — a list that long buries the three
+ * rows that answer "why did this take a minute?". Folded rather than dropped, so the column still adds
+ * up to the total, and the rows are individually in `--format=json` either way.
+ */
+const TIMING_PHASE_MIN_SHARE = 0.005
 
 export function createPrettyReporter(context: ReporterContext): Reporter {
   const unicode = context.unicode
@@ -276,6 +289,76 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
     }
 
     writeUnit([frameTop(), ...lines.map((line) => frameRow(line)), frameBottom()])
+    writeTimings(result)
+  }
+
+  /**
+   * `--timing` (spec §12), printed under the footer rather than inside it: `frameRow` truncates to the
+   * frame's inner width, and this block is the one place where the longest names — `normalize:deps-security`
+   * against a rule ref key — are the rows a reader asked for. Unframed, like the body above it.
+   *
+   * Absent unless `CheckOptions.timing` collected a report, which is what keeps a plain `sgate check`
+   * output byte-for-byte what it was.
+   */
+  function writeTimings(result: CheckResult): void {
+    const report = result.timings
+    if (report === undefined) return
+    const total = result.stats.durationMs
+
+    const isLarge = (phase: MeasuredPhase): boolean => total <= 0 || phase.durationMs / total >= TIMING_PHASE_MIN_SHARE
+    const large = report.phases.filter(isLarge)
+    const folded = report.phases.filter((phase) => !isLarge(phase))
+    const rows: Array<{ name: string; durationMs: number; count: number }> = [
+      // First and last, and in the order the run happened: `startup` is over before core is called and
+      // `unattributed` is settled last, so bracketing the engine work with them is what makes the
+      // column read as an account of the whole run rather than a ranking with two oddities in it.
+      { name: 'startup', durationMs: report.startupMs, count: 1 },
+      ...large,
+      ...(folded.length === 0
+        ? []
+        : [{ name: plural(folded.length, 'smaller phase'), durationMs: folded.reduce((sum, phase) => sum + phase.durationMs, 0), count: 1 }]),
+      { name: 'unattributed', durationMs: report.unattributedMs, count: 1 },
+    ]
+
+    const nameWidth = Math.max(...rows.map((row) => displayWidth(row.name)))
+    const lines = [`  ${paint('bold', 'timing')}${statsSeparator}${total} ms total`]
+    for (const row of rows) {
+      // Omitted rather than shown as `Infinity%` when the run rounded to nothing: a share of zero is
+      // not a measurement, and the millisecond column still says everything it can.
+      const share = total <= 0 ? '' : `${((row.durationMs / total) * 100).toFixed(1)}%`
+      const spans = row.count > 1 ? `  ${multiplySign}${row.count}` : ''
+      lines.push(
+        `    ${padEndDisplay(row.name, nameWidth)}  ${padStartDisplay(row.durationMs.toFixed(1), 7)} ms  ` +
+          `${paint('dim', padStartDisplay(share, 6) + spans)}`,
+      )
+    }
+    // The two rows core measured but cannot itemise, said out loud. Either can be the largest number in
+    // the table on a warm run, and a reader who takes them for engine work will tune the wrong thing:
+    // `startup` is over before core is called, and `unattributed` is mostly this reporter, since
+    // `streamCheck` is a generator suspended inside a `yield` while a code frame is drawn.
+    for (const note of [
+      'startup is node boot, the module graph and config load, before core ran.',
+      "unattributed is orchestration and this reporter's own time between yields.",
+      '`--format=json` carries every phase and every rule, uncapped.',
+    ]) {
+      // Wrapped to the frame's own right edge (`width` plus its two-column margin, less this
+      // block's four-space indent) so the note sits under the table rather than past it.
+      for (const line of wrapText(note, Math.max(1, width - 2))) lines.push(`    ${paint('dim', line)}`)
+    }
+    writeUnit(lines)
+
+    if (report.rules.length === 0) return
+    const shown = report.rules.slice(0, TIMING_RULES_TOP_N)
+    const omitted = report.rules.length - shown.length
+    // Named a count, in the heading, because this is the one column of `--timing` that is not a
+    // duration and could be misread as one — see `RuleFindings` in core for why it cannot be.
+    const ruleLines = [`  ${paint('bold', 'findings by rule')}${statsSeparator}${paint('dim', 'a count: no engine reports per-rule time')}`]
+    const keyWidth = Math.max(1, width - 8)
+    for (const rule of shown) {
+      ruleLines.push(`    ${padStartDisplay(String(rule.findings), 4)}  ${truncateStart(rule.ruleRefKey, keyWidth)}`)
+    }
+    if (omitted > 0) ruleLines.push(`    ${paint('dim', plural(omitted, 'more rule'))}`)
+    writeUnit(ruleLines)
   }
 
   return {

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import type { CheckEvent, CheckResult, Diagnostic, UnavailableEngine } from '@misaon/slop-gate-core'
+import type { CheckEvent, CheckResult, Diagnostic, TimingReport, UnavailableEngine } from '@misaon/slop-gate-core'
 import { displayWidth, hasWideOrFullwidthCharacter } from './display-width.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
@@ -712,4 +712,111 @@ test('reports stale entries as fixed findings and names the command that prunes 
 test('says nothing about a baseline when there is none', () => {
   const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
   expect(output).not.toContain('baseline')
+})
+
+const timings = (over: Partial<TimingReport> = {}): TimingReport => ({
+  startupMs: 61.2,
+  phases: [
+    { name: 'run:tsc', durationMs: 40.1, count: 1 },
+    { name: 'normalize:oxlint', durationMs: 6.2, count: 307 },
+  ],
+  unattributedMs: 9.8,
+  rules: [
+    { ruleRefKey: 'oxlint/no-debugger', findings: 23 },
+    { ruleRefKey: 'tsc/2345', findings: 4 },
+  ],
+  ...over,
+})
+
+const timed = (over: Partial<TimingReport> = {}, durationMs = 117): CheckEvent => ({
+  type: 'done',
+  result: result({ counts: { error: 0, warn: 0, info: 0 }, stats: { ...result().stats, durationMs }, timings: timings(over) }),
+})
+
+test('says nothing about timing when nobody asked for it', () => {
+  const output = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }])
+
+  expect(output).not.toContain('timing')
+  expect(output).not.toContain('unattributed')
+})
+
+test('prints the timing breakdown under the footer, each row as a share of the run', () => {
+  const output = capture([timed()])
+
+  const footerEnd = output.lastIndexOf('\u256f')
+  expect(output.indexOf('timing')).toBeGreaterThan(footerEnd)
+  expect(output).toMatch(/startup\s+61\.2 ms\s+52\.3%/)
+  expect(output).toMatch(/run:tsc\s+40\.1 ms\s+34\.3%/)
+  expect(output).toMatch(/unattributed\s+9\.8 ms\s+8\.4%/)
+  expect(output).toContain('117 ms total')
+})
+
+test('brackets the engine work with the two rows that are not engine work, so the column reads as an account', () => {
+  const output = capture([timed()])
+
+  const rows = output
+    .split('\n')
+    .filter((line) => /^ {4}\S.* ms {2}/.test(line))
+    .map((line) => line.trim().split(/\s+/)[0])
+  expect(rows[0]).toBe('startup')
+  expect(rows.at(-1)).toBe('unattributed')
+})
+
+test('shows how many spans a per-file phase summed, so 6 ms across 307 files is not read as one call', () => {
+  const output = capture([timed()])
+
+  expect(output).toMatch(/normalize:oxlint\s+6\.2 ms\s+\d+\.\d%\s+\u00d7307/)
+  expect(output).not.toMatch(/run:tsc.*\u00d71/)
+})
+
+test('folds the phases too small to matter into one row rather than dropping them, so the column still adds up', () => {
+  const phases = [
+    { name: 'run:tsc', durationMs: 40.1, count: 1 },
+    ...Array.from({ length: 12 }, (_, index) => ({ name: `dispose:e${index}`, durationMs: 0.1, count: 1 })),
+  ]
+  const output = capture([timed({ phases })])
+
+  expect(output).not.toContain('dispose:e0')
+  expect(output).toMatch(/12 smaller phases\s+1\.2 ms/)
+})
+
+test('names what the two rows core cannot itemise are actually made of', () => {
+  const output = capture([timed()])
+
+  expect(output).toContain('node boot')
+  expect(output).toContain('module graph')
+  expect(output).toContain('between yields')
+})
+
+test('per rule the breakdown is a finding count, and says so rather than implying a duration', () => {
+  const output = capture([timed()])
+
+  expect(output).toContain('findings by rule')
+  expect(output).toContain('no engine reports per-rule time')
+  expect(output).toMatch(/23\s+oxlint\/no-debugger/)
+  expect(output).toMatch(/4\s+tsc\/2345/)
+})
+
+test('caps the per-rule list and says how much of it is missing', () => {
+  const rules = Array.from({ length: 14 }, (_, index) => ({ ruleRefKey: `oxlint/rule-${index}`, findings: 20 - index }))
+  const output = capture([timed({ rules })])
+
+  expect(output).toContain('oxlint/rule-9')
+  expect(output).not.toContain('oxlint/rule-10')
+  expect(output).toContain('4 more rules')
+  expect(output).toContain('`--format=json` carries every phase and every rule')
+})
+
+test('a run with nothing to report per rule prints the phases and no empty heading', () => {
+  const output = capture([timed({ rules: [] })])
+
+  expect(output).toContain('unattributed')
+  expect(output).not.toContain('findings by rule')
+})
+
+test('the timing block never widens the output past the frame', () => {
+  const output = capture([timed({ rules: [{ ruleRefKey: `oxlint/${'x'.repeat(120)}`, findings: 1 }] })])
+
+  // 82: the 80-column frame plus the two-space left margin every line in this reporter carries.
+  for (const line of output.split('\n')) expect(displayWidth(line)).toBeLessThanOrEqual(82)
 })

@@ -37,6 +37,7 @@ export const check = defineCommand({
       default: false,
       description: 'Exit 3 when a registered engine is not installed here',
     },
+    timing: { type: 'boolean', default: false, description: 'Show where the run spent its time' },
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
@@ -53,6 +54,16 @@ export const check = defineCommand({
       process.stderr.write(`--max-tokens must be a positive integer, got: ${args['max-tokens']}\n`)
       process.exitCode = EXIT_CODES.config
       return
+    }
+
+    // Refused for `agent` rather than collected and dropped. That reporter withholds everything
+    // run-dependent on purpose, so its output is byte-identical between a cold and a warm run
+    // (`packages/reporters/src/agent.ts`, and the e2e test that pins it) — there is nowhere for a
+    // breakdown to go. Said on stderr, because the alternative is a flag that measures a run and
+    // silently prints nothing, which is the same failure `--require-engines` writes here to avoid.
+    const timing = args.timing === true && args.format !== 'agent'
+    if (args.timing === true && !timing) {
+      process.stderr.write('--timing is ignored by `--format=agent`: that report is byte-identical between runs by design.\n')
     }
 
     const loaded = await loadCliConfig(rootDir, DEFAULT_CONFIG)
@@ -115,6 +126,10 @@ export const check = defineCommand({
         // roughly 73 ms of a 157 ms run here, which is why the reported figure used to be about half
         // the one a stopwatch gives. See `CheckOptions.startedAt`.
         startedAt: 0,
+        // Which is also what makes `--timing`'s `startup` row possible: the gap between process start
+        // and core's first statement is node boot, the module graph and `loadCliConfig` above, and it
+        // is routinely the largest row on a warm run.
+        timing,
         signal: controller.signal,
       })) {
         reporter.onEvent(event)

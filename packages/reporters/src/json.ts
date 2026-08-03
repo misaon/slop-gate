@@ -31,6 +31,12 @@ export function createJsonReporter(context: ReporterContext): Reporter {
             version: JSON_REPORT_VERSION,
             counts: event.result.counts,
             stats: event.result.stats,
+            // Omitted entirely unless `--timing` asked for it, and **no version bump**: every rule this
+            // document's version exists to serve is about an emptiness whose meaning expired, and an
+            // absent `timings` says only that nobody asked to measure. A v4 reader's assumptions all
+            // survive it. `phases` accounts for the whole of `stats.durationMs`; `rules` carries a
+            // finding count per rule rather than a duration, for the reason `TimingReport` gives.
+            ...(event.result.timings === undefined ? {} : { timings: event.result.timings }),
             ruleset: event.result.ruleset,
             engineFailures: event.result.engineFailures,
             // Emitted whole, including an absent engine that displaced nothing: `pretty` and `agent`

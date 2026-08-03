@@ -10,6 +10,7 @@ import type { FrameworkDetection } from '../frameworks/types.ts'
 import { electOwners, type DisplacedOwner, type ElectionResult } from '../registry/elect.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import type { EngineId, RuleEntry } from '../registry/types.ts'
+import { NO_TIMING, type Timing } from './timing.ts'
 
 export type ResolveRunOptions = {
   rootDir: string
@@ -30,6 +31,13 @@ export type ResolveRunOptions = {
   fileSource?: FileSource
   /** Overridable so a test can pin an exact detected set without staging a repository for it. */
   frameworks?: FrameworkDetection
+  /**
+   * `--timing`'s collector, threaded in rather than the caller wrapping this whole call in one phase:
+   * the inventory walk and arbitration are two of the things a user reaching for `--timing` is trying
+   * to separate from engine work, and they are both in here. Defaults to `NO_TIMING`, which is what
+   * every `sgate rules` caller gets.
+   */
+  timing?: Timing
   signal?: AbortSignal
 }
 
@@ -91,41 +99,42 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
   const signal = options.signal ?? new AbortController().signal
   const entries = options.entries ?? RULE_ENTRIES
   const configFile = options.configFile
+  const timing = options.timing ?? NO_TIMING
 
-  const inventory = await buildInventory({
+  const inventory = await timing.phase('discover', () => buildInventory({
     rootDir: options.rootDir,
     ...(options.config.ignore === undefined ? {} : { ignore: options.config.ignore }),
     ...(options.fileSource === undefined ? {} : { source: options.fileSource }),
     signal,
-  })
+  }))
 
   // Ordered, not incidental (spec §23.1): detection reads the inventory, and the resolver reads
   // detection. That is also why discovery cannot be skipped for the governance commands — see the
   // note below on language applicability, which now has a second reason behind it.
-  const frameworks = options.frameworks ?? (await detectFrameworks({ inventory }))
-  const resolver = createRuleSetResolver({
+  const frameworks = options.frameworks ?? (await timing.phase('detect-frameworks', () => detectFrameworks({ inventory })))
+  const resolver = timing.wrap('resolve-ruleset', () => createRuleSetResolver({
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),
     frameworks: frameworkRuleLayers(frameworks),
     frameworkOverrides: frameworkOverrideLayers(frameworks),
-  })
+  }))
 
   // Probed before the election, because availability decides who *can* own a concept (see
   // `ElectionInput.unavailableEngines`). `Engine.availability` is contractually filesystem-only, so
   // this stays safe for `sgate rules why` — which must explain a run without performing any of it.
-  const probes = await Promise.all(
+  const probes = await timing.phase('availability', () => Promise.all(
     options.engines.map(async (engine) => ({
       engine: engine.id,
       availability: (await engine.availability?.()) ?? ({ available: true } as const),
     })),
-  )
+  ))
   // `flatMap` rather than `filter`: a predicate does not narrow `EngineAvailability`, and reading
   // `reason` off the union afterwards would need a cast that could outlive the shape it assumes.
   const absent = probes.flatMap((probe) =>
     probe.availability.available ? [] : [{ engine: probe.engine, availability: probe.availability }],
   )
 
-  const election = electOwners({
+  const election = timing.wrap('arbitrate', () => electOwners({
     entries,
     enabledConcepts: resolver.anyEnabledConcepts,
     capabilities: new Set(options.engines.flatMap((engine) => engine.capabilities.provides)),
@@ -136,7 +145,7 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
     // contract `streamCheck` relies on, now shared verbatim rather than re-derived.
     participatingEngines: new Set(options.engines.map((engine) => engine.id)),
     pinnedOwners: resolver.base.pinnedOwners,
-  })
+  }))
 
   // Assembled after the election because `displaced` is an election outcome, not a property of the
   // probe: whether an absent engine cost the run anything depends on who else was standing.

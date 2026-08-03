@@ -453,9 +453,12 @@ function renderDocument(
     .map((severity) => `${severity} ${result.counts[severity]}`)
     .join(', ')
   lines.push(`findings: ${total}${counts === '' ? '' : ` (${counts})`}`)
-  // `durationMs`, `filesFromCache` and `enginesRun` are deliberately absent: they differ between two
-  // runs over identical source, and this report's whole value as an agent input rests on being
-  // byte-identical when the repository is.
+  // `durationMs`, `filesFromCache`, `enginesRun` and the whole of `timings` are deliberately absent:
+  // they differ between two runs over identical source, and this report's whole value as an agent input
+  // rests on being byte-identical when the repository is. `--timing` therefore does nothing here — not
+  // an oversight, and `sgate check` says so on stderr rather than measuring a run it will not print
+  // (see `packages/cli/src/commands/check.ts`). A `timings` block would break the e2e test that pins
+  // this property, and it would be right to.
   lines.push(`scope: ${result.stats.filesScanned} files scanned, ${result.stats.filesAnalysed} analysed`)
 
   lines.push(...incompletenessLines(result))

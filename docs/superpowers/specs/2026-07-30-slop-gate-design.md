@@ -740,7 +740,8 @@ All reporters consume the same diagnostic stream.
 
 - **`pretty`** (default, human): framed header and footer, an open (unframed) body grouped by file
   with code frames, OSC 8 hyperlinks to rule docs, top-offending files, optional `--timing` breakdown
-  per engine and rule. Honours `NO_COLOR`, `FORCE_COLOR` and TTY detection for colour, and `TERM=dumb`
+  — per phase and engine, and per rule a finding count rather than a duration, for the reason §12.4
+  gives. Honours `NO_COLOR`, `FORCE_COLOR` and TTY detection for colour, and `TERM=dumb`
   separately for an ASCII-only frame and severity-marker fallback — colour and Unicode degrade
   independently, so a non-TTY pipe (colour off) still gets the real frame and emoji glyphs, and only
   `TERM=dumb` (not "not a TTY") drops to ASCII.
@@ -924,10 +925,60 @@ Truncation is never silent, which is the property everything else is arranged ar
   A report that fits its budget by hiding what it dropped is worse than one that overruns. The
   practical floor is roughly 600 tokens for a two-concept run and 1,600 for this repository's six.
 
-**Nothing time- or cache-dependent is printed.** `durationMs`, `filesFromCache` and `enginesRun` are
-omitted deliberately: the format's value as an agent input rests on the same repository state
-producing the same bytes, and `packages/cli/src/e2e.test.ts` proves it end to end by comparing a cold
-run's report with a warm one's.
+**Nothing time- or cache-dependent is printed.** `durationMs`, `filesFromCache`, `enginesRun` and the
+whole of `--timing` are omitted deliberately: the format's value as an agent input rests on the same
+repository state producing the same bytes, and `packages/cli/src/e2e.test.ts` proves it end to end by
+comparing a cold run's report with a warm one's. `--timing` therefore does nothing here, and
+`sgate check` says so on stderr rather than measuring a run it has nowhere to print.
+
+### 12.4 `--timing`, and the part of it that cannot be built
+
+The first version of this section promised a `--timing` breakdown "per engine and rule". Per engine is
+measurable and shipped. **Per rule is not achievable at all, and no amount of work on our side changes
+that** — so it is written down here rather than approximated into something that looks like it.
+
+An engine is an external process. We hand `tsc` a program and `oxlint` a file list, and read what comes
+back. Neither reports how long any one of *its* rules took, and neither has a mode that would: `tsc`
+does not attribute time to a diagnostic code, and oxlint's rules run inside a single AST pass whose cost
+is not separable per rule even in principle. Any per-rule millisecond figure slop-gate printed would be
+invented. The one number that is genuinely available at that boundary is **how many findings each rule
+produced**, and that is what the per-rule block reports — labelled a count, in the output, so it cannot
+be misread as a duration.
+
+What *is* measured, and how the rows add up:
+
+- **`startupMs` + every phase + `unattributedMs` = `stats.durationMs`.** `durationMs` measures from
+  process start, so a breakdown of only what happened inside `streamCheck` would leave a reader
+  subtracting to find the rest of their own run. It adds up instead.
+- **`startup`** is everything before core was called: node boot, the ESM module graph and
+  `loadCliConfig`. It is one row and not three, because core cannot split what it was not running for —
+  all it sees is the gap between the `startedAt` the caller claimed and its own first statement. On a
+  warm run of this repository it is the second-largest row. A long-lived host (§12.1) reports `0` here:
+  its process start has nothing to do with this run.
+- **The inventory walk is `discover`; rule-registry arbitration is `arbitrate`.** Both are ours, both
+  are phases, neither is engine work — which is the distinction someone reaching for this flag is
+  usually trying to draw.
+- **An engine's own subprocess time is `run:<engine>`**; our normalization of what it returned is
+  `normalize:<engine>`. Together those are the honest answer to "what does this engine cost me", and
+  the second is the only part any rule's cost lands in on our side of the boundary.
+- **Concurrent spans are reported as one row, never summed.** The `version()` probes are the only
+  concurrent work in a run; six overlapping 30 ms probes summed to 180 ms of a 155 ms run and made
+  every other row's share wrong, so the fan-out is one `versions` row.
+- **`unattributed` is real, and is mostly the reporter.** `streamCheck` is an async generator: while
+  `pretty` renders a code frame the run is suspended inside a `yield` and the clock is still running.
+  The row is labelled with what it contains rather than left to be read as slack in the orchestrator.
+
+**Off costs nothing, and that is measured rather than assumed.** Instrumentation is compiled in
+unconditionally and inert unless `--timing` asked for it — one indirect call through a no-op collector
+per point, about 1 300 of them on a cold run of this repository, since `read-source`, `normalize` and
+`cache-write` are measured per file. hyperfine 1.20.0, instrumentation absent vs. present with the flag
+off: warm 155.5 ms ± 2.2 → 155.8 ms ± 2.5, cold 5.949 s ± 0.055 → 5.984 s ± 0.077. Both inside 1σ, so
+no compile-time switch.
+
+**The terminal folds, `json` does not.** A real run of this repository measures 44 phases and 30 of them
+are under a millisecond, so `pretty` prints the rows worth ≥ 0.5% of the run and sums the rest into one
+labelled row — the column still adds to the total, and `--format=json` carries every phase and every
+rule uncapped.
 
 ---
 
@@ -1617,6 +1668,14 @@ sgate lsp                                  # phase 6
 Global flags: `--format <pretty|agent|json|sarif|github|junit>`, `--since <ref>`, `--only <concept-glob>`,
 `--engine <id>`, `--max-warnings <n>`, `--frozen-rules`, `--no-cache`, `--concurrency <n>`,
 `--max-tokens <n>`, `--timing`, `--quiet`, `--verbose`.
+
+`--timing` shows where the run's wall clock went, and the breakdown adds up to the duration printed
+beside it: startup (node boot, the module graph, config load), each measured phase — the inventory walk,
+arbitration, each engine's subprocess and each engine's normalization — and the residual, labelled.
+Rendered by `pretty` under the footer and by `json` as a `timings` object; **ignored by `agent`**, whose
+whole contract is being byte-identical between two runs of the same repository, and `sgate check` says so
+on stderr rather than measuring a run it cannot print. Per **rule** it reports a finding count and not a
+duration: §12.4 says why that is a limit of the engine boundary rather than an unfinished feature.
 
 `check` analyses everything by default and relies on the cache for speed. `--since <ref>` restricts
 per-file engines to changed files while still running project-granularity engines whole — narrowing

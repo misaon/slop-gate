@@ -1111,3 +1111,44 @@ test('an absent engine that would have lost anyway is reported with nothing disp
 
   expect(result.unavailableEngines).toEqual([{ engine: 'astgrep', reason: 'not installed', displaced: [] }])
 })
+
+test('a run nobody asked to time carries no timing report at all', async () => {
+  const result = await runCheck({ ...baseOptions(), engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })] })
+
+  expect(result.timings).toBeUndefined()
+})
+
+test('the timing rows name the walk, arbitration and the engine, and account for the whole reported duration', async () => {
+  const result = await runCheck({
+    ...baseOptions(),
+    engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })],
+    timing: true,
+    // From process start, as a one-shot CLI passes it: that is what produces a `startup` row, and
+    // without one the breakdown would silently omit node boot, the module graph and config loading.
+    startedAt: 0,
+  })
+
+  const report = result.timings!
+  const names = report.phases.map((phase) => phase.name)
+  expect(names).toEqual(expect.arrayContaining(['discover', 'arbitrate', 'versions', 'run:oxlint', 'normalize:oxlint']))
+  // No `version:oxlint`: the probes are concurrent, so they are reported as one span (see `streamCheck`).
+  expect(names).not.toContain('version:oxlint')
+
+  expect(report.startupMs).toBeGreaterThan(0)
+  // Negative would mean two phases overlapped and one was counted twice.
+  expect(report.unattributedMs).toBeGreaterThanOrEqual(0)
+  const summed = report.startupMs + report.phases.reduce((total, phase) => total + phase.durationMs, 0) + report.unattributedMs
+  expect(Math.abs(summed - result.stats.durationMs)).toBeLessThan(1)
+
+  expect(report.rules).toEqual([{ ruleRefKey: 'oxlint/no-debugger', findings: 1 }])
+})
+
+test('a long-lived host that does not claim process start is charged no startup', async () => {
+  const result = await runCheck({
+    ...baseOptions(),
+    engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })],
+    timing: true,
+  })
+
+  expect(result.timings?.startupMs).toBe(0)
+})

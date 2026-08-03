@@ -22,7 +22,7 @@ import { buildPlan, type EngineAssignment } from '../planner/plan.ts'
 import type { ElectionResult } from '../registry/elect.ts'
 import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
 import { resolveRun, type UnavailableEngine } from './resolve-run.ts'
-import { createTiming, NO_TIMING, writeTimingReport, type Timing } from './timing.ts'
+import { buildTimingReport, createTiming, NO_TIMING, type Timing, type TimingReport } from './timing.ts'
 
 export type CheckOptions = {
   rootDir: string
@@ -71,6 +71,16 @@ export type CheckOptions = {
    * process start is when the *server* booted and has nothing to do with this run.
    */
   startedAt?: number
+  /**
+   * Collects the `--timing` breakdown onto `CheckResult.timings` (spec §12, §15). Off by default, and
+   * off means one indirect call through `NO_TIMING` per instrumentation point — see `./timing.ts` for
+   * what that costs, measured.
+   *
+   * A boolean the caller sets, not an environment variable this reads, and nothing here prints: a run
+   * is instrumented because a flag asked for it, and what happens to the report is the reporter's
+   * decision (`agent` deliberately ignores it — see `packages/reporters/src/agent.ts`).
+   */
+  timing?: boolean
   /**
    * Asks every engine for fix data (spec §11 step 1), capped at this tier. Absent on a plain
    * `sgate check`, which is what keeps an adapter that has to *derive* fixes by re-running itself
@@ -160,6 +170,16 @@ export type CheckResult = {
      */
     durationMs: number
   }
+  /**
+   * Where `stats.durationMs` went, present only when `CheckOptions.timing` asked for it (`--timing`).
+   *
+   * Optional rather than required-and-nullable, which is the opposite of the choice `baseline` and
+   * `unavailableEngines` above make, and for the opposite reason: those exist so a reporter cannot
+   * *forget* something that changes what a clean run means. This changes nothing about the verdict, and
+   * absent means only "nobody asked" — a reporter with no interest in it is not making a mistake. See
+   * `TimingReport` for what the rows are and what `unattributed` is honestly made of.
+   */
+  timings?: TimingReport
   ruleset: {
     enabledConcepts: number
     overlaps: number
@@ -194,12 +214,13 @@ export async function runCheck(options: CheckOptions): Promise<CheckResult> {
 
 export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEvent> {
   // Two clocks, because they answer different questions and conflating them is what made `durationMs`
-  // wrong. `enteredAt` is this function's own span, which is all the `SGATE_TIMING` phase report can
-  // legitimately be a percentage of; `startedAt` is what the *caller* considers the run's start, and is
-  // what the user is told (see `CheckOptions.startedAt`).
+  // wrong. `enteredAt` is this function's own span, which is all the measured phases can legitimately be
+  // a percentage of; `startedAt` is what the *caller* considers the run's start, and is what the user is
+  // told (see `CheckOptions.startedAt`). The gap between them is the `startup` row of the `--timing`
+  // breakdown — the one part of the run core can price but not itemise.
   const enteredAt = performance.now()
   const startedAt = options.startedAt ?? enteredAt
-  const timing = process.env['SGATE_TIMING'] === '1' ? createTiming() : NO_TIMING
+  const timing = options.timing === true ? createTiming() : NO_TIMING
   const signal = options.signal ?? new AbortController().signal
   const cacheDir = options.cacheDir ?? join(options.rootDir, '.slop-gate', 'cache')
   const useCache = options.useCache ?? true
@@ -217,15 +238,16 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // invoked yet. Shared verbatim with `sgate rules`'s governance commands via `resolveRun`; see
   // that module's own doc comment for why this is the extraction boundary rather than the full
   // prepare/plan/schedule split M2 needs.
-  const { resolver, election, inventory, entries, frameworks, unavailableEngines } = await timing.phase('resolve-run', () => resolveRun({
+  const { resolver, election, inventory, entries, frameworks, unavailableEngines } = await resolveRun({
     rootDir: options.rootDir,
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),
     engines: options.engines,
     ...(options.entries === undefined ? {} : { entries: options.entries }),
     ...(options.fileSource === undefined ? {} : { fileSource: options.fileSource }),
+    timing,
     signal,
-  }))
+  })
 
   // Hashes the full entries, not just their ids: normalization bakes `concepts`, `classify`,
   // `severityDefault` and `docsUrl` into every cached diagnostic, so an upgrade that changes any of
@@ -371,18 +393,24 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   // first rejection *and* leave the other rejections unattached, which under Node's default
   // `--unhandled-rejections=throw` is a crashed process rather than a warning. So each outcome is
   // carried into the loop and rethrown at exactly the point the call used to be made.
+  //
+  // One `versions` phase around the whole fan-out rather than one per engine, because these are the
+  // only concurrent spans in the run and a per-engine row would be a lie of a kind the rest of the
+  // breakdown is free of: six overlapping 30 ms probes summed to 180 ms of a 155 ms run, and every
+  // other row's share of the wall clock would then be wrong. What a reader can act on is the
+  // serialisation this removed, which is one number.
   const planned = new Map<string, { engine: Engine; version: string } | { engine: Engine; error: unknown }>()
-  await Promise.all(
+  await timing.phase('versions', () => Promise.all(
     [...new Set(plan.map((assignment) => assignment.engineId))].map(async (engineId) => {
       const engine = engineById.get(engineId)
       if (engine === undefined) return
       try {
-        planned.set(engineId, { engine, version: await timing.phase(`version:${engineId}`, () => engine.version(toolVersionCache)) })
+        planned.set(engineId, { engine, version: await engine.version(toolVersionCache) })
       } catch (error) {
         planned.set(engineId, { engine, error })
       }
     }),
-  )
+  ))
 
   // Wrapped so a consumer that stops iterating early (breaking out of a `for await`) still
   // triggers this `finally` via the generator's implicit `return()` — otherwise every hash
@@ -532,7 +560,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               // source has to be read and scanned for directives regardless of whether it produced
               // any raw findings this run — `suppressionScanFiles` below is what makes
               // `normalizeDiagnostics` do that even with an empty `raws`.
-              const source = await timing.phase(`read-source:${engine.id}`, () => Promise.resolve(readSource(path)))
+              const source = await timing.phase(`read-source:${engine.id}`, () => readSource(path))
               const normalized = timing.wrap(`normalize:${engine.id}`, () => normalizeDiagnostics({
                 engine: engine.id,
                 raws: fileRaws,
@@ -605,7 +633,9 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     .map(([engine, filesAssigned]) => ({ engine, filesAssigned, filesFromCache: cacheHitsByEngine.get(engine) ?? 0 }))
     .sort((a, b) => compareStrings(a.engine, b.engine))
 
-  writeTimingReport(timing, performance.now() - enteredAt)
+  // One reading, used for `durationMs` and for the timing rows both, so the breakdown adds up to the
+  // number printed beside it rather than to a clock that moved on while the report was being built.
+  const finishedAt = performance.now()
 
   yield {
     type: 'done',
@@ -621,8 +651,18 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
         filesFromCache,
         cacheByEngine,
         enginesRun,
-        durationMs: Math.round(performance.now() - startedAt),
+        durationMs: Math.round(finishedAt - startedAt),
       },
+      ...(timing.enabled
+        ? {
+            timings: buildTimingReport({
+              phases: timing.measured(),
+              startupMs: enteredAt - startedAt,
+              insideMs: finishedAt - enteredAt,
+              diagnostics: collected,
+            }),
+          }
+        : {}),
       ruleset: {
         // `anyEnabledConcepts`, not `base`: a concept enabled only by an override is still checked
         // on the files it matches, so reporting the base count would undercount the run.
@@ -754,12 +794,14 @@ async function* runProjectAssignment(
     else byFile.set(raw.file, [raw])
   }
 
+  // Measured per file, with the read split out of the normalize, so the two rows mean the same thing
+  // here as they do in the file-granularity loop above and a reader comparing `normalize:tsc` against
+  // `normalize:oxlint` is comparing the same work.
   const normalized: Diagnostic[] = []
-  await timing.phase(`normalize:${engine.id}`, async () => {
   for (const [path, fileRaws] of byFile) {
-    const source = await ctx.readSource(path)
+    const source = await timing.phase(`read-source:${engine.id}`, () => ctx.readSource(path))
     normalized.push(
-      ...normalizeDiagnostics({
+      ...timing.wrap(`normalize:${engine.id}`, () => normalizeDiagnostics({
         engine: engine.id,
         raws: fileRaws,
         entries: ctx.entries,
@@ -768,10 +810,9 @@ async function* runProjectAssignment(
         levelOf: (concept) => ctx.resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
         suppressionScanFiles: [path],
         generated: ctx.generated,
-      }),
+      })),
     )
   }
-  })
 
   if (ctx.useCache) await timing.phase(`cache-write:${engine.id}`, () => ctx.projectResultStore.set(engine.id, key, normalized, components))
   yield* normalized
