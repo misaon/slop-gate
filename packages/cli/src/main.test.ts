@@ -10,13 +10,17 @@ const run = promisify(execFile)
 const srcDir = dirname(fileURLToPath(import.meta.url))
 
 // Runs the TypeScript source directly (Node >=24 strips types natively) rather than the built
-// `bin/sgate.js` -> `dist/main.js`. This suite's own CI order is install -> typecheck -> test ->
-// build, so `packages/cli/dist` does not exist yet when `pnpm test` runs — only this package's
-// *dependencies* get built first, as a side effect of `typecheck`'s turbo `dependsOn: ["^build"]`.
-// Spawning the built binary here would make this test depend on `pnpm build` having already run,
-// which is not true in this suite. Spawning the real process (rather than importing and calling a
-// function) is still essential: it is the only way to exercise `process.argv`-driven dispatch and
-// observe the real OS-level exit code, which is exactly what is under test.
+// `bin/sgate.js` -> `dist/main.js`, so this file needs no prior build of `packages/cli` itself.
+// Spawning the real process (rather than importing and calling a function) is essential: it is the
+// only way to exercise `process.argv`-driven dispatch and observe the real OS-level exit code, which
+// is exactly what is under test.
+//
+// It is also, now, part of how this repository knows its build works. `main.ts` imports every engine
+// package by name through `./engines.ts`, and a spawned child resolves those against real
+// `node_modules` — so this suite loads all twelve packages' `dist/index.js` even though the file it
+// spawns is source. The root vitest config aliases workspace packages to `src` for in-process tests,
+// which a child process cannot see; that comment explains why these spawns must stay spawns. Turning
+// this into an in-process import would silently retire the coverage.
 const mainPath = join(srcDir, 'main.ts')
 
 async function spawnScript(

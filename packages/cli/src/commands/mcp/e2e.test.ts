@@ -18,7 +18,9 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
  *
  * **This runs the built `dist`, not `src`.** That is the point (it is what a user installs) and the
  * cost (a stale build tests stale code), which is why the repository's convention is `pnpm build`
- * before `pnpm test`.
+ * before `pnpm test`. Since the root vitest config aliases workspace packages to `src`, this
+ * subprocess — which cannot see that alias — is one of only three places the suite still exercises
+ * built output at all; see the reasoning there before making it an in-process call.
  */
 const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'bin', 'sgate.js')
 
