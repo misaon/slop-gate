@@ -27,7 +27,45 @@ export type OptionedRule = {
  * Levels stay the same as everything else in `recommended`: `warn` unless a rule clears the bar
  * `config.compose-schema` and `types.type-error` set, which none of these do.
  */
+/**
+ * The assertion shapes `expect-expect` cannot see by itself. Shared by both twins below so the jest and
+ * vitest halves of one rule cannot drift into disagreeing about what an assertion is.
+ *
+ * `**.expect` and `**.should.**` are property chains, not function names: supertest's
+ * `request(app).post(url).expect(201)` and chai's `value.should.be.equal(true)`. `*.expect` was measured
+ * too and matches neither — the matcher needs `**` to cross a chain of unknown depth.
+ *
+ * A bare `should*` is deliberately absent where `expect*` and `assert*` are present: `shouldRetry()` is a
+ * predicate, and admitting it would silence real findings to buy nothing measurable.
+ */
+const ASSERTION_SHAPES = ['expect', 'expect*', 'assert*', '**.expect', '**.should.**'] as const
+
+const EXPECT_EXPECT_REASON =
+  '**3206 findings on default settings, 584 with these `assertFunctionNames` — an 81.8% reduction, ' +
+  'measured over nine third-party repositories plus one of the author\'s own applications.** Per repo: ' +
+  'metabase 145 → 0, nest 779 → 19, srvc-loan 869 → 74, typeorm 954 → 221, trpc 144 → 54, hono 209 → 110, ' +
+  'date-fns 100 → 100, prettier 6 → 6, fastify and got 0 → 0.\n\n' +
+  'The rule reads "test has no assertions" from the *name of the function called*, so it cannot see the two ' +
+  'ways a real test suite asserts most often. nest\'s 779 were almost entirely supertest — ' +
+  '`request(server).post(\'/photo\').expect(201, {...})` — and typeorm\'s were chai\'s `should` style, ' +
+  '`migrations.should.be.equal(true)`. Neither is a call to anything named `expect`, and both assert.\n\n' +
+  'Verified not to blunt the rule: a test whose body is `const x = 1` is still reported under every option ' +
+  'value measured here. The 584 that survive are not all real either — date-fns\'s 100 are **type-level ' +
+  'tests**, whose assertion is that the body compiles at all, and no value of this option can see that. That ' +
+  'residue is why the vitest twin sits at `warn` rather than the `error` its category would give it: a ' +
+  'type-level test is an ordinary TypeScript pattern and must not fail a build.'
+
 export const OPTIONED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, OptionedRule>>> = {
+  'correctness.jest-expect-expect': {
+    setting: ['warn', { assertFunctionNames: [...ASSERTION_SHAPES] }],
+    reason: EXPECT_EXPECT_REASON,
+  },
+
+  'correctness.vitest-expect-expect': {
+    setting: ['warn', { assertFunctionNames: [...ASSERTION_SHAPES] }],
+    reason: EXPECT_EXPECT_REASON,
+  },
+
   'pedantic.eqeqeq': {
     setting: ['warn', 'smart'],
     reason:
