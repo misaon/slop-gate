@@ -38,24 +38,23 @@ export async function materializeOxlintConfig(
   context: RunContext,
 ): Promise<EngineConfigHandle> {
   // `[level, ...options]` when the rule has options, a bare level string otherwise — oxlint's own
-  // two config shapes, unchanged for a rule that has none so the hash of an option-free selection is
-  // exactly what it always was. The option values are written through verbatim: core carries them
-  // opaquely (`RunContext.ruleOptions`) and oxlint checks them against each rule's own schema —
-  // usually refusing to parse the config and naming the offending key, though not for every rule
-  // (`typescript/ban-ts-comment` accepts an unknown key in silence, confirmed against 1.76.0).
-  // Translating or pre-validating them here would only add a second, weaker opinion about a grammar
-  // oxlint already owns, and would need updating every time a rule gains an option.
+  // two config shapes, and the bare form is kept for an option-free rule so the hash of an
+  // option-free selection is exactly what it always was. The option values are written through
+  // verbatim: core carries them opaquely (`EngineRuleSetting`) and oxlint checks them against each
+  // rule's own schema — usually refusing to parse the config and naming the offending key, though not
+  // for every rule (`typescript/ban-ts-comment` accepts an unknown key in silence, confirmed against
+  // 1.76.0). Translating or pre-validating them here would only add a second, weaker opinion about a
+  // grammar oxlint already owns, and would need updating every time a rule gains an option.
   const rules = Object.fromEntries(
     [...selection]
       // `parse-error` is attribution for oxlint's own always-on parsing behaviour, not a rule
       // oxlint's config format knows how to enable — writing it into `rules` makes oxlint reject
       // the whole config with "Rule 'parse-error' not found in plugin 'eslint'" (confirmed against
       // the real binary), failing every run that elects `correctness.parse-error`.
-      .filter(([ruleId, level]) => level !== 'off' && ruleId !== PARSE_ERROR_RULE_ID)
+      .filter(([ruleId, [level]]) => level !== 'off' && ruleId !== PARSE_ERROR_RULE_ID)
       .sort(([a], [b]) => compareStrings(a, b))
-      .map(([ruleId, level]) => {
+      .map(([ruleId, [level, ...options]]) => {
         const oxlintLevel = LEVEL_TO_OXLINT[level] ?? 'warn'
-        const options = context.ruleOptions?.get(ruleId) ?? []
         return [ruleId, options.length === 0 ? oxlintLevel : [oxlintLevel, ...options]]
       }),
   )
@@ -72,7 +71,7 @@ export async function materializeOxlintConfig(
   // Hashing the whole config object rather than the rule ids is what makes options part of the
   // cache key: `rulesetHash` is the only per-engine term in `deriveResultKey`, so a run that changes
   // `eqeqeq` from `smart` to `always` and nothing else must not be served the previous run's
-  // findings. `RunContext.ruleOptions` states this as a contract for every adapter.
+  // findings. `EngineRuleSetting` states this as a contract for every adapter.
   const rulesetHash = hashJson(config)
 
   await mkdir(context.tmpDir, { recursive: true })

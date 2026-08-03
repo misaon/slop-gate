@@ -42,19 +42,49 @@ export type RawDiagnostic = {
   readonly fix?: RawFix
 }
 
-/** engineRuleId → level. Levels are already resolved; the engine only materialises them. */
-export type EngineRuleSelection = ReadonlyMap<string, RuleLevel>
-
 /**
- * engineRuleId → that rule's options, for the rules that have any. Same key space as
- * `EngineRuleSelection`; a rule absent here simply has none.
+ * One rule's resolved level, followed by that rule's options (spec §6.2). Levels and options are
+ * both already resolved through the config cascade; the engine only materialises them.
  *
- * **Core does not interpret the values** — the arrangement `engineRuleId` already uses. Core
+ * **Always a tuple, never a bare level**, which is the one thing about this type worth arguing over.
+ * `RuleSetting` — the shape a *user* writes — is `RuleLevel | [RuleLevel, ...options]`, and the bare
+ * form there means something specific: "this layer raises the level and says nothing about options"
+ * (see `RuleSetting`). That distinction is a *cascade* concern and it is fully spent by the time a
+ * selection exists: `buildPlan` has already merged every layer, so there is no silent state left to
+ * represent. Reusing the union here would carry a meaning that cannot occur.
+ *
+ * It also makes the failure this type used to invite impossible rather than merely tested. Options
+ * previously rode alongside on `RunContext.ruleOptions`, because widening this value to the union
+ * would leave every `level !== 'off'` comparison in the adapters compiling while silently inverting
+ * the day a rule got options — an `['off', …]` is not `'off'`, so a disabled rule reads as enabled,
+ * with nothing in the output to see it by. Against the tuple, that same comparison is a hard type
+ * error (TS2367: *the types `readonly [RuleLevel, ...unknown[]]` and `string` have no overlap*), so
+ * an adapter is forced to destructure the level out before comparing it — after which the comparison
+ * is correct by construction. Verified, not assumed: the union form compiles clean under the same
+ * settings.
+ *
+ * **Core does not interpret the options** — the arrangement `engineRuleId` already uses. Core
  * resolves *which* options apply (spec §6.2's cascade, with the merge semantics stated there) and
  * hands the resulting list over; what a list means is the adapter's business, and an adapter for an
- * engine with no option grammar ignores this entirely.
+ * engine with no option grammar reads `setting[0]` and ignores the rest.
+ *
+ * **An adapter that reads the options must fold them into `EngineConfigHandle.rulesetHash`.** That
+ * hash is the only per-engine term in the result cache key (`deriveResultKey`), so two runs differing
+ * only by a rule's options would otherwise share a cache entry and the second would be served the
+ * first's findings — the same silent-stale-warm-run shape that the stat index trusting
+ * `(size, mtimeMs)` and `configHash` omitting framework detection each produced before they were
+ * fixed. An adapter that materialises its options into a config object it already hashes gets this
+ * for free; one that does not has to say so on purpose. An adapter that *ignores* the options owes
+ * nothing: identical inputs really do produce identical findings there.
  */
-export type EngineRuleOptions = ReadonlyMap<string, RuleOptions>
+export type EngineRuleSetting = readonly [RuleLevel, ...RuleOptions]
+
+/**
+ * engineRuleId → its resolved setting. Only ever holds rules that are actually on: `buildPlan` drops
+ * a rule resolving to `'off'` before the selection is built, so presence here means enabled. Adapters
+ * check the level anyway — this is a published contract and a caller can construct one by hand.
+ */
+export type EngineRuleSelection = ReadonlyMap<string, EngineRuleSetting>
 
 export type EngineCapabilities = {
   readonly languages: readonly LanguageId[]
@@ -74,20 +104,6 @@ export type RunContext = {
    * including how the union maps onto whatever merge semantics the engine's config format has.
    */
   readonly adjustments?: EngineAdjustments
-  /**
-   * Per-rule options for this assignment's `EngineRuleSelection`, resolved from the config cascade
-   * (spec §6.2). Optional so an adapter test can construct a context without one; absent and empty
-   * mean the same thing, exactly like `adjustments` above.
-   *
-   * **An adapter that reads this must fold it into `EngineConfigHandle.rulesetHash`.** That hash is
-   * the only per-engine term in the result cache key (`deriveResultKey`), so two runs differing only
-   * by a rule's options would otherwise share a cache entry and the second would be served the
-   * first's findings — the same silent-stale-warm-run shape that the stat index trusting
-   * `(size, mtimeMs)` and `configHash` omitting framework detection each produced before they were
-   * fixed. An adapter that materialises its options into a config object it already hashes gets this
-   * for free; one that does not has to say so on purpose.
-   */
-  readonly ruleOptions?: EngineRuleOptions
   /**
    * Set by `sgate fix` (spec §11) to the highest fix tier this run will apply, and absent on every
    * `sgate check`. An adapter that can report fixes should populate `RawDiagnostic.fix` when it is
@@ -185,9 +201,20 @@ export interface Engine {
    * registry never owned.
    *
    * An engine that reports its fixes inline does not implement this.
+   *
+   * `selection` is the same one `materializeConfig` was given, and it is second for a reason beyond
+   * symmetry. An engine that derives fixes by re-running itself has to re-materialise a config, and
+   * that config must agree with the check run's about *options*, not just about which rules are on:
+   * a `--fix` pass configured with `eqeqeq`'s default `always` rewrites the `== null` comparisons a
+   * check run configured with `smart` deliberately exempted — edits for findings the user was never
+   * shown. Threading it second rather than appending it last is deliberate: an adapter written
+   * against the previous three-parameter signature fails to compile (a `ReadonlyMap` is assignable
+   * to neither `RunContext` nor `AbortSignal`), where a trailing parameter would leave it compiling
+   * and silently optionless.
    */
   deriveFixes?(
     targets: readonly FixTarget[],
+    selection: EngineRuleSelection,
     context: RunContext,
     signal: AbortSignal,
   ): Promise<readonly DerivedFix[]>

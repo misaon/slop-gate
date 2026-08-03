@@ -1551,7 +1551,34 @@ changes output every `fix` test asserts on.
 
 ## Found making per-rule options reach engine adapters (spec §6.2)
 
-### `EngineRuleSelection` should carry the options, and does not
+### `EngineRuleSelection` should carry the options, and does not — **done, with two corrections**
+
+`EngineRuleSelection` is now `ReadonlyMap<string, EngineRuleSetting>` where `EngineRuleSetting` is
+`readonly [RuleLevel, ...RuleOptions]`. `RunContext.ruleOptions` and `EngineAssignment.ruleOptions` are
+gone, `Engine.deriveFixes` takes the selection as its second parameter (`runFix` re-materialises
+oxlint's config outside `runCheck`, so the options had to reach it or `--fix` would rewrite what the
+check exempted), and all nine adapters read the level out of the setting. One test per adapter asserts
+that an `['off', …]` value still disables; each was verified to fail when its adapter's guard is
+reverted.
+
+Two things this section got wrong, both worth reading before trusting the rest of it:
+
+- **It is `readonly [RuleLevel, ...RuleOptions]`, always a tuple — not the union below.** The union
+  keeps `setting !== 'off'` compiling, which is the whole failure. Against the tuple that comparison is
+  TS2367 (*the types `readonly [RuleLevel, ...unknown[]]` and `string` have no overlap*), so an adapter
+  is forced to destructure and the migrated comparison is right by construction. Both forms were
+  compiled to check: the union produced no diagnostic, the tuple produced one per call site.
+- **The inversion was not reachable, and the count was wrong.** It named four adapters; the widening
+  produced TS2367 in five (oxlint, ast-grep, biome-css, knip, deps-security) and none in `engine-tsc`,
+  which folds the value into a hash and never compares it. Three more (actionlint, hadolint, schema)
+  decided enablement by `selection.has()`/`.keys()` — so an `'off'` setting *already* read as enabled
+  there, the very inversion this section feared, live in three adapters. It was harmless for one reason
+  only: `RuleSetResolver.anyEnabledConcepts` drops an `off` concept before `electOwners` runs, so no
+  `off` rule was ever elected and `buildPlan`'s own `level === 'off'` guard is itself unreachable. The
+  real debt paid here is therefore two parallel maps that had to stay in sync, plus a contract that was
+  true by accident in three adapters and is now true by construction in nine — not a live inversion.
+
+The original entry, kept because its reasoning about *why* the shape was deferred still stands:
 
 The shape options belong in is `Map<engineRuleId, { level, options }>`. They are on
 `RunContext.ruleOptions` instead, a second map keyed the same way, and the reason is not that the

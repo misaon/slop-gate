@@ -8,7 +8,7 @@ import { SCHEMA_RULE_IDS, createSchemaEngine } from './index.ts'
 let dir: string
 let context: RunContext
 
-const ALL: EngineRuleSelection = new Map(SCHEMA_RULE_IDS.map((rule) => [rule, 'error' as const]))
+const ALL: EngineRuleSelection = new Map(SCHEMA_RULE_IDS.map((rule) => [rule, ['error'] as const]))
 
 /** `InventoryFile.path` is repo-relative with POSIX separators by contract, whatever the host is. */
 const file = (path: string, language: InventoryFile['language'] = 'yaml'): InventoryFile => ({
@@ -125,10 +125,10 @@ test('reports nothing for a rule the selection leaves out', async () => {
   // neither rule can borrow the other's.
   await writeFile(join(dir, 'compose.yaml'), 'name: app\nname: other\nservcies: {}\n')
 
-  const onlySchema = await run([file('compose.yaml')], new Map([['compose-spec', 'error']]))
+  const onlySchema = await run([file('compose.yaml')], new Map([['compose-spec', ['error'] as const]]))
   expect(onlySchema.map((diagnostic) => diagnostic.engineRuleId)).toEqual(['compose-spec'])
 
-  const onlyDuplicates = await run([file('compose.yaml')], new Map([['duplicate-mapping-key', 'error']]))
+  const onlyDuplicates = await run([file('compose.yaml')], new Map([['duplicate-mapping-key', ['error'] as const]]))
   expect(onlyDuplicates.map((diagnostic) => diagnostic.engineRuleId)).toEqual(['duplicate-mapping-key'])
 })
 
@@ -147,6 +147,23 @@ test('reads nothing at all when the selection is empty', async () => {
   await writeFile(join(dir, 'compose.yaml'), 'servcies: {}\n')
 
   expect(await run([file('compose.yaml')], new Map())).toEqual([])
+})
+
+test('a rule set to off with options is still off', async () => {
+  // This adapter used to decide enablement by membership alone (`selection.has(rule)`), which reads
+  // *any* present setting as enabled — an `['off', …]` value included. Reading the level is what makes
+  // the contract true rather than true only because `buildPlan` filters first.
+  await writeFile(join(dir, 'compose.yaml'), 'name: app\nname: other\nservcies: {}\n')
+
+  const found = await run(
+    [file('compose.yaml')],
+    new Map([
+      ['compose-spec', ['error']],
+      ['duplicate-mapping-key', ['off', { probe: true }]],
+    ]),
+  )
+
+  expect(found.map((diagnostic) => diagnostic.engineRuleId)).toEqual(['compose-spec'])
 })
 
 test('skips a file that vanished between inventory and run rather than failing the engine', async () => {

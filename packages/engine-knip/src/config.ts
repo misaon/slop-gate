@@ -100,7 +100,9 @@ export function synthesizeKnipWorkspaces(files: readonly InventoryFile[]): strin
  * `off` drops the type from `include`) and never reach knip, which is why `rulesetHash` deliberately
  * folds in only the *set* of included types — an `error`→`warn` change must not invalidate a whole
  * project cache entry for a difference knip cannot act on. Severity is reapplied downstream by
- * `normalizeDiagnostics` from the resolved ruleset, exactly as it is for every other engine.
+ * `normalizeDiagnostics` from the resolved ruleset, exactly as it is for every other engine. The same
+ * reasoning covers the option half of a setting: knip's issue types take none, so they are dropped
+ * here and correctly absent from the hash (see `EngineRuleSetting`).
  *
  * `exclude` is written as the complement of `include` rather than left empty. knip's defaults report
  * fourteen of its seventeen issue types, so an `include` that silently failed to apply would leak
@@ -119,7 +121,7 @@ export async function materializeKnipConfig(
   options: MaterializeKnipConfigOptions,
 ): Promise<EngineConfigHandle> {
   const include = [...selection]
-    .filter(([issueType, level]) => level !== 'off' && isSurfacedIssueType(issueType))
+    .filter(([issueType, [level]]) => level !== 'off' && isSurfacedIssueType(issueType))
     .map(([issueType]) => issueType)
     .sort(compareStrings)
 

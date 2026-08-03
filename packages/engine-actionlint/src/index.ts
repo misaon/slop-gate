@@ -134,9 +134,15 @@ export function createActionlintEngine(options: { binaryPath?: string } = {}): E
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
-      const rulesetHash = hashJson([...selection].map(([rule, level]) => [rule, level]).sort())
+      // The level is read even though actionlint has no ruleset to write it into, because this
+      // adapter's `parse.ts` gates every finding on membership of `selections` — so that set *is* this
+      // engine's enablement decision, and building it from the keys alone would make an `['off', …]`
+      // setting read as enabled. Options are dropped and correspondingly absent from the hash:
+      // actionlint's checks take none.
+      const enabled = [...selection].filter(([, [level]]) => level !== 'off')
+      const rulesetHash = hashJson(enabled.map(([rule, [level]]) => [rule, level]).sort())
       const path = join(context.tmpDir, `actionlint.${rulesetHash.slice(0, 12)}.yaml`)
-      selections.set(path, new Set(selection.keys()))
+      selections.set(path, new Set(enabled.map(([rule]) => rule)))
       // The caller owns `tmpDir` but does not guarantee it exists yet — the same `mkdir` every other
       // adapter that writes a config does first.
       await mkdir(context.tmpDir, { recursive: true })

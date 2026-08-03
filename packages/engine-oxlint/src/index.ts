@@ -72,8 +72,8 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
     // oxlint reports no fix data in any output format (see `derive-fixes.ts` for what was checked),
     // so it takes the second route: `sgate fix` hands it the findings it wants edits for, and the
     // adapter obtains them by running `--fix` over copies. Never called by `sgate check`.
-    deriveFixes(targets, context, signal) {
-      return deriveOxlintFixes({ invocation: required(), targets, context, signal })
+    deriveFixes(targets, selection, context, signal) {
+      return deriveOxlintFixes({ invocation: required(), targets, selection, context, signal })
     },
   }
 }

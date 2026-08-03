@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { EngineError, type RunContext } from '@misaon/slop-gate-core'
+import { EngineError, type RuleLevel, type RunContext } from '@misaon/slop-gate-core'
 import { materializeBiomeCssConfig } from './config.ts'
 import { CSS_PARSE_ERROR_RULE_ID } from './parse.ts'
 import { FOREIGN_SUPPRESSION_RULE_ID } from './rules.ts'
@@ -19,8 +19,15 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-const materialize = (selection: Record<string, 'error' | 'warn' | 'info' | 'off'>) =>
-  materializeBiomeCssConfig(new Map(Object.entries(selection)), context)
+/**
+ * Lifts a level-only record into the tuple form `EngineRuleSelection` takes. Convenience for the
+ * tests that only care about levels; the one that cares about options builds its selection directly.
+ */
+const materialize = (selection: Record<string, RuleLevel>) =>
+  materializeBiomeCssConfig(
+    new Map(Object.entries(selection).map(([engineRuleId, level]) => [engineRuleId, [level] as const])),
+    context,
+  )
 
 const readConfig = async (path: string) => JSON.parse(await readFile(path, 'utf8'))
 
@@ -70,6 +77,25 @@ test('omits rules set to off', async () => {
   const handle = await materialize({ noDuplicateProperties: 'warn', noHexColors: 'off' })
   expect((await readConfig(handle.path)).linter.rules.style).toBeUndefined()
   expect(handle.ruleCount).toBe(1)
+  await handle.dispose()
+})
+
+test('a rule set to off with options is still off', async () => {
+  // Two comparisons here read the level (`elected` and `enabled`), and both used to compare the whole
+  // selection value against `'off'` — false for an `['off', …]` value, so a disabled rule would be
+  // written into the config *and* accepted by `run`'s own election check. Built directly rather than
+  // through `materialize`, because the option half is the whole point.
+  const handle = await materializeBiomeCssConfig(
+    new Map([
+      ['noDuplicateProperties', ['warn'] as const],
+      ['noHexColors', ['off', { probe: true }] as const],
+    ]),
+    context,
+  )
+
+  expect((await readConfig(handle.path)).linter.rules.style).toBeUndefined()
+  expect(handle.ruleCount).toBe(1)
+  expect(handle.enabledRuleIds.has('noHexColors')).toBe(false)
   await handle.dispose()
 })
 

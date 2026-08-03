@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import { createWalkFileSource } from '../discovery/inventory.ts'
-import type { Engine, RawDiagnostic } from '../engine/types.ts'
+import type { Engine, EngineRuleSelection, RawDiagnostic } from '../engine/types.ts'
 import type { Capability, EngineId, RuleEntry } from '../registry/types.ts'
 import { runCheck, streamCheck } from './check.ts'
 
@@ -79,16 +79,16 @@ afterEach(async () => {
 
 test('hands an engine the options configured for its elected rules', async () => {
   // The seam between the planner and the adapter. Every other part of this path has its own test —
-  // the cascade resolves them (`config/resolve.test.ts`), the planner attaches them to the
-  // assignment (`planner/plan.test.ts`), the adapter writes them into its config and its hash
-  // (`engine-oxlint`) — and none of those would notice `streamCheck` forgetting to pass the
-  // assignment's `ruleOptions` into the `RunContext` it builds.
-  const seen: Array<ReadonlyMap<string, readonly unknown[]> | undefined> = []
+  // the cascade resolves them (`config/resolve.test.ts`), the planner folds them into the setting
+  // (`planner/plan.test.ts`), the adapter writes them into its config and its hash (`engine-oxlint`)
+  // — and none of those would notice `streamCheck` handing `materializeConfig` something other than
+  // the assignment's own selection.
+  const seen: EngineRuleSelection[] = []
   const engine = stubEngine({})
   const recording: Engine = {
     ...engine,
     materializeConfig: async (selection, context) => {
-      seen.push(context.ruleOptions)
+      seen.push(selection)
       return engine.materializeConfig(selection, context)
     },
   }
@@ -100,7 +100,7 @@ test('hands an engine the options configured for its elected rules', async () =>
   })
 
   expect(seen).toHaveLength(1)
-  expect([...(seen[0] ?? new Map())]).toEqual([['no-debugger', [{ probe: true }]]])
+  expect([...(seen[0] ?? new Map())]).toEqual([['no-debugger', ['error', { probe: true }]]])
 })
 
 test('reports nothing for a generated file, and everything for it once asked', async () => {

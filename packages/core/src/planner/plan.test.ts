@@ -42,11 +42,18 @@ const planWith = (args: {
   engines: Engine[]
   files: InventoryFile[]
   rules: Record<string, RuleSetting>
+  /**
+   * Concepts to elect *regardless* of what the resolver says about them. Only one test needs this, and
+   * it needs it because `RuleSetResolver.anyEnabledConcepts` already drops an `off` concept — so a rule
+   * whose resolved level is `off` cannot reach `buildPlan` through the normal path, and the guard that
+   * would drop it there is untestable without forcing the election.
+   */
+  electAlso?: readonly string[]
 }) => {
   const resolver = createRuleSetResolver({ config: { rules: args.rules as never } })
   const election = electOwners({
     entries: args.entries,
-    enabledConcepts: resolver.anyEnabledConcepts,
+    enabledConcepts: new Set([...resolver.anyEnabledConcepts, ...(args.electAlso ?? [])]) as never,
     capabilities: new Set(),
     languages: new Set(args.files.map((f) => f.language)),
     participatingEngines: new Set(args.engines.map((e) => e.id)),
@@ -74,7 +81,7 @@ test('assigns a rule to its engine with the resolved level', () => {
 
   expect(plan).toHaveLength(1)
   expect(plan[0]?.engineId).toBe('oxlint')
-  expect(plan[0]?.selection.get('no-debugger')).toBe('error')
+  expect(plan[0]?.selection.get('no-debugger')).toEqual(['error'])
   expect(plan[0]?.files.map((f) => f.path)).toEqual(['a.ts'])
 })
 
@@ -126,7 +133,7 @@ test('configures a multi-concept rule at the strongest resolved level', () => {
     rules: { 'dead-code.unused-variable': 'info', 'dead-code.unused-import': 'error' },
   })
 
-  expect(plan[0]?.selection.get('no-unused-vars')).toBe('error')
+  expect(plan[0]?.selection.get('no-unused-vars')).toEqual(['error'])
 })
 
 test('carries a rule\'s configured options through to its engine', () => {
@@ -137,11 +144,10 @@ test('carries a rule\'s configured options through to its engine', () => {
     rules: { 'pedantic.eqeqeq': ['warn', 'smart'] },
   })
 
-  expect(plan[0]?.selection.get('eqeqeq')).toBe('warn')
-  expect(plan[0]?.ruleOptions.get('eqeqeq')).toEqual(['smart'])
+  expect(plan[0]?.selection.get('eqeqeq')).toEqual(['warn', 'smart'])
 })
 
-test('omits a rule with no options from ruleOptions entirely', () => {
+test('gives a rule with no options a setting holding nothing but its level', () => {
   const plan = planWith({
     entries: [entry({ engine: 'oxlint', engineRuleId: 'no-debugger', concepts: ['correctness.no-debugger'] })],
     engines: [fakeEngine('oxlint', ['ts'])],
@@ -149,7 +155,31 @@ test('omits a rule with no options from ruleOptions entirely', () => {
     rules: { 'correctness.no-debugger': 'error' },
   })
 
-  expect(plan[0]?.ruleOptions.size).toBe(0)
+  expect(plan[0]?.selection.get('no-debugger')).toEqual(['error'])
+})
+
+test('never puts an off rule in the selection, so no adapter can read one as enabled', () => {
+  // The invariant the adapters' own `['off', …]` guards are the second line of defence for: a rule that
+  // resolves to `off` is dropped before a setting is built for it at all, so an engine never has to
+  // decide what an off rule means (see `EngineRuleSetting`).
+  //
+  // `electAlso` forces the election because there are *two* filters in front of this one and the outer
+  // one already catches everything: `anyEnabledConcepts` drops an off concept before `electOwners`
+  // sees it, so without forcing, this test would pass with `buildPlan`'s own guard deleted — verified
+  // by deleting it. Which is worth saying plainly: that guard is unreachable in production today, and
+  // this test pins it as a guard rather than as the mechanism.
+  const plan = planWith({
+    entries: [
+      entry({ engine: 'oxlint', engineRuleId: 'no-debugger', concepts: ['correctness.no-debugger'] }),
+      entry({ engine: 'oxlint', engineRuleId: 'eqeqeq', concepts: ['pedantic.eqeqeq'] }),
+    ],
+    engines: [fakeEngine('oxlint', ['ts'])],
+    files: [file('a.ts', 'ts')],
+    rules: { 'correctness.no-debugger': 'error', 'pedantic.eqeqeq': ['off', 'smart'] },
+    electAlso: ['pedantic.eqeqeq'],
+  })
+
+  expect([...(plan[0]?.selection ?? [])]).toEqual([['no-debugger', ['error']]])
 })
 
 test('resolves a multi-concept rule\'s options in sorted concept order', () => {
@@ -171,7 +201,7 @@ test('resolves a multi-concept rule\'s options in sorted concept order', () => {
 
   const plan = planWith({ entries, engines: [fakeEngine('oxlint', ['ts'])], files: [file('a.ts', 'ts')], rules })
 
-  expect(plan[0]?.ruleOptions.get('no-unused-vars')).toEqual([{ from: 'import' }])
+  expect(plan[0]?.selection.get('no-unused-vars')).toEqual(['warn', { from: 'import' }])
 })
 
 test('is deterministic in engine order', () => {

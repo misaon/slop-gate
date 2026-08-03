@@ -255,7 +255,6 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           rootDir: options.rootDir,
           tmpDir: join(options.rootDir, '.slop-gate', 'tmp'),
           adjustments: engineAdjustmentsFor(engine.id, frameworks),
-          ruleOptions: assignment.ruleOptions,
           ...(options.fixTier === undefined ? {} : { fixTier: options.fixTier }),
         }
         const handle = await engine.materializeConfig(assignment.selection, runContext)

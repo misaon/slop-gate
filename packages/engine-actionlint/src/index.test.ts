@@ -5,7 +5,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { RULE_ENTRIES, compareStrings, type InventoryFile, type RawDiagnostic, type RunContext } from '@misaon/slop-gate-core'
+import {
+  RULE_ENTRIES,
+  compareStrings,
+  type EngineRuleSelection,
+  type InventoryFile,
+  type RawDiagnostic,
+  type RunContext,
+} from '@misaon/slop-gate-core'
 import { ACTIONLINT_RULE_IDS, ACTIONLINT_PATH_ENV, createActionlintEngine, resolveActionlintBinary } from './index.ts'
 
 const run = promisify(execFile)
@@ -45,8 +52,12 @@ async function workflow(name: string, source: string): Promise<InventoryFile> {
 }
 
 async function lint(files: readonly InventoryFile[], rules: readonly string[]): Promise<RawDiagnostic[]> {
+  return lintWith(files, new Map(rules.map((rule) => [rule, ['warn'] as const])))
+}
+
+async function lintWith(files: readonly InventoryFile[], selection: EngineRuleSelection): Promise<RawDiagnostic[]> {
   const engine = createActionlintEngine()
-  const handle = await engine.materializeConfig(new Map(rules.map((rule) => [rule, 'warn' as const])), context)
+  const handle = await engine.materializeConfig(selection, context)
   const found: RawDiagnostic[] = []
   try {
     for await (const diagnostic of engine.run({ files }, handle, context, AbortSignal.timeout(30_000))) found.push(diagnostic)
@@ -134,7 +145,7 @@ test('the materialised config is a real file, and it is what suppresses the repo
   // the selection, and only `run` and `version` need a binary. A POSIX placeholder like `/bin/true`
   // would read as an assumption this test does not actually make.
   const engine = createActionlintEngine({ binaryPath: join(workspace, 'never-executed') })
-  const handle = await engine.materializeConfig(new Map([['events', 'warn' as const]]), context)
+  const handle = await engine.materializeConfig(new Map([['events', ['warn'] as const]]), context)
   expect(handle.path.startsWith(context.tmpDir)).toBe(true)
   expect(await readFile(handle.path, 'utf8')).toContain('self-hosted-runner')
   // No `ruleCount`: actionlint has no way to report how many rules it loaded, so there is nothing to
@@ -173,6 +184,29 @@ test.skipIf(noBinary)('only the elected rules are reported', async () => {
   expect(
     (await lint([file], ['expression', 'runner-label'])).map((d) => d.engineRuleId).sort(compareStrings),
   ).toEqual(['expression', 'runner-label'])
+})
+
+test.skipIf(noBinary)('a rule set to off with options is still off', async () => {
+  // actionlint cannot be asked for a subset, so the set `materializeConfig` carries to `run` *is* this
+  // engine's enablement decision — and it used to be built from `selection.keys()`, which reads any
+  // present setting as enabled, an `['off', …]` value included. Asserted end to end rather than against
+  // the set, because the set is not observable from outside the adapter.
+  const file = await workflow(
+    'ci.yml',
+    ['on: push', 'jobs:', '  a:', '    runs-on: ubuntu-lastest', '    steps:', '      - run: echo ${{ matrix.nope }}', ''].join(
+      '\n',
+    ),
+  )
+
+  const found = await lintWith(
+    [file],
+    new Map([
+      ['expression', ['warn']],
+      ['runner-label', ['off', { probe: true }]],
+    ]),
+  )
+
+  expect(found.map((diagnostic) => diagnostic.engineRuleId)).toEqual(['expression'])
 })
 
 test.skipIf(noBinary)('the repository’s own .github/actionlint.yaml is never read', async () => {

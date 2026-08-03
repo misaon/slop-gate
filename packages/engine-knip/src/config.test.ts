@@ -61,9 +61,9 @@ test('deduplicates and sorts with compareStrings so the same inventory always yi
 test('materializeConfig writes only the elected issue types into include, and every other one into exclude', async () => {
   const handle = await materializeKnipConfig(
     new Map([
-      ['exports', 'warn'],
-      ['dependencies', 'error'],
-      ['files', 'off'],
+      ['exports', ['warn'] as const],
+      ['dependencies', ['error'] as const],
+      ['files', ['off'] as const],
     ]),
     context,
     {},
@@ -77,22 +77,43 @@ test('materializeConfig writes only the elected issue types into include, and ev
   await handle.dispose()
 })
 
+test('materializeConfig keeps an issue type set to off out of include even when it carries options', async () => {
+  // `include` is this engine's whole enablement decision, and it used to be computed by comparing the
+  // selection value against `'off'` — false for an `['off', …]` value, which would put a disabled issue
+  // type into `include` and out of `exclude`, i.e. report a category nobody elected.
+  const handle = await materializeKnipConfig(
+    new Map([
+      ['exports', ['warn'] as const],
+      ['files', ['off', { probe: true }] as const],
+    ]),
+    context,
+    {},
+  )
+
+  const config = await readConfig(handle.path)
+  expect(config['include']).toEqual(['exports'])
+  expect(config['exclude']).toContain('files')
+  expect(handle.ruleCount).toBe(1)
+
+  await handle.dispose()
+})
+
 test("materializeConfig ignores slop-gate's own directory, and its config file when one was found", async () => {
-  const withConfig = await materializeKnipConfig(new Map([['files', 'warn']]), context, {
+  const withConfig = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {
     configFile: 'slop-gate.config.ts',
   })
   expect(await readConfig(withConfig.path)).toMatchObject({ ignore: ['.slop-gate/**', 'slop-gate.config.ts'] })
   await withConfig.dispose()
 
-  const withoutConfig = await materializeKnipConfig(new Map([['files', 'warn']]), context, {})
+  const withoutConfig = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {})
   expect(await readConfig(withoutConfig.path)).toMatchObject({ ignore: ['.slop-gate/**'] })
   await withoutConfig.dispose()
 })
 
 test('rulesetHash is stable for the same selection and changes when the selection does', async () => {
-  const a = await materializeKnipConfig(new Map([['exports', 'warn']]), context, {})
-  const b = await materializeKnipConfig(new Map([['exports', 'error']]), context, {})
-  const c = await materializeKnipConfig(new Map([['exports', 'warn'], ['files', 'warn']]), context, {})
+  const a = await materializeKnipConfig(new Map([['exports', ['warn'] as const]]), context, {})
+  const b = await materializeKnipConfig(new Map([['exports', ['error'] as const]]), context, {})
+  const c = await materializeKnipConfig(new Map([['exports', ['warn'] as const], ['files', ['warn'] as const]]), context, {})
 
   // Only inclusion is expressible in knip's own config — knip has no per-issue-type severity — so
   // `warn` and `error` must produce the *same* ruleset hash. Anything else would invalidate the whole
@@ -106,14 +127,14 @@ test('rulesetHash is stable for the same selection and changes when the selectio
 })
 
 test('dispose removes the materialised config', async () => {
-  const handle = await materializeKnipConfig(new Map([['files', 'warn']]), context, {})
+  const handle = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {})
   await expect(stat(handle.path)).resolves.toBeDefined()
   await handle.dispose()
   await expect(stat(handle.path)).rejects.toThrow(/^ENOENT/)
 })
 
 test('mergeWorkspacesIntoConfig adds the synthesized map to an already-materialised config in place', async () => {
-  const handle = await materializeKnipConfig(new Map([['files', 'warn']]), context, {})
+  const handle = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {})
 
   const merged = await mergeWorkspacesIntoConfig(handle.path, ['.', 'tech-docs'])
 
@@ -127,7 +148,7 @@ test('mergeWorkspacesIntoConfig adds the synthesized map to an already-materiali
 })
 
 test("materializeConfig passes the user's own ignore patterns through to knip", async () => {
-  const handle = await materializeKnipConfig(new Map([['files', 'warn']]), context, {
+  const handle = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {
     configFile: 'slop-gate.config.ts',
     ignore: ['fixtures/**', 'packages/*/fixtures/**'],
   })
@@ -139,10 +160,10 @@ test("materializeConfig passes the user's own ignore patterns through to knip", 
 })
 
 test('user ignore patterns are deduplicated and sorted, so an equivalent config hashes the same', async () => {
-  const a = await materializeKnipConfig(new Map([['files', 'warn']]), context, {
+  const a = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {
     ignore: ['b/**', 'a/**', 'b/**'],
   })
-  const b = await materializeKnipConfig(new Map([['files', 'warn']]), context, { ignore: ['a/**', 'b/**'] })
+  const b = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, { ignore: ['a/**', 'b/**'] })
 
   expect(a.rulesetHash).toBe(b.rulesetHash)
   expect(await readConfig(a.path)).toMatchObject({ ignore: ['.slop-gate/**', 'a/**', 'b/**'] })

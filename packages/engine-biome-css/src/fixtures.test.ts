@@ -84,7 +84,7 @@ afterAll(async () => {
 async function lint(file: string, engineRuleIds: readonly string[]): Promise<RawDiagnostic[]> {
   const engine = createBiomeCssEngine()
   const context: RunContext = { rootDir: workspace, tmpDir: join(workspace, '.tmp') }
-  const handle = await engine.materializeConfig(new Map(engineRuleIds.map((id) => [id, 'warn' as const])), context)
+  const handle = await engine.materializeConfig(new Map(engineRuleIds.map((id) => [id, ['warn'] as const])), context)
   try {
     const files: InventoryFile[] = [{ path: file, language: 'css', workspace: '', size: 0, mtimeMs: 0 }]
     const found: RawDiagnostic[] = []

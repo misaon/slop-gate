@@ -8,6 +8,7 @@ import {
   detectFrameworks,
   engineAdjustmentsFor,
   type EngineAdjustments,
+  type EngineRuleSelection,
   type InventoryFile,
   type RawDiagnostic,
   type RunContext,
@@ -40,7 +41,7 @@ const write = async (relativePath: string, content: string): Promise<void> => {
   await writeFile(join(dir, relativePath), content, 'utf8')
 }
 
-const everything = (): Map<string, 'warn'> => new Map(KNIP_SURFACED_ISSUE_TYPES.map((type) => [type, 'warn' as const]))
+const everything = (): EngineRuleSelection => new Map(KNIP_SURFACED_ISSUE_TYPES.map((type) => [type, ['warn'] as const]))
 
 const summarize = (found: readonly RawDiagnostic[]): string[] =>
   found.map((d) => `${d.engineRuleId} ${d.file} ${d.message}`).sort()
@@ -193,7 +194,7 @@ test(
   async () => {
     await writeUndeclaredWorkspaceFixture()
     const engine = createKnipEngine()
-    const handle = await engine.materializeConfig(new Map([['files', 'warn']]), context)
+    const handle = await engine.materializeConfig(new Map([['files', ['warn'] as const]]), context)
 
     const found = await collect(
       engine.run(

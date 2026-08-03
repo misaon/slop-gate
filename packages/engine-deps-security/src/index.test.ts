@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { EngineError, type Engine, type RawDiagnostic, type RunContext } from '@misaon/slop-gate-core'
+import { EngineError, type Engine, type EngineRuleSetting, type RawDiagnostic, type RunContext } from '@misaon/slop-gate-core'
 import type { AdvisoryTable } from './advisory.ts'
 import { createDepsSecurityEngine } from './index.ts'
 import { writeAdvisorySnapshot } from './install.ts'
@@ -46,7 +46,7 @@ const engineFor = () => createDepsSecurityEngine({ env: { SLOP_GATE_ADVISORIES_P
 
 const context = (): RunContext => ({ rootDir: root, tmpDir: join(root, '.slop-gate', 'tmp') })
 
-const allRules = new Map<string, 'warn'>(Object.keys(DEPS_SECURITY_RULES).map((rule) => [rule, 'warn']))
+const allRules = new Map<string, EngineRuleSetting>(Object.keys(DEPS_SECURITY_RULES).map((rule) => [rule, ['warn'] as const]))
 
 async function runEngine(engine: Engine, rules = allRules, files: readonly string[] = ['package.json']): Promise<RawDiagnostic[]> {
   const handle = await engine.materializeConfig(rules, context())
@@ -109,9 +109,24 @@ describe('version', () => {
 describe('materializeConfig', () => {
   it('writes only the rules that are on, and hashes them', async () => {
     await installSnapshot()
-    const selection = new Map<string, 'warn' | 'off'>([
-      ['vulnerability', 'warn'],
-      ['malware', 'off'],
+    const selection = new Map<string, EngineRuleSetting>([
+      ['vulnerability', ['warn'] as const],
+      ['malware', ['off'] as const],
+    ])
+
+    const handle = await engineFor().materializeConfig(selection, context())
+    expect(handle.ruleCount).toBe(1)
+    expect(JSON.parse(readFileSync(handle.path, 'utf8'))).toEqual({ rules: ['vulnerability'] })
+  })
+
+  it('keeps a rule set to off out of the payload even when it carries options', async () => {
+    // `rules` in the payload is this engine's whole enablement decision, and it used to be computed by
+    // comparing the selection value against `'off'` — false for an `['off', …]` value, which would
+    // report advisories for a rule the user turned off.
+    await installSnapshot()
+    const selection = new Map<string, EngineRuleSetting>([
+      ['vulnerability', ['warn']],
+      ['malware', ['off', { probe: true }]],
     ])
 
     const handle = await engineFor().materializeConfig(selection, context())
@@ -123,15 +138,15 @@ describe('materializeConfig', () => {
     await installSnapshot()
     const forward = await engineFor().materializeConfig(
       new Map([
-        ['malware', 'warn'],
-        ['vulnerability', 'warn'],
+        ['malware', ['warn'] as const],
+        ['vulnerability', ['warn'] as const],
       ]),
       context(),
     )
     const reverse = await engineFor().materializeConfig(
       new Map([
-        ['vulnerability', 'warn'],
-        ['malware', 'warn'],
+        ['vulnerability', ['warn'] as const],
+        ['malware', ['warn'] as const],
       ]),
       context(),
     )
@@ -257,10 +272,10 @@ describe('run', () => {
       npmLock({ '': { dependencies: { chalk: '5.6.1' } }, 'node_modules/chalk': { version: '5.6.1' } }),
     )
 
-    const off = new Map<string, 'warn'>([['vulnerability', 'warn']])
+    const off = new Map<string, EngineRuleSetting>([['vulnerability', ['warn'] as const]])
     expect(await runEngine(engineFor(), off)).toEqual([])
 
-    const on = new Map<string, 'warn'>([['malware', 'warn']])
+    const on = new Map<string, EngineRuleSetting>([['malware', ['warn'] as const]])
     expect(await runEngine(engineFor(), on)).toHaveLength(1)
   })
 })

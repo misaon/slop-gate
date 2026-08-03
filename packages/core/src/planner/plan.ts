@@ -1,7 +1,7 @@
 import { LEVEL_STRENGTH, type RuleLevel, type RuleOptions } from '../config/types.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
-import type { Engine, EngineRuleOptions, EngineRuleSelection } from '../engine/types.ts'
+import type { Engine, EngineRuleSelection, EngineRuleSetting } from '../engine/types.ts'
 import { compareStrings } from '../ordering.ts'
 import type { ElectionResult } from '../registry/elect.ts'
 import type { EngineId } from '../registry/types.ts'
@@ -9,18 +9,6 @@ import type { EngineId } from '../registry/types.ts'
 export type EngineAssignment = {
   readonly engineId: EngineId
   readonly selection: EngineRuleSelection
-  /**
-   * Per-rule options for the rules in `selection`, keyed the same way and present only for the
-   * rules that have any. Reaches the adapter as `RunContext.ruleOptions`.
-   *
-   * Separate from `selection` rather than folded into its value, which is the shape this would take
-   * if `Engine` were being designed today. Two reasons it is not: `EngineRuleSelection` is part of
-   * the published adapter contract and widening its value type would break every adapter outside
-   * this repository, and four of the adapters inside it decide enablement by comparing that value
-   * against the literal `'off'` — a comparison that keeps compiling and starts being wrong the day
-   * the value can be a tuple. Recorded as a follow-up; see the M0 follow-ups document.
-   */
-  readonly ruleOptions: EngineRuleOptions
   readonly files: readonly InventoryFile[]
 }
 
@@ -53,19 +41,21 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
     const files = input.inventory.files.filter((file) => supported.has(file.language))
     if (files.length === 0) continue
 
-    const selection = new Map<string, RuleLevel>()
-    const ruleOptions = new Map<string, RuleOptions>()
+    const selection = new Map<string, EngineRuleSetting>()
     for (const ruleId of [...ruleIds].sort(compareStrings)) {
       const concepts = conceptsByRule.get(`${engine.id}/${ruleId}`) ?? []
       const level = strongestLevel(concepts, input.resolver)
+      // A guard, not the mechanism, and worth saying so: `RuleSetResolver.anyEnabledConcepts` already
+      // drops an `off` concept before `electOwners` can elect a rule for it, so this branch is
+      // unreachable through the normal path — `plan.test.ts` has to force the election to exercise it.
+      // It stays because it is the last place that can keep an `off` setting from reaching an adapter,
+      // and it is what lets `EngineRuleSelection` promise that presence means enabled.
       if (level === 'off') continue
-      selection.set(ruleId, level)
-      const options = optionsFor(concepts, input.resolver)
-      if (options.length > 0) ruleOptions.set(ruleId, options)
+      selection.set(ruleId, [level, ...optionsFor(concepts, input.resolver)])
     }
     if (selection.size === 0) continue
 
-    assignments.push({ engineId: engine.id, selection, ruleOptions, files })
+    assignments.push({ engineId: engine.id, selection, files })
   }
 
   return assignments
