@@ -181,6 +181,26 @@ test('states the reason once per concept instead of once per finding', () => {
   expect(output).toContain('### config.unused-suppression — 3 findings in 3 files · warn')
 })
 
+test('omits the reason for a concept whose description is generator boilerplate, and says so once', () => {
+  // `pedantic.accessor-pairs` is one of the concepts the registry generator named *and* described,
+  // so its description restates the rule id back at the reader ("Generated from oxlint's ... rule").
+  // Printing that under `why:` would be worse than printing nothing, so the line is dropped — and a
+  // single note explains the absence, because a missing `why:` on most groups otherwise reads as a
+  // bug in the reporter. Kept synthetic on purpose: `agent.captured.test.ts` covers the other side
+  // with real findings, and every concept a real run produces now has a rationale.
+  const output = capture([
+    done([
+      diagnostic({ concept: 'pedantic.accessor-pairs', ruleId: 'oxlint/accessor-pairs', file: 'src/a.ts' }),
+      diagnostic({ concept: 'correctness.no-debugger', ruleId: 'oxlint/no-debugger', file: 'src/b.ts' }),
+    ]),
+  ])
+
+  expect(output).not.toContain('Generated from')
+  expect(output).toContain('note: `why:` appears only where the concept has a curated rationale; 1 of 2 below are')
+  expect(output.match(/^why: /gm)).toHaveLength(1)
+  expect(output).toContain('why: A `debugger` statement halts execution wherever it is reached.')
+})
+
 test('keeps a differing message on the finding rather than hoisting a wrong one', () => {
   const output = capture([
     done([

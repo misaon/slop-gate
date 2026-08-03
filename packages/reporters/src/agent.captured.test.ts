@@ -268,15 +268,30 @@ test('every captured finding appears in exactly one of the two sections', () => 
   }
 })
 
-test('a curated concept states why it matters and a generated one does not pretend to', () => {
+test('every concept a real run produces states why it matters', () => {
   const output = report()
 
   expect(output).toContain('why: A suppression comment that matches no diagnostic, left behind after a fix.')
-  // `correctness.no-useless-spread`'s description is the registry generator's own boilerplate
-  // ("Generated from oxlint's `unicorn/no-useless-spread` rule..."), which restates the rule name
-  // instead of giving a reason. Printing it under `why:` would be worse than printing nothing.
+  // `correctness.no-useless-spread` used to be the counter-example here: the registry generator named
+  // it *and* described it ("Generated from oxlint's `unicorn/no-useless-spread` rule..."), which
+  // restates the rule name instead of giving a reason, so the reporter dropped its `why:` line and
+  // fell back to the third-party docs URL. It now has a rationale (concepts/curated.ts), as does
+  // every other concept in this capture — which is why the note explaining an absent `why:` is
+  // itself absent. That note is asserted on a synthetic run in `agent.test.ts`; asserting it here
+  // would mean keeping one real concept deliberately unexplained to have something to point at.
   expect(output).not.toContain('Generated from')
-  expect(output).toContain('`why:` appears only where the concept has a curated rationale')
+  expect(output).not.toContain('`why:` appears only where')
+  expect(output).toContain('why: Spreading a literal into a literal of the same kind')
+
+  const groups = new Map(
+    output
+      .split('\n### ')
+      .slice(1)
+      .map((group) => [group.slice(0, group.indexOf(' —')), group.slice(0, group.indexOf('\n\n'))]),
+  )
+  for (const concept of new Set(CAPTURED.map((diagnostic) => diagnostic.concept))) {
+    expect(groups.get(concept), concept).toContain('\nwhy: ')
+  }
 })
 
 test('the report over real findings is byte-identical across two runs', () => {
