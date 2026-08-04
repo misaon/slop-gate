@@ -54,6 +54,23 @@ test('every optioned rule reaches recommended and strict with its options intact
   }
 })
 
+test('check-tag-names admits the tags TSDoc standardises and JSDoc already accepts', () => {
+  // oxlint's allowlist is JSDoc's, and a TypeScript codebase documents with TSDoc — so `@typeParam`,
+  // `@privateRemarks` and `@defaultValue` are reported as unrecognised on projects that are following a
+  // published standard. `@return` is JSDoc's own documented synonym for `@returns`.
+  const setting = OPTIONED_RECOMMENDED_RULES['correctness.check-tag-names']?.setting
+  expect(setting).toBeDefined()
+  const [options] = splitRuleSetting(setting as RuleSetting).options ?? []
+  const { definedTags } = options as { definedTags: readonly string[] }
+
+  for (const tag of ['typeParam', 'privateRemarks', 'defaultValue', 'experimental', 'remarks', 'return']) {
+    expect(definedTags, tag).toContain(tag)
+  }
+  // Not a licence for anything unknown: a tag this project invented is still reported, and the user's
+  // own `definedTags` is the answer for it.
+  expect(definedTags).not.toContain('schema')
+})
+
 test('splitRuleSetting normalises both shapes', () => {
   // `undefined` and `[]` are two different statements, not two spellings of "no options": the bare
   // level says nothing about options and inherits them, the empty tuple clears them.
