@@ -2,83 +2,25 @@ import type { ConceptId } from '../concepts/catalogue.ts'
 import type { Severity } from '../diagnostics/types.ts'
 import type { ClassifyRule } from './types.ts'
 
-/**
- * A correction applied on top of the registry generator's mechanical default
- * (`concept = <oxlint category>.<kebab value>`, see `packages/core/scripts/generate-registry.ts`).
- *
- * Every field is optional: supply only what needs to differ from the mechanical value. The two
- * fields below are the ones that carry real judgement and cannot be derived from
- * `oxlint --rules --format json` alone —
- *
- * - `concepts` (with `classify` alongside it for a multi-concept rule): the whole point of a
- *   concept is that two rules detecting the same thing share one (see the design plan's decision
- *   2), and no mechanical scheme can know that in advance. This is also how a rule already tracked
- *   under a deliberately-chosen name — `no-dupe-keys` as `correctness.no-duplicate-object-key`,
- *   `no-eval` as `security.eval-usage` — keeps that name instead of reverting to the raw rule id.
- * - `severityDefault`: the mechanical default (`correctness` category → `error`, everything else →
- *   `warn`) is right for all but one seeded case (`no-unused-vars`, judged a hygiene issue rather
- *   than a certain bug despite being oxlint's `correctness` category). This field also outranks
- *   `registry/upstream-severity.ts`'s cap, which is how a rule stays stricter than its own authors:
- *   state the measurement here, or the cap applies.
- */
 export type RuleOverride = {
   readonly concepts?: readonly [ConceptId, ...ConceptId[]]
   readonly classify?: readonly ClassifyRule[]
   readonly severityDefault?: Severity
 }
 
-/**
- * Keyed by the oxlint `engineRuleId` exactly as the generator derives it mechanically — bare value
- * for the `eslint` scope (`no-debugger`), `${scope}/${value}` otherwise (`typescript/no-explicit-any`),
- * with `jsx_a11y`/`react_perf` already hyphenated to `jsx-a11y`/`react-perf` (see the generator's
- * `engineRuleIdOf`, and the note above `HYPHENATED_SCOPE` there for why). That is the same string
- * that ends up as the generated `RuleEntry.engineRuleId`, so an override here always matches one
- * concrete generated entry — there is no separate raw-catalogue spelling to remember.
- *
- * Seeded entirely from the M0 hand-written registry this generator replaces
- * (`git show da4c6cf:packages/core/src/registry/entries.ts`) — every rule id below was already a
- * `RuleEntry` before generation existed, and the concept each one names is a deliberate,
- * already-shipped decision, not a guess. Verified one at a time against the live catalogue: of the
- * 46 oxlint rules the hand-written registry carried, only `no-debugger` and `no-constant-condition`
- * turned out to already match the mechanical default (`correctness.no-debugger`,
- * `correctness.no-constant-condition`) — every other one, including all four rules the hand-written
- * registry sourced from oxlint's `suspicious` category, used a renamed, `correctness`-grouped concept
- * rather than `suspicious.<value>`. Confirming that in advance, rather than assuming the override
- * table would stay small, is what turned this from ~6 expected entries into 44 — see the
- * registry-generation report for the full before/after table.
- *
- * `fixKind`/`fixTouches`/`tier`/`requires`/`languages`/`docsUrl` are deliberately *not* overridable
- * here: cross-checking the hand-written registry's guesses for those fields against the live
- * catalogue found several it got wrong (e.g. `for-direction` recorded as `fixKind: 'none'` when
- * oxlint reports a real, if dangerous, fix) — evidently nobody had checked the `fix` field per rule
- * when writing them by hand. The mechanically-derived value is more trustworthy than reproducing an
- * approximation, and neither field has a real consumer yet (`fixKind` is metadata; no code reads it
- * to decide whether to invoke `--fix`), so there is nothing to regress by letting it change.
- */
 export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
-  // M0's original six.
   'no-dupe-keys': { concepts: ['correctness.no-duplicate-object-key'] },
   'no-unused-vars': {
     concepts: ['dead-code.unused-variable', 'dead-code.unused-import'],
     classify: [{ messagePattern: '\\bimport(ed)?\\b', concept: 'dead-code.unused-import' }],
-    // oxlint's own category is `correctness` (mechanically → `error`), but an unused variable is
-    // judged a hygiene issue rather than a certain bug.
     severityDefault: 'warn',
   },
   'vitest/require-mock-type-parameters': {
-    // `correctness` mechanically, and a bare `vi.fn()` really is a mock typed `any` — 112 of the 122
-    // findings on a real vitest application are exactly that, so the rule stays on. `error` is the wrong
-    // level for it twice over. It fails a build over pre-existing type debt rather than a bug that bites
-    // today, which is the line `presets.ts` draws for `slop.as-any-cast` — the same kind of hole, at
-    // `warn`. And the other 10 of the 122 are wrong outright: the rule demands the type-*parameter* form
-    // specifically, so it also fires on `vi.fn((x: number): string => String(x))`, whose signature is
-    // right there, and tells the reader parameters are "missing" when they are inferred.
     severityDefault: 'warn',
   },
   'no-var': { concepts: ['style.no-var'] },
   'typescript/no-explicit-any': { concepts: ['slop.as-any-cast'] },
 
-  // M0's 39-rule expansion, correctness-category (35).
   'constructor-super': { concepts: ['correctness.invalid-super-call'] },
   'for-direction': { concepts: ['correctness.invalid-loop-direction'] },
   'getter-return': { concepts: ['correctness.getter-missing-return'] },
@@ -115,13 +57,10 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'use-isnan': { concepts: ['correctness.nan-comparison'] },
   'valid-typeof': { concepts: ['correctness.invalid-typeof-comparison'] },
 
-  // M0's 39-rule expansion, suspicious-category (4) — renamed onto a `correctness.*` concept
-  // despite the source category, exactly like the five-fixes `no-shadow` addition below.
   'no-unexpected-multiline': { concepts: ['correctness.ambiguous-line-break'] },
   'no-unmodified-loop-condition': { concepts: ['correctness.unmodified-loop-condition'] },
   'no-extend-native': { concepts: ['correctness.native-prototype-extended'] },
   'preserve-caught-error': { concepts: ['correctness.discarded-caught-error'] },
 
-  // Five-fixes follow-up: found a genuine bug on a real NestJS project (srvc-bat).
   'no-shadow': { concepts: ['correctness.shadows-outer-binding'] },
 }

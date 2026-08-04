@@ -38,11 +38,6 @@ const ENTRIES: RuleEntry[] = [
   },
 ]
 
-/**
- * `version`, `materializeConfig` and `run` all throw — the actual test. `resolveRun` reads only
- * `.id` and `.capabilities` (see its own doc comment); if it ever starts calling any of these
- * three, every test below fails loudly instead of silently starting to spawn a real engine.
- */
 const neverInvokedEngine = (): Engine => ({
   id: 'oxlint',
   capabilities: { languages: ['ts'], granularity: 'file', provides: [], fixes: false },
@@ -99,9 +94,6 @@ test('defaults entries to the shipped registry when none are given', async () =>
 })
 
 test('excludes a candidate whose engine is absent from the given engines list, matching a real run', async () => {
-  // The same registry-level regression `elect.test.ts` and `entries.test.ts` cover directly:
-  // reproduced here end-to-end through `resolveRun` because this is the boundary the CLI's `rules`
-  // commands actually call, and it must carry the same `participatingEngines` contract through.
   const withOverlap: RuleEntry[] = [
     ...ENTRIES,
     { ...ENTRIES[0]!, engine: 'eslint', engineRuleId: 'no-debugger-eslint', tier: 2 },

@@ -39,9 +39,6 @@ test('a finding becomes a diagnostic with a byte range covering the offending to
 })
 
 test('the end of the range comes from the source, never from end_column', () => {
-  // The two are in different units — `column` is a byte offset, `end_column` is a display-width
-  // offset — so a line with wide characters before the token is where they part company. Here
-  // `end_column` is deliberately absurd; the range must still be exactly the token.
   const wide = ['on: push', 'jobs:', '  a:', '    name: 日本語のジョブ  # ラベル', '    runs-on: ubuntu-latest', ''].join('\n')
   const byteColumn = new TextEncoder().encode('    name: ').length + 1
   const [diagnostic] = parse([error({ line: 4, column: byteColumn, end_column: 3 })], { readSource: () => wide })
@@ -77,9 +74,6 @@ test('a rule this registry has never heard of is dropped rather than emitted una
 })
 
 test('a shellcheck or pyflakes finding fails the run loudly', () => {
-  // The flags that disable both integrations are the only thing standing between this engine and
-  // findings that appear on a laptop and vanish in CI. If they ever stop working, that must not be
-  // discovered as a quiet difference in output.
   for (const kind of ['shellcheck', 'pyflakes']) {
     expect(() => parse([error({ kind })])).toThrow(new RegExp(`\`-${kind}=\` stopped disabling`))
   }
@@ -95,7 +89,6 @@ test('the quoted-scalar reusable-workflow input class is filtered, in all three 
 })
 
 test('a genuinely wrong reusable-workflow input type still reports', () => {
-  // Scoped to inputs declared `string`, which is the only shape the quoting defect can produce.
   const message =
     'input "count" is typed as number by reusable workflow "./.github/workflows/x.yml". string value cannot be assigned'
   expect(parse([error({ kind: 'expression', message })])).toHaveLength(1)

@@ -30,23 +30,6 @@ const ZIP64_EXTRA_ID = 0x0001
 const STORED = 0
 const DEFLATED = 8
 
-/**
- * A deliberately small reader for the one archive this engine downloads, in the same spirit as
- * `engine-actionlint`'s ustar reader: fixed-width fields, nothing here writes a path from the archive or follows a
- * link, and a general zip library on the install path of security data is the worse trade.
- *
- * **It walks the central directory rather than the local headers, and that is not a stylistic choice.** OSV's
- * `npm/all.zip` is written as a stream: general-purpose flag bit 3 is set, so every local header records
- * `compressedSize: 0` and the real figure lives in a data descriptor *after* the payload. A reader that trusted
- * local headers would decompress zero bytes per entry and hand back an archive of empty files without erroring —
- * the advisory index would come out empty and the engine would report every repository clean. Only the central
- * directory carries the real sizes, and its order is the order entries are yielded in.
- *
- * The archive also *requires* ZIP64: 224k entries overflow the 16-bit count in the classic end-of-central-directory
- * record and the directory offset overflows 32 bits, so both arrive as sentinels to resolve through ZIP64 records.
- *
- * @yields each non-directory entry, decompressed, in central-directory order.
- */
 export function* readZipEntries(archive: Uint8Array): Generator<ZipEntry> {
   const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength)
   const directory = locateCentralDirectory(archive, view)
@@ -109,12 +92,6 @@ function findEocd(archive: Uint8Array, view: DataView): number {
 
 type EntrySizes = { readonly compressedSize: number; readonly localOffset: number }
 
-/**
- * The 32-bit fields in a central directory header become sentinels once a value exceeds their range; the real ones
- * live in the ZIP64 extended information extra field, in a fixed order and **only for the fields that actually
- * overflowed**. Reading it positionally without checking which sentinels were set is the classic way to get an
- * offset that points at nothing.
- */
 function resolveZip64Sizes(view: DataView, central: number, extra: Uint8Array): EntrySizes {
   let compressedSize = view.getUint32(central + 20, true)
   const uncompressedSize = view.getUint32(central + 24, true)
@@ -152,8 +129,6 @@ function readLocalEntry(
   if (offset + LOCAL_FIXED_SIZE > archive.length || view.getUint32(offset, true) !== LOCAL_SIGNATURE) {
     throw new ZipFormatError(`no local file header for \`${name}\` at byte ${offset}`)
   }
-  // Read from the *local* header: an entry's extra field routinely differs in length between the two copies,
-  // because the central one carries attributes the local one has no room for.
   const nameLength = view.getUint16(offset + 26, true)
   const extraLength = view.getUint16(offset + 28, true)
   const start = offset + LOCAL_FIXED_SIZE + nameLength + extraLength
@@ -165,11 +140,6 @@ function readLocalEntry(
   return new Uint8Array(inflateRawSync(payload))
 }
 
-/**
- * Every consumer here is an offset into a buffer that has to fit in a `number` anyway, so values above
- * `Number.MAX_SAFE_INTEGER` are rejected rather than silently losing precision — a wrong offset that reads as
- * plausible is worse than a refusal.
- */
 function readU64(view: DataView, offset: number): number {
   const value = view.getBigUint64(offset, true)
   if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw new ZipFormatError('archive offsets exceed the addressable range')

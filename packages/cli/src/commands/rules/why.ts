@@ -34,9 +34,6 @@ export const why = defineCommand({
     if (args.format === 'json') renderRulesWhyJson(explanation, context)
     else renderRulesWhyPretty(explanation, context)
 
-    // A concept id this catalogue has never heard of is a usage error (the same class as an unknown `--format`), not
-    // "the concept exists but is quiet" — sharing an exit code makes a typo read as "correctly explained: not
-    // enabled".
     if (!explanation.isKnownConcept) process.exitCode = EXIT_CODES.config
   },
 })

@@ -13,7 +13,6 @@ const collect = async (iterable: AsyncIterable<RawDiagnostic>): Promise<RawDiagn
   return out
 }
 
-/** Every row knip's JSON reporter emits carries a key per *reported* issue type, empty or not. */
 const row = (file: string, issues: Record<string, unknown>): Record<string, unknown> => ({ file, ...issues })
 
 beforeEach(async () => {
@@ -70,10 +69,6 @@ test('an unlisted binary has no position either, and is attributed to package.js
 })
 
 test("converts knip's UTF-16 line/column into a byte range, one character wide", async () => {
-  // The discriminating case: an astral-plane emoji (2 UTF-16 units, 4 bytes) plus three two-byte
-  // characters ahead of the reported symbol, so UTF-16, byte and codepoint columns all differ.
-  // Captured from the real binary against exactly this line: knip reported col 43, where the UTF-16
-  // column is 43, the byte column 49 and the codepoint column 42.
   const source = 'const emoji = "\u{1F680}žluťoučký"; export const afterWide = emoji\n'
   await writeFile(join(dir, 'src/wide.ts'), source)
   const stdout = JSON.stringify({
@@ -88,9 +83,6 @@ test("converts knip's UTF-16 line/column into a byte range, one character wide",
 })
 
 test('the same logical finding reported against three files stays three diagnostics', async () => {
-  // The measured `express` case (spec §13.2): knip emits an unlisted dependency once per referencing
-  // file. Collapsing them would have to pick one file arbitrarily and would break per-line inline
-  // suppression at the other two sites — see parse.ts's module doc comment.
   for (const name of ['a', 'b', 'c']) {
     await writeFile(join(dir, `src/${name}.ts`), "import type { Request } from 'express'\nexport type R = Request\n")
   }
@@ -108,8 +100,6 @@ test('the same logical finding reported against three files stays three diagnost
 })
 
 test('a duplicates group is flattened into one diagnostic per duplicated symbol', async () => {
-  // `duplicates` and `cycles` are the only two types knip emits as arrays *of arrays*, one inner
-  // array per group. Captured verbatim from the real binary against this exact source.
   const source = 'export function duped(): number {\n  return 1\n}\nexport default duped\n'
   await writeFile(join(dir, 'src/dupes.ts'), source)
   const stdout = JSON.stringify({
@@ -179,8 +169,6 @@ test('raises when knip reported a different set of issue types than was elected'
 })
 
 test('does not check the reported type set when there is nothing to check it against', async () => {
-  // A clean repository yields `issues: []` — no row, so no key set, so no evidence either way. That
-  // must not be read as a mismatch, or every clean run would fail.
   expect(await collect(parseKnipOutput('{"issues":[]}', dir, { issueTypes: ['files'] }))).toEqual([])
 })
 
@@ -190,8 +178,6 @@ test('accepts the elected type set in any order', async () => {
 })
 
 test('parses the report when knip prefixes it with its dotenv banner', async () => {
-  // Verbatim from a real repository with a `.env` file. The banner's own `{ debug: true }` is what the
-  // previous first-brace scan locked onto, taking the entire run down with exit 3.
   await writeFile(join(dir, 'src/a.ts'), 'export const unused = 1\n')
   const banner = '◇ injected env (0) from .env // tip: ⌘ enable debugging { debug: true }'
   const report = JSON.stringify({ issues: [row('src/a.ts', { exports: [{ name: 'unused', line: 1, col: 14 }] })] })

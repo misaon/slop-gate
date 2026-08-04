@@ -26,7 +26,6 @@ const resultWith = (diagnostics: readonly Diagnostic[]): CheckResult => ({
   ruleset: { enabledConcepts: 1, overlaps: 0, uncovered: [], unknownKeys: [] },
 })
 
-/** Runs a reporter over a diagnostic stream and a `done`, exactly as the CLI drives it. */
 const render = (name: ReporterName, diagnostics: readonly Diagnostic[]): string => {
   let output = ''
   const reporter = createReporter(name, {
@@ -45,8 +44,6 @@ const render = (name: ReporterName, diagnostics: readonly Diagnostic[]): string 
 const SEVERITIES = ['error', 'warn', 'info'] as const satisfies readonly Severity[]
 
 test('no platform is told that a warning is an error', () => {
-  // The mapping is where the policy silently inverts: a `warn` does not fail a slop-gate run, so a `warn`
-  // arriving as a platform error turns every advisory finding into a red pull request.
   for (const platform of ['sarif', 'github', 'gitlab'] as const) {
     expect(PLATFORM_SEVERITY[platform].warn).not.toBe(PLATFORM_SEVERITY[platform].error)
     expect(PLATFORM_SEVERITY[platform].info).not.toBe(PLATFORM_SEVERITY[platform].error)
@@ -65,8 +62,6 @@ test('sarif only uses the three levels the format accepts', () => {
 })
 
 test('gitlab claims neither critical nor blocker, which nothing in a diagnostic measures', () => {
-  // Widened deliberately: against the `as const` table these two are already a *compile* error, which is the
-  // stronger guarantee. The runtime assertion is what survives someone widening the table's type later.
   const claimed: ReadonlySet<string> = new Set(SEVERITIES.map((s) => PLATFORM_SEVERITY.gitlab[s]))
 
   expect(claimed.has('critical')).toBe(false)
@@ -84,7 +79,6 @@ test('sarif carries the fingerprint as a partial fingerprint, which is what stop
   expect(log.runs[0]?.tool.driver.rules.map((r) => r.id)).toEqual(['correctness.no-debugger'])
   expect(log.runs[0]?.results[0]?.ruleId).toBe('correctness.no-debugger')
   expect(log.runs[0]?.results[0]?.level).toBe('error')
-  // `partialFingerprints`, not `fingerprints`: editing the line legitimately produces a new one.
   expect(log.runs[0]?.results[0]?.partialFingerprints).toEqual({ slopGateFingerprint: 'abc123' })
 })
 
@@ -125,15 +119,12 @@ test('a github annotation names the file, the range and the concept', () => {
 })
 
 test('a github annotation escapes the characters that would truncate the command', () => {
-  // A raw newline ends the command and leaves the rest on stdout as log text; a colon or comma in a property
-  // ends the property list. Both produce an annotation attached to the wrong place, silently.
   const output = render('github', [
     diagnostic({ concept: 'a:b,c', message: 'first\nsecond 50% of, it: done\r' }),
   ])
 
   expect(output).toContain('title=a%3Ab%2Cc')
   expect(output).toContain('::first%0Asecond 50%25 of, it: done%0D')
-  // Exactly one command line, which is the property being asserted.
   expect(output.split('\n').filter((line) => line.startsWith('::'))).toHaveLength(1)
 })
 
@@ -166,7 +157,6 @@ test('github says how many annotations it will hide, since GitHub does not', () 
 
   const output = render('github', many)
 
-  // A notice, so the warning that says warnings are hidden cannot itself be one of the hidden warnings.
   expect(output).toContain(`::notice title=slop-gate::${many.length} warning annotations were emitted`)
 })
 
@@ -212,7 +202,6 @@ test('the platform formats write nothing before done except github, which stream
     })
     reporter.onEvent({ type: 'diagnostic', diagnostic: diagnostic() })
 
-    // Truncating either would produce an invalid document rather than a smaller one.
     expect(output).toBe('')
   }
 })

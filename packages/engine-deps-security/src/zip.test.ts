@@ -27,13 +27,6 @@ describe('readZipEntries', () => {
     expect(collect(load('zip64.zip')).get('nested/c.json')).toBe('{"id":"GHSA-dddd-eeee-ffff","summary":"third"}')
   })
 
-  /**
-   * The shape OSV actually publishes, and the reason this reader walks the central directory rather
-   * than the local headers: with the streaming bit set, a local header carries `compressedSize: 0`
-   * and the real figure only appears in a data descriptor *after* the payload. A reader that trusted
-   * the local header would decompress nothing and report an archive of empty files — quietly, since
-   * every entry would still "parse".
-   */
   it('reads an archive whose local headers carry no sizes', () => {
     const archive = load('streamed.zip')
     expect(archive[6] !== undefined && (archive[6] & 0x08) !== 0).toBe(true)

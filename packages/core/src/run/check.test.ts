@@ -33,7 +33,6 @@ const stubEngine = (options: {
   findings?: RawDiagnostic[]
   fail?: string
   onRun?: () => void
-  /** Changing this between two runs is how a test makes one engine miss the cache while another hits. */
   rulesetHash?: string
 }): Engine =>
   ({
@@ -80,11 +79,6 @@ afterEach(async () => {
 })
 
 test('hands an engine the options configured for its elected rules', async () => {
-  // The seam between the planner and the adapter. Every other part of this path has its own test —
-  // the cascade resolves them (`config/resolve.test.ts`), the planner folds them into the setting
-  // (`planner/plan.test.ts`), the adapter writes them into its config and its hash (`engine-oxlint`)
-  // — and none of those would notice `streamCheck` handing `materializeConfig` something other than
-  // the assignment's own selection.
   const seen: EngineRuleSelection[] = []
   const engine = stubEngine({})
   const recording: Engine = {
@@ -133,11 +127,6 @@ test('returns a normalized diagnostic for an engine finding', async () => {
 })
 
 test('counts filesAnalysed as the files an engine plan actually covers, not everything scanned', async () => {
-  // `stubEngine`'s declared languages are `['ts']`, so of the three files a real inventory walk
-  // finds here (the root package.json, src/a.ts, and this new src/data.json), only src/a.ts is
-  // ever a candidate for analysis or caching — the two `.json` files are real, scanned files that
-  // no engine claims, which is exactly the gap `filesAnalysed` exists to stop `filesScanned` from
-  // hiding.
   await writeFile(join(dir, 'src/data.json'), '{}\n')
   const result = await runCheck({ ...baseOptions(), engines: [stubEngine({})] })
 
@@ -188,14 +177,6 @@ test('re-runs the engine after a file changes', async () => {
 })
 
 test('a project engine that claims a framework file language re-runs when one of those files changes', async () => {
-  // The mechanism `engine-knip`'s `vue`/`svelte`/`astro` capabilities rely on, pinned here because the
-  // failure it prevents is silent and points the wrong way. knip compiles `.vue` through its own Vue
-  // plugin, so an import written in an SFC is part of its graph — but a project engine's cache key is
-  // built from the files the *plan assigned* it, and the plan assigns by declared language. An engine
-  // that analyses a language it does not claim gets a key that cannot move when that language changes,
-  // and answers a stale "clean" forever. Measured before the fix on a three-file Vue fixture: dropping
-  // the only import of an export from `App.vue` left the warm run reporting nothing, while `--no-cache`
-  // on the same tree reported the now-dead export.
   await writeFile(join(dir, 'src/App.vue'), '<script setup lang="ts">\nimport { a } from "./a"\n</script>\n')
   let runs = 0
   const engine = () =>
@@ -267,16 +248,10 @@ test('reports options set in an override as dead, while its level still applies'
   expect(dead).toHaveLength(1)
   expect(dead[0]?.message).toContain('correctness.no-debugger')
   expect(dead[0]?.message).toContain('cannot be scoped to a path')
-  // The level in the same override is not dead — the finding is graded at `error`, not `warn`.
   expect(result.diagnostics.find((d) => d.concept === 'correctness.no-debugger')?.severity).toBe('error')
 })
 
 test('a config diagnostic is attributed to no file when no config file was given', async () => {
-  // Bug reproduction (docs/superpowers/specs/2026-07-31-m0-followups.md, "Found by first
-  // real-world use"): `baseOptions()` never sets `configFile`, matching a real run where
-  // `loadConfig` found nothing. The diagnostic must not name the literal default
-  // `slop-gate.config.ts` — that path does not exist in this fixture's `dir` — so `file` has to be
-  // `null`, not a guessed filename.
   const result = await runCheck({
     ...baseOptions(),
     config: {
@@ -314,10 +289,6 @@ test('emits a diagnostic naming both rules when two rules overlap', async () => 
     ...baseOptions(),
     config: { rules: { 'correctness.no-debugger': 'error', 'config.rule-overlap': 'info' } } as never,
     entries: withOverlap,
-    // Both engines must actually participate, or arbitration now drops the `eslint` entry before
-    // it can even compete — this run is the one deliberately proving a real overlap resolves
-    // correctly when both sides of it are actually present, not a run reproducing the M0 defect
-    // where an entry for an absent engine still generated an overlap.
     engines: [stubEngine({}), stubEngine({ id: 'eslint' })],
   })
 
@@ -377,11 +348,6 @@ test('an override can enable a concept the base config never mentions, scoped to
   expect(files).not.toContain('src/a.ts')
   expect(result.ruleset.enabledConcepts).toBeGreaterThan(0)
 
-  // `legacy/a.ts` and `src/a.ts` are byte-identical, and this override makes their *severities*
-  // diverge. A cache key that omits the file path (packages/core/src/cache/keys.ts) would make both
-  // files collide on one cache entry: whichever file's result is written last silently overwrites
-  // the other's on disk, so a second, cache-warm run must still resolve each file independently
-  // rather than replaying a stale cross-file collision.
   const second = await runCheck({
     ...options,
     engines: [stubEngine({ findings: [debuggerFinding('legacy/a.ts'), debuggerFinding('src/a.ts')] })],
@@ -441,29 +407,13 @@ test('an engine that provides a capability lets a capability-requiring rule be e
     ],
   })
 
-  // `tsgolint`'s entry is tier 1 (lower, so it wins) but `requires: ['types']`. If the engine's own
-  // declared capability never reaches election — `capabilities: new Set()` hard-coded regardless of
-  // what any registered engine provides — that requirement can never be satisfied, `astgrep`'s
-  // tier-2, no-requirements entry wins by default, and a rule that should have been elected never
-  // is. Only one of the two engines' findings should survive ownership filtering.
   expect(result.diagnostics).toHaveLength(1)
   expect(result.diagnostics[0]?.ruleRefKey).toBe('tsgolint/typed-rule')
   expect(result.ruleset.uncovered).toEqual([])
 })
 
-// --- Inline suppressions (design spec §6.3) -------------------------------------------------------
-
-// Spliced rather than written whole — the same idiom, for the same reason, as
-// `reporters/src/agent.ts`. `parseSuppressions` scans raw text with no notion of comments or string
-// literals, so a fixture that spells the token out verbatim is a real directive as far as
-// `sgate check` on this repository is concerned, reported as `config.unused-suppression` against this
-// file. Only the source text is broken: the value is byte-for-byte the real token, which is the
-// point — these tests write fixture files a real run then has to parse.
 const NEXT_LINE = `sgate-disable${'-next-line'}`
 
-// A function, not a top-level constant: `baseOptions()` reads `dir`, which `beforeEach` only sets
-// once a test is actually running — evaluating this eagerly at module load time would run before
-// any `dir` exists at all.
 const withUnusedSuppressionOn = () => ({
   ...baseOptions(),
   config: {
@@ -486,9 +436,6 @@ test('a suppressed finding is hidden from the default result and does not count 
 })
 
 test('an unused-suppression diagnostic is served from the cache, not recomputed, on the second run', async () => {
-  // The comment targets a concept this file never actually reports (the file is otherwise clean),
-  // so the directive is unused from the very first run — the scenario `fileRaws.length === 0` used
-  // to short-circuit past entirely (see the comment in check.ts this test guards).
   await writeFile(join(dir, 'src/a.ts'), `// ${NEXT_LINE} correctness.no-debugger -- stale, fixed in #1\nconst clean = 1\n`)
   let runs = 0
   const engine = () => stubEngine({ onRun: () => (runs += 1) })
@@ -503,9 +450,6 @@ test('an unused-suppression diagnostic is served from the cache, not recomputed,
 })
 
 test('a zero-finding file is still scanned for a stale suppression on a cold run', async () => {
-  // Same fixture as above, but asserted against a single cold run: proves the detection does not
-  // depend on having already primed anything via a previous call — the very first `runCheck` must
-  // already read this file's source and parse it, even though the engine reports nothing for it.
   await writeFile(join(dir, 'src/a.ts'), `// ${NEXT_LINE} correctness.no-debugger -- stale\nconst clean = 1\n`)
   const result = await runCheck({ ...withUnusedSuppressionOn(), engines: [stubEngine({})] })
 
@@ -532,8 +476,6 @@ test('removing the suppression comment invalidates the cache and reveals the fin
 
   expect(second.diagnostics.some((d) => d.concept === 'correctness.no-debugger')).toBe(true)
 })
-
-// --- Project granularity (spec §8.1/§9) -----------------------------------------------------------
 
 const TSC_ENTRIES: RuleEntry[] = [
   {
@@ -598,8 +540,6 @@ const projectOptions = () => ({
 test('a project engine receives every assigned file in one run() call, never chunked into batches', async () => {
   await writeFile(join(dir, 'src/b.ts'), 'export const b = 1\n')
   const calls: string[][] = []
-  // A tiny batchSize would chunk a file-granularity engine into two run() calls; a project engine
-  // must ignore it — asking `tsc` about a subset of its program is wrong, not just slower (§8.1).
   const result = await runCheck({
     ...projectOptions(),
     batchSize: 1,
@@ -630,7 +570,6 @@ test('a project cache hit counts every assigned file toward filesFromCache, not 
   await runCheck({ ...projectOptions(), engines: [engine()] })
   const second = await runCheck({ ...projectOptions(), engines: [engine()] })
 
-  // Two files assigned (src/a.ts, src/b.ts); a project cache hit is all-or-nothing, not per file.
   expect(second.stats.filesFromCache).toBe(2)
 })
 
@@ -670,9 +609,6 @@ test('a project engine clean file is still scanned for a stale suppression on a 
 })
 
 test('a project engine diagnostic for a file outside the assignment (e.g. the tsconfig itself) is still reported', async () => {
-  // tsconfig.json is JSON, not TS — buildPlan never assigns it to a `languages: ['ts']` engine, so
-  // this exercises the "an engine reported against a file outside its own assignment" path
-  // deliberately, rather than by accident.
   await writeFile(join(dir, 'tsconfig.json'), '{}\n')
   const result = await runCheck({
     ...projectOptions(),
@@ -696,10 +632,6 @@ test('a project engine failure is reported without aborting the run, and still d
 })
 
 test('toggling config.unused-suppression itself invalidates the cache and changes what is reported', async () => {
-  // The ruleset hash (`configHash` in check.ts, folded into every cache key) has to move when a
-  // rule's *own* level changes, not just when a rule it detects changes — otherwise a warm run
-  // would keep serving a suppression's cached "unused" verdict from before the concept was turned
-  // off, or keep hiding it after turning it on, regardless of what the current config says.
   await writeFile(join(dir, 'src/a.ts'), `// ${NEXT_LINE} correctness.no-debugger -- stale\nconst clean = 1\n`)
 
   const on = await runCheck({ ...withUnusedSuppressionOn(), engines: [stubEngine({})] })
@@ -727,8 +659,6 @@ const extraneousClassFinding: RawDiagnostic = {
   range: { start: 0, end: 5 },
 }
 
-/** `recommended` (a preset — §6.2 layer 2) enables it; the framework layer sits above and may turn
- *  it off, which is the whole arrangement these two tests exercise from opposite sides. */
 const presetEnabled = () => ({
   ...baseOptions(),
   config: { extends: ['recommended'] } as never,
@@ -743,18 +673,6 @@ const withNestDependency = async (): Promise<void> => {
   )
 }
 
-/**
- * Spec §23.4, and the reason `configHash` folds in the detection result rather than only the config
- * and the entries.
- *
- * The shape matters, and the obvious version of this test does not have teeth: if the *only* enabled
- * concept is the one the framework disables, the engine drops out of the plan entirely and the cache
- * is never consulted, so the assertion passes with or without the fold. Two concepts are needed — one
- * the framework leaves alone, so the engine still runs and the file is still a cache candidate, and
- * one it turns off. `src/a.ts` is byte-identical across all three runs and `package.json` is not a
- * file this engine claims, so nothing else in the per-file key moves. Without the fold, the warm run
- * replays the cached array and keeps reporting a concept that is no longer enabled.
- */
 test('a dependency change that turns one of two concepts off is not served from the warm cache', async () => {
   const cold = await runCheck(presetEnabled())
   expect(cold.diagnostics.map((d) => d.concept).sort()).toEqual([
@@ -780,11 +698,6 @@ test('removing the dependency again re-enables the concept, so the layer is not 
   expect((await runCheck(presetEnabled())).diagnostics).toHaveLength(2)
 })
 
-/**
- * The framework layer never wins an argument with a person (spec §23.2). A user who writes this rule
- * into their own config in a NestJS repository means it, and gets it — root config is §6.2 layer 4,
- * above the framework layer at 3.
- */
 test('a concept the user enables in their own config survives a framework that would disable it', async () => {
   await withNestDependency()
   const result = await runCheck({
@@ -798,13 +711,6 @@ test('a concept the user enables in their own config survives a framework that w
   ])
 })
 
-/**
- * The `angular` profile end to end, and the reason it exists at all: `@NgModule({...}) export class
- * AppModule {}` is the identical construct `no-extraneous-class` was measured 11/11 wrong on in
- * NestJS. Unlike the other profiles this one's warrant is mechanism identity rather than its own
- * false-positive count (spec §23.5), so the thing worth pinning is that detection and the layer
- * actually connect — not a finding rate this test could not honestly produce anyway.
- */
 test('an Angular repository gets the empty-class concept turned off, same as a NestJS one', async () => {
   await writeFile(
     join(dir, 'package.json'),
@@ -815,14 +721,8 @@ test('an Angular repository gets the empty-class concept turned off, same as a N
   expect(result.diagnostics.map((d) => d.concept)).toEqual(['correctness.no-debugger'])
 })
 
-// See the identical note in engine/normalize.test.ts: assembled from parts so a test *about*
-// suppression directives does not leave phantom ones in this file's own text.
 const suppression = (rest: string): string => `// sgate-${'disable-next-line'} ${rest}`
 
-// Without this, `stubEngine({ id: 'astgrep' })` is never assigned any work: `buildPlan` only gives
-// an engine files if some elected concept resolves to it, so the second engine would silently drop
-// out and the two tests below would pass whether or not the collapse exists at all. That is the
-// vacuous-plan trap the M0 follow-ups record, reproduced here on the first attempt.
 const TWO_ENGINE_ENTRIES: RuleEntry[] = [
   ...ENTRIES,
   {
@@ -851,14 +751,6 @@ const twoEngineOptions = (engines: Engine[]) => ({
 })
 
 test('filesFromCache counts files, not cache entries, so it can never exceed filesAnalysed', async () => {
-  // The cache is keyed per **(engine, file)** — two engines over one file is two entries — but this
-  // number is reported against `filesAnalysed`, which counts distinct files (see `CheckResult.stats`,
-  // which calls `filesAnalysed` "the denominator `filesFromCache` is a count of"). Counting entries
-  // made a warm `sgate check` on this repository print `337 analysed · 1246 cached`, and made
-  // `pretty.ts`'s own "(all cached)" branch unreachable on any repository where a file reaches more
-  // than one engine — which, since the strict-by-default change, is every TypeScript repository.
-  //
-  // Both engines must really be assigned the file or this proves nothing — see `TWO_ENGINE_ENTRIES`.
   await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
 
   await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep' })]))
@@ -869,10 +761,6 @@ test('filesFromCache counts files, not cache entries, so it can never exceed fil
 })
 
 test('a file one engine still had to look at is not counted as served from cache', async () => {
-  // The other half of the definition, and the one that decides between "any assignment hit" and "every
-  // assignment hit". ast-grep's ruleset changed, so it re-examines the file while oxlint is served from
-  // cache. Something looked at the file this run, so reporting it as cached would overstate the cache
-  // in exactly the direction a user would notice least.
   await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
 
   await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'before' })]))
@@ -883,11 +771,6 @@ test('a file one engine still had to look at is not counted as served from cache
 })
 
 test('hands a spawning engine a version cache, and withholds it under --no-cache', async () => {
-  // `version()` is a cache-key component and nothing else, so an engine that answers it by spawning
-  // `<tool> --version` was paying for a subprocess on every run, warm or cold — measured at ~36 ms of a
-  // 111.6 ms internal warm run on this repository across four such engines. The cache is what elides
-  // that, and it can only do so if `streamCheck` actually passes it. `--no-cache` must not: it means
-  // believe nothing on disk, and a version read from disk is still read from disk.
   const seen: Array<unknown> = []
   const probing = (): Engine => ({
     ...stubEngine({}),
@@ -906,10 +789,6 @@ test('hands a spawning engine a version cache, and withholds it under --no-cache
 })
 
 test('reports each engine its own cache coverage, so the strict aggregate cannot be read as the whole story', async () => {
-  // The presentation defect `stats.cacheByEngine` exists for, reproduced at the smallest size that can
-  // hold it: oxlint hits, ast-grep's ruleset moved so it re-examines the file, and `filesFromCache`
-  // therefore reports 0 out of 1 — true, and read aloud it says the cache did nothing for a run where
-  // it served half the work. Per engine the answer is 1/1 and 0/1, which is what a reporter needs.
   await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
 
   await runCheck(twoEngineOptions([stubEngine({ id: 'oxlint' }), stubEngine({ id: 'astgrep', rulesetHash: 'before' })]))
@@ -923,9 +802,6 @@ test('reports each engine its own cache coverage, so the strict aggregate cannot
 })
 
 test('an engine that failed reports no cache coverage of its own', async () => {
-  // A failure records no hit, matching `filesFromCache`'s own rule that a run which fell over cannot
-  // report its files as cached. Counting misses instead of hits would have let a crashed engine's files
-  // look served.
   await writeFile(join(dir, 'src/a.ts'), 'export function f() {\n  debugger\n}\n')
   const broken = (): Engine => ({
     ...stubEngine({ id: 'astgrep' }),
@@ -945,12 +821,6 @@ test('an engine that failed reports no cache coverage of its own', async () => {
 })
 
 test('an engine whose version cannot be resolved fails alone, and the rest of the plan still runs', async () => {
-  // `version()` is resolved for every planned engine before the plan loop, and concurrently, because
-  // it is only ever a cache-key component — nothing in the run depends on when it lands. That hoist
-  // must not turn one engine's missing binary into a failed *run*: the rejection is carried to this
-  // engine's own turn in the plan and thrown there, so it reaches the same `catch`, and produces the
-  // same `engine-failed` event, as any other failure of its. Resolving them with a bare `Promise.all`
-  // would fail everything on the first rejection instead.
   const broken: Engine = {
     ...stubEngine({ id: 'astgrep' }),
     version: async () => {
@@ -971,21 +841,10 @@ test('an engine whose version cannot be resolved fails alone, and the rest of th
   expect(events).toContain('failed:astgrep:ast-grep is not installed')
   expect(events).toContain('diagnostic:correctness.no-debugger')
   expect(done?.engineFailures).toEqual([{ engine: 'astgrep', message: 'ast-grep is not installed' }])
-  // Attributed before the engine was ever configured, exactly as it was when `version()` was awaited
-  // inside the loop: the working engine is the only one that counts as having run.
   expect(done?.stats.enginesRun).toBe(1)
 })
 
 test('an assignment streams its files in plan order, whether served fresh or from the cache', async () => {
-  // The per-file cache probes — one content hash and one result-store read each — are issued with
-  // `Promise.all` and therefore settle in whatever order the filesystem returns them. Their *results*
-  // are consumed in `assignment.files` order regardless, and that ordering is load-bearing twice
-  // over: the stream is what `pretty` prints as it arrives, and `isDuplicateSynthetic` keeps the
-  // first occurrence of an orchestrator-synthesised diagnostic. Consuming in completion order would
-  // make both depend on the disk.
-  //
-  // Asserted against the fresh run as well as the warm one, because the two paths are separate code
-  // (the batch loop versus the cache branch) and a user must not be able to tell which served them.
   const paths = Array.from({ length: 24 }, (_unused, i) => `src/f${String(i).padStart(2, '0')}.ts`)
   for (const path of paths) await writeFile(join(dir, path), 'export function f() {\n  debugger\n}\n')
 
@@ -1006,12 +865,6 @@ test('an assignment streams its files in plan order, whether served fresh or fro
 })
 
 test('a directive is reported once, not once per file-granularity engine', async () => {
-  // Two file-granularity engines assigned the same file each run their own `normalizeDiagnostics`
-  // pass over it, and each synthesises its own `config.unused-suppression`. Unreachable while oxlint
-  // was the only one; adding ast-grep doubled both orchestrator concepts on this repository (45 → 90
-  // and 4 → 8) before this collapse existed.
-  //
-  // Both engines must be assigned the file for this to prove anything — see `TWO_ENGINE_ENTRIES`.
   await writeFile(join(dir, 'src/a.ts'), `${suppression('style.nobody-owns-this -- stale')}\nexport function f() {\n  debugger\n}\n`)
 
   const result = await runCheck({
@@ -1025,10 +878,6 @@ test('a directive is reported once, not once per file-granularity engine', async
 })
 
 test('two directives written on one line stay two findings', async () => {
-  // The collapse keys on the directive's message as well as its position, because the message names
-  // the targets. Keying on position alone would silently merge these — and keying on `fingerprint`
-  // would not collapse the cross-engine duplicate above at all, since its occurrence index is
-  // counted per `normalizeDiagnostics` call and the two engines no longer judge the same subset.
   const line = `${suppression('style.nobody-owns-this -- one')} ${suppression('style.nor-this -- two')}`
   await writeFile(join(dir, 'src/a.ts'), `${line}\nexport function f() {\n  debugger\n}\n`)
 
@@ -1043,12 +892,6 @@ test('two directives written on one line stay two findings', async () => {
 })
 
 test('an engine appearing moves the concept to it, and the warm cache does not serve the old owner', async () => {
-  // What this proves: ownership transfer across an availability change is never served stale.
-  //
-  // What it does **not** prove, and no test here does: that folding `unavailableEngines` into
-  // `configHash` is what prevents that. It passes with the fold removed, because the ownership
-  // change already alters each engine's `rulesetHash` and assignment. The fold is kept as cheap
-  // insurance and `check.ts` says so; do not read this test as guarding it.
   const optional = (available: boolean): Engine => ({
     ...stubEngine({ id: 'astgrep', findings: [debuggerFinding('src/a.ts')] }),
     availability: async () => (available ? { available: true } : { available: false, reason: 'not installed' }),
@@ -1075,15 +918,11 @@ test('an engine appearing moves the concept to it, and the warm cache does not s
   const warm = await runCheck({ ...baseOptions(), entries, engines: [always(), optional(false)] })
   expect(warm.stats.filesFromCache).toBeGreaterThan(0)
 
-  // astgrep appears. It outranks oxlint, so it takes the concept and oxlint must fall silent.
   const installed = await runCheck({ ...baseOptions(), entries, engines: [always(), optional(true)] })
   expect(installed.diagnostics.map((d) => d.engine)).toEqual(['astgrep'])
 })
 
 test('the result names the engine that could not run and what its absence cost', async () => {
-  // A real `stat` against a path that genuinely does not exist, not a hard-coded boolean: this is
-  // the whole budget `Engine.availability` allows an adapter, so it is the shape the mechanism has
-  // to work against.
   const binary = join(dir, 'bin', 'nonexistent-linter')
   const optional = (): Engine => ({
     ...stubEngine({ id: 'astgrep', findings: [debuggerFinding('src/a.ts')] }),
@@ -1147,19 +986,15 @@ test('the timing rows name the walk, arbitration and the engine, and account for
     ...baseOptions(),
     engines: [stubEngine({ findings: [debuggerFinding('src/a.ts')] })],
     timing: true,
-    // From process start, as a one-shot CLI passes it: that is what produces a `startup` row, and
-    // without one the breakdown would silently omit node boot, the module graph and config loading.
     startedAt: 0,
   })
 
   const report = result.timings!
   const names = report.phases.map((phase) => phase.name)
   expect(names).toEqual(expect.arrayContaining(['discover', 'arbitrate', 'versions', 'run:oxlint', 'normalize:oxlint']))
-  // No `version:oxlint`: the probes are concurrent, so they are reported as one span (see `streamCheck`).
   expect(names).not.toContain('version:oxlint')
 
   expect(report.startupMs).toBeGreaterThan(0)
-  // Negative would mean two phases overlapped and one was counted twice.
   expect(report.unattributedMs).toBeGreaterThanOrEqual(0)
   const summed = report.startupMs + report.phases.reduce((total, phase) => total + phase.durationMs, 0) + report.unattributedMs
   expect(Math.abs(summed - result.stats.durationMs)).toBeLessThan(1)
@@ -1186,8 +1021,6 @@ test('a --no-cache run writes nothing into the analysed repository', async () =>
 
     await runCheck({ rootDir: repo, config: { extends: [] }, engines: [], useCache: false })
 
-    // Asserted on the path rather than on a rejection: the message `access` rejects with is the platform's,
-    // and three tests on this repository have already been broken once by assuming one.
     expect(existsSync(join(repo, '.slop-gate'))).toBe(false)
   } finally {
     await rm(repo, { recursive: true, force: true })

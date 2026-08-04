@@ -27,11 +27,6 @@ export function actionlintBinaryName(platform: string): string {
   return toolBinaryName(SPEC.tool, platform)
 }
 
-/**
- * Finds actionlint without running anything — `resolveToolBinary` records the discovery order and why
- * each step is where it is. `PATH` is the only route on Windows, because `ACTIONLINT_ASSETS` ships no
- * downloadable asset there.
- */
 export function resolveActionlintBinary(options: ResolveActionlintOptions = {}): ActionlintResolution | undefined {
   return resolveToolBinary(SPEC, options)
 }

@@ -13,13 +13,7 @@ export type InstallActionlintOptions = {
   arch?: string
   env?: Readonly<Record<string, string | undefined>>
   homeDir?: string
-  /** Injected in tests. Production uses the global `fetch`. */
   fetch?: (url: string) => Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer> }>
-  /**
-   * Injected in tests so the success path can use a locally built archive. The *mismatch* path is
-   * exercised against the real `ACTIONLINT_CHECKSUMS` — a suite that only ever supplied its own digests
-   * would prove the comparison runs, not that the shipped digests are what it compares against.
-   */
   checksums?: Readonly<Record<string, string>>
   signal?: AbortSignal
 }
@@ -27,7 +21,6 @@ export type InstallActionlintOptions = {
 export type InstallActionlintResult = {
   readonly path: string
   readonly version: string
-  /** True when the cache already held a binary and nothing was fetched. */
   readonly cached: boolean
 }
 
@@ -38,19 +31,6 @@ export class ActionlintInstallError extends Error {
   }
 }
 
-/**
- * D3, implemented directly: download the pinned release, verify it against the digest upstream
- * published, and only then put it somewhere that will be executed.
- *
- * **Nothing on the check path ever calls this** — the only caller is `sgate engines install`. Why
- * "first use" cannot be the trigger is in `createActionlintEngine` and spec §13.5.
- *
- * **The digest is checked before anything is written, not after.** Verify-then-move over a file
- * already on disk leaves a window where a partially-written or substituted binary exists at the final
- * path; here the bytes are hashed in memory and a mismatch throws having created nothing. The
- * extracted binary then lands via a temporary file and a `rename`, so a concurrent
- * `resolveActionlintBinary` sees either no file or a complete, verified one.
- */
 export async function installActionlint(options: InstallActionlintOptions = {}): Promise<InstallActionlintResult> {
   const platform = options.platform ?? process.platform
   const arch = options.arch ?? process.arch
@@ -68,9 +48,6 @@ export async function installActionlint(options: InstallActionlintOptions = {}):
 
   const expected = (options.checksums ?? ACTIONLINT_CHECKSUMS)[asset]
   if (expected === undefined) {
-    // Unreachable while `ACTIONLINT_ASSETS` and `ACTIONLINT_CHECKSUMS` are transcribed from the same
-    // upstream file — but an unverified download is what this module exists to refuse, so it refuses
-    // rather than trusting that invariant at run time.
     throw new ActionlintInstallError(`no recorded SHA-256 for ${asset}; refusing to download an unverifiable binary`)
   }
 
@@ -124,24 +101,12 @@ export async function installActionlint(options: InstallActionlintOptions = {}):
   return { path: destination, version: ACTIONLINT_VERSION, cached: false }
 }
 
-/**
- * Pulls one regular-file entry out of a gzipped tar by base name. A deliberately small ustar reader
- * rather than a dependency: adding a tar library to the install path of a security-sensitive download
- * is a worse trade than sixty lines that only ever read.
- *
- * Non-regular entries are skipped rather than treated as data — GoReleaser's own archives are plain
- * ustar, but `bsdtar` prepends a `pax_global_header` (type `g`) and per-entry `x` headers, and a reader
- * that mistook one for the payload would "succeed" with the wrong bytes. Nothing here follows a link,
- * writes a path from the archive, or extracts more than the single requested name, so the usual
- * tar-extraction traversal hazards have no surface to appear on.
- */
 export function extractTarGzEntry(archive: Uint8Array, entryName: string): Uint8Array | undefined {
   const tar: Uint8Array = gunzipSync(archive)
   const decoder = new TextDecoder()
 
   for (let offset = 0; offset + TAR_BLOCK <= tar.length; ) {
     const header = tar.subarray(offset, offset + TAR_BLOCK)
-    // Two consecutive zero blocks end the archive; one is enough to stop reading.
     if (header.every((byte) => byte === 0)) break
 
     const name = trimNul(decoder.decode(header.subarray(0, 100)))
@@ -175,7 +140,6 @@ function parseOctal(field: string): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 }
 
-/** Archive paths are always POSIX, so this must not be `node:path`'s host-dependent `basename`. */
 function basename(entry: string): string {
   const slash = entry.lastIndexOf('/')
   return slash === -1 ? entry : entry.slice(slash + 1)

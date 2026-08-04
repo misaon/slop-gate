@@ -77,8 +77,6 @@ test('with no root tsconfig, each workspace package that has one is a project', 
 })
 
 test('a root tsconfig that exists suppresses the workspace search, even when it references nothing readable', async () => {
-  // Otherwise a solution whose references are all broken would silently widen to every package in the
-  // repository — a different project set than the one the repository declares.
   await write('tsconfig.json', { files: [], references: [{ path: 'apps/gone' }] })
   await write('apps/api/tsconfig.json', { include: ['src'] })
 

@@ -47,11 +47,6 @@ test('marks a slop-gate-serviced concept distinctly, without claiming an engine 
 })
 
 test('marks a language mismatch as not applicable, distinctly from both an owned and an uncovered concept', () => {
-  // The bug this test guards against was found running this renderer against the real registry:
-  // `ownership: []` on a concept that is neither uncovered nor slop-gate-serviced used to fall
-  // through to a bare "(no elected owner)" — which reads as broken arbitration for what is, in this
-  // shape, the single most common row in a real `rules list` run (see `languageMismatch`'s own doc
-  // comment on `RulesListEntry`).
   const output = capture([entry({ concept: 'style.component-definition-name-casing', group: 'style', ownership: [], languageMismatch: true })])
 
   expect(output).toMatch(/not applicable/i)
@@ -83,9 +78,6 @@ test('emits no escape codes when colour is off', () => {
 })
 
 test('never puts a wide or fullwidth character in a framed line', () => {
-  // Same invariant `pretty.test.ts` enforces for `check`'s reporter, applied to this renderer's own
-  // header and footer frames — see `hasWideOrFullwidthCharacter`'s doc comment for why a framed line
-  // can never safely carry one, standards-correct width or not.
   const busy = [
     entry({ concept: 'a.one', group: 'a', overlapCount: 3 }),
     entry({ concept: 'a.two', group: 'a', uncovered: true, ownership: [] }),

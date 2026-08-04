@@ -22,9 +22,6 @@ test('every preset level is valid', () => {
 
 test('no preset enables a concept no shipped rule can detect', () => {
   const detectable = new Set(RULE_ENTRIES.flatMap((entry) => entry.concepts as readonly string[]))
-  // `SLOP_GATE_SERVICED_CONCEPTS`, not a list repeated here: a concept the orchestrator services
-  // itself has no `RuleEntry` by construction (`ConceptDefinition.servicedBySlopGate`), and a
-  // hand-maintained copy of that set turns adding one into an unrelated test failure.
   const orphaned = allKeys.filter((key) => !detectable.has(key) && !SLOP_GATE_SERVICED_CONCEPTS.has(key))
   expect(orphaned).toEqual([])
 })
@@ -41,8 +38,6 @@ test('strict is at least as strict as recommended', () => {
 })
 
 test('every optioned rule reaches recommended and strict with its options intact', () => {
-  // The guard the whole `OPTIONED_RECOMMENDED_RULES` table exists for. Tidying `['warn', 'smart']`
-  // down to `'warn'` is invisible in review — same rule, same level — and restores 2553 findings.
   const entries = Object.entries(OPTIONED_RECOMMENDED_RULES)
   expect(entries.length).toBeGreaterThan(0)
 
@@ -55,9 +50,6 @@ test('every optioned rule reaches recommended and strict with its options intact
 })
 
 test('check-tag-names admits the tags TSDoc standardises and JSDoc already accepts', () => {
-  // oxlint's allowlist is JSDoc's, and a TypeScript codebase documents with TSDoc — so `@typeParam`,
-  // `@privateRemarks` and `@defaultValue` are reported as unrecognised on projects that are following a
-  // published standard. `@return` is JSDoc's own documented synonym for `@returns`.
   const setting = OPTIONED_RECOMMENDED_RULES['correctness.check-tag-names']?.setting
   expect(setting).toBeDefined()
   const [options] = splitRuleSetting(setting as RuleSetting).options ?? []
@@ -66,14 +58,10 @@ test('check-tag-names admits the tags TSDoc standardises and JSDoc already accep
   for (const tag of ['typeParam', 'privateRemarks', 'defaultValue', 'experimental', 'remarks', 'return']) {
     expect(definedTags, tag).toContain(tag)
   }
-  // Not a licence for anything unknown: a tag this project invented is still reported, and the user's
-  // own `definedTags` is the answer for it.
   expect(definedTags).not.toContain('schema')
 })
 
 test('splitRuleSetting normalises both shapes', () => {
-  // `undefined` and `[]` are two different statements, not two spellings of "no options": the bare
-  // level says nothing about options and inherits them, the empty tuple clears them.
   expect(splitRuleSetting('warn')).toEqual({ level: 'warn', options: undefined })
   expect(splitRuleSetting(['warn'])).toEqual({ level: 'warn', options: [] })
   expect(splitRuleSetting(['error', { max: 80 }])).toEqual({ level: 'error', options: [{ max: 80 }] })
@@ -88,17 +76,11 @@ test('splitRuleSetting reads level and options from the tuple in order', () => {
 })
 
 test('splitRuleSetting keeps a positional option list positional', () => {
-  // The shape `eqeqeq` needs and the old `Record<string, unknown>` could not express: oxlint rejects
-  // `["warn", { null: "ignore" }]` outright ("unknown variant `null`, expected `always` or `smart`"),
-  // so `smart` is only reachable as a bare positional string.
   expect(splitRuleSetting(['warn', 'smart']).options).toEqual(['smart'])
   expect(splitRuleSetting(['warn', 'always', { null: 'ignore' }]).options).toEqual(['always', { null: 'ignore' }])
 })
 
 test('essential is recommended filtered to its error rules, so the two can never disagree', () => {
-  // Derived rather than curated: a hand-written second list is what drifts, and the drift would be
-  // silent — a rule promoted to `error` in `recommended` but forgotten here is a rule a project on
-  // `essential` never hears about.
   const essentialKeys = Object.keys(PRESETS.essential).sort(compareStrings)
   const errorsInRecommended = Object.entries(PRESETS.recommended)
     .filter(([, setting]) => (Array.isArray(setting) ? setting[0] : setting) === 'error')

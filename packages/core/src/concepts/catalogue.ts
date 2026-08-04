@@ -18,16 +18,6 @@ export const CONCEPT_GROUPS = [
   'config',
   'deps',
   'slop',
-  // The four groups below are not curated concept vocabulary — they are oxlint's own remaining
-  // rule categories (correctness, style and perf above already coincide with oxlint's names; these
-  // four have no better engine-independent home yet). The registry generator's mechanical default
-  // (packages/core/scripts/generate-registry.ts) is `concept = <oxlint category>.<kebab value>`,
-  // and a concept's `group` must equal its id's first segment (concepts/validate.ts), so every
-  // category oxlint can report has to be a valid group here or generation fails outright the first
-  // time it meets a rule in one of these categories. Deliberately *not* collapsed onto an existing
-  // group (e.g. `suspicious` into `correctness`): that would be a real taxonomy decision, and the
-  // override table (registry/overrides.ts) is where those get made one rule at a time, not baked
-  // into the mechanical fallback for rules nobody has looked at yet.
   'pedantic',
   'restriction',
   'suspicious',
@@ -42,27 +32,9 @@ export type ConceptDefinition = {
   readonly title: string
   readonly description: string
   readonly deprecated?: { readonly since: string; readonly replacedBy?: string }
-  /**
-   * True for a concept the orchestrator emits itself (packages/core/src/run/check.ts) rather than
-   * any engine rule — e.g. `config.rule-overlap`. No `RuleEntry` will ever claim one of these, so
-   * election must not count that against the repository's coverage.
-   */
   readonly servicedBySlopGate?: boolean
 }
 
-// Hand-authored concept vocabulary: M0's original catalogue plus every deliberate rename the
-// registry generator's override table (registry/overrides.ts) redirects a mechanical concept onto.
-// `CONCEPTS` below merges this with `GENERATED_CONCEPTS` — the concepts the generator invents for
-// everything the override table did *not* redirect — so this array is deliberately incomplete on
-// its own; see the comment on the merged `CONCEPTS` export just below the closing bracket.
-//
-// Exported (not module-private) specifically so `scripts/generate-registry.ts` can import *this*
-// array — together with `CURATED_CONCEPTS`, the other half of the vocabulary a human maintains, and
-// still not the merged `CONCEPTS` — when it decides which concepts are genuinely new. Reading the
-// merged export there would be circular: after the first run, `GENERATED_CONCEPTS` (produced by
-// that run) is already part of `CONCEPTS`, so every concept the generator ever produced would look
-// "already known" on every subsequent run and `concepts.generated.ts` would regenerate empty —
-// exactly the bug this comment is here so nobody reintroduces.
 export const HAND_WRITTEN_CONCEPTS = [
   {
     id: 'correctness.no-debugger',
@@ -91,12 +63,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'Unlike every other concept, this has no owning rule: any engine capable of parsing the ' +
       "language may report it, attributed via a synthetic per-engine rule id (oxlint's is `parse-error`).",
   },
-  // The 35 entries below and the one under `security` (further down) are M0's curated stopgap
-  // expansion of the registry (packages/core/src/registry/entries.ts) — 39 hand-picked rules from
-  // oxlint's `correctness` and `suspicious` categories, chosen over the hundreds available in
-  // `style` and `restriction` specifically because those collide with a project's own Prettier/
-  // ESLint choices and teach users to ignore the gate. Generating the registry from engine
-  // introspection instead of hand-authoring it is M1 work.
   {
     id: 'correctness.invalid-super-call',
     group: 'correctness',
@@ -351,10 +317,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'A `catch` block throws a new error without linking the original one (for example via ' +
       '`{ cause }`), discarding the information needed to debug what actually failed.',
   },
-  // Added after the M0 batch above, in the five-fixes follow-up session: real-world use on a
-  // NestJS project surfaced this as a genuine finding (see registry/entries.ts and
-  // docs/superpowers/specs/2026-07-31-m0-followups.md). Named for what oxlint's `no-shadow`
-  // detects, engine-independently, rather than for the rule's own id.
   {
     id: 'correctness.shadows-outer-binding',
     group: 'correctness',
@@ -409,13 +371,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'An expression statement produces a value or has no side effect that is ever used — usually a ' +
       'typo for a call, assignment or comparison.',
   },
-  // The knip domain (spec §13.2). Every concept below is *whole-program*: none of them can be decided
-  // by looking at one file, which is what separates them from `dead-code.unused-import` and
-  // `dead-code.unused-variable` above — those are scope-local and oxlint owns them. The corollary
-  // matters when reading a finding: each of these is only as good as the reachability graph knip built,
-  // and that graph is exactly what a repository with an undeclared workspace layout, a runtime-loaded
-  // convention directory or a framework-injected entry point can invalidate. See the measured
-  // false-positive rates recorded on each entry in registry/entries.uncatalogued.ts.
   {
     id: 'dead-code.unused-file',
     group: 'dead-code',
@@ -581,10 +536,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'spec §14 groups under this name is a different defect and has its own concept — see ' +
       '`slop.double-cast`.',
   },
-  // The pattern-shaped half of the slop ruleset (spec §14), owned by ast-grep
-  // (`packages/engine-astgrep/src/rules.ts`). Each concept's measured accuracy is recorded on its
-  // `RuleEntry` in registry/entries.uncatalogued.ts, not here: a description says what a finding *means*,
-  // an entry says how much to trust it, and only the second changes when a rule is re-measured.
   {
     id: 'slop.double-cast',
     group: 'slop',
@@ -643,12 +594,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'JavaScript identifiers cannot contain emoji: they are excluded from `ID_Start`/`ID_Continue`, ' +
       'so the only place one can appear in JS or TS is a string.',
   },
-  // The `schema` engine (`packages/engine-schema`) owns `config.compose-schema` below, plus
-  // `correctness.parse-error` and `correctness.no-duplicate-object-key` — the concepts that already
-  // describe its other two rules exactly. It claims those two rather than config-group duplicates
-  // because ownership is `(concept, language)`-keyed: oxlint owns them for JavaScript and TypeScript,
-  // the schema engine owns them for YAML, and no file is both. `correctness.parse-error` has always
-  // said "any engine capable of parsing the language may report it"; that is now true.
   {
     id: 'config.compose-schema',
     group: 'config',
@@ -704,19 +649,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'nothing and so can never observe it.',
     servicedBySlopGate: true,
   },
-  // GitHub Actions workflow concepts, owned by the `actionlint` engine
-  // (`packages/engine-actionlint`). One concept per actionlint rule, because each is a separate check
-  // over a separate part of the workflow schema and users need to be able to turn them off one at a
-  // time — a single `config.workflow` concept would make disabling the runner-label allowlist problem
-  // also disable expression typechecking.
-  //
-  // `config.*`, not `correctness.*`, and the boundary is load-bearing: actionlint deliberately claims
-  // **neither** `correctness.parse-error` nor `correctness.no-duplicate-object-key`, both of which
-  // stay with the `schema` engine for `github-workflow`. Over 403 real workflow files from 17
-  // repositories actionlint reported zero of either, so there was no contested ground — and the M0
-  // follow-ups had already recorded what taking them would cost, since on an unresolved YAML alias
-  // actionlint reports `line: 0, column: 0` where the schema engine gives the exact token. The
-  // adapter drops both message classes rather than mapping them (see `MESSAGE_EXCLUSIONS`).
   {
     id: 'config.workflow-action',
     group: 'config',
@@ -851,22 +783,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'A `services.<id>.credentials.password` given a literal instead of a `secrets.*` reference, so ' +
       'the password is in version control and in every fork of the repository.',
   },
-  // Stylesheet concepts, owned by the `biome-css` engine (`packages/engine-biome-css`). One concept
-  // per Biome CSS rule, for the reason the workflow block above gives: each is a separate check over
-  // a separate part of CSS, and a single `style.css` concept would make turning off the hex-colour
-  // preference also turn off unknown-property detection.
-  //
-  // `css-` prefixed inside existing groups rather than a group of their own, because the group axis
-  // is "what kind of problem is this", not "which language" — an unknown CSS property and an unknown
-  // JS global are the same kind of problem. The prefix is what keeps ownership legible when a second
-  // stylesheet engine eventually arrives.
-  //
-  // **The four `style.css-*` and `complexity.css-*` concepts at the end are house style, not
-  // defects**, and are deliberately absent from `recommended`. Over 1729 production stylesheets they
-  // produced 11,525 of the engine's 12,125 findings and none of its ~27 true defects. Shipping them
-  // on by default would have meant a first run reporting eleven thousand findings with no defect
-  // content, which is how a linter loses a user permanently. They keep full entries so anyone who
-  // *wants* the house style can enable it by concept.
   {
     id: 'correctness.css-unknown-property',
     group: 'correctness',
@@ -1134,21 +1050,6 @@ export const HAND_WRITTEN_CONCEPTS = [
       'a `sgate-disable`-family directive instead, which slop-gate can see, attribute and report as ' +
       'unused when it stops matching.',
   },
-  // The Dockerfile concepts, owned by `hadolint` (see spec §13.7). Five of them, against roughly
-  // seventy rules upstream ships: over 275 real Dockerfiles hadolint measured 25% precision, with 68%
-  // of its output coming from thirteen rules that produced **zero** true positives. Two absences are
-  // worth stating here because they are the ones a reader will look for. There is no
-  // `security.dockerfile-root-user` concept, because **hadolint cannot detect a missing `USER`** — a
-  // Dockerfile with no `USER` instruction is silent, and `DL3002` fires only on an explicit
-  // `USER root`. And there is no concept for secrets in `ARG`/`ENV`, because the rule that would carry
-  // that rule (`DL3064`) is a substring matcher that scored 7 of 25; see `NOT_RECOMMENDED_UNCATALOGUED`.
-  // Not "it (`DL3064`)": `vitest/no-commented-out-tests` reads `it (` in prose as a disabled test,
-  // which is a fair reading of the token and the reason this sentence is phrased around it.
-  // Two concepts rather than one, and the split is forced rather than stylistic. Untagged and
-  // `:latest` are the same defect in spirit, but arbitration elects exactly one owner per
-  // (concept, language) — so mapping both `DL3006` and `DL3007` onto a single concept made the
-  // registry suppress one of them outright and emit a `config.rule-overlap` about its own two rules.
-  // Caught end-to-end, not in review: `DL3007`, which measured 18 of 18, was the one being dropped.
   {
     id: 'config.dockerfile-base-image-untagged',
     group: 'config',
@@ -1210,20 +1111,6 @@ export const HAND_WRITTEN_CONCEPTS = [
   },
 ] as const satisfies readonly ConceptDefinition[]
 
-/**
- * The full concept vocabulary, in three halves — provenance of the *prose*, not of the id:
- *
- *   - `HAND_WRITTEN_CONCEPTS` above: ids a human chose, named in type-checked code.
- *   - `CURATED_CONCEPTS` (concepts/curated.ts): ids the generator named, prose a human wrote later
- *     for the concepts a user actually meets. Listed here rather than in `concepts.generated.ts`
- *     precisely so the generator stops re-emitting them with a boilerplate description.
- *   - `GENERATED_CONCEPTS` (concepts/concepts.generated.ts): everything left — mechanically named
- *     *and* mechanically described, which is what `GENERATED_CONCEPT_IDS` below reports.
- *
- * All three are `as const satisfies readonly ConceptDefinition[]` before this spread, which is what
- * keeps `ConceptId` below a closed union of every concept's literal id rather than widening to plain
- * `string` the moment a generated id joins the array.
- */
 export const CONCEPTS = [
   ...HAND_WRITTEN_CONCEPTS,
   ...CURATED_CONCEPTS,
@@ -1244,33 +1131,10 @@ export function conceptById(id: ConceptId): ConceptDefinition {
   return found
 }
 
-// `CONCEPTS` is deliberately `as const satisfies readonly ConceptDefinition[]` so each concept
-// keeps its narrow literal type (see `RULE_ENTRIES` for the same pattern). A concept that omits
-// `servicedBySlopGate` doesn't structurally have that key at all, so reading it needs the widened
-// `ConceptDefinition` view rather than `CONCEPTS` directly.
 const WIDENED_CONCEPTS: readonly ConceptDefinition[] = CONCEPTS
 
-/** Concepts the orchestrator services itself — see `ConceptDefinition.servicedBySlopGate`. */
 export const SLOP_GATE_SERVICED_CONCEPTS: ReadonlySet<string> = new Set(
   WIDENED_CONCEPTS.filter((c) => c.servicedBySlopGate).map((c) => c.id),
 )
 
-/**
- * Concepts whose `title` and `description` came out of the registry generator rather than a human.
- *
- * The distinction matters to any consumer that presents a description as *rationale*. A hand-written
- * one states the consequence — `correctness.no-debugger`: "A `debugger` statement halts execution
- * wherever it is reached" — while a generated one restates the rule's own name back at the reader:
- * "Generated from oxlint's `unicorn/no-useless-spread` rule (category: correctness). No Useless
- * Spread." `concepts.generated.ts` says as much in its own header, and nothing had a way to act on
- * it. Labelling the second kind "why this matters" would be worse than saying nothing, so the
- * `agent` reporter reads this set and omits the line instead (spec §12).
- *
- * Derived from `GENERATED_CONCEPTS` rather than a flag on each entry: the flag would be hundreds of
- * extra lines in a generated file to encode what the file's identity already says. That identity is
- * also the mechanism by which a concept leaves this set — moving it into `CURATED_CONCEPTS`
- * (concepts/curated.ts) makes the generator treat it as known vocabulary and stop emitting it, which
- * is what turns the reporter's `why:` line back on. Writing a rationale without that move would
- * leave the prose committed and never shown; `curated.test.ts` asserts the pair.
- */
 export const GENERATED_CONCEPT_IDS: ReadonlySet<string> = new Set(GENERATED_CONCEPTS.map((c) => c.id))

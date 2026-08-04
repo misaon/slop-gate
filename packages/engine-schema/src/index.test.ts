@@ -10,7 +10,6 @@ let context: RunContext
 
 const ALL: EngineRuleSelection = new Map(SCHEMA_RULE_IDS.map((rule) => [rule, ['error'] as const]))
 
-/** `InventoryFile.path` is repo-relative with POSIX separators by contract, whatever the host is. */
 const file = (path: string, language: InventoryFile['language'] = 'yaml'): InventoryFile => ({
   path,
   language,
@@ -45,7 +44,6 @@ afterEach(async () => {
 })
 
 test('reports a version covering both its own release and the vendored schemas', async () => {
-  // Either half changing changes the verdict, so either half must invalidate a cached result.
   expect(await createSchemaEngine().version()).toMatch(/^\d+\.\d+\.\d+\+schemas\.[0-9a-f]{12}$/)
 })
 
@@ -81,8 +79,6 @@ test('finds a compose violation in a real compose file, with a docs link', async
 })
 
 test('applies the schema only to files bound to one', async () => {
-  // Same content, a name that is not a compose file: the structural checks still run, the schema
-  // does not. `services:` at the top of `values.yaml` is a Helm chart.
   await writeFile(join(dir, 'values.yaml'), 'services:\n  web:\n    imge: nginx\n')
 
   expect(await run([file('values.yaml')])).toEqual([])
@@ -108,8 +104,6 @@ test('checks the structure of workflow files, which are YAML before they are wor
 })
 
 test('reports byte offsets, not string offsets, when the file contains multi-byte characters', async () => {
-  // The bug this exists to catch is silent: every range after a non-ASCII character is shifted, and
-  // the reported line still looks plausible. `é` and `→` are two and three UTF-8 bytes.
   const source = 'note: "café → ☕"\ndup: 1\ndup: 2\n'
   await writeFile(join(dir, 'config.yaml'), source)
 
@@ -121,8 +115,6 @@ test('reports byte offsets, not string offsets, when the file contains multi-byt
 })
 
 test('reports nothing for a rule the selection leaves out', async () => {
-  // `name` is a real Compose key duplicated, `servcies` a misspelling: exactly one finding each, so
-  // neither rule can borrow the other's.
   await writeFile(join(dir, 'compose.yaml'), 'name: app\nname: other\nservcies: {}\n')
 
   const onlySchema = await run([file('compose.yaml')], new Map([['compose-spec', ['error'] as const]]))
@@ -133,9 +125,6 @@ test('reports nothing for a rule the selection leaves out', async () => {
 })
 
 test('still validates the schema of a file that also has a duplicate key', async () => {
-  // YAML resolves a duplicate key (last one wins) and the consuming tool loads that result, so the
-  // document is still worth validating. Skipping it would let one duplicate key silently suppress
-  // every schema finding in the file — a coverage gap indistinguishable from a clean file.
   await writeFile(join(dir, 'compose.yaml'), 'name: app\nname: other\nservcies: {}\n')
 
   const found = await run([file('compose.yaml')])
@@ -150,9 +139,6 @@ test('reads nothing at all when the selection is empty', async () => {
 })
 
 test('a rule set to off with options is still off', async () => {
-  // This adapter used to decide enablement by membership alone (`selection.has(rule)`), which reads
-  // *any* present setting as enabled — an `['off', …]` value included. Reading the level is what makes
-  // the contract true rather than true only because `buildPlan` filters first.
   await writeFile(join(dir, 'compose.yaml'), 'name: app\nname: other\nservcies: {}\n')
 
   const found = await run(

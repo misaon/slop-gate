@@ -78,8 +78,6 @@ test('multi-byte content is rendered by character, not mangled into replacement 
 })
 
 test('a CRLF file keeps its carriage returns out of the line content', () => {
-  // A `\r` left on the end of every context line would make the whole file look changed in a
-  // terminal that renders it, and would defeat a reader comparing the diff to the source.
   const result = diff('a\r\nb\r\n', 'a\r\nc\r\n')
   expect(result).toContain('-b')
   expect(result).toContain('+c')

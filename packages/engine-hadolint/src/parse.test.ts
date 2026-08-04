@@ -32,7 +32,6 @@ test('unparseable output is an engine error rather than silence', () => {
 test('an elected rule becomes a diagnostic with the range over its instruction keyword', () => {
   const [diagnostic] = parseHadolintOutput([finding()], options('FROM node:latest\nRUN echo hi\n'))
   expect(diagnostic).toMatchObject({ engineRuleId: 'DL3007', file: 'Dockerfile', severity: 'error' })
-  // `FROM` — offsets 0..4 — rather than a zero-width point at column 1.
   expect(diagnostic?.range).toEqual({ start: 0, end: 4 })
 })
 
@@ -46,14 +45,10 @@ test('a rule that was not elected is dropped', () => {
 })
 
 test('a rule this registry has never heard of is dropped rather than passed through', () => {
-  // hadolint grows codes between releases, and a `PATH` binary is frequently newer than the pin. An
-  // unknown code must not reach a user through an upgrade.
   expect(parseHadolintOutput([finding({ code: 'DL9999' })], options('FROM node:latest\n'))).toEqual([])
 })
 
 test('embedded ShellCheck findings are dropped whatever their code', () => {
-  // Two independent grounds, both in rules.ts: the error tier is empty, and hadolint attributes them
-  // to the `RUN` instruction head rather than the offending line.
   const shell = [finding({ code: 'SC2086' }), finding({ code: 'SC3010' }), finding({ code: 'SC2046' })]
   expect(parseHadolintOutput(shell, options('FROM x\nRUN y\n'))).toEqual([])
 })
@@ -70,8 +65,6 @@ test('DL3025 is dropped on HEALTHCHECK and kept on a real ENTRYPOINT', () => {
 })
 
 test('hadolint own severity is not mapped onto ours', () => {
-  // `DL3020` is `error` upstream and measured zero true positives; `DL4006` is `warning` and measured
-  // 78. The registry decides severity, so every diagnostic leaves here the same.
   const [diagnostic] = parseHadolintOutput([finding({ code: 'DL4006', level: 'info' })], options('FROM x\n'))
   expect(diagnostic?.severity).toBe('error')
 })
@@ -92,19 +85,11 @@ test('an unreadable file still reports, at the top', () => {
 })
 
 test('stripping is one function, because `index.ts` keys its source map on the same path this parser reports', () => {
-  // Two implementations that agree today is the failure mode: `readSource` would miss, every finding
-  // would collapse to {start:0,end:0}, and every baseline fingerprint would churn without a word.
   expect(stripPrefixes('/repo/root/Dockerfile', ['/repo/root'])).toBe('Dockerfile')
-  // A trailing slash on the prefix strips identically — the two implementations spelled this
-  // differently (`endsWith` versus a `/\/?$/` replace) and that is one of the ways they could drift.
   expect(stripPrefixes('/repo/root/Dockerfile', ['/repo/root/'])).toBe('Dockerfile')
-  // Longest first, so a nested prefix wins over the root it sits under.
   expect(stripPrefixes('/repo/root/tmp/Dockerfile', ['/repo/root', '/repo/root/tmp'])).toBe('Dockerfile')
-  // Host separators are normalised before matching, on both sides.
   expect(stripPrefixes('C:\\repo\\root\\Dockerfile', ['C:\\repo\\root'])).toBe('Dockerfile')
-  // A prefix that matches nothing, an empty prefix and no prefixes all pass the path through.
   expect(stripPrefixes('docker/Dockerfile', ['/elsewhere', ''])).toBe('docker/Dockerfile')
   expect(stripPrefixes('/repo/root/Dockerfile', [])).toBe('/repo/root/Dockerfile')
-  // A prefix equal to the whole path leaves nothing, which `index.ts` skips rather than read.
   expect(stripPrefixes('/repo/root/', ['/repo/root'])).toBe('')
 })

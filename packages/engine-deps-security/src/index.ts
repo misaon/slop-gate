@@ -45,10 +45,6 @@ export {
   type AdvisoryTables,
   type DistilledAffected,
 } from './advisory.ts'
-// `advisoryAffects` and `scanDependencies` are deliberately absent from this barrel. Both reach `./match.ts` and
-// therefore `semver`, ~6 ms of module load that `execute()`'s dynamic import keeps out of every run which never
-// scans a lockfile — `sgate rules why`, a fully-cached `sgate check`, every machine with no snapshot installed.
-// A static re-export here would put `semver` straight back in the entry graph and undo it.
 export {
   LOCKFILES,
   LockfileParseError,
@@ -102,20 +98,6 @@ export type CreateDepsSecurityEngineOptions = SnapshotLocationOptions & {
   now?: Date
 }
 
-/**
- * The only engine whose data is inherently remote, which is the whole design problem it exists to answer.
- *
- * **`sgate check` never reaches the network, and `npm audit` is why that is not merely a preference.** Measured
- * against a tree with 34 real advisories, `npm audit --offline` exits 0, writes nothing to stderr and reports
- * `"total": 0` — so a wrapper around it would report an air-gapped CI image clean, a silent total false negative
- * that is worse than no check at all because the tool implies it looked. So the data comes from a local snapshot
- * `sgate engines install advisories` populates, and `availability()` is a `stat` on it. Matching a lockfile
- * against it reproduces `npm audit` exactly across six real lockfiles, zero divergence either way (spec §13.7).
- *
- * **Nothing here is bundled with a floor of data.** A snapshot shipped in the package would age with the release
- * cadence, and npm publishes roughly 240 advisories a month, so within a quarter it would quietly be missing
- * around a thousand — `npm audit --offline`'s failure again, just slower. Loudly absent beats quietly out of date.
- */
 export function createDepsSecurityEngine(options: CreateDepsSecurityEngineOptions = {}): Engine {
   const directory = advisorySnapshotDir(options)
 
@@ -123,23 +105,12 @@ export function createDepsSecurityEngine(options: CreateDepsSecurityEngineOption
     id: 'deps-security',
 
     capabilities: {
-      // `yaml` is claimed for `pnpm-lock.yaml`, which pulls every workflow and CI file in the repository into
-      // this engine's assigned set — accepted, unlike knip, because a pnpm lockfile *is* the input rather than a
-      // hint about one and there is no finer language to ask for. The cost is cache invalidation: an unrelated
-      // YAML edit re-runs a scan that takes single-digit milliseconds.
       languages: ['json', 'yaml'],
       granularity: 'project',
       provides: [],
-      // There is a real fix — raise a version range — but its correctness depends on the whole resolution graph,
-      // not a text replacement, so claiming the capability would let `sgate fix` promise edits this cannot produce.
       fixes: false,
     },
 
-    /**
-     * A snapshot that is merely *old* still reports available. Refusing to run on age would turn a date into a
-     * build failure with no commit behind it and lose every finding the snapshot can still make; the age is
-     * reported as a finding instead, escalating as it grows.
-     */
     async availability(): Promise<EngineAvailability> {
       const manifest = readSnapshotManifest(directory)
       if (manifest !== undefined) return { available: true }
@@ -153,14 +124,10 @@ export function createDepsSecurityEngine(options: CreateDepsSecurityEngineOption
     async version() {
       const manifest = readSnapshotManifest(directory)
       if (manifest === undefined) throw new EngineError('deps-security', `no advisory snapshot in ${directory}`)
-      // The snapshot date, not this package's version: two runs of identical code against snapshots a month
-      // apart are not the same check, and a cache key blind to that would serve stale findings after a refresh.
       return `osv-npm@${manifest.fetchedAt.slice(0, 10)}+${manifest.digest.slice(0, 12)}`
     },
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext): Promise<EngineConfigHandle> {
-      // This engine's rules take no options, so only the level half of each setting is read and `rulesetHash`
-      // need not fold the rest in.
       const enabled = [...selection.entries()]
         .filter(([, [level]]) => level !== 'off')
         .map(([rule]) => rule)
@@ -175,7 +142,6 @@ export function createDepsSecurityEngine(options: CreateDepsSecurityEngineOption
         rulesetHash: hashJson(payload),
         ruleCount: enabled.length,
         async dispose() {
-          // Left to the caller's `tmpDir` teardown, like every other adapter's ephemeral config.
         },
       }
     },
@@ -201,8 +167,6 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
 
   const manifest = readSnapshotManifest(input.directory)
   if (manifest === undefined) {
-    // Unreachable through the orchestrator, which never runs an engine its probe reported absent — but a snapshot
-    // removed between probe and run lands here, and yielding nothing is indistinguishable from a clean repository.
     throw new EngineError('deps-security', `the advisory snapshot in ${input.directory} disappeared mid-run`)
   }
 
@@ -228,8 +192,6 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
     enabled.has('malware') ? readTable(input.directory, MALICIOUS_FILE) : Promise.resolve({}),
   ])
 
-  // Loaded here, not at the top of the module: this is the first point at which a scan is certainly going to
-  // happen, so `semver` is paid for only by runs that use it. See the note beside this module's export list.
   const { scanDependencies } = await import('./scan.ts')
   yield* scanDependencies({
     lockfile: found,
@@ -244,15 +206,6 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
   })
 }
 
-/**
- * Reported even though it is not a defect in the repository: a run that examined no lockfile has checked nothing,
- * and the one outcome this engine may never produce is a clean bill of health it did not earn.
- *
- * **Unless there is nothing to have missed.** A repository whose manifests declare no dependencies has no tree
- * for a lockfile to pin, and a coverage gap that fires when coverage is complete is how a gap line stops being read.
- *
- * @yields the single coverage-gap diagnostic, when there is one to report.
- */
 function* noLockfile(
   input: ExecuteInput,
   enabled: ReadonlySet<DepsSecurityRuleId>,
@@ -291,19 +244,12 @@ function findUnsupportedLockfiles(rootDir: string): readonly { readonly file: st
     .map(([file, manager]) => ({ file, manager }))
 }
 
-/**
- * Manifests come from the assigned file list rather than a directory walk, so `ignore` globs and the inventory's
- * own exclusions apply — a project engine picks its own files and would otherwise report on directories the user
- * excluded, which is the defect the knip adapter records having had.
- */
 async function readManifests(batch: FileBatch, rootDir: string): Promise<readonly PackageManifest[]> {
   const manifests: PackageManifest[] = []
   for (const file of batch.files) {
     if (!isManifest(file.path)) continue
     manifests.push({ file: file.path, source: await readFile(join(rootDir, file.path), 'utf8') })
   }
-  // Shallowest first, so a root dependency anchors to the root manifest rather than to whichever workspace
-  // happened to be listed earliest.
   return manifests.sort((left, right) => depthOf(left.file) - depthOf(right.file) || compareStrings(left.file, right.file))
 }
 

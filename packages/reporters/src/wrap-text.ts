@@ -1,14 +1,5 @@
 import { displayWidth } from './display-width.ts'
 
-/**
- * Wraps `text` to fit within `width` display columns, breaking only at whitespace. A single word wider than
- * `width` (a long path, a minified identifier) is emitted whole on its own line rather than split
- * mid-character — an overlong line reads as a minor layout hiccup, but a chopped identifier is actively
- * misleading about what the token was.
- *
- * **Callers that colour their text must wrap the plain text first and paint each returned line afterward**:
- * colouring first would let an escape sequence's start and end land on two different lines.
- */
 export function wrapText(text: string, width: number): string[] {
   const safeWidth = Math.max(1, width)
   const words = text.split(/\s+/).filter((word) => word.length > 0)

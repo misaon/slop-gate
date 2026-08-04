@@ -18,8 +18,6 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
-  // The escape-guard tests write a sibling directory outside `dir`; `force` makes this a no-op
-  // for every other test.
   await rm(join(dir, '..', 'outside'), { recursive: true, force: true })
 })
 

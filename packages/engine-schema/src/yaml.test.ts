@@ -15,7 +15,6 @@ test('points the duplicate at the second occurrence, not the first', () => {
   const source = 'a: 1\nb: 2\na: 3\n'
   const { findings } = inspectYaml(source)
 
-  // The offset must land on the repeated key, which is the one a reader has to delete.
   expect(source.slice(findings[0]!.offset, findings[0]!.offset + 1)).toBe('a')
   expect(findings[0]!.offset).toBe(source.lastIndexOf('a: 3'))
 })
@@ -25,9 +24,6 @@ test('finds a duplicate nested inside a mapping, not only at the root', () => {
 })
 
 test('accepts a multi-document file, which is legal YAML and very common', () => {
-  // The single most dangerous false positive available here: `parseDocument` reports MULTIPLE_DOCS
-  // as an error, so an implementation reaching for it would flag every Kubernetes manifest in the
-  // repository. Verified against kubernetes/examples, where multi-document files are the norm.
   expect(rules('apiVersion: v1\nkind: Service\n---\napiVersion: v1\nkind: Pod\n')).toEqual([])
 })
 
@@ -51,7 +47,6 @@ test('reports an alias whose anchor is never defined', () => {
 })
 
 test('reports an alias that refers to an anchor defined later in the document', () => {
-  // Legal-looking and wrong: YAML resolves aliases in document order, so this one has no referent.
   expect(rules('use: *b\nbase: &b 1\n')).toEqual(['parse-error'])
 })
 
@@ -74,8 +69,6 @@ test('exposes the resolved value of each document for schema validation', () => 
 })
 
 test('exposes no value for a document that resolves to nothing, so nothing is validated', () => {
-  // An empty or comment-only document is not a schema violation — there is no document to violate
-  // one. Handing `null` to a validator that requires an object would invent a finding.
   expect(inspectYaml('# just a comment\n').documents).toEqual([])
   expect(inspectYaml('').documents).toEqual([])
 })
@@ -88,16 +81,10 @@ test('still exposes a document that parsed despite a sibling document failing', 
 })
 
 test('reports at most one parse-error finding per document', () => {
-  // A single mistake commonly produces a cascade of parser errors; a reader needs the first one,
-  // not five restatements of it. Measured on a block scalar with an under-indented tab, which the
-  // parser reports twice (BAD_INDENT then MISSING_CHAR).
   expect(rules('a: |\n  line\n\twith tab\n')).toEqual(['parse-error'])
 })
 
 test('emits no Node process warning, whatever the document contains', () => {
-  // `yaml` warns via `process.emitWarning` by default — six files of the measurement corpus trigger
-  // "Keys with collection values will be stringified". Printed mid-run it reads as a slop-gate
-  // malfunction, about something the user did not ask for and cannot act on.
   const emitted: unknown[] = []
   const original = process.emitWarning
   process.emitWarning = (warning: unknown) => void emitted.push(warning)
@@ -117,9 +104,6 @@ test('never throws on input that makes the parser itself give up', () => {
 })
 
 test('drops the parser\'s trailing colon, which introduced a code frame we do not use', () => {
-  // `yaml` writes `... at line 2, column 1:` and then renders its own excerpt. slop-gate draws the
-  // frame itself from the range, so the excerpt goes — leaving `column 1:.` in the message if the
-  // colon is not trimmed before the sentence is closed.
   const { findings } = inspectYaml('a:\n\tb: 1\n')
 
   expect(findings[0]?.message).not.toContain(':.')

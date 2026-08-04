@@ -2,14 +2,6 @@ import { createRequire } from 'node:module'
 import { expect, test } from 'vitest'
 import { resolveKnipBinary, resolveKnipPackageJson } from './resolve-binary.ts'
 
-/**
- * `knip/bin/knip.js` is a `#!/usr/bin/env node` script — confirmed by reading it directly. It is not
- * extensionless the way `oxlint/bin/oxlint` and `typescript/bin/tsc` are, and that difference is
- * *not* a reprieve on Windows: `CreateProcess` needs an executable image, and a `.js` file is no more
- * one than an extensionless script is (npm papers over this with generated `.cmd` shims in
- * `node_modules/.bin`, which is not what module resolution hands back). The same
- * `node <script>` invocation is therefore required, and this matrix pins it on every platform.
- */
 const PLATFORMS = ['win32', 'darwin', 'linux', 'freebsd'] as const satisfies readonly NodeJS.Platform[]
 
 const throwingResolver = (): never => {
@@ -36,10 +28,6 @@ for (const platform of PLATFORMS) {
 }
 
 test("knip's own exports map does not expose ./package.json, so the naive specifier throws", () => {
-  // The trap this package's resolver exists for. `oxlint` has the same shape for its *bin* path but
-  // still exports `./package.json`; knip exports only `.` and `./session`, so even the manifest is
-  // unreachable by specifier. If a future knip release adds the export this assertion fails, which is
-  // the signal to simplify `resolveKnipPackageJson` back to the one-liner the other two adapters use.
   const require = createRequire(import.meta.url)
   expect(() => require.resolve('knip/package.json')).toThrow(/ERR_PACKAGE_PATH_NOT_EXPORTED|not defined by "exports"/)
 })

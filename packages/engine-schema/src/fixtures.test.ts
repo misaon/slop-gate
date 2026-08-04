@@ -6,19 +6,6 @@ import { afterAll, beforeAll, expect, test } from 'vitest'
 import { detectLanguage, type InventoryFile, type RawDiagnostic, type RunContext } from '@misaon/slop-gate-core'
 import { SCHEMA_RULE_IDS, createSchemaEngine } from './index.ts'
 
-/**
- * Both directions for every rule, against the real engine — the same bar `packages/engine-astgrep`
- * holds its rules to, and the same two-way assertion: every finding must land on a marked line, and
- * every marked line must produce one.
- *
- * The negative fixtures are where the value is. `duplicate-mapping-key.negative.yaml` is a catalogue
- * of things that read like a repeated key and are not — a merge key overriding an inherited entry,
- * the same key name in sibling mappings, repeated *values* in a sequence — each of which starts
- * firing the moment somebody replaces the parser's mapping-scoped check with a text scan.
- * `parse-error.negative.yaml` is a legal multi-document file, which is the exact input that
- * made `parseDocument` the wrong function to build this on. `compose.negative.yaml` is a full
- * reference stack using every construct the specification permits and a naive validator rejects.
- */
 const FIXTURES = dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures')
 const MARKER = 'SGATE_HIT'
 
@@ -78,8 +65,6 @@ for (const testCase of CASES) {
     const { lines, source } = await findingLines(testCase.engineRuleId, testCase.file)
     const marked = source.split('\n').flatMap((line, index) => (line.includes(MARKER) ? [index + 1] : []))
 
-    // Two unconditional assertions rather than a branch: a guarded `expect` can pass by never
-    // running, which is the vacuous-assertion trap the M0 follow-ups record.
     expect(marked.length > 0, 'a positive fixture marks expected lines; a negative one marks none').toBe(
       testCase.polarity === 'positive',
     )
@@ -95,8 +80,6 @@ test('every rule the engine can emit is proved in both directions', () => {
 })
 
 test('the compose fixtures are named so that the schema actually binds to them', () => {
-  // A fixture named `compose-spec.positive.yaml` would follow the obvious convention and prove
-  // nothing: `bindSchema` matches the basename, and that name is not one Docker would ever load.
   for (const testCase of CASES.filter((c) => c.engineRuleId === 'compose-spec')) {
     expect(/^compose\..+\.ya?ml$/.test(testCase.file), testCase.file).toBe(true)
   }

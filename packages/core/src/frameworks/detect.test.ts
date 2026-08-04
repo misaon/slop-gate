@@ -17,20 +17,12 @@ const inventoryFile = (path: string, workspace = ''): InventoryFile => ({
   mtimeMs: 0,
 })
 
-/**
- * A repository reduced to the two things detection reads: an inventory, and the text behind the
- * handful of paths a probe may open. Nothing here touches the filesystem, which is the point — the
- * `dependency` and `path` probes are pure functions of the inventory, and `literal` is a pure
- * function of one file's text.
- */
 const repository = (files: Record<string, string>, workspaces: Record<string, string> = {}): {
   inventory: FileInventory
   readText: (path: string) => Promise<string | null>
 } => ({
   inventory: {
     root: '/repo',
-    // `node_modules` is readable but never inventoried (`discovery/sources.ts`, `ALWAYS_SKIPPED`),
-    // which is the whole distinction an `extends` into a published base config turns on.
     files: Object.keys(files)
       .filter((path) => !path.split('/').includes('node_modules'))
       .sort()
@@ -48,8 +40,6 @@ const detect = async (files: Record<string, string>, workspaces?: Record<string,
   detectFrameworks(repository(files, workspaces))
 
 const applied = (detection: FrameworkDetection, id: string) => detection.applied.find((a) => a.id === id)
-
-// --- nestjs -----------------------------------------------------------------------------------
 
 test('detects NestJS from @nestjs/core and disables the empty-class concept', async () => {
   const detection = await detect({ 'package.json': manifest({ '@nestjs/core': '^11.0.0' }) })
@@ -77,8 +67,6 @@ test('finds a dependency declared only in a nested workspace manifest', async ()
   expect(applied(detection, 'nestjs')?.evidence[0]).toMatchObject({ file: 'apps/api/package.json', workspace: 'apps/api' })
 })
 
-// --- angular ----------------------------------------------------------------------------------
-
 test('detects Angular from @angular/core and disables the same empty-class concept', async () => {
   const detection = await detect({ 'package.json': manifest({ '@angular/core': '^19.0.0' }) })
   const angular = applied(detection, 'angular')
@@ -96,11 +84,6 @@ test('does not detect Angular in a repository that never declares it', async () 
   expect(applied(detection, 'angular')).toBeUndefined()
 })
 
-/**
- * The union property from spec §23.3, exercised on the one concept two profiles genuinely contest.
- * Both want it off, so there is nothing to arbitrate: the rule layer carries it once, each profile
- * keeps its own reason for `rules why`, and the result is the same whichever order they ran in.
- */
 test('two profiles disabling the same concept is idempotent, not a conflict', async () => {
   const detection = await detect({
     'package.json': manifest({ '@angular/core': '^19.0.0', '@nestjs/core': '^11.0.0' }),
@@ -119,8 +102,6 @@ test('two profiles disabling the same concept is idempotent, not a conflict', as
   expect(new Set(reasons).size).toBe(2)
 })
 
-// --- nestjs-express ---------------------------------------------------------------------------
-
 test('NestJS on Express ignores the transitively-provided express dependency', async () => {
   const detection = await detect({ 'package.json': manifest({ '@nestjs/platform-express': '^11.0.0' }) })
   expect(engineAdjustmentsFor('knip', detection)).toEqual([
@@ -132,8 +113,6 @@ test('a NestJS project without platform-express does not ignore express', async 
   const detection = await detect({ 'package.json': manifest({ '@nestjs/core': '^11.0.0', '@nestjs/platform-fastify': '^11.0.0' }) })
   expect(engineAdjustmentsFor('knip', detection)).toEqual([])
 })
-
-// --- mikro-orm --------------------------------------------------------------------------------
 
 test('reads the migrations directory out of the ORM config and makes it a knip entry', async () => {
   const detection = await detect({
@@ -198,8 +177,6 @@ test('stands down, with a reason, when no ORM config file exists at all', async 
   )
 })
 
-// --- vitepress --------------------------------------------------------------------------------
-
 test('points knip at a VitePress site that is not at the workspace root', async () => {
   const detection = await detect({
     'package.json': manifest({ vitepress: '^2.0.0' }, 'devDependencies'),
@@ -245,8 +222,6 @@ test('two sites in one workspace both contribute, and the union is sorted', asyn
   expect(values).toContain('docs/.vitepress/config.{js,mjs,cjs,ts,mts,cts}')
   expect(values).toContain('site/.vitepress/config.{js,mjs,cjs,ts,mts,cts}')
 })
-
-// --- react-jsx-transform ----------------------------------------------------------------------
 
 const tsconfig = (jsx: string | null): string =>
   JSON.stringify({ compilerOptions: jsx === null ? { strict: true } : { jsx, strict: true } })
@@ -297,11 +272,6 @@ test('leaves the rule alone when the classic transform is the only one configure
 })
 
 test('scopes the disable to the automatic project instead of standing down over a classic sibling', async () => {
-  // This used to stand down repository-wide. Measured cost of that on `medusajs/medusa`: 15 442
-  // findings, **none** of them in `packages/admin/admin-bundler`, the project whose `"jsx": "react"`
-  // caused the stand-down — while 11 297 were in `packages/admin/dashboard`, which declares
-  // `"jsx": "react-jsx"` itself. The evidence for the automatic project was never in doubt; only the
-  // vocabulary to act on it was missing, and `PathScope` supplied that in 1d4ff41.
   const detection = await detect({
     'apps/legacy/tsconfig.json': tsconfig('react'),
     'apps/web/tsconfig.json': tsconfig('react-jsx'),
@@ -317,9 +287,6 @@ test('scopes the disable to the automatic project instead of standing down over 
 })
 
 test('keeps the rule on for an automatic project that contains a classic one', async () => {
-  // The subtree is the unit: `apps/web/legacy` sits inside what `apps/web/**` would turn off, so the
-  // outer project cannot be scoped without dropping the rule where the classic transform still needs
-  // it. Standing down for that one project is the whole reason disagreement was ever respected.
   const detection = await detect({
     'apps/web/tsconfig.json': tsconfig('react-jsx'),
     'apps/web/legacy/tsconfig.json': tsconfig('react'),
@@ -332,10 +299,6 @@ test('keeps the rule on for an automatic project that contains a classic one', a
 })
 
 test('narrows an automatic project to its own include list so a sibling classic one does not block it', async () => {
-  // `honojs/hono`: `tsconfig.spec.json` at the root declares the automatic runtime but includes only
-  // `src`, while `benchmarks/jsx/tsconfig.json` is a genuine classic-transform React benchmark. Scoped
-  // by directory the root would swallow the benchmark and stand down; scoped by `include` it does not.
-  // Measured there: 2 149 findings, only 96 of them inside `benchmarks/jsx`.
   const detection = await detect({
     'tsconfig.spec.json': JSON.stringify({ compilerOptions: { jsx: 'react-jsx' }, include: ['src'] }),
     'benchmarks/jsx/tsconfig.json': tsconfig('react'),
@@ -356,9 +319,6 @@ test('says nothing about a deferred transform with no jsxImportSource to name a 
 })
 
 test('disables the rule when a deferred transform names a runtime that is not React', async () => {
-  // `solidjs/solid-start`: every tsconfig is `"jsx": "preserve"` with `"jsxImportSource": "solid-js"`,
-  // so the profile never fired at all — 1 670 findings, every one of them about a `React` that this
-  // project has no reason to import. `preserve` alone really is no evidence; `jsxImportSource` is.
   const detection = await detect({
     'tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'preserve', jsxImportSource: 'solid-js' } }),
   })
@@ -373,8 +333,6 @@ test('disables the rule when a deferred transform names a runtime that is not Re
 })
 
 test('keeps treating a deferred transform as no evidence when jsxImportSource names React itself', async () => {
-  // `"jsxImportSource": "react"` under `preserve` says the downstream tool targets React's runtime but
-  // not *which* one — the classic transform is still reachable, so this must stay silent.
   const detection = await detect({
     'tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'preserve', jsxImportSource: 'react' } }),
   })
@@ -386,11 +344,6 @@ test('says nothing when no tsconfig configures jsx at all', async () => {
   expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
 })
 
-/**
- * The measured monorepo, reduced to its tsconfig graph: 19 config files, 4 of which set `jsx`, and
- * the three apps holding most of the `.tsx` set nothing and reach the value two levels up. A silent
- * config is not a dissenter, and this is the case that says so.
- */
 test('applies when the apps inherit the transform two levels up and set nothing themselves', async () => {
   const detection = await detect({
     'tsconfig.base.json': JSON.stringify({ compilerOptions: { strict: true } }),
@@ -436,13 +389,6 @@ test('lets a leaf override a classic base that is not itself a project here', as
   ])
 })
 
-/**
- * A committed `tsconfig.base.json` declaring the classic transform is a dissenter even when every
- * leaf overrides it, because it is a config file in its own right and `tsc -p tsconfig.base.json`
- * would use it. Distinguishing "a base nobody compiles" from "a project" needs the reverse extends
- * graph and is still ambiguous at the end of it, so this stays on the safe side and says which file
- * it is unhappy about.
- */
 test('treats a committed classic base as a dissenter even when every leaf overrides it', async () => {
   const detection = await detect({
     'tsconfig.base.json': JSON.stringify({ compilerOptions: { jsx: 'react' } }),
@@ -472,8 +418,6 @@ test('stands down when an extends chain cannot be followed at all', async () => 
   )
 })
 
-// --- test-framework ---------------------------------------------------------------------------
-
 const ruleIdsInScope = (scope: string): Set<string> =>
   new Set(
     RULE_ENTRIES.filter((entry) => entry.engineRuleId.startsWith(`${scope}/`)).map((entry) =>
@@ -484,12 +428,6 @@ const ruleIdsInScope = (scope: string): Set<string> =>
 const disabledConcepts = (detection: FrameworkDetection): readonly string[] =>
   Object.keys(frameworkRuleLayers(detection).find((layer) => layer.source === 'test-framework')?.rules ?? {})
 
-/**
- * The dual-firing set is exactly the rules both plugins implement, and nothing else. Measured: the
- * whole-scope version of this profile also disabled `correctness.no-export` (from `jest/no-export`,
- * which vitest has no counterpart for and which therefore never double-reports) — a silent coverage
- * loss on every vitest repository. Pinned here so a wider definition cannot creep back in.
- */
 test('the dual-firing set contains only rules both plugins implement', () => {
   const jestOnly = [...ruleIdsInScope('jest')].filter((value) => !ruleIdsInScope('vitest').has(value))
   expect(jestOnly.length).toBeGreaterThan(0)
@@ -503,11 +441,6 @@ test('the dual-firing set contains only rules both plugins implement', () => {
   expect(disabled.has('correctness.no-export' as ConceptId)).toBe(false)
 })
 
-/**
- * Load-bearing: the profile turns concepts off by id, which is only safe while no concept claimed by
- * a jest- or vitest-scope rule is also claimed by a rule outside that scope. An oxlint release that
- * made `jest/x` and `unicorn/y` share one would otherwise silently disable the unicorn rule too.
- */
 test('no concept claimed by a jest- or vitest-scope rule is claimed by any rule outside it', () => {
   for (const [scope, counterpart] of [['jest', 'vitest'], ['vitest', 'jest']]) {
     const inScope = new Set(dualFiringConcepts(scope!, counterpart!))
@@ -537,18 +470,6 @@ test('both installed disables both scopes — the double report would be genuine
   )
 })
 
-/**
- * oxlint 1.76.0 omits `eslint-plugin-unicorn`'s own `jest.mock()` exemption for
- * `consistent-function-scoping` (`rules/consistent-function-scoping.js:105-122`,
- * `isInsideJestMockFactory`, unicorn 72.0.0) and carries the shape in its own `fail` vector instead.
- * Measured on a four-file fixture: oxlint 5 findings, three of them functions declared inside a
- * `jest.mock()` factory; ESLint 10.8.0 with the real plugin, 2. A jest factory *cannot* reference
- * anything outside itself (jest hoists the call above the imports), so "move it to the outer scope"
- * is advice that breaks the test — every one of the three is false.
- *
- * Confined to jest's own default `testMatch`, so the rule keeps working on application code, which is
- * where it earns its place.
- */
 test('a jest repository turns the mock-factory false positive off in test files only', async () => {
   const detection = await detect({ 'package.json': manifest({ jest: '^30.0.0' }, 'devDependencies') })
   const resolver = createRuleSetResolver({
@@ -564,8 +485,6 @@ test('a jest repository turns the mock-factory false positive off in test files 
   expect(level('src/service.ts')).toBe('warn')
 })
 
-// --- chai -------------------------------------------------------------------------------------
-
 test('a chai repository turns the no-op-expression rule off in test files only', async () => {
   const detection = await detect({ 'package.json': manifest({ chai: '^5.0.0' }, 'devDependencies') })
   const resolver = createRuleSetResolver({
@@ -578,15 +497,10 @@ test('a chai repository turns the no-op-expression rule off in test files only',
   expect(level('test/functional/query-builder.test.ts')).toBe('off')
   expect(level('integration/injector/multiple-providers.spec.ts')).toBe('off')
   expect(level('src/__tests__/thing.ts')).toBe('off')
-  // The whole reason this is path-scoped: a genuine no-op statement in production code still reports,
-  // and 55 of nest's 1 397 findings were exactly that.
   expect(level('packages/core/nest-application.ts')).toBe('error')
 })
 
 test('a repository that does not declare chai keeps the rule on everywhere', async () => {
-  // Measured: hono and trpc produce 48 and 39 findings inside test files with *no* chai assertion among
-  // them — they assert with vitest's `expect`, which is a call and not a bare expression. Gating on the
-  // dependency is what keeps those genuine findings.
   const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
   const resolver = createRuleSetResolver({
     config: { extends: ['recommended'] },
@@ -606,8 +520,6 @@ test('a vitest-only repository keeps the mock-factory rule on, because upstream 
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  // Measured on the same fixture: the real plugin reports the `vi.mock()` factory too, so this is
-  // upstream's own position rather than an oversight of ours to route around. See the M0 follow-ups.
   expect(resolver.forFile('src/service.test.ts').rules.get('suspicious.consistent-function-scoping' as RuleKey)?.level).toBe(
     'warn',
   )
@@ -620,8 +532,6 @@ test('neither installed disables both scopes, degrading to the exclusion this re
   expect(disabledConcepts(neither)).toEqual(disabledConcepts(both))
   expect(applied(neither, 'test-framework')?.evidence).toEqual([])
 })
-
-// --- determinism ------------------------------------------------------------------------------
 
 test('the same repository detects identically regardless of manifest key order', async () => {
   const forward = await detect({
@@ -657,8 +567,6 @@ test('detection reads no manifest the inventory did not list', async () => {
   expect(read).toEqual(['package.json'])
 })
 
-// --- nextjs -----------------------------------------------------------------------------------
-
 const NEXT_MONOREPO = {
   'package.json': manifest({ turbo: '^2.0.0' }, 'devDependencies'),
   'apps/web/package.json': manifest({ next: '^16.0.0' }),
@@ -684,11 +592,6 @@ test('detects Next.js from a `next` dependency beside a `next.config.*`, and nam
   ])
 })
 
-/**
- * The whole point of the profile: every `nextjs` concept is already enabled repository-wide, and the
- * only thing left to say about it is *where*. So the adjustments are subtractions, all path-scoped,
- * and they name the workspaces that cannot follow the advice rather than the app that can.
- */
 test('scopes every nextjs concept off in the workspaces that declare no `next`', async () => {
   const nextjs = applied(await detect(NEXT_MONOREPO, NEXT_WORKSPACES), 'nextjs')
   const scoped = scopeConcepts('nextjs')
@@ -710,19 +613,11 @@ test('the scoped subtraction reaches the sibling package and leaves the applicat
   })
   const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element' as RuleKey)?.level
 
-  // `warn`, not `error`, and that is Vercel's own level for this rule — see
-  // `registry/upstream-severity.ts`. What this test is about is the *scope*: the sibling package is
-  // `off` and the application keeps whatever `recommended` set.
   expect(level('packages/ui/src/Logo.tsx')).toBe('off')
   expect(level('apps/web/app/page.tsx')).toBe('warn')
   expect(resolver.base.rules.get('correctness.no-img-element' as RuleKey)?.level).toBe('warn')
 })
 
-/**
- * The common case, and the one where the apparatus has to be invisible: a repository that *is* the
- * application has no sibling to scope against, so the profile applies, records its evidence, and
- * contributes nothing.
- */
 test('a single-app repository gets evidence and no adjustments at all', async () => {
   const nextjs = applied(
     await detect({ 'package.json': manifest({ next: '^16.0.0' }), 'next.config.mjs': 'export default {}' }),
@@ -732,11 +627,6 @@ test('a single-app repository gets evidence and no adjustments at all', async ()
   expect(nextjs?.adjustments).toEqual([])
 })
 
-/**
- * A glob must never reach past a nested workspace that *does* declare `next`, so an ancestor of one
- * is dropped from the scope rather than carved around it. The cost is that files sitting directly in
- * the ancestor keep the rules on, which is the direction it is safe to be wrong in.
- */
 test('an ancestor of a workspace that declares `next` is left out of the scope entirely', async () => {
   const nextjs = applied(
     await detect(
@@ -759,11 +649,6 @@ test('an ancestor of a workspace that declares `next` is left out of the scope e
   expect(nextjs?.adjustments[0]).toMatchObject({ paths: ['packages/ui/**'] })
 })
 
-/**
- * `next` without a config is a package that *imports from* Next.js, not one that *is* a Next.js
- * application — a shared UI library using `next/image` is the ordinary case. Guessing would aim the
- * plugin at whichever answer was convenient; standing down leaves the status quo visible instead.
- */
 test('a `next` dependency with no config anywhere stands the profile down and says why', async () => {
   const detection = await detect({ 'package.json': manifest({ next: '^16.0.0' }) })
   expect(applied(detection, 'nextjs')).toBeUndefined()

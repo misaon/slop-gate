@@ -10,12 +10,6 @@ import { SNAPSHOT_FORMAT_VERSION, type SnapshotManifest } from './snapshot.ts'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 
-/**
- * Real records, lifted verbatim out of OSV's npm export for the packages these tests name. Synthetic
- * advisories would only prove the matcher matches itself; these carry upstream's own ranges, its own
- * `versions` enumerations and its own severities, so a change in how this engine reads them shows up
- * as a changed finding count against data nobody here wrote.
- */
 const vulnerable = JSON.parse(readFileSync(join(fixtures, 'advisories.vulnerable.json'), 'utf8')) as AdvisoryTable
 const malicious = JSON.parse(readFileSync(join(fixtures, 'advisories.malicious.json'), 'utf8')) as AdvisoryTable
 
@@ -47,18 +41,6 @@ const idsOf = (diagnostics: readonly { message: string }[]) =>
   diagnostics.flatMap((diagnostic) => /\b((?:GHSA|MAL)-[\w-]+)/.exec(diagnostic.message)?.[1] ?? [])
 
 describe('scanDependencies: the accuracy claim', () => {
-  /**
-   * The measurement this engine exists on, reduced to something a test can hold.
-   *
-   * `lodash@4.17.11`, `minimist@1.2.0` and `axios@0.21.0` are the controlled fixture the engine was
-   * validated against: `npm audit` and `pnpm audit` both report **34 advisories** for that exact
-   * tree, hitting the identical 34 GitHub ids, and matching this offline index against it produced
-   * the same 34 with a matching severity histogram — low 1, moderate 17, high 14, critical 2.
-   *
-   * The number will move when upstream publishes another axios advisory, and moving it is a
-   * deliberate act: the fixture is a pinned copy of OSV's data, so nothing changes it except someone
-   * refreshing it, at which point they should re-run the comparison rather than edit the number.
-   */
   it('reproduces the advisory set npm and pnpm report for the same tree', () => {
     const parsed = parseLockfile(
       'npm',
@@ -82,12 +64,6 @@ describe('scanDependencies: the accuracy claim', () => {
     expect(Object.fromEntries(perPackage)).toEqual({ lodash: 7, minimist: 2, axios: 25 })
   })
 
-  /**
-   * The 242-false-positive regression, at the level the user would have seen it. The first distiller
-   * read only `ranges`, so `chalk`, `debug`, `ansi-styles`, `color-name` and `supports-color` — the
-   * most-installed packages on npm — came back as malware on six real lockfiles. These are the
-   * versions those lockfiles actually held.
-   */
   it('reports no malware for the ordinary versions of the packages the September 2025 attack hit', () => {
     const parsed = parseLockfile(
       'npm',
@@ -144,11 +120,6 @@ describe('scanDependencies: where a finding points', () => {
     expect(new TextDecoder().decode(bytes.subarray(first?.range.start, first?.range.end))).toBe('"axios"')
   })
 
-  /**
-   * A transitive dependency has no manifest line of its own, so it borrows the one belonging to
-   * whichever direct dependency reaches it and names the chain in the message. Pointing at byte zero
-   * instead would be technically honest and practically useless.
-   */
   it('anchors a transitive dependency to the direct dependency that pulls it in, and names the chain', () => {
     const parsed = parseLockfile(
       'npm',
@@ -195,8 +166,6 @@ describe('scanDependencies: where a finding points', () => {
     const found = scan({ parsed: withAxios(), manifests: [manifest], enabled: new Set(['vulnerability']) })
     expect(found.some((diagnostic) => diagnostic.message.includes('[high]'))).toBe(true)
     expect(found.some((diagnostic) => diagnostic.message.includes('[moderate]'))).toBe(true)
-    // One rule, one level — the normalizer takes severity from the registry, not from here, so a
-    // 25-advisory spread across three CVSS bands has to survive in the text or not at all.
     expect(new Set(found.map((diagnostic) => diagnostic.engineRuleId))).toEqual(new Set(['vulnerability']))
   })
 
@@ -273,7 +242,6 @@ describe('scanDependencies: coverage gaps', () => {
 })
 
 describe('scanDependencies: rule selection', () => {
-  // Every rule needs something to fire on, or "only this rule fired" passes for the wrong reason.
   const parsed = parseLockfile(
     'npm',
     npmLock({

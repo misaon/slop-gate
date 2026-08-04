@@ -1,84 +1,7 @@
 export type NotRecommended = {
-  /**
-   * Stated plainly enough that nobody re-adds the rule later thinking its absence was an oversight
-   * (design plan decision 3). The rule keeps its full `RuleEntry` and stays available to anyone who
-   * enables it by concept — only `recommended` (`packages/core/src/config/presets.ts`) leaves it out.
-   */
   readonly reason: string
 }
 
-/**
- * Keyed the same way as `RULE_OVERRIDES` (see registry/overrides.ts): the oxlint `engineRuleId`
- * exactly as the generator derives it.
- *
- * Hand-authored, committed, and small by construction — each entry records a real measurement
- * against a real codebase, not a guess from reading the rule's description.
- *
- * **What no longer belongs here: an exclusion whose reason is "it depends on the framework".** That
- * is now a framework profile (spec §23, `packages/core/src/frameworks/profiles.ts`), which can turn a
- * rule off in the repositories where it is wrong and leave it on everywhere else. Two exclusions were
- * removed on exactly that basis — `typescript/no-extraneous-class` (now the `nestjs` profile) and the
- * twenty-four jest/vitest dual-firing rules (now the `test-framework` profile, whose reason text this
- * file used to carry verbatim as the unblocking condition). What stays here is the other kind: a rule
- * that is wrong regardless of what the repository is built with.
- *
- * ---
- *
- * **Two things anyone measuring an oxlint rule needs before they start, both learned the expensive
- * way (see the `feat/rule-options` work and its follow-ups).**
- *
- * **1. Count `"code": "<rule>"`, never `"message"`.** `--format json` puts oxlint's own `TS(…)` parse
- * diagnostics in the same `diagnostics` array as rule findings, and they are emitted whatever the
- * `rules` map says. Over any corpus containing deliberately-malformed input — prettier's
- * `tests/format` is 1,171 unparseable files on its own — counting messages reports the same inflated
- * total for every configuration you try, which reads exactly like a rule whose options do nothing.
- * Measured concretely: `eqeqeq` with `smart` counted 1249 by message and **84** by code.
- *
- * **2. Check an exclusion's own words against the engine's option schema before trusting it.** An
- * exclusion that describes a shape — "sorting an array just derived from a spread" — may be naming
- * an option the engine already offers, in which case the rule is promotable and nobody noticed.
- * `oxlint -c <config with {"__probe":1}>` prints the accepted field names for *most* rules, but read
- * the caution at the end of this comment before trusting a silent answer.
- *
- * That sweep has been done once, across every oxlint entry in `NOT_RECOMMENDED_GENERATED`. **Five of the six
- * are not rescued and the sixth is an open question, not a promotion.** Recorded per entry below so
- * it is not repeated:
- *
- * - `unicorn/no-array-sort` (95 → 50), `unicorn/no-array-reverse` (4 → 4), `no-underscore-dangle`
- *   (135,767 → 5,255) and `import/no-unassigned-import` (3,000 → 1,662) each have a
- *   relevant-sounding option; none is rescued by it.
- * - `no-implied-eval` takes none — oxlint says so in as many words (*this rule does not accept
- *   configuration options*) — and never fires anyway, which is its actual exclusion.
- * - **`vitest/valid-expect` is the live one**, and the reason it is not simply promoted here is a
- *   split measurement worth reading before anyone acts on it. See its entry.
- *
- * The one rule the sweep did rescue outright was never in this table — `eqeqeq`, promoted in
- * `config/rule-options.ts`.
- *
- * A caution the sixth case earns: **`oxlint -c` with a probe key does not reliably tell you whether
- * a rule has options.** `eqeqeq`, `no-empty-object-type` and `no-implied-eval` reject an unknown key
- * by name; `vitest/valid-expect` and `ban-ts-comment` accept one in silence while still honouring
- * their real options. Silence means "unknown", not "no options" — check the upstream rule's
- * documented option names too, or a rule with a live option reads as having none.
- */
-
-/**
- * The same idea for engines whose entries are hand-written rather than generated, keyed by
- * `ruleRefKey` (`<engine>/<engineRuleId>`) because those ids are not unique across engines the way
- * oxlint's are within it.
- *
- * It has to be a second table rather than more rows in `NOT_RECOMMENDED_GENERATED`: that one is consumed only
- * by the oxlint registry generator, keyed by bare rule id, and an `actionlint` row there would either
- * be ignored or — worse, for a name like `id` or `matrix` — silently exclude an oxlint rule that
- * happens to share it.
- *
- * Unlike `NOT_RECOMMENDED_GENERATED`, which the generator applies, this table is *checked* rather than applied:
- * an uncatalogued engine's rules reach `recommended` only by being listed in `config/presets.ts`, so the
- * exclusion is enforced by `entries.test.ts` asserting that no concept named here appears in that
- * preset. That keeps the reason and the effect from drifting apart — which is exactly what happened
- * to the two `slop.*` exclusions, whose reasons live in a comment in `presets.ts` with nothing
- * checking them. Backfilling those (and knip's) into this table is a follow-up.
- */
 export const NOT_RECOMMENDED_UNCATALOGUED: Readonly<Record<string, NotRecommended>> = {
   'knip/files': {
     reason:
@@ -189,11 +112,6 @@ export const NOT_RECOMMENDED_UNCATALOGUED: Readonly<Record<string, NotRecommende
       'classes because the `schema` engine owns them for `github-workflow`.',
   },
 
-  // `biome-css` (packages/engine-biome-css). Nine of its twenty-seven registry entries, and they
-  // divide into three kinds that this file deliberately does not blur together: house style that was
-  // never a defect, a right rule defeated by the wrong context, and a right rule whose precision is
-  // simply too low. The measurement behind all of them is the same 1729-file corpus documented on
-  // `BIOME_CSS_RULE_ENTRIES` in entries.uncatalogued.ts.
   'biome-css/noHexColors': {
     reason:
       '**House style, not a defect — the largest single class in the whole measurement.** 5815 ' +
@@ -249,10 +167,6 @@ export const NOT_RECOMMENDED_UNCATALOGUED: Readonly<Record<string, NotRecommende
       'as `complexity.css-important` for a team that has decided it wants no `!important` at all.',
   },
 
-  // Right rule, wrong context. Neither of the next two is excluded on its own merits — both are
-  // correct checks defeated by a preprocessor standing between the `.css` file and the browser — so
-  // the reason is written as the condition that would put them back, not as a judgement. §23
-  // framework awareness is where this properly belongs.
   'biome-css/noUnknownAtRules': {
     reason:
       '**Revisit trigger, not a verdict.** 26 findings, 0 true positives — and the rule is right in ' +
@@ -281,7 +195,6 @@ export const NOT_RECOMMENDED_UNCATALOGUED: Readonly<Record<string, NotRecommende
       'which is a real and completely invisible failure.',
   },
 
-  // Right rule, precision too low — measured on its own merits, unlike the two above.
   'biome-css/useGenericFontNames': {
     reason:
       '16 findings, 1 true positive. **15 are icon fonts** — `codicon` in Visual Studio Code, ' +
@@ -438,12 +351,6 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       "the bare `eslint`-scope rule specifically — `typescript/no-implied-eval` is a separate, " +
       "type-aware rule (excluded from `recommended` on that basis alone regardless of this entry).",
   },
-  // ---------------------------------------------------------------------------------------------
-  // hadolint. Thirteen rules producing **552 of its 816 findings (68%) with zero true positives**,
-  // measured over 275 Dockerfiles from 32 repositories. They are grouped rather than argued
-  // individually where the argument is the same, but each carries its own count so nobody has to
-  // re-measure to reopen one. The two that need their own reasoning — DL3066 and DL3064 — are last.
-  // ---------------------------------------------------------------------------------------------
   'hadolint/DL3008': {
     reason:
       '**132 findings, zero true positives** — the largest single class in the Dockerfile corpus. ' +

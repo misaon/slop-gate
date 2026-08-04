@@ -34,11 +34,6 @@ describe('parseLockfile: npm', () => {
     expect(find(parsed, 'side-channel')?.path).toEqual(['express', 'qs', 'side-channel'])
   })
 
-  /**
-   * A duplicated transitive dependency is nested precisely so two dependents can see different
-   * versions. Resolving by bare name would attribute one dependent's version to the other, which for
-   * a vulnerability check means reporting the wrong package as affected — or missing the affected one.
-   */
   it('resolves a nested copy from the dependent it belongs to, not the hoisted one', () => {
     const parsed = parseLockfile(
       'npm',
@@ -57,11 +52,6 @@ describe('parseLockfile: npm', () => {
     expect(shared.find((entry) => entry.version === '1.0.0')?.path).toEqual(['alpha', 'shared'])
   })
 
-  /**
-   * npm 7 and later install peers, so a package reachable only as a peer is genuinely in the tree.
-   * Measured worth: on the axios 1.4.0 lockfile this is the difference between 1,866 and all 2,056
-   * packages having a manifest line to point at.
-   */
   it('reaches a package that only a peer dependency pulls in', () => {
     const parsed = parseLockfile(
       'npm',
@@ -102,8 +92,6 @@ describe('parseLockfile: npm', () => {
     expect(find(parsed, 'tslib')?.path).toEqual(['@nestjs/core', 'tslib'])
   })
 
-  /** A workspace is a link with no version of its own. It is not a registry package, so it is not
-   *  scanned — but it *was* accounted for, so it must not read as missing from the lockfile. */
   it('counts a workspace link as resolved without scanning it', () => {
     const parsed = parseLockfile(
       'npm',
@@ -250,8 +238,6 @@ describe('manifestDependencies', () => {
     expect(deps.find((dep) => dep.name === 'fsevents')?.group).toBe('optionalDependencies')
   })
 
-  /** A peer is a requirement on the consumer, not an install. Reading it as one would report every
-   *  library that declares peers it deliberately does not carry. */
   it('ignores peerDependencies', () => {
     expect(manifestDependencies(JSON.stringify({ peerDependencies: { react: '^18.0.0' } }))).toEqual([])
   })

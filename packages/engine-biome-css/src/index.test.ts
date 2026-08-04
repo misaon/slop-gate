@@ -30,8 +30,6 @@ async function collect(engine: ReturnType<typeof createBiomeCssEngine>, handle: 
 test('declares css only, file granularity and no fixes', () => {
   const engine = createBiomeCssEngine()
   expect(engine.id).toBe('biome-css')
-  // Not scss, not less: biome 2.5.6 ignores those files entirely, so claiming them would make
-  // arbitration elect this engine for stylesheets it never opens and the run would report clean.
   expect(engine.capabilities.languages).toEqual(['css'])
   expect(engine.capabilities.granularity).toBe('file')
   expect(engine.capabilities.fixes).toBe(false)
@@ -39,8 +37,6 @@ test('declares css only, file granularity and no fixes', () => {
 })
 
 test('declares no availability probe, being bundled', () => {
-  // `@biomejs/biome` is an ordinary dependency with eight platform optional dependencies, so it is
-  // present by construction — a probe that always returned true would be noise (Engine.availability).
   expect(createBiomeCssEngine().availability).toBeUndefined()
 })
 
@@ -49,7 +45,6 @@ test('implements neither fix route', () => {
 })
 
 test('reports the installed biome version without its label', async () => {
-  // `biome --version` prints `Version: 2.5.6`; the registry and the cache key want the bare number.
   const version = await createBiomeCssEngine().version()
   expect(version).toMatch(/^\d+\.\d+\.\d+/)
 })
@@ -65,8 +60,6 @@ test('a missing binary fails with an engine error naming the engine', async () =
   const engine = createBiomeCssEngine({ binaryPath: join(root, 'not-a-binary') })
   const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   await writeFile(join(root, 'a.css'), 'a { color: red; color: blue }\n', 'utf8')
-  // The report file is the discriminator, not the exit code: biome exits 1 both for "found findings"
-  // and for "could not run", so an adapter gating on the code cannot tell them apart.
   await expect(collect(engine, handle, ['a.css'])).rejects.toThrow(EngineError)
   await handle.dispose()
 })
@@ -96,7 +89,6 @@ test('reports repo-relative paths for a nested stylesheet', async () => {
   const nested = join(root, 'web', 'styles')
   await mkdir(nested, { recursive: true })
   await writeFile(join(nested, 'a.css'), 'a {\n  display: flex;\n  display: flex;\n}\n', 'utf8')
-  // Composed with `node:path`, never a literal separator: this assertion has to hold on Windows too.
   const relative = ['web', 'styles', 'a.css'].join('/')
   const found = await collect(engine, handle, [relative])
   expect(found.map((d) => d.file)).toEqual([relative])
@@ -104,8 +96,6 @@ test('reports repo-relative paths for a nested stylesheet', async () => {
 })
 
 test('converts a finding after an astral character to the right byte offset', async () => {
-  // The end-to-end version of the codepoint-column problem: biome counts columns in codepoints, the
-  // rest of the pipeline works in bytes, and the two only disagree past the BMP.
   const engine = createBiomeCssEngine()
   const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   const source = 'a {\n  content: "😀😀😀";\n  display: flex;\n  display: flex;\n}\n'
@@ -118,8 +108,6 @@ test('converts a finding after an astral character to the right byte offset', as
 })
 
 test('a rule not in the selection produces nothing rather than an error', async () => {
-  // `noHexColors` is in biome's own recommended set and the file is full of colours; silence here is
-  // what proves `recommended: false` took effect.
   const engine = createBiomeCssEngine()
   const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   await writeFile(join(root, 'a.css'), 'a { color: #fff; }\n', 'utf8')

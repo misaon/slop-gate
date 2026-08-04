@@ -52,9 +52,6 @@ test.each([
   expect(deriveResultKey({ ...base, ...patch })).not.toBe(deriveResultKey(base))
 })
 
-// Regression for the M0 review finding: two byte-identical files at different paths must never
-// share a cache entry, even though every other component (engine, version, ruleset, config, and
-// therefore the file *content* hash) is identical between them.
 test('two different paths with identical content produce different keys', () => {
   expect(deriveResultKey({ ...base, filePath: 'legacy/a.ts' })).not.toBe(
     deriveResultKey({ ...base, filePath: 'src/a.ts' }),
@@ -75,8 +72,6 @@ test('cannot be collided by shifting content across a component boundary', () =>
 
   expect(deriveResultKey(a)).not.toBe(deriveResultKey(b))
 })
-
-// --- deriveProjectResultKey: project-granularity engines (spec §8.1/§9) --------------------------
 
 const projectBase: ProjectResultKeyInput = {
   engineId: 'tsc',
@@ -124,9 +119,6 @@ test('changing one file’s hash changes the project key even though the file li
 })
 
 test('a project key never collides with a per-file key built from the same raw values', () => {
-  // Different shapes (`files` array vs. a single `filePath`/`fileHash` pair) should already make
-  // this true structurally, but this pins it directly rather than leaving it as an assumption — a
-  // project-granularity and a file-granularity engine must never share a results directory entry.
   const asFileKey = deriveResultKey({
     engineId: projectBase.engineId,
     engineVersion: projectBase.engineVersion,

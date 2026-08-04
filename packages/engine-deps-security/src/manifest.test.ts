@@ -16,8 +16,6 @@ describe('findDependencyRange', () => {
     expect(slice(source, findDependencyRange(source, 'lodash'))).toBe('"lodash"')
   })
 
-  /** `"name"` is also the manifest's own top-level key. Matching it would point every finding for a
-   *  package called `name` at the wrong line, so the search is scoped to the group's braces. */
   it('does not match a key of the same name outside a dependency group', () => {
     const source = `{
   "name": "lodash",
@@ -41,8 +39,6 @@ describe('findDependencyRange', () => {
     expect(slice(source, findDependencyRange(source, '@nestjs/core'))).toBe('"@nestjs/core"')
   })
 
-  /** A scripts value routinely contains braces. Counting them without tracking quotes ends the
-   *  preceding group early and loses every dependency after it. */
   it('is not confused by braces inside string values', () => {
     const source = `{
   "scripts": { "start": "node -e '{}'" },
@@ -61,8 +57,6 @@ describe('findDependencyRange', () => {
     expect(slice(source, findDependencyRange(source, 'lodash'))).toBe('"lodash"')
   })
 
-  /** Spec §10: the range is UTF-8 bytes, not UTF-16 code units. A description above the dependency
-   *  block is the ordinary way for the two to diverge. */
   it('returns byte offsets, not string indexes', () => {
     const source = `{
   "description": "ünïcøde — a long enough string to matter 🎈",
@@ -83,8 +77,6 @@ describe('findDependencyRange', () => {
     expect(slice(source, findDependencyRange(source, 'lodash'))).toBe('"lodash"')
   })
 
-  /** `pnpm.packageExtensions.<pkg>.dependencies` is an ordinary thing to find above the real group in a
-   *  workspace root. Anchoring there points the finding at somebody else's declared dependency. */
   it('ignores a nested dependencies block and anchors in the top-level group', () => {
     const source = `{
   "pnpm": {
@@ -100,8 +92,6 @@ describe('findDependencyRange', () => {
     expect(range?.start).toBeGreaterThan(source.indexOf('"dependencies": { "lodash": "^4.17.21" }'))
   })
 
-  /** The same defect's other half: when the nested block does not contain the package, locking onto it
-   *  loses the real group entirely and the finding falls back to byte zero. */
   it('still finds a package the nested dependencies block does not mention', () => {
     const source = `{
   "pnpm": {

@@ -15,8 +15,6 @@ test('an upstream `off` caps at `warn` rather than removing the rule', () => {
 })
 
 test('a stricter upstream level never raises ours', () => {
-  // `suspicious` maps to `warn` here, and several plugins hold their own equivalents at `error`.
-  // Raising on that basis would be an unmeasured escalation, so the cap is one-directional.
   expect(capToUpstream('warn', 'nextjs/no-img-element')).toBe('warn')
 })
 
@@ -38,9 +36,6 @@ test('every source names a package, a version and a config', () => {
 })
 
 test('the shipped registry actually applies the cap, or an override states why it does not', () => {
-  // What makes the table data rather than prose: without this, a `severityDefault` could drift back to
-  // `error` — through a `RULE_OVERRIDES` entry added for some other reason, or a hand-edit of the
-  // generated file — and the recorded upstream level would silently stop describing what ships.
   for (const [id, upstream] of Object.entries(UPSTREAM_SEVERITY)) {
     if (upstream.level === 'error') continue
     const entry = WIDENED_ENTRIES.find((candidate) => candidate.engine === 'oxlint' && candidate.engineRuleId === id)

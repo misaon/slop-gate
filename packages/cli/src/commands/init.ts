@@ -29,14 +29,6 @@ Rules are configured by *concept* (for example \`dead-code.unused-import\`) in
 competing config file will be ignored.
 `
 
-/**
- * `.slop-gate/` holds the cache and the engines' scratch directory, neither of which belongs in git — hence `*`.
- * Two files have to be named as exceptions, because `*` matches them too: **`.gitignore` itself**, or `sgate
- * init`'s own output cannot be committed and every teammate's first run re-creates it untracked; and
- * **`baseline.json`**, because a baseline that is not committed is not a baseline — CI clones the repository and
- * would read none, so the build a team just agreed to make green fails on the first push. `sgate baseline create`
- * checks this negation is present and says so when it is not.
- */
 export const SLOP_GATE_GITIGNORE = '*\n!.gitignore\n!baseline.json\n'
 
 const readIfPresent = async (path: string): Promise<string | null> =>
@@ -45,13 +37,8 @@ const readIfPresent = async (path: string): Promise<string | null> =>
     () => null,
   )
 
-/**
- * `slop-gate.config.ts` is ESM. Without `"type": "module"` in the target's `package.json`, Node tries to load it
- * as CommonJS first, fails, and prints a four-line `MODULE_TYPELESS_PACKAGE_JSON` warning to stderr on every run
- * (`loadConfig` dynamically imports the file). `.mts` is unambiguous, so it never reparses and never warns — which
- * is why a malformed or unreadable `package.json` is treated the same as an absent `type` field: `.mts` is always
- * safe, where guessing `.ts` is only safe half the time.
- */
+// `.mts` is unambiguous ESM. Without `"type": "module"` in the target, a `.ts` config makes Node
+// try CommonJS first and print a warning on every run — so an unreadable manifest picks `.mts` too.
 async function targetsEsm(rootDir: string): Promise<boolean> {
   const raw = await readIfPresent(join(rootDir, 'package.json'))
   if (raw === null) return false
@@ -62,7 +49,6 @@ async function targetsEsm(rootDir: string): Promise<boolean> {
   }
 }
 
-/** Both extensions `runInit` has ever written, newest-preferred first — see `targetsEsm`. */
 const CONFIG_BASENAMES = ['slop-gate.config.ts', 'slop-gate.config.mts'] as const
 
 export async function runInit(options: {
@@ -84,8 +70,6 @@ export async function runInit(options: {
   if (existingConfigName !== null && options.force !== true) {
     skipped.push(existingConfigName)
   } else {
-    // Force overwrites whichever config already exists, in place — it does not change a working config's extension
-    // to match the project's current module type. Only a first-time write picks the extension fresh.
     const targetName = existingConfigName ?? preferredConfigName
     await writeFile(join(options.rootDir, targetName), CONFIG_TEMPLATE, 'utf8')
     created.push(targetName)
@@ -107,24 +91,11 @@ export async function runInit(options: {
   return { created, skipped }
 }
 
-/** The package the generated config imports `defineConfig` from — see `CONFIG_TEMPLATE`. */
 const PACKAGE_NAME = '@misaon/slop-gate'
 
-/**
- * Advice to print when the config this command just wrote will not load, or `undefined` when it
- * will.
- *
- * **The failure it prevents was reported from a real project.** `npx @misaon/slop-gate init` runs
- * the CLI out of npx's cache, so the package is nowhere in the target project — and the config
- * written here imports `defineConfig` from it. `init` then said "Run `sgate check` next", and that
- * check died before analysing anything. `init` is the last moment anyone can be told, because it is
- * the step that creates the dependency.
- *
- * A `stat` of the resolved directory rather than `require.resolve`: this package is ESM-only with an
- * `exports` map, so a CJS resolve of it can fail for reasons that have nothing to do with whether it
- * is installed. Presence at `<rootDir>/node_modules/<name>` is exactly the condition the config's own
- * import will be resolved against, which is the question being asked.
- */
+// `npx @misaon/slop-gate init` runs the CLI from npx's cache, so the package is nowhere in the
+// target project — and the config written here imports `defineConfig` from it. `init` is the last
+// moment anyone can be told, because it is the step that creates the dependency.
 export async function missingPackageHint(rootDir: string): Promise<string | undefined> {
   const installed = await stat(join(rootDir, 'node_modules', ...PACKAGE_NAME.split('/'))).then(
     (entry) => entry.isDirectory(),

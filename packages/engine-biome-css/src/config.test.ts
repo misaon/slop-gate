@@ -19,10 +19,6 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 
-/**
- * Lifts a level-only record into the tuple form `EngineRuleSelection` takes. Convenience for the
- * tests that only care about levels; the one that cares about options builds its selection directly.
- */
 const materialize = (selection: Record<string, RuleLevel>) =>
   materializeBiomeCssConfig(
     new Map(Object.entries(selection).map(([engineRuleId, level]) => [engineRuleId, [level] as const])),
@@ -44,16 +40,12 @@ test('nests each rule under the group biome expects', async () => {
 })
 
 test('turns biome’s own recommended set off', async () => {
-  // Without this biome enables its whole recommended set regardless of `rules`, so unelected rules
-  // report and bypass arbitration — the same defect `categories` guards against in engine-oxlint.
   const handle = await materialize({ noDuplicateProperties: 'warn' })
   expect((await readConfig(handle.path)).linter.rules.recommended).toBe(false)
   await handle.dispose()
 })
 
 test('sets both css parser keys together', async () => {
-  // `tailwindDirectives` alone silently disables `.module.css` detection: 265 false findings on the
-  // measurement corpus. The pairing is the fix, so it is asserted as a pairing.
   const handle = await materialize({ noDuplicateProperties: 'warn' })
   expect((await readConfig(handle.path)).css.parser).toEqual({ cssModules: true, tailwindDirectives: true })
   await handle.dispose()
@@ -81,10 +73,6 @@ test('omits rules set to off', async () => {
 })
 
 test('a rule set to off with options is still off', async () => {
-  // Two comparisons here read the level (`elected` and `enabled`), and both used to compare the whole
-  // selection value against `'off'` — false for an `['off', …]` value, so a disabled rule would be
-  // written into the config *and* accepted by `run`'s own election check. Built directly rather than
-  // through `materialize`, because the option half is the whole point.
   const handle = await materializeBiomeCssConfig(
     new Map([
       ['noDuplicateProperties', ['warn'] as const],
@@ -100,8 +88,6 @@ test('a rule set to off with options is still off', async () => {
 })
 
 test('keeps the synthetic reports out of the config but inside the election', async () => {
-  // Biome rejects the whole configuration on an unknown rule name, so writing either of these into
-  // `linter.rules` would fail every run — but `run` still has to know they were elected.
   const handle = await materialize({
     noDuplicateProperties: 'warn',
     [CSS_PARSE_ERROR_RULE_ID]: 'warn',
@@ -137,8 +123,6 @@ test('the same ruleset produces the same directory, a different one does not', a
 })
 
 test('refuses to run with a second config beside ours', async () => {
-  // Biome treats the config's directory as the project root and *scans it*, aborting the whole run
-  // on any nested configuration it finds — with an error naming a file the user never wrote.
   const probe = await materialize({ noDuplicateProperties: 'warn' })
   const dir = dirname(probe.path)
   await probe.dispose()

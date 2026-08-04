@@ -13,15 +13,6 @@ import {
 } from './snapshot.ts'
 import { readZipEntries } from './zip.ts'
 
-/**
- * OSV's per-ecosystem export: GitHub's reviewed advisories and the OpenSSF malicious-packages feed, normalised
- * into one schema with withdrawals marked.
- *
- * **There is no digest to pin it against, and spec §19 is amended rather than quietly broken.** The object is
- * regenerated daily, so upstream publishes nothing like actionlint's `checksums.txt` and no committed SHA-256
- * could ever match. What is recorded instead is the digest of the bytes this machine actually fetched — enough to
- * make a snapshot reproducible between machines and tamper-evident on disk, and nothing about the publisher.
- */
 export const OSV_NPM_ARCHIVE_URL = 'https://osv-vulnerabilities.storage.googleapis.com/npm/all.zip'
 
 export class AdvisoryInstallError extends Error {
@@ -45,13 +36,6 @@ export type InstallAdvisoriesResult = {
   readonly maliciousPackages: number
 }
 
-/**
- * The only thing in this package that touches the network, and never on the path of a `sgate check` — the same
- * narrowing of D3 that `sgate engines install actionlint` records: `Engine.availability` is filesystem-only, so a
- * check on an air-gapped machine reports a coverage gap naming this command rather than failing mid-run.
- *
- * The 213 MB archive distils to roughly 18 MB on disk; the discarded 95% is prose a version match never needs.
- */
 export async function installAdvisorySnapshot(options: InstallAdvisoriesOptions = {}): Promise<InstallAdvisoriesResult> {
   const source = options.source ?? OSV_NPM_ARCHIVE_URL
   const fetchImpl = options.fetch ?? ((url: string) => fetch(url, options.signal === undefined ? {} : { signal: options.signal }))
@@ -81,9 +65,6 @@ export async function installAdvisorySnapshot(options: InstallAdvisoriesOptions 
   }
 
   if (manifest.vulnerableAdvisories === 0) {
-    // A snapshot with no vulnerability data would make every repository read as clean — the exact silent false
-    // negative this engine was built to avoid, and far likelier to mean the archive layout changed than that npm
-    // has no advisories.
     throw new AdvisoryInstallError(
       `${source} was read successfully but produced no npm vulnerability advisories. Refusing to install a snapshot that would report every repository clean.`,
     )
@@ -110,8 +91,6 @@ function* readAdvisories(archive: Uint8Array, source: string): Generator<Distill
     try {
       document = JSON.parse(decoder.decode(entry.data))
     } catch {
-      // One malformed document out of 224,000 is no reason to abandon the other 223,999; the empty-result guard
-      // above is what catches a layout change that breaks all of them at once.
       continue
     }
     yield* distillAdvisory(document)
@@ -125,15 +104,6 @@ function countAdvisories(table: Record<string, readonly { id: string }[]>): numb
   return ids.size
 }
 
-/**
- * Exported because building a snapshot outside the default cache is a real workflow rather than a test hook: an
- * air-gapped image cannot run `sgate engines install advisories` at all, so it bakes one in at build time and
- * points `SLOP_GATE_ADVISORIES_PATH` at it.
- *
- * Written to a staging directory and moved into place, so a concurrent `check` sees either the previous snapshot or
- * the new one and never a half-written index. The manifest is written last within staging for the same reason at a
- * finer grain: `availability()` consults it, so a directory without it is simply "not installed".
- */
 export async function writeAdvisorySnapshot(
   directory: string,
   manifest: SnapshotManifest,

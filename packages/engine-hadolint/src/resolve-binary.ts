@@ -27,10 +27,6 @@ export function hadolintBinaryName(platform: string): string {
   return toolBinaryName(SPEC.tool, platform)
 }
 
-/**
- * Finds hadolint without running anything — `resolveToolBinary` records the discovery order and why
- * each step is where it is.
- */
 export function resolveHadolintBinary(options: ResolveHadolintOptions = {}): HadolintResolution | undefined {
   return resolveToolBinary(SPEC, options)
 }

@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest'
 import { parseAstGrepOutput } from './parse.ts'
 
-/** One entry of real `ast-grep scan --json=compact` output, trimmed to the fields this adapter reads plus enough of the rest to prove nothing else is required. */
 const match = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
   text: 'x as unknown as string',
   range: {
@@ -36,8 +35,6 @@ test('surfaces `note` as help, so each rule\'s documented escape travels with th
 })
 
 test('omits help when ast-grep reports a null note rather than setting it to "null"', () => {
-  // ast-grep emits `"note": null` for a document that declares none — an absent key would be the
-  // easier case; this is the one that produces the string "null" in a diagnostic if mishandled.
   expect(parseAstGrepOutput(JSON.stringify([match()]), '/repo')[0]).not.toHaveProperty('help')
 })
 
@@ -47,8 +44,6 @@ test('maps ast-grep hint severity onto advice', () => {
 })
 
 test('falls back to warning for a severity name it does not know', () => {
-  // The reported severity is not load-bearing — `normalizeDiagnostics` recomputes it from the
-  // resolved level — so an unrecognised name must not cost a real finding.
   const [diagnostic] = parseAstGrepOutput(JSON.stringify([match({ severity: 'catastrophe' })]), '/repo')
   expect(diagnostic?.severity).toBe('warning')
 })
@@ -78,14 +73,8 @@ test('raises an EngineError naming ast-grep on unparseable output', () => {
 })
 
 test('raises an EngineError when the payload is json but not an array', () => {
-  // Worth its own case: `JSON.parse` succeeds here, so nothing but an explicit check separates it
-  // from a clean run.
   expect(() => parseAstGrepOutput('{"diagnostics":[]}', '/repo')).toThrow(/not an array/)
 })
-
-// --- Fix data (spec §11 step 1) ----------------------------------------------------------------
-// The payloads below are trimmed verbatim captures from ast-grep 0.45.0 (`scan --rule <rule with a
-// fix:> --json=stream`), not invented shapes.
 
 test('a match carrying a replacement becomes a RawFix', () => {
   const [diagnostic] = parseAstGrepOutput(

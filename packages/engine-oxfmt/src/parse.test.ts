@@ -7,12 +7,10 @@ test('one diagnostic per listed file, anchored on the file rather than a positio
   expect(found).toHaveLength(2)
   expect(found[0]?.file).toBe('src/a.ts')
   expect(found[0]?.engineRuleId).toBe(UNFORMATTED_RULE_ID)
-  // Empty range at 0: the finding is about the file, and reformatting rewrites all of it.
   expect(found[0]?.range).toEqual({ start: 0, end: 0 })
 })
 
 test('the last path is kept even though oxfmt writes no trailing newline', () => {
-  // Verified against oxfmt 0.62.0: stdout for one differing file is exactly `bad.ts` with no `\n`.
   expect(parseUnformattedFiles('bad.ts').map((d) => d.file)).toEqual(['bad.ts'])
 })
 

@@ -17,7 +17,6 @@ const asCandidates = (edits: ReturnType<typeof derive>): CandidateEdit[] =>
     severity: 'warn' as const,
   }))
 
-/** The only invariant that really matters: replaying the derived edits reproduces the rewrite. */
 const roundTrips = (before: string, after: string): boolean =>
   decodeUtf8(applyEdits(encodeUtf8(before), asCandidates(derive(before, after)))) === after
 
@@ -29,7 +28,6 @@ test('a one-token change on one line is trimmed to that token', () => {
   const edits = derive('if (a == 1) {}\n', 'if (a === 1) {}\n')
 
   expect(edits).toHaveLength(1)
-  // `if (a ==` is the shared prefix, so the edit is a single inserted `=` at byte 8.
   expect(edits[0]).toEqual({ range: { start: 8, end: 8 }, replacement: '=' })
 })
 
@@ -39,7 +37,6 @@ test('two changes on distant lines produce two separate edits, not one spanning 
   const edits = derive(before, after)
 
   expect(edits).toHaveLength(2)
-  // The gap between them is exactly what another rule's edit would need in order to survive.
   expect(edits[0]!.range.end).toBeLessThan(edits[1]!.range.start)
   expect(roundTrips(before, after)).toBe(true)
 })
@@ -75,7 +72,6 @@ test('a replacement sharing a prefix and a suffix with the original is trimmed o
 
   expect(edits).toHaveLength(1)
   expect(roundTrips('const spread = [...[1, 2]]\n', 'const spread = [1, 2]\n')).toBe(true)
-  // Not the whole line: the shared `const spread = [` and `]` are outside the range.
   expect(edits[0]!.range.start).toBeGreaterThan(0)
 })
 
@@ -93,7 +89,6 @@ test('multi-byte content before a change does not shift the derived offsets', ()
 
   expect(edits).toHaveLength(1)
   expect(roundTrips(before, after)).toBe(true)
-  // Byte offsets, so the range is past the UTF-16 length of the first line.
   expect(edits[0]!.range.start).toBeGreaterThan(before.indexOf('if (a'))
 })
 

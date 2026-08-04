@@ -56,9 +56,6 @@ test('an empty replacement deletes the range', () => {
   expect(apply('const a = 1;;', [edit({ range: { start: 12, end: 13 }, replacement: '' })])).toBe('const a = 1;')
 })
 
-// The corruption mode this whole module exists to prevent. `Diagnostic.range` is byte offsets
-// (spec §10) while a JavaScript string is UTF-16 code units, so applying an engine's range with
-// `String.prototype.slice` mangles every file containing a non-ASCII character before the finding.
 test('a byte-offset edit after multi-byte characters lands on the right characters', () => {
   const source = 'const emoji = "🚀 héllo"\nif (x == 1) {}\n'
   const bytes = encodeUtf8(source)
@@ -90,7 +87,6 @@ test('CRLF line endings survive an edit on another line', () => {
 })
 
 test('a lone surrogate in a replacement cannot smuggle invalid bytes through', () => {
-  // `TextEncoder` substitutes U+FFFD for an unpaired surrogate, so the output is always valid UTF-8.
   const result = apply('ab', [edit({ range: { start: 1, end: 2 }, replacement: '\uD800' })])
   expect(decodeUtf8(encodeUtf8(result))).toBe(result)
   expect(result).toBe('a�')

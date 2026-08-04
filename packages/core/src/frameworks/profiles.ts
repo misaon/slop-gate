@@ -7,36 +7,12 @@ import { extractStringLiteral } from './literal.ts'
 import { resolveIncludeScope, resolveJsx, resolveJsxImportSource, TSCONFIG } from './tsconfig.ts'
 import type { AnyFrameworkProfile, FrameworkAdjustment, FrameworkEvidence } from './types.ts'
 
-/** Orders two `[file, …]` pairs, so an evidence list never depends on `Map` insertion order. */
 const byFile = (a: readonly [string, unknown], b: readonly [string, unknown]): number => compareStrings(a[0], b[0])
 
-/**
- * Extensions every knip `entry` contribution below is written against. knip's own default entry
- * patterns use the same set (`DEFAULT_EXTENSIONS`, verified against 6.31.0), and a pattern matching
- * nothing costs nothing — spec §23.3 — so listing all six is cheaper than deciding which a given
- * repository uses.
- */
 const SCRIPT_GLOB = '{js,mjs,cjs,ts,mts,cts}'
 
 const MIKRO_ORM_CONFIG = /(^|\/)mikro-orm\.config\.[cm]?[jt]s$/
 
-/**
- * The concepts of `scope` that **also exist in `counterpart`** — i.e. exactly the rules that fire
- * twice, because oxlint's jest and vitest plugins both implement them and both match on the generic
- * `describe`/`it`/`expect` shape.
- *
- * Narrower than "every concept in the scope", and the difference was measured rather than reasoned
- * about: disabling the whole jest scope on this repository (vitest-only) turned off
- * `correctness.no-export`, which comes from `jest/no-export` — a rule the vitest plugin has no
- * counterpart for, that does not double-report, and whose advice ("do not export from a test file")
- * is just as true under vitest. The whole-scope version bought 13 concepts and silently gave one
- * back. Pairing by rule value keeps all 13.
- *
- * Paired on the rule id rather than on the concept id: the generator scope-qualifies a concept name
- * only when two scopes collide, so `correctness.jest-expect-expect` and `correctness.no-export` are
- * both jest concepts spelled differently, and matching on the spelling would encode a generator
- * detail this profile has no business knowing.
- */
 export function dualFiringConcepts(scope: string, counterpart: string): ConceptId[] {
   const counterpartValues = new Set(
     RULE_ENTRIES.filter((entry) => entry.engineRuleId.startsWith(`${counterpart}/`)).map((entry) =>
@@ -53,13 +29,6 @@ export function dualFiringConcepts(scope: string, counterpart: string): ConceptI
   return [...found].sort(compareStrings)
 }
 
-/**
- * Decorator-driven DI, and the registry's original framework-awareness case (spec §23, and the
- * measurement in `registry/not-recommended.ts` this profile replaces): 11 of 11 findings on a real 95-file
- * NestJS project were an empty `@Module({...}) export class XModule {}`, one per `*.module.ts`. The
- * decorator carries the behaviour and the class body is *required* to be empty, so the rule is not
- * merely noisy here, it is asking for code that would not work.
- */
 const nestjs = defineProfile<void>({
   id: 'nestjs',
   summary: 'NestJS — decorator-driven dependency injection',
@@ -77,24 +46,6 @@ const nestjs = defineProfile<void>({
   ],
 })
 
-/**
- * The same construct as `nestjs` above, in a different framework: `@NgModule({...}) export class
- * AppModule {}` is an empty class body the framework *requires*, with the decorator carrying the
- * behaviour — so `no-extraneous-class` is wrong here for the identical mechanical reason it was
- * wrong on 11 of 11 NestJS modules.
- *
- * **Its warrant is narrower than the other profiles', and deliberately so** (spec §23.5). Every other
- * profile here rests on a false-positive count measured against a real repository. This one rests on
- * mechanism identity with a framework that was measured: no Angular codebase was checked. That is a
- * weaker claim, and it is only acceptable because of the asymmetry — shipping it wrongly costs one
- * rule's coverage on Angular repositories, restorable in a single config line, while omitting it
- * leaves a rule in `recommended` (the *default*) that there is concrete mechanical reason to expect
- * fires 100% falsely on every Angular repository with an NgModule in it.
- *
- * One honest caveat, which does not change the answer: Angular has been standalone-first since v15,
- * so a modern application may have no `@NgModule` at all, and there the profile is a no-op. A no-op
- * costs nothing; a false positive in the default preset does not.
- */
 const angular = defineProfile<void>({
   id: 'angular',
   summary: 'Angular — decorator-driven dependency injection',
@@ -112,12 +63,6 @@ const angular = defineProfile<void>({
   ],
 })
 
-/**
- * Kept separate from `nestjs` because it is a separate fact: a NestJS project on Fastify has the
- * first and not this one, and merging them would suppress an `express` finding on a repository that
- * genuinely does not depend on `express`. Measured (spec §13.2): knip reported `express` unlisted
- * three times, once per importing file, on a project that gets it through this meta-package.
- */
 const nestjsExpress = defineProfile<void>({
   id: 'nestjs-express',
   summary: 'NestJS on Express — `express` arrives through `@nestjs/platform-express`',
@@ -139,17 +84,6 @@ const nestjsExpress = defineProfile<void>({
 
 type MikroOrmParameters = { readonly workspace: string; readonly config: string; readonly migrations: string }
 
-/**
- * Migrations are discovered by the ORM at runtime and imported by nothing, so no import graph can
- * reach them — measured as three of the six `files` false positives on the NestJS-shaped fixture,
- * with the config file itself a fourth. knip ships no MikroORM plugin (checked against 6.31.0's
- * plugin list), so the fix is a plain workspace `entry` contribution.
- *
- * The migrations directory comes from the ORM's own config via the `literal` probe. When it cannot be
- * read as a literal the profile stands down rather than guessing: the cost is the status-quo false
- * positive, which the user can see and act on, where a wrong guess would silently stop knip reporting
- * genuinely dead files under whatever directory was guessed.
- */
 const mikroOrm = defineProfile<MikroOrmParameters>({
   id: 'mikro-orm',
   summary: 'MikroORM — migrations are loaded by the ORM, never imported',
@@ -202,18 +136,6 @@ const mikroOrm = defineProfile<MikroOrmParameters>({
 
 type VitePressSite = { readonly workspace: string; readonly root: string }
 
-/**
- * knip *has* a VitePress plugin, and its entry patterns are `.vitepress/config.*` relative to the
- * **workspace root** (verified against 6.31.0). A site one directory down — `docs/.vitepress/` — is
- * therefore invisible to it, and the measurement in spec §13.2 is that synthesising the workspace map
- * made this case *worse*: 18 findings to 20, both new ones false, because the plugin then activated
- * and still could not find the site.
- *
- * The contribution restates all three of the plugin's own patterns under the detected root, because a
- * plugin `entry` replaces that plugin's defaults rather than extending them. When the site really is
- * at the workspace root the contribution is byte-identical to knip's default, which is why there is
- * no special case for it.
- */
 const vitepress = defineProfile<readonly VitePressSite[]>({
   id: 'vitepress',
   summary: 'VitePress — the site root knip’s own plugin looks for at the workspace root',
@@ -261,83 +183,10 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
     }),
 })
 
-/**
- * `react/react-in-jsx-scope` requires `React` to be in scope wherever JSX appears. React 17's
- * automatic JSX transform (2020) removed that requirement, and `compilerOptions.jsx` states which
- * transform a project uses outright — so this is a compiler option contradicting a lint rule, not a
- * heuristic. Measured on a 145k-line React monorepo: **5,386 findings, 100% false**, 87% of
- * everything the run reported.
- *
- * The three-way classification is the measurement rather than the documentation. Running tsc 5.9.3
- * over a `.tsx` module using JSX with no `React` import, once per `jsx` value:
- *
- * - `react` → **`error TS2874: This JSX tag requires 'React' to be in scope`**. The rule is right
- *   here, and tsc says the same thing at `error` through `types.type-error`.
- * - `react-jsx`, `react-jsxdev` → **no error**. The rule cannot be right here.
- * - `preserve`, `react-native` → **no error either**, because TypeScript emits the JSX untouched and
- *   never looks for a factory. That silence is not evidence of the automatic runtime: Babel, SWC or
- *   Metro decides. On its own it is therefore *no evidence in either direction*, and the rule stays on.
- *
- * **`jsxImportSource` is the evidence `jsx` alone withholds, and reading it closed the profile's
- * biggest gap.** The downstream tool `preserve` defers to is not unknowable — the same
- * `compilerOptions` block usually names whose runtime it targets, and anything other than `react`
- * settles the question outright. Measured on a 20-repository corpus: `solidjs/solid-start` is
- * `"jsx": "preserve"` with `"jsxImportSource": "solid-js"` in every one of its configs and produced
- * **1,670 findings** while this profile did not fire at all; `honojs/hono` pairs `react-jsx` with
- * `"jsxImportSource": "hono/jsx"`, and 888 of its findings are inside `src/jsx/dom` — Hono's *own*
- * JSX runtime. `"jsxImportSource": "react"` is deliberately not evidence: it names React's runtime
- * without saying which of the two transforms compiles to it.
- *
- * **Every question here is about the *resolved* value, never the declared one** (`tsconfig.ts`). In a
- * monorepo the leaf config usually says almost nothing — that is the point of the file. On the
- * measured repository only 4 of 19 configs set `jsx` at all, and none of the four belonged to one of
- * the three Next.js apps holding most of the `.tsx`; those reach it through `"extends":
- * "../../tsconfig.app.json"`, two levels up. A config that is silent is *not* a dissenter, and a
- * config that inherits `react` from a base *is* one even though it says nothing itself.
- *
- * **Disagreement scopes the profile down, and used to stand it down entirely.** This comment said
- * `disable-concept` was repository-global and that the adjustment vocabulary had no file-scoped shape.
- * That stopped being true one day later: `PathScope` landed in 1d4ff41 for the `nextjs` profile, and
- * this one was never revisited. The cost of that, measured on a 20-repository corpus:
- * `medusajs/medusa` reported **15,442 findings, none of them in `packages/admin/admin-bundler`** — the
- * project whose `"jsx": "react"` caused the stand-down — while 11,297 were in
- * `packages/admin/dashboard`, which sets `"jsx": "react-jsx"` in its own config. The evidence for the
- * automatic project was never in doubt; only the vocabulary to act on it was.
- *
- * So a dissenter now subtracts the projects it actually governs rather than the whole repository, and
- * the profile stands down only when nothing survives that subtraction — which is still the right
- * answer when the classic project *contains* the automatic one, since a scope cannot have a hole.
- *
- * **A project's scope is its own `include` list, or its directory when it has none** (`tsconfig.ts`).
- * The distinction is not academic: `honojs/hono` declares the automatic runtime in a root
- * `tsconfig.spec.json` that includes only `src`, while `benchmarks/jsx/tsconfig.json` is a genuine
- * classic-transform React benchmark. Scoped by directory the root config swallows the benchmark and
- * the profile stands down; scoped by `include` the two do not touch, and 2,053 of hono's 2,149
- * findings go away while the 96 inside `benchmarks/jsx` correctly stay.
- *
- * **A chain that cannot be followed dissents exactly like a classic one**, for the same reason one
- * level removed: an ancestor that could not be read may be the one setting `"jsx": "react"`, and the
- * difference between "no ancestor sets it" and "I could not see whether an ancestor sets it" is
- * exactly the difference between applying safely and applying blind.
- *
- * **`disable-concept` because oxlint offers nothing narrower.** Confirmed against 1.76.0: the rule
- * takes no options at all (*this rule does not accept configuration options*, and the bundled
- * `configuration_schema.json` resolves it to `RuleNoConfig`); `settings.react.runtime` and
- * `settings.react.jsxRuntime` are accepted by the parser and change nothing; and a sibling
- * `tsconfig.json` reading `"jsx": "react-jsx"` does not silence it, with or without `--tsconfig`.
- * An `engine-setting` adjustment would have no key to write.
- *
- * There is no sibling to disable alongside it: `react/jsx-uses-react`, which the automatic transform
- * obsoletes in the same stroke, is **not in the registry** because oxlint does not implement it —
- * `oxlint --rules --format json` lists 64 rules in the `react` scope and that is not one of them.
- */
-/** `null` means the whole repository — every config agrees, so there is nothing to scope around. */
 type JsxRuntimeScope = { readonly paths: readonly string[] | null }
 
-/** The `/**` tail `resolveIncludeScope` adds, removed to get a plain directory for the overlap test. */
 const scopeBase = (pattern: string): string => (pattern === '**' ? '' : pattern.slice(0, -3))
 
-/** True when either directory contains the other, `''` being the repository root. */
 function overlaps(a: string, b: string): boolean {
   return a === '' || b === '' || a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
 }
@@ -356,9 +205,6 @@ const reactJsxTransform = defineProfile<JsxRuntimeScope>({
       })),
     )
 
-    // A project needs no `React` in scope when TypeScript compiles its JSX to `react/jsx-runtime`
-    // calls, *or* when `jsxImportSource` names somebody else's runtime entirely. The second is what
-    // `preserve` alone cannot tell you and is the only evidence a Solid or Hono repository offers.
     const notReact = resolved.filter(
       (entry) =>
         (entry.jsx.kind === 'set' && entry.jsx.transform === 'automatic') ||
@@ -369,8 +215,6 @@ const reactJsxTransform = defineProfile<JsxRuntimeScope>({
     )
     if (notReact.length === 0) return null
 
-    // Deduplicated on the *declaring* file, not the resolving one: three apps inheriting one
-    // `tsconfig.app.json` are one fact about the repository, not three.
     const declaring = new Map<string, { property: string; value: string }>()
     for (const entry of notReact) {
       if (entry.jsx.kind === 'set' && entry.jsx.transform === 'automatic') {
@@ -386,9 +230,6 @@ const reactJsxTransform = defineProfile<JsxRuntimeScope>({
       .sort(byFile)
       .map(([file, found]) => ({ kind: 'config-literal' as const, file, property: found.property, value: found.value }))
 
-    // Two kinds of dissent, treated identically because they cost the same thing. A config on the
-    // classic transform *needs* the rule. A config whose `extends` chain broke may be one — an
-    // ancestor this could not read may set `"jsx": "react"` — and "I could not see" is not "no".
     const dissenting = resolved
       .filter((entry) => (entry.jsx.kind === 'set' && entry.jsx.transform === 'classic') || entry.jsx.kind === 'unknown')
       .sort((a, b) => compareStrings(a.file, b.file))
@@ -412,8 +253,7 @@ const reactJsxTransform = defineProfile<JsxRuntimeScope>({
             ? `${first.jsx.reason}, so whether that project uses the classic transform cannot be determined ` +
               'without following the chain, and every project that does use the automatic runtime sits ' +
               'inside or around it'
-            : // The *declaring* file, not the project that inherited it: that is the one line a user
-              // would have to edit, and in a monorepo it is usually not the config named here.
+            :
               `${first.jsx.kind === 'set' ? first.jsx.declaredIn : first.file} sets \`"jsx": "react"\` inside or ` +
               'around every project configured for another runtime, so turning the rule off would drop it ' +
               'where the classic transform still needs it',
@@ -439,11 +279,6 @@ const reactJsxTransform = defineProfile<JsxRuntimeScope>({
 
 const NEXT_CONFIG = /(^|\/)next\.config\.[cm]?[jt]s$/
 
-/**
- * The concepts oxlint's `nextjs` scope covers, read off the registry rather than listed here — 21
- * today, and an oxlint upgrade that adds a 22nd is picked up without an edit. Same reasoning as
- * `dualFiringConcepts`: a hand-written list of generated concept ids is a copy that silently rots.
- */
 export function scopeConcepts(scope: string): ConceptId[] {
   const found = new Set<ConceptId>()
   for (const entry of RULE_ENTRIES) {
@@ -454,55 +289,10 @@ export function scopeConcepts(scope: string): ConceptId[] {
 }
 
 type NextJsLayout = {
-  /** Workspaces holding both a `next` dependency and a `next.config.*`, sorted. */
   readonly appRoots: readonly string[]
-  /** `<dir>/**` for every workspace that declares no `next` at all, sorted. Possibly empty. */
   readonly outside: readonly string[]
 }
 
-/**
- * Next.js, and the first profile to scope a level to a path rather than to the whole repository.
- *
- * **Layer A of a borrowed profile, and it turned out to need nothing borrowed.** All 21 rules in
- * oxlint's `nextjs` scope are `correctness`, so `GENERATED_RECOMMENDED_RULES` already holds every one
- * of them at `error` — derived from the registry, not from `sgate rules list`, which filters by the
- * languages present in the repository at hand and so cannot answer the question at all. There is
- * nothing here for an `enable-concept` to add; Vercel's own `eslint-config-next` is in fact *milder*,
- * shipping 15 of the 21 at `warn` and only 6 at `error` (verified against `@next/eslint-plugin-next`
- * 16.2.12's `recommendedRules`). A profile cannot correct that — `materialize` drops a framework level
- * weaker than what an earlier layer holds — so the six-versus-fifteen question belongs to
- * `registry/overrides.ts`'s `severityDefault`, not here.
- *
- * **What the plugin does need is a scope, and the measurement is why.** `@next/eslint-plugin-next` is
- * delivered by `eslint-config-next`, which Next.js wires into the application it belongs to; nothing
- * in Vercel's own tooling points it at a sibling package. slop-gate points it at every `.tsx` in the
- * repository, and in a monorepo that is a rule set aimed at code it does not describe. Measured with
- * oxlint 1.76.0 across five public repositories (`shadcn-ui/ui`, `dubinc/dub`, `documenso/documenso`,
- * `unkeyed/unkey`, `calcom/cal.com`): **389 findings, 67 of them in workspaces that declare no `next`
- * dependency at all.** On `calcom/cal.com` alone, 33 of 73 — 8 in `packages/emails`, where `<img>` is
- * not a lapse but the only thing an email client will render, and 6 in `apps/api/v2`, a NestJS service
- * where `no-assign-module-variable` is complaining about CommonJS in a project that has no Next.js
- * bundler to confuse.
- *
- * `no-img-element` and `no-assign-module-variable` are the two that were measured wrong there. The
- * other 19 are carried by mechanism rather than by their own count, on the `angular` precedent (spec
- * §23.5): every one of them resolves to *import from `next/…` instead*, and a workspace that does not
- * declare `next` cannot follow that without producing an unlisted-dependency finding in its place.
- * Shipping the whole scope wrongly costs 21 rules' coverage in packages those rules were never about;
- * shipping only the measured two leaves the rest aimed at the same code for want of a fixture.
- *
- * **The scope is stated positively, and that is a picomatch fact rather than a preference.** The
- * natural phrasing is "everywhere except the app roots", and in picomatch 4.0.5's array form a negated
- * pattern does not subtract from its siblings — `['**', '!apps/web/**']` matches `apps/web/x.tsx`. So
- * the profile enumerates the non-Next workspaces it can see, which costs nothing it was not already
- * reading: `DetectionContext.manifests` is the same list detection ran on. A workspace with a nested
- * one that *does* declare `next` is skipped rather than glob-matched around it — files directly in the
- * parent keep the rules on, which is the safe direction to be wrong in.
- *
- * A single-app repository — the common case — has no non-Next workspace and therefore no scoped layer
- * at all, so the profile is byte-identical to not existing there. That is deliberate: the whole
- * apparatus exists for the monorepo, and it should be invisible everywhere else.
- */
 const nextjs = defineProfile<NextJsLayout>({
   id: 'nextjs',
   summary: 'Next.js — Vercel’s own plugin, scoped to the applications it describes',
@@ -562,7 +352,6 @@ const nextjs = defineProfile<NextJsLayout>({
         ),
 })
 
-/** True when some workspace strictly below `workspace` declares `next` — see the profile's note. */
 function hasNestedNext(workspace: string, declared: ReadonlySet<string>): boolean {
   const prefix = workspace === '' ? '' : `${workspace}/`
   for (const candidate of declared) {
@@ -577,49 +366,8 @@ function describeRoots(appRoots: readonly string[]): string {
 
 const TEST_SCOPES = ['jest', 'vitest'] as const
 
-/**
- * jest's own default `testMatch` (jest 30), copied rather than approximated — an approximation would
- * be a second, worse specification of "a test file" for a tool that already publishes one. Verified
- * against picomatch 4.0.5, which handles both extglobs verbatim.
- *
- * A repository that overrides `testMatch`, or writes `jest.mock()` in a `setupFiles` module outside
- * these globs, still reports. Reading `testMatch` would need an array-valued config probe, which
- * `frameworks/literal.ts` deliberately does not have (spec §23, "the `literal` probe is one file, one
- * property path, string literals only").
- */
 const JEST_TEST_FILES = ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'] as const
 
-/**
- * chai asserts through **property access**, not through a call: `result.dry.should.be.true` and
- * `expect(x).to.exist` are complete assertions whose last link is a getter with a side effect. To
- * `no-unused-expressions` that is a statement computing a value nobody uses, which is precisely the
- * shape it exists to report — so the rule is not merely noisy here, it is describing the assertion
- * library's entire API as dead code. This is why `eslint-plugin-chai-friendly` exists upstream.
- *
- * **Measured across a 20-repository corpus: `dead-code.no-op-expression` produced 3,363 findings at
- * `error`, and 3,097 of them are in the two repositories that declare `chai`.** Classified by reading
- * the source line behind every finding's byte range rather than by counting:
- *
- * - `typeorm/typeorm` — **1,700 of 1,700** match a chai assertion shape (`.to.be`/`.to.have` 1,216,
- *   `.should` 221, `.to.exist`/`.to.undefined` 263). No residue at all.
- * - `nestjs/nest` — 1,334 of the 1,342 inside test files.
- *
- * **Path-scoped, and the scope is doing real work in both directions.** 55 of nest's findings and 1 of
- * typeorm's are in production code — `nest-application.ts`, `router-execution-context.ts` — and every
- * one of those survives. So do the 8 genuine findings inside nest's own test files
- * (`multiProviderInstances.charAt;`, `server.context;`), which is the honest cost of this profile:
- * **8 of the 3,041 findings it silences, 0.26%**, against a rule left otherwise unusable on a chai
- * codebase. It is `error`, so those 3,041 break a build.
- *
- * **Gated on the dependency, which is what keeps the rule sharp elsewhere.** hono and trpc produce 48
- * and 39 findings inside test files with *no* chai assertion among them — they assert with vitest's
- * `expect`, a call rather than a bare expression — and neither declares `chai`, so this profile never
- * touches them.
- *
- * **`disable-concept` because oxlint offers nothing narrower.** `no-unused-expressions` takes
- * `allowShortCircuit`, `allowTernary` and `allowTaggedTemplates`; none of the three describes a
- * property-access assertion chain, and there is no upstream option that does.
- */
 function chaiAssertionFalsePositive(): FrameworkAdjustment {
   return {
     kind: 'disable-concept',
@@ -633,11 +381,6 @@ function chaiAssertionFalsePositive(): FrameworkAdjustment {
   }
 }
 
-/**
- * Kept out of `testFramework` above even though both profiles end at a test-file glob, because they
- * turn on different facts: that one elects between two oxlint *plugins* whose rules double-report, and
- * would disable this one on a repository using chai under vitest — where the finding is just as false.
- */
 const chai = defineProfile<void>({
   id: 'chai',
   summary: 'chai — assertions are property accesses, not calls',
@@ -649,35 +392,10 @@ const chai = defineProfile<void>({
 })
 
 type TestFrameworkLayout = {
-  /** Scopes whose dual-firing concepts go off, sorted by `TEST_SCOPES` order. */
   readonly disabledScopes: readonly string[]
-  /** Whether any manifest declares `jest` — what makes the mock-factory exemption below apply at all. */
   readonly jest: boolean
 }
 
-/**
- * oxlint 1.76.0 omits an exemption `eslint-plugin-unicorn` has, and the omission is deliberate on
- * oxlint's side: `unicorn/consistent-function-scoping` exempts any function nested inside a
- * `jest.mock()` factory upstream (`rules/consistent-function-scoping.js:105-122`,
- * `isInsideJestMockFactory`, unicorn 72.0.0), and oxlint's own Rust rule has no such check while
- * carrying `jest.mock('@kbn/i18n-react', () => { return { I18nProvider: function
- * MockI18nProvider() {} } })` in its `fail` vector.
- *
- * Measured rather than reasoned about, on a four-file fixture with three mock factories and one
- * genuine violation: **oxlint 1.76.0 reports 5, all `code: "unicorn(consistent-function-scoping)"`;
- * ESLint 10.8.0 with the real plugin reports 2.** The three extra are functions declared inside a
- * `jest.mock()` factory, and every one is false for a mechanical reason rather than a stylistic one:
- * jest hoists the `jest.mock()` call above the imports, so its factory may not reference anything
- * outside itself — "move it to the outer scope" produces a test that throws.
- *
- * The concept is `unicorn`-scope, so no amount of test-scope arbitration reaches it and the
- * dual-firing subtraction above cannot help. It is `warn`, so nobody's build breaks either way; what
- * it costs is one wrong finding per mock factory on a codebase that may have hundreds.
- *
- * **Path-scoped rather than repository-wide**, which is the whole reason this waited for §23.6: the
- * rule is worth keeping on application code, and every instance of this false positive is in a file
- * jest itself would run.
- */
 function jestMockFactoryFalsePositive(): FrameworkAdjustment {
   return {
     kind: 'disable-concept',
@@ -692,21 +410,6 @@ function jestMockFactoryFalsePositive(): FrameworkAdjustment {
   }
 }
 
-/**
- * oxlint's `jest` and `vitest` plugins pattern-match the generic `describe`/`it`/`expect` call shape
- * rather than checking which package it came from, so on a repository using one of them, both plugins'
- * rules fire on the identical line — under two different concept ids, which arbitration cannot merge
- * because they *are* two concepts. Measured on this repository (vitest-only): every occurrence,
- * doubled. That is why 24 rules sit in `registry/not-recommended.ts` with a reason naming this mechanism as
- * their unblocking condition.
- *
- * The rule, in full: **disable every scope that is not the unique installed one; if there is not
- * exactly one, disable all of them.** Both installed and the double report is genuine; neither
- * installed and nothing should be claiming to lint tests that are not written with either. Both
- * degrade to exactly the unconditional exclusion this replaces, which is why this is the one profile
- * that applies with no evidence — the absence *is* the finding, and it disables rather than enables,
- * so the failure direction stays safe.
- */
 const testFramework = defineProfile<TestFrameworkLayout>({
   id: 'test-framework',
   summary: 'Test framework — elects the scope whose plugin rules are not duplicates',
@@ -738,12 +441,10 @@ const testFramework = defineProfile<TestFrameworkLayout>({
   ],
 })
 
-/** Strips a leading `./` and any trailing `/` so `'./src/migrations/'` and `'src/migrations'` agree. */
 function normaliseDirectory(value: string): string {
   return value.replace(/^\.\//, '').replace(/\/+$/, '')
 }
 
-/** Evaluated in this order, but the order is inert: merging is a sorted set union (spec §23.3). */
 export const FRAMEWORK_PROFILES: readonly AnyFrameworkProfile[] = [
   angular,
   chai,

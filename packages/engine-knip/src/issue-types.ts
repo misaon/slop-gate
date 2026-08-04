@@ -1,16 +1,5 @@
 import { compareStrings } from '@misaon/slop-gate-core'
 
-/**
- * Every issue type knip 6.31.0 can report, copied verbatim from its own `ISSUE_TYPES`
- * (`knip/dist/constants.js`) — knip does not export that constant, so this list is transcribed
- * rather than imported, and `issue-types.live.test.ts` re-derives it from a real run against a real
- * fixture so a knip upgrade that adds a type fails a test instead of being silently ignored.
- *
- * This list is knip's *entire* electable vocabulary. Unlike oxlint, knip has no per-rule catalogue
- * to introspect: `--include`/`--exclude` take these seventeen names and nothing finer, so an issue
- * type is exactly what `RuleEntry.engineRuleId` names for this engine (see the knip block in
- * `packages/core/src/registry/entries.uncatalogued.ts`).
- */
 export const KNIP_ISSUE_TYPES = [
   'files',
   'dependencies',
@@ -34,13 +23,6 @@ export const KNIP_ISSUE_TYPES = [
 export type KnipIssueType = (typeof KNIP_ISSUE_TYPES)[number]
 
 export type KnipIssueTypeExclusion = {
-  /**
-   * Why this issue type is never surfaced as a diagnostic, stated plainly enough that nobody
-   * re-adds it later thinking its absence was an oversight — the same contract
-   * `packages/core/src/registry/not-recommended.ts` holds for an oxlint rule kept out of `recommended`,
-   * applied one level up: here the unit being excluded is a whole category of knip's output, so
-   * dropping one silently would remove a class of finding with no signal at all.
-   */
   readonly reason: string
 }
 
@@ -100,11 +82,6 @@ export const KNIP_EXCLUDED_ISSUE_TYPES: Readonly<Record<string, KnipIssueTypeExc
   },
 }
 
-/**
- * The issue types this adapter turns into diagnostics, in `compareStrings` order so the
- * `include` array `materializeKnipConfig` writes — and therefore the config's hash — is byte-stable
- * across runs regardless of the order arbitration happened to elect them in.
- */
 export const KNIP_SURFACED_ISSUE_TYPES: readonly KnipIssueType[] = KNIP_ISSUE_TYPES.filter(
   (type) => !Object.hasOwn(KNIP_EXCLUDED_ISSUE_TYPES, type),
 ).sort(compareStrings)

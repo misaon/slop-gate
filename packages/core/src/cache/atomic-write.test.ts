@@ -7,12 +7,6 @@ import { writeFileAtomic } from './atomic-write.ts'
 const withCode = (code: string): NodeJS.ErrnoException =>
   Object.assign(new Error(`${code}: simulated`), { code })
 
-/**
- * A rename that fails `failures` times before delegating to the real one. The Windows failure this
- * guards is a genuine race — it reproduced on one CI runner and not its sibling on the same commit —
- * so provoking it for real would give a test that passes for timing reasons rather than because the
- * retry works.
- */
 const renameFailing = (failures: number, code = 'EPERM') => {
   let remaining = failures
   const calls = { count: 0 }
@@ -78,8 +72,6 @@ test('does not retry an error that is not a transient lock', async () => {
 })
 
 test('removes the scratch file when the rename ultimately fails', async () => {
-  // Nothing else ever collects these: the name carries a fresh UUID, so no later run can recognise
-  // an orphan as its own. Leaking one per failure would silently fill the cache directory.
   const target = join(dir, 'out.json')
   const { renameFile } = renameFailing(Number.POSITIVE_INFINITY)
 

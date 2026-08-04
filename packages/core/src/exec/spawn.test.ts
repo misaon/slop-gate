@@ -8,7 +8,6 @@ import { isExecFileFailure, runEngineTool, toolVersion } from './spawn.ts'
 
 const signal = () => new AbortController().signal
 
-/** A real child process, because what is under test is how a real rejection is read. */
 const node = (script: string) => ({ command: process.execPath, args: ['-e', script] })
 
 const invoke = (script: string, overrides: Partial<Parameters<typeof runEngineTool>[0]> = {}) =>
@@ -27,8 +26,6 @@ test('a clean exit yields both streams', async () => {
 })
 
 test('an exit code within the findings budget is tolerated, and its output is still read', async () => {
-  // The whole reason this exists: every tool here exits non-zero *because* it found something, and
-  // discarding that exit would discard the findings with it.
   const result = await invoke('process.stdout.write("findings"); process.stderr.write("noise"); process.exit(1)')
   expect(result).toEqual({ stdout: 'findings', stderr: 'noise' })
 })
@@ -54,9 +51,6 @@ test('with nothing on stderr the message falls back to the exit code', async () 
 })
 
 test('a code that is not a number is never within budget, however small the budget looks', async () => {
-  // A binary that does not exist rejects with `code: 'ENOENT'`, and an aborted run with
-  // `code: 'ABORT_ERR'`. Treating either as "exited 0-or-1, so those are findings" would report a
-  // repository as clean because slop-gate could not run.
   await expect(
     runEngineTool({
       engine: 'oxlint',
@@ -91,8 +85,6 @@ test('a real execFile rejection is recognised, with both streams typed as the st
 })
 
 test('anything whose streams are not strings is refused, so no caller can reach .trim() on a Buffer', () => {
-  // Without `encoding`, `execFile` resolves Buffers — and `Buffer.trim` does not exist. The old
-  // hand-written cast asserted this away seven times over.
   expect(isExecFileFailure({ stdout: Buffer.from('x') })).toBe(false)
   expect(isExecFileFailure({ stderr: 12 })).toBe(false)
   expect(isExecFileFailure('a thrown string')).toBe(false)
@@ -100,7 +92,6 @@ test('anything whose streams are not strings is refused, so no caller can reach 
   expect(isExecFileFailure(new Error('no streams at all'))).toBe(true)
 })
 
-/** A `ScriptBinInvocation` in the shape `resolveScriptBin` really returns: `node <script>`. */
 const versionProbe = async (output: string) => {
   const file = join(await mkdtemp(join(tmpdir(), 'sgate-version-')), 'probe.mjs')
   await writeFile(file, `process.stdout.write(\` ${output} [\${process.argv.slice(2).join(' ')}]\\n\`)\n`)
@@ -108,8 +99,6 @@ const versionProbe = async (output: string) => {
 }
 
 test('the version is what the binary reports, trimmed, with its own label stripped', async () => {
-  // The bracketed argv proves `--version` lands *after* `prefixArgs` — appended to the wrong end it
-  // would ask Node for its own version, and every cache key would carry that instead.
   expect(await toolVersion(await versionProbe('version: 1.2.3'), /^version:\s*/i)).toBe('1.2.3 [--version]')
   expect(await toolVersion(await versionProbe('Version 5.9.0'), /^Version\s+/i)).toBe('5.9.0 [--version]')
   expect(await toolVersion(await versionProbe('ast-grep 0.45.0'), /^ast-grep\s+/i)).toBe('0.45.0 [--version]')

@@ -107,12 +107,6 @@ test('.slopignore patterns combine with config ignore rather than replacing it',
 })
 
 test('.slopignore lines are real gitignore patterns, not bare globs', async () => {
-  // Pins the fix for the documented defect (docs/superpowers/specs/2026-07-31-m0-followups.md,
-  // "Should fix soon"): `.slopignore` is now parsed by the `ignore` package, so the gitignore
-  // idioms a user naturally reaches for from muscle memory — a bare directory name, a trailing
-  // slash, a leading slash — all exclude the directory's contents, exactly as they would in a
-  // `.gitignore`. Before the fix, only an explicit `dir/**` glob worked; all three spellings
-  // below matched nothing.
   await write('vendor/a.ts')
   await write('vendor/nested/b.ts')
   await write('keep.md')
@@ -124,8 +118,6 @@ test('.slopignore lines are real gitignore patterns, not bare globs', async () =
   expect(paths).not.toContain('vendor/nested/b.ts')
   expect(paths).toContain('keep.md')
 
-  // The explicit glob form the old picomatch-based implementation required still works too —
-  // gitignore's `dir/**` means exactly what it did before.
   await write('.slopignore', 'vendor/**\n')
   const globStyle = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
   const globStylePaths = globStyle.files.map((f) => f.path)
@@ -135,8 +127,6 @@ test('.slopignore lines are real gitignore patterns, not bare globs', async () =
 })
 
 test('an unrooted .slopignore glob matches at every depth, like a gitignore pattern', async () => {
-  // gitignore treats a slash-free pattern as matching at any depth (`*.ts` behaves like
-  // `**/*.ts`). Before the fix, picomatch did not: `*.ts` matched only a root `.ts` file.
   await write('root.ts')
   await write('src/nested.ts')
   await write('.slopignore', '*.ts\n')
@@ -159,8 +149,6 @@ test('.slopignore negation re-includes a path an earlier pattern excluded', asyn
 })
 
 test('a config ignore pattern without a trailing ** still excludes a directory nested deep beneath it', async () => {
-  // The same fix as `.slopignore`, applied to config `ignore`: gitignore semantics mean a bare
-  // directory name excludes everything below it, not just files matched by an explicit glob.
   await write('vendor/deep/nested/file.ts')
   await write('src/a.ts')
 
@@ -189,9 +177,6 @@ test('the walker skips node_modules and .git without being told to', async () =>
 })
 
 test('the walker applies a root .gitignore even outside a git repository', async () => {
-  // The gap this closes (Part 2 of the M0 follow-ups): tarballs, vendored copies and some CI
-  // checkouts have no `.git` directory, so `selectFileSource` falls back to this walker — which
-  // used to read no ignore file at all, only the five-entry `ALWAYS_SKIPPED` list.
   await write('.gitignore', 'dist/\n')
   await write('dist/out.js')
   await write('src/a.ts')
@@ -206,8 +191,6 @@ test('the walker applies a nested .gitignore scoped to its own directory, not th
   await write('packages/app/.gitignore', 'build/\n')
   await write('packages/app/build/out.js')
   await write('packages/app/src/a.ts')
-  // A directory named `build` outside `packages/app` must survive: the nested .gitignore's
-  // unqualified `build/` is scoped to `packages/app` and below, exactly as git scopes it.
   await write('other/build/keep.ts')
 
   const inventory = await buildInventory({ rootDir: dir, source: createWalkFileSource() })
@@ -218,11 +201,6 @@ test('the walker applies a nested .gitignore scoped to its own directory, not th
 })
 
 test('the walker lets a nested .gitignore negate a pattern an ancestor .gitignore excluded', async () => {
-  // Mirrors real git precedence (verified against real `git check-ignore -v` on this exact
-  // layout): the closer .gitignore wins. The root pattern excludes every `.log` file; the nested
-  // one re-includes one specific file under `packages/app`. Because the match is on individual
-  // files, not a whole directory, there is no ignored ancestor directory blocking the descent —
-  // see the next test for the case where there is.
   await write('.gitignore', '*.log\n')
   await write('root.log')
   await write('packages/app/.gitignore', '!important.log\n')
@@ -237,13 +215,6 @@ test('the walker lets a nested .gitignore negate a pattern an ancestor .gitignor
 })
 
 test('the walker cannot resurrect a file whose parent directory is itself excluded', async () => {
-  // The well-known gitignore gotcha, documented in gitignore(5): "It is not possible to
-  // re-include a file if a parent directory of that file is excluded" — verified against real
-  // `git check-ignore -v` on this exact layout, which reports `packages/app/generated/keep.ts` as
-  // ignored by the *root* `generated/` rule, not re-included by the nested negation. `generated/`
-  // has no slash before the trailing one, so it is unrooted and excludes a directory named
-  // `generated` at any depth, including under `packages/app` — and once a directory itself is
-  // excluded, nothing beneath it is ever visited to check for a deeper override.
   await write('.gitignore', 'generated/\n')
   await write('generated/a.ts')
   await write('packages/app/.gitignore', '!generated/keep.ts\n')
@@ -299,11 +270,6 @@ test('selects the git source from a subdirectory of a repository', async () => {
 })
 
 test('the git source excludes .slop-gate/cache even though it is untracked and not gitignored', async () => {
-  // Bug reproduction (docs/superpowers/specs/2026-07-31-m0-followups.md, "Found by first
-  // real-world use"): before `sgate init` has ever run, nothing gitignores `.slop-gate/`, so
-  // `git ls-files -co --exclude-standard` lists its cache contents as untracked-but-not-ignored,
-  // exactly like any other new file. Left unfixed, `check` inventories its own cache and the
-  // scanned-file count grows on every run.
   await run('git', ['init', '-q'], { cwd: dir })
   await run('git', ['config', 'user.email', 't@t.test'], { cwd: dir })
   await run('git', ['config', 'user.name', 'Test'], { cwd: dir })
@@ -321,9 +287,6 @@ test('the git source excludes .slop-gate/cache even though it is untracked and n
 })
 
 test('buildInventory excludes .slop-gate regardless of which FileSource produced the path list', async () => {
-  // Pins the fix location, not just the symptom: the exclusion lives in `buildInventory`, where
-  // every source converges, specifically so a future third `FileSource` cannot reintroduce this
-  // bug by omitting its own `.slop-gate` handling the way the git source did.
   await write('src/a.ts')
   await write('.slop-gate/cache/results/oxlint/ab/deadbeef.json', '{}')
   const sourceThatIgnoresNothing: FileSource = {

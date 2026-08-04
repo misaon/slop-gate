@@ -22,7 +22,6 @@ import { refuseEnable } from './warrant.ts'
 
 const MANIFEST = 'package.json'
 
-/** Read in this fixed order so a package listed in two fields always yields the same evidence. */
 const DEPENDENCY_FIELDS: readonly DependencyField[] = [
   'dependencies',
   'devDependencies',
@@ -32,13 +31,6 @@ const DEPENDENCY_FIELDS: readonly DependencyField[] = [
 
 export const EMPTY_DETECTION: FrameworkDetection = { applied: [], inapplicable: [] }
 
-/**
- * Erases a profile's parameter type so profiles of different shapes share one list, and is where
- * `refuseEnable` runs — the first point at which an adjustment and the evidence behind it are both in
- * hand. An addition that does not clear the bar is dropped rather than thrown on: the shipped profile
- * set is closed and `profiles.test.ts` pins that none of them is ever refused, so a throw here could
- * only ever reach a user through a parameterised `consequences`.
- */
 export function defineProfile<P>(profile: FrameworkProfile<P>): AnyFrameworkProfile {
   return {
     id: profile.id,
@@ -71,8 +63,6 @@ function parseManifest(path: string, workspace: string, source: string): Manifes
   try {
     parsed = JSON.parse(source) as Record<string, unknown>
   } catch {
-    // A malformed manifest is not this module's error to raise — `buildWorkspaceGraph` already reads the
-    // root one and `knip` will report on it. Saying "no evidence here" stands every profile down.
     return null
   }
 
@@ -85,11 +75,6 @@ function parseManifest(path: string, workspace: string, source: string): Manifes
   return { file: path, workspace, dependencies }
 }
 
-/**
- * The `dependency` and `path` probes' shared input: every `package.json` the inventory already listed,
- * parsed once. Bounded by the workspace count rather than the file count (spec §23.1's cost argument)
- * and it walks nothing — `inventory.files` is already sorted, which is this pass's determinism.
- */
 async function buildDetectionContext(
   inventory: FileInventory,
   readText?: (path: string) => Promise<string | null>,
@@ -119,16 +104,9 @@ async function buildDetectionContext(
 export type DetectFrameworksOptions = {
   readonly inventory: FileInventory
   readText?: (path: string) => Promise<string | null>
-  /** Overridable so a test can exercise one profile, or none, without the shipped list. */
   readonly profiles?: readonly AnyFrameworkProfile[]
 }
 
-/**
- * Spec §23.1. Runs every profile against one shared context and returns what applied, what stood down
- * for want of a parameter, and the evidence behind both. Profiles are evaluated concurrently but sorted
- * by `id` before being returned, so the outcome never depends on which read finished first — with
- * `inventory.files` and each manifest's dependency list already sorted, that is every ordering leak.
- */
 export async function detectFrameworks(options: DetectFrameworksOptions): Promise<FrameworkDetection> {
   const profiles = options.profiles ?? FRAMEWORK_PROFILES
   if (profiles.length === 0) return EMPTY_DETECTION
@@ -145,8 +123,6 @@ export async function detectFrameworks(options: DetectFrameworksOptions): Promis
   }
 }
 
-/** First manifest dependency matching `names`, in `(manifest path, field, name)` order — the `dependency`
- *  probe. Evidence rather than a boolean, so the caller can say which manifest and field it came from. */
 export function dependencyEvidence(context: DetectionContext, names: readonly string[]): FrameworkEvidence | null {
   const wanted = new Set(names)
   for (const manifest of context.manifests) {
@@ -164,9 +140,6 @@ export function dependencyEvidence(context: DetectionContext, names: readonly st
   return null
 }
 
-/** The `path` probe: inventory entries matching `predicate`, in inventory order — no I/O at all, the file
- *  list is already in memory. `InventoryFile` rather than evidence so a caller can also read the
- *  workspace a match was attributed to, which is what scopes a knip setting to the right package. */
 export function inventoryFilesMatching(
   context: DetectionContext,
   predicate: (path: string) => boolean,
@@ -174,7 +147,6 @@ export function inventoryFilesMatching(
   return context.inventory.files.filter((file) => predicate(toPosix(file.path)))
 }
 
-/** Repo-relative POSIX `path`, re-expressed relative to the workspace directory it belongs to. */
 export function relativeToWorkspace(path: string, workspace: string): string {
   return workspace === '' ? path : path.slice(workspace.length + 1)
 }

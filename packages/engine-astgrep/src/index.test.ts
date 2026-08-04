@@ -8,9 +8,6 @@ import { createAstGrepEngine } from './index.ts'
 let dir: string
 let context: RunContext
 
-// The default `size` is deliberately non-zero: the real inventory reads it from `stat` (see
-// `discovery/inventory.ts`), and the engine now treats 0 as "this file has no bytes to analyse" and
-// keeps it away from ast-grep. A helper defaulting to 0 would quietly claim every fixture is empty.
 const file = (path: string, size = 64): InventoryFile => ({ path, language: 'ts', workspace: '', size, mtimeMs: 0 })
 const emptyFile = (path: string): InventoryFile => file(path, 0)
 
@@ -39,7 +36,6 @@ test('declares file granularity and exactly the four languages its rule document
   expect(engine.id).toBe('astgrep')
   expect(engine.capabilities.granularity).toBe('file')
   expect(engine.capabilities.languages).toEqual(['ts', 'tsx', 'js', 'jsx'])
-  // No rule declares a `fix:`, so claiming this would promise `sgate fix` edits that do not exist.
   expect(engine.capabilities.fixes).toBe(false)
 })
 
@@ -81,9 +77,6 @@ test('yields nothing for a clean file', async () => {
 })
 
 test('yields nothing for an empty batch instead of scanning the whole repository', async () => {
-  // Not a micro-optimisation: `ast-grep scan` with no path arguments defaults to `.`, so an empty
-  // batch that reached the binary would walk everything under `rootDir` and report on files the
-  // planner never assigned.
   await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
   const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
@@ -93,7 +86,6 @@ test('yields nothing for an empty batch instead of scanning the whole repository
 })
 
 test('yields nothing for an empty ruleset instead of failing on an empty rule file', async () => {
-  // `--rule` pointed at an empty document is a hard "Cannot parse rule" error, not an empty result.
   await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
   const handle = await engine.materializeConfig(new Map(), context)
@@ -103,10 +95,6 @@ test('yields nothing for an empty ruleset instead of failing on an empty rule fi
 })
 
 test('fails loudly when ast-grep loads a different number of rule documents than were elected', async () => {
-  // ast-grep's answer to oxlint's `number_of_rules`. A rule document silently rejected on a version
-  // bump removes a concept's coverage and looks exactly like clean code, so the count is asserted
-  // rather than assumed. Driven here by lying about the expected count, which is the only way to
-  // reach the branch without an ast-grep that actually misbehaves.
   await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
   const real = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
@@ -119,9 +107,6 @@ test('fails loudly when ast-grep loads a different number of rule documents than
 })
 
 test('fails loudly when ast-grep skips a file instead of caching it as clean', async () => {
-  // Reproduced against 0.45.0: past roughly 4 MB ast-grep declines the file, reports zero findings
-  // and exits 0. Untrapped, slop-gate would write that as a clean cache entry and never look again.
-  // The error names the batch's largest files because `--inspect summary` only gives a count.
   const huge = `declare const v: unknown\nexport const a = v as unknown as string\n${'const x = 1\n'.repeat(400_000)}`
   await writeFile(join(dir, 'src/huge.ts'), huge)
   const engine = createAstGrepEngine()
@@ -141,10 +126,6 @@ test('fails loudly when ast-grep skips a file instead of caching it as clean', a
 })
 
 test('does not fail on a zero-byte file, which ast-grep counts as skipped', async () => {
-  // Measured against 0.45.0: a file of exactly 0 bytes lands in `skippedFileCount`, while one byte
-  // (a bare newline) does not. Untreated that makes the `skippedFileCount > 0` guard below fire on
-  // an empty `global.d.ts` — a common idiom — and fail the whole run with a message blaming a 4 MB
-  // parse limit. A file with no bytes has nothing to analyse, so its skip is the benign case.
   await writeFile(join(dir, 'src/empty.d.ts'), '')
   const engine = createAstGrepEngine()
   const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
@@ -154,8 +135,6 @@ test('does not fail on a zero-byte file, which ast-grep counts as skipped', asyn
 })
 
 test('still analyses the rest of a batch that contains a zero-byte file', async () => {
-  // The empty file is dropped from the argument list, so the guard keeps its full strength for the
-  // files that remain — this fails if the fix were "ignore the guard whenever the batch has an empty file".
   await writeFile(join(dir, 'src/empty.d.ts'), '')
   await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()
@@ -181,10 +160,6 @@ test('raises an EngineError when the binary is missing', async () => {
 })
 
 test('scans a file git ignores, because the planner has already decided what to scan', async () => {
-  // ast-grep's own walker respects `.gitignore` and skips dotted directories, but an explicitly
-  // named path bypasses both (verified). That matters because slop-gate's inventory is the
-  // authority on what gets analysed — a second, engine-local ignore layer would silently subtract
-  // from it, and the subtraction would look like clean code.
   await writeFile(join(dir, '.gitignore'), 'src/hidden.ts\n')
   await writeFile(join(dir, 'src/hidden.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
   const engine = createAstGrepEngine()

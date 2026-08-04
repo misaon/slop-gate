@@ -26,11 +26,6 @@ const only = (document: unknown) => {
 }
 
 describe('distillAdvisory', () => {
-  /**
-   * The regression this package exists to never repeat. A reader that took an empty `ranges` array as
-   * "every version" reported the five most-installed packages on npm as malware — 242 findings across
-   * six real lockfiles. Both halves are asserted: the compromised release fires, its neighbours do not.
-   */
   it('reads an explicit version enumeration and does not widen it to the whole package', () => {
     const { kind, packageName, record } = only(chalk)
 
@@ -103,8 +98,6 @@ describe('distillAdvisory', () => {
     expect(distillAdvisory({ ...chalk, withdrawn: '2025-09-10T00:00:00Z' })).toEqual([])
   })
 
-  /** A record that can match nothing must not exist, because the next reader of it has to decide what
-   *  "no versions and no ranges" means and the wrong answer is the 242-finding bug. */
   it('drops an affected entry carrying neither versions nor ranges', () => {
     expect(distillAdvisory({ id: 'GHSA-empty', affected: [{ package: npmPackage('ghost-entry') }] })).toEqual([])
   })
@@ -115,8 +108,6 @@ describe('distillAdvisory', () => {
     ).toEqual([])
   })
 
-  /** An ECOSYSTEM range is ordered by the registry's own version list, which this engine does not
-   *  have. Comparing it as semver would be wrong in both directions, so it contributes nothing. */
   it('skips non-SEMVER ranges rather than comparing them as semver', () => {
     expect(
       distillAdvisory({

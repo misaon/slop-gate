@@ -8,14 +8,7 @@ import { GENERATED_CONCEPTS } from '../concepts/concepts.generated.ts'
 import { GENERATED_RECOMMENDED_RULES, GENERATED_RULE_ENTRIES } from './entries.generated.ts'
 import { ENGINE_PREFERENCE, ruleRefKey, type RuleEntry } from './types.ts'
 
-// Same rationale as `entries.test.ts`'s `WIDENED_ENTRIES`: an entry that omits `classify` doesn't
-// structurally have that key on its own literal type, so a generic loop needs the declared shape.
 const WIDENED_ENTRIES: readonly RuleEntry[] = GENERATED_RULE_ENTRIES
-
-// This is Task 1's own stated acceptance bar: "every existing `entries.test.ts` invariant must hold
-// over the generated set". Mirrored here against `GENERATED_RULE_ENTRIES` directly (not the merged
-// `RULE_ENTRIES`), so this file's assertions do not depend on how — or whether yet — the generated
-// set has been wired into the live registry.
 
 test('there is exactly one entry per catalogue rule (847 at generation time)', () => {
   expect(GENERATED_RULE_ENTRIES.length).toBeGreaterThan(800)
@@ -57,7 +50,6 @@ test('an entry that declares a fix also declares what the fix touches', () => {
 })
 
 test('no rule entry claims a formatting concept', () => {
-  // The formatter is the permanent owner of `formatting.*` (spec 5.3) — no oxlint entry may claim one.
   const offenders = WIDENED_ENTRIES.filter((e) => e.concepts.some((c) => c.startsWith('formatting.')))
   expect(offenders.map(ruleRefKey)).toEqual([])
 })
@@ -94,8 +86,6 @@ test('the generated file is sorted, deterministic output — same input, byte-id
   expect(ids).toEqual([...ids].sort())
 })
 
-// --- concepts.generated.ts ---
-
 test('every generated concept id starts with its own declared group', () => {
   for (const concept of GENERATED_CONCEPTS) {
     expect(concept.id.split('.')[0]).toBe(concept.group)
@@ -110,24 +100,10 @@ test('every generated concept has a non-empty title and description', () => {
 })
 
 test('no generated concept duplicates a written one', () => {
-  // Regression guard for the exact bug this generator's own dev loop hit once: comparing against
-  // the *merged* `CONCEPTS` (which already includes a previous run's `GENERATED_CONCEPTS`) instead
-  // of the two human-maintained halves makes every concept the generator has ever produced look
-  // "already known", and `concepts.generated.ts` silently regenerates empty. Asserting a realistic
-  // lower bound here means that regression fails loudly instead of shrinking the file to nothing.
-  //
-  // The overlap is asserted in the other direction too, which is the failure the title names: a
-  // concept present in both halves would give `conceptById` two definitions for one id and hand the
-  // reporter whichever the merge happened to reach first.
   const written = new Set<string>([...HAND_WRITTEN_CONCEPTS, ...CURATED_CONCEPTS].map((c) => c.id))
   expect(GENERATED_CONCEPTS.filter((c) => written.has(c.id)).map((c) => c.id)).toEqual([])
-  // A floor against collapse, not a figure to keep in step with oxlint: the file holds 615 at the
-  // time of writing, down from 801 once `CURATED_CONCEPTS` claimed the concepts a user actually
-  // meets, and it shrinks further with every rationale written from here.
   expect(GENERATED_CONCEPTS.length).toBeGreaterThan(400)
 })
-
-// --- GENERATED_RECOMMENDED_RULES ---
 
 test('every generated-recommended concept exists in the catalogue and is at error or warn', () => {
   for (const [concept, level] of Object.entries(GENERATED_RECOMMENDED_RULES)) {
@@ -143,10 +119,6 @@ test('every generated-recommended concept is actually claimed by some generated 
   }
 })
 
-// --- the generator itself ---
-
-// This file lives at packages/core/src/registry/ — two levels up is packages/core, the cwd the
-// generator's paths (scripts/generate-registry.ts, its ENTRIES_OUT/CONCEPTS_OUT) are relative to.
 const CORE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 test('regenerating from the live oxlint catalogue produces no drift (the CI freshness check)', () => {

@@ -45,9 +45,6 @@ test('always includes the root workspace even when the inventory has no root pac
 })
 
 test('ignores a file merely named like a manifest rather than being one', () => {
-  // `not-package.json` and `package.json.bak` both end in text a naive `endsWith` would match. The
-  // workspace map is what makes knip treat a directory as its own package, so a wrong entry is not a
-  // cosmetic defect — it changes which files knip considers reachable from which entry points.
   expect(synthesizeKnipWorkspaces([file('lib/not-package.json'), file('lib/package.json.bak')])).toEqual(['.'])
 })
 
@@ -78,9 +75,6 @@ test('materializeConfig writes only the elected issue types into include, and ev
 })
 
 test('materializeConfig keeps an issue type set to off out of include even when it carries options', async () => {
-  // `include` is this engine's whole enablement decision, and it used to be computed by comparing the
-  // selection value against `'off'` — false for an `['off', …]` value, which would put a disabled issue
-  // type into `include` and out of `exclude`, i.e. report a category nobody elected.
   const handle = await materializeKnipConfig(
     new Map([
       ['exports', ['warn'] as const],
@@ -115,9 +109,6 @@ test('rulesetHash is stable for the same selection and changes when the selectio
   const b = await materializeKnipConfig(new Map([['exports', ['error'] as const]]), context, {})
   const c = await materializeKnipConfig(new Map([['exports', ['warn'] as const], ['files', ['warn'] as const]]), context, {})
 
-  // Only inclusion is expressible in knip's own config — knip has no per-issue-type severity — so
-  // `warn` and `error` must produce the *same* ruleset hash. Anything else would invalidate the whole
-  // project cache entry on a level change knip itself cannot act on.
   expect(b.rulesetHash).toBe(a.rulesetHash)
   expect(c.rulesetHash).not.toBe(a.rulesetHash)
 
@@ -140,8 +131,6 @@ test('mergeWorkspacesIntoConfig adds the synthesized map to an already-materiali
 
   const config = await readConfig(handle.path)
   expect(config['workspaces']).toEqual({ '.': {}, 'tech-docs': {} })
-  // The issue-type half materializeConfig wrote must survive the merge untouched, and be handed back
-  // so `run()` can check what knip actually reported against what was elected.
   expect(config['include']).toEqual(['files'])
   expect(merged.include).toEqual(['files'])
   await handle.dispose()

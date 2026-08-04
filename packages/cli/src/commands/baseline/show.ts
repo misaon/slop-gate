@@ -6,12 +6,6 @@ import { resolveRootDir } from '../../root-dir.ts'
 
 const MAX_LISTED_FILES = 10
 
-/**
- * Reads the file and nothing else — no engine is spawned, which means it cannot report staleness: whether an entry
- * still matches is a property of a *run*, and `sgate check` is what reports it. Staying offline is what makes this
- * usable as "what did we agree to carry?" without waiting for a full analysis. No baseline is an answer, not an
- * error, so exit 0 — this command is asked what the state is.
- */
 export const show = defineCommand({
   meta: { name: 'show', description: 'Summarise the accepted findings recorded in the baseline' },
   args: {

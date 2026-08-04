@@ -19,10 +19,6 @@ let digest: string
 
 beforeAll(async () => {
   workspace = await mkdtemp(join(tmpdir(), 'sgate-actionlint-download-'))
-  // Built with the system `tar`, not hand-assembled: an extractor tested only against blocks this
-  // same file wrote would prove the reader agrees with itself, which is not the property under test.
-  // A real archiver produces the padding, the header checksum and (on bsdtar) the pax entries the
-  // reader has to skip past.
   const staging = join(workspace, 'staging')
   await mkdir(staging, { recursive: true })
   await writeFile(join(staging, 'actionlint'), PAYLOAD, { mode: 0o755 })
@@ -64,25 +60,13 @@ test('a verified download lands intact in the version-scoped cache', async () =>
   const directory = join(cache, 'actionlint', ACTIONLINT_VERSION)
   const expectedPath = join(directory, 'actionlint')
   expect(result).toEqual({ path: expectedPath, version: ACTIONLINT_VERSION, cached: false })
-  // The digest of what landed, not just its text: this is the assertion that says the bytes executed
-  // later are the bytes that were verified, and it is the same statement on every platform.
   expect(createHash('sha256').update(await readFile(expectedPath)).digest('hex')).toBe(
     createHash('sha256').update(PAYLOAD).digest('hex'),
   )
-  // Nothing left behind from the staged write. `readdir` rather than shelling out to `ls`, which
-  // does not exist on a Windows runner.
   expect(await readdir(directory)).toEqual(['actionlint'])
 })
 
 test.skipIf(process.platform === 'win32')('the installed binary is executable', async () => {
-  // Split out and skipped on Windows because the *behaviour* is platform-specific rather than the
-  // test being lazy: NTFS has no POSIX execute bit, so `mode & 0o111` is always 0 there and `chmod`
-  // is a no-op — an assertion that can only ever fail. Everything portable about the install is
-  // asserted in the test above, on every platform.
-  //
-  // Worth asserting at all because it is a defect that has actually shipped: the npm `hadolint`
-  // wrapper writes its downloaded binary with `writeFile` and never chmods it, so on any Unix the
-  // file lands 0644 and every spawn fails EACCES (M0 follow-ups, distribution findings).
   const cache = join(workspace, 'cache-mode')
   await installActionlint({
     platform: 'linux',
@@ -95,9 +79,6 @@ test.skipIf(process.platform === 'win32')('the installed binary is executable', 
 })
 
 test('the shipped digest table is what a real install is compared against', async () => {
-  // Driven against `ACTIONLINT_CHECKSUMS` with no override: the fixture archive is not the upstream
-  // asset, so a working verifier must reject it. This is the test that would fail if the comparison
-  // were ever short-circuited or the table quietly emptied.
   const cache = join(workspace, 'cache-mismatch')
   const failure = await installActionlint({
     platform: 'linux',

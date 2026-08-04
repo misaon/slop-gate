@@ -26,19 +26,6 @@ const main = defineCommand({
 
 const rawArgs = process.argv.slice(2)
 
-/**
- * `runCommand`, not citty's own `runMain`: on every usage error (unknown subcommand, missing argument, no
- * command given) `runMain` calls `process.exit()` directly, bypassing `process.exitCode` — the one thing this
- * layer owns — and reporting exit 1 ("findings") for something that never ran a check at all. `runCommand`
- * throws instead (verified directly: an unknown subcommand raises a `CLIError` coded `E_UNKNOWN_COMMAND`, no
- * command given one coded `E_NO_COMMAND`), so the catch below maps those to `EXIT_CODES.config`. The cost is
- * that `runCommand` has no `--help`/`--version` handling of its own — `['check', '--help']` starts running
- * `check` for real — so this file replicates just that part below over citty's exported `renderUsage`.
- *
- * One `try` around the whole dispatch, not just the `runCommand` branch: `resolveHelpTarget` dynamically
- * imports a subcommand, which transitively loads the engine layer, so a broken oxlint install makes
- * `sgate check --help` reject — and left unhandled that exits 1 for a run that never checked anything.
- */
 try {
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
     const target = await resolveHelpTarget(rawArgs)
@@ -54,13 +41,6 @@ try {
   process.exitCode = EXIT_CODES.config
 }
 
-/**
- * Walks as many levels of `subCommands` as `args` names, matching citty's own runtime dispatch — its internal
- * `resolveSubCommand` does the same walk but is not exported. No aliases, and no attempt to skip a value-flag's
- * argument the way citty's own version does (`sgate rules --engine oxlint why --help` would misread `oxlint` as
- * a subcommand name); every command here takes its flags after the subcommand name, so revisit only if one ever
- * puts a value flag ahead of a nested subcommand name.
- */
 async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: CommandDef; parent?: CommandDef }> {
   let cmd: CommandDef = main
   let parent: CommandDef | undefined
@@ -74,12 +54,6 @@ async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: Comman
   return parent === undefined ? { cmd: main } : { cmd, parent }
 }
 
-/**
- * The same framed header `sgate check` prints, ahead of citty's own usage body — the three-line box only, not a
- * whole `ReporterContext`. Not colour-matched to that body: citty's `renderUsage` decides colour internally
- * from `NO_COLOR`/`TERM=dumb`/`CI`/`TEST` and *not* from `FORCE_COLOR` or TTY status, so where those two rules
- * disagree (`FORCE_COLOR` set while piped) header and body may differ in colour.
- */
 function printHeader(): void {
   const unicode = process.env['TERM'] !== 'dumb'
   const box = unicode

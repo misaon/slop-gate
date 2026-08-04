@@ -8,12 +8,6 @@ import { defaultEngines } from '../../engine-registry.ts'
 import { checkOutcome, coverageGaps } from './coverage.ts'
 import { resolveToolRoot } from './root.ts'
 
-/**
- * Bounded by default, unlike `sgate check --format agent`: a tool result goes straight into a model's context
- * window, and a first call against an unfamiliar repository should not be able to spend all of it. Safe to apply
- * silently only because the report is not silent about it — the `coverage:` block states the budget and the
- * omitted count per concept, and `concepts` below carries every true count regardless.
- */
 const DEFAULT_MAX_TOKENS = 25_000
 
 const rootDirArg = z
@@ -25,7 +19,6 @@ const rootDirArg = z
   )
 
 export type ToolContext = {
-  /** The directory the server process was started in. The boundary every `rootDir` is resolved against. */
   readonly serverRoot: string
   readonly version: string
   readonly signal?: AbortSignal
@@ -43,12 +36,6 @@ type PreflightResult =
   | { readonly kind: 'ok'; readonly rootDir: string; readonly loaded: Exclude<CliConfig, { kind: 'error' }> }
   | { readonly kind: 'failed'; readonly result: ToolResult }
 
-/**
- * Everything the three tools need before they diverge: a root they are allowed to look at, and a configuration
- * that loaded. Both failures are **tool execution errors rather than JSON-RPC errors** — exactly the class the
- * spec reserves `isError` for, something the caller can read and correct, where a protocol error would reach
- * the model as a transport fault it has no way to act on.
- */
 async function preflight(args: { rootDir?: string | undefined }, context: ToolContext): Promise<PreflightResult> {
   const root = resolveToolRoot(context.serverRoot, args.rootDir)
   if (root.kind === 'refused') return { kind: 'failed', result: failure(root.message) }
@@ -63,8 +50,6 @@ const enginesFor = (rootDir: string, loaded: Exclude<CliConfig, { kind: 'error' 
 
 const configFileOf = (loaded: Exclude<CliConfig, { kind: 'error' }>) =>
   loaded.kind === 'loaded' ? { configFile: loaded.configFile } : {}
-
-// --- check ---------------------------------------------------------------------------------------
 
 export const CHECK_INPUT = z.object({
   rootDir: rootDirArg,
@@ -132,8 +117,6 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
   const { rootDir, loaded } = ready
 
   const maxTokens = args.maxTokens ?? DEFAULT_MAX_TOKENS
-  // Shared with the reporter below for the reason `sgate check` shares it (see `CheckOptions.sources`): core
-  // already read every file it had to analyse, so the code frames need not hold a second copy of the text.
   const sources = new Map<string, string>()
   const result = await runCheck({
     rootDir,
@@ -144,9 +127,6 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
     ...(context.signal === undefined ? {} : { signal: context.signal }),
   })
 
-  // The `agent` reporter, rendered verbatim — not a second format for the same data. Everything that makes that
-  // report safe to act on (the INCOMPLETE block, the automated/judgement split, `nextActions`) is a property of
-  // this renderer, not of the data.
   let report = ''
   createAgentReporter({
     write: (chunk) => (report += chunk),
@@ -182,14 +162,10 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
       filesAnalysed: result.stats.filesAnalysed,
       uncoveredConcepts: result.ruleset.uncovered,
       unknownConfigKeys: result.ruleset.unknownKeys.length,
-      // Read off the report the caller is handed, not predicted from the budget: the reporter prints the complete
-      // document when it fits, so a budget being set is not the same fact as something having been dropped.
       reportTruncated: report.includes('\nomitted:\n'),
     },
   }
 }
-
-// --- explain_concept -----------------------------------------------------------------------------
 
 export const EXPLAIN_INPUT = z.object({
   concept: z.string().describe('Concept id, e.g. `dead-code.unused-variable` — the `concept` field of a finding, not its `ruleRefKey`.'),
@@ -212,11 +188,6 @@ export const EXPLAIN_OUTPUT = z.object({
     .describe('Not a problem — an overlap is what stops the same concept being reported twice.'),
 })
 
-/**
- * Every finding carries both a `concept` and a `ruleRefKey`, and only one of them is the argument here. Handing
- * the wrong one over is the single most likely misuse of this tool, so it is answered rather than refused: one
- * registry lookup turns a dead end into a retry the model can make on its own.
- */
 function conceptsForRuleId(candidate: string): string[] {
   return RULE_ENTRIES.filter((entry) => ruleRefKey(entry) === candidate).flatMap((entry) => [...entry.concepts])
 }
@@ -234,8 +205,6 @@ export async function callExplain(args: z.infer<typeof EXPLAIN_INPUT>, context: 
     )
   }
 
-  // `resolveRun`, not `runCheck`: this answers a question about arbitration, and spawning oxlint to
-  // answer it would make the cheapest tool here the slowest. No engine is ever invoked.
   const resolved = await resolveRun({
     rootDir,
     config: loaded.config,
@@ -274,13 +243,9 @@ export async function callExplain(args: z.infer<typeof EXPLAIN_INPUT>, context: 
         reason: entry.reason,
       })),
     },
-    // An unknown concept id is a typo, the same class of mistake as passing a rule id above. Left as a success it
-    // reads as "the concept exists and is quiet", the one answer that is both wrong and reassuring.
     ...(why.isKnownConcept ? {} : { isError: true }),
   }
 }
-
-// --- propose_fixes -------------------------------------------------------------------------------
 
 export const PROPOSE_INPUT = z.object({
   rootDir: rootDirArg,
@@ -318,8 +283,6 @@ export async function callPropose(args: z.infer<typeof PROPOSE_INPUT>, context: 
   const { rootDir, loaded } = ready
 
   const tier: FixTier = args.tier ?? 'safe'
-  // `dryRun: true` is not a default here, it is the only value. See the module doc on `mcp/index.ts`
-  // for why there is no argument that turns it off.
   const result = await runFix({
     rootDir,
     config: loaded.config,

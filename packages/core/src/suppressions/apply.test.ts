@@ -105,7 +105,6 @@ test('two directives that both cover the same diagnostic are each independently 
   const result = applySuppressions([fileWide, lineScoped], [finding])
 
   expect(result.unused).toEqual([])
-  // First directive in source order wins the marker — deterministic, not load-bearing which one.
   expect(result.diagnostics[0]?.suppressed).toEqual({ by: 'inline', reason: 'file-wide' })
 })
 

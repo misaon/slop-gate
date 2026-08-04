@@ -22,46 +22,22 @@ import type { Reporter, ReporterContext } from './index.ts'
 
 export const AGENT_REPORT_VERSION = 1
 
-/**
- * Bytes per estimated token. **Deliberately low**: a BPE tokenizer averages nearer four bytes per token on
- * English prose and three to three and a half on source code, so dividing by three over-counts almost
- * everywhere and the budget under-fills rather than overruns. Counted in UTF-8 bytes rather than
- * `String.length` because a CJK character is one token and three bytes but a single length unit — counting
- * characters would under-count it threefold, the one direction this must never err in.
- */
 const BYTES_PER_TOKEN = 3
 
 const SNIPPET_MAX_CHARS = 160
 const CONFIG_LOCATION = '(configuration)'
 const MAX_LISTED_UNCOVERED = 8
 
-/**
- * Spliced rather than written whole, and the seam is the point. `suppressions/parse.ts` scans for the directive
- * token textually, so a source file containing it verbatim — inside a string, inside a comment, anywhere — is
- * read as carrying a real directive. Written out in one piece, this line makes the reporter report itself:
- * `config.unused-suppression` against `agent.ts`, on every run of this repository.
- */
 const DISABLE_DIRECTIVE = `sgate-disable${'-next-line'}`
 
 const estimateTokens = (text: string): number => Math.ceil(encodeUtf8(text).length / BYTES_PER_TOKEN)
 
 export type AgentReporterOptions = {
-  /** The registry entries the run arbitrated against, defaulting to `RULE_ENTRIES` as `resolveRun` does. A
-   *  `CheckResult` does not carry the entries, so this is the seam a test that passed `CheckOptions.entries`
-   *  uses to keep the reporter's tier lookup agreeing with the run's. No production caller sets either. */
   entries?: readonly RuleEntry[]
 }
 
 type Section = 'automated' | 'judgement'
 
-/**
- * One concept's row of the report, without a word of prose — the same grouping, split and ordering the document
- * below is built from. Exported for `sgate mcp`'s `check` tool, which returns the rendered report as its text and
- * this as its structured content: a concept shown under `## automated` in the prose and reported as `judgement`
- * in the structure would be worse than either alone, and sharing `collectGroups` makes that unrepresentable
- * rather than merely unlikely. `findingCount` is the *true* count, never the shown one — the structural half of
- * "a group header is never dropped", so a caller that bounded the prose still gets the complete inventory here.
- */
 export type AgentGroupSummary = {
   readonly concept: string
   readonly section: Section
@@ -86,19 +62,12 @@ export function summariseAgentGroups(result: CheckResult, options: AgentReporter
   }))
 }
 
-/** Rendered once and priced once, so admitting one is a set-membership decision rather than a second rendering
- *  pass that could disagree with the cost it was budgeted at. */
 type PricedFinding = {
   readonly diagnostic: Diagnostic
   readonly renderedBlock: string
   readonly tokens: number
 }
 
-/**
- * Everything about a concept's group that the diagnostics and the registry alone decide. Split out from `Group`
- * so the summary above and the document below are the same arithmetic: computing it needs no `ReporterContext`,
- * no source file and no rendering, which lets a caller that only wants the shape avoid paying for prose.
- */
 type GroupCore = {
   readonly concept: string
   readonly diagnostics: readonly Diagnostic[]
@@ -110,31 +79,13 @@ type GroupCore = {
   readonly primarySeverity: Severity
   readonly files: ReadonlySet<string>
   readonly docsUrl: string | null
-  /** The concept's curated description, or `null` when the registry generator wrote it — see
-   *  `GENERATED_CONCEPT_IDS`. A generated description restates the rule's name and is not a reason. */
   readonly why: string | null
-  /** Non-null only when every finding in the group says the same thing — the common case for a rule with a
-   *  fixed message, and where most of the repetition in a large report lives. */
   readonly hoistedMessage: string | null
   readonly help: string | null
 }
 
 type Group = GroupCore & { readonly findings: readonly PricedFinding[] }
 
-/**
- * The `agent` reporter — spec §12's "differentiator". Three properties decide whether this output is worth
- * anything, and every structural choice below follows from one of them:
- *
- * 1. **It is read by a machine with a budget, so silent truncation is the cardinal sin.** A group header is
- *    never dropped, so every concept appears with its *true* finding count even when the budget removed all of
- *    its findings, and the `coverage` block states the totals, the omissions and the admission rule itself.
- * 2. **Determinism is total.** No map iteration order reaches the output, and nothing time- or cache-dependent
- *    is printed: `durationMs` and `filesFromCache` would change the bytes between two runs over identical
- *    source, which is exactly the property that makes this diffable and cacheable.
- * 3. **It has to be worth acting on.** Findings are grouped by *fix strategy* — what `sgate fix` rewrites
- *    versus what needs judgement, then by concept within each — so the reason, the remedy and the docs link
- *    are stated once per batch instead of once per finding.
- */
 export function createAgentReporter(context: ReporterContext, options: AgentReporterOptions = {}): Reporter {
   const entries = options.entries ?? RULE_ENTRIES
 
@@ -153,17 +104,9 @@ function render(result: CheckResult, context: ReporterContext, entries: readonly
   const everything = new Set(groups.flatMap((group) => group.findings))
   if (budget === undefined) return renderDocument(result, groups, everything, budget)
 
-  // Tried whole first. A complete report carries none of the bookkeeping a truncated one needs — no omission
-  // list, no statement of the admission rule — so it can be *smaller* than the reservation that would be set
-  // aside to truncate it. Without this, a budget in that band produced a larger document than a generous
-  // budget did, and said findings were dropped when the complete report would have fitted.
   const complete = renderDocument(result, groups, everything, budget)
   if (estimateTokens(complete) <= budget) return complete
 
-  // The reservation is a *sizing* render: no finding admitted, every optional block present, every count at
-  // its widest. That makes it a true upper bound on the fixed sections rather than an estimate of them — every
-  // real render is a subset of it — which keeps the finished document inside the budget without a
-  // render-and-shrink loop.
   const reserved = estimateTokens(renderDocument(result, groups, new Set(), budget, { sizing: true, overBudget: true }))
   const shown = new Set<PricedFinding>()
   let spent = 0
@@ -176,14 +119,6 @@ function render(result: CheckResult, context: ReporterContext, entries: readonly
   return renderDocument(result, groups, shown, budget, { overBudget: reserved > budget })
 }
 
-/**
- * The order findings are admitted in when the budget cannot hold all of them: the first finding of every group,
- * then the second of every group, and so on. **Round-robin rather than document order**, which would spend a
- * small budget entirely on the largest group — forty near-identical instances of one concept — and tell the
- * agent nothing about the other five. Rotation keeps one worked example per concept for as long as the budget
- * allows, which is what makes a truncated report a usable map of the repository rather than a detailed view of
- * one corner of it.
- */
 function rotation(groups: readonly Group[]): PricedFinding[] {
   const ordered: PricedFinding[] = []
   const deepest = Math.max(0, ...groups.map((group) => group.findings.length))
@@ -257,17 +192,6 @@ function collectGroups(result: CheckResult, entries: readonly RuleEntry[]): Grou
   return groups.sort(compareGroups)
 }
 
-/**
- * The tier to promise for a concept, or `null` for "this needs judgement".
- *
- * **A missing entry is not "unknown, skip it"**: every `slop-gate/config.*` concept the orchestrator emits
- * itself has no `RuleEntry` at all, and those are among the largest groups on a real run. To an agent it means
- * what a declared `'none'` means — nothing will rewrite this for you — so both land on the judgement side.
- *
- * Arbitration elects one owning rule per concept, so `rules` has one element in every real run; the fold is
- * written for more anyway and fails *closed*, because over-promising is the expensive direction — an agent told
- * `sgate fix` has a finding covered leaves it alone, and nothing will ever come back for it.
- */
 function groupTier(rules: readonly (RuleEntry | undefined)[]): FixKind | null {
   let highest: FixKind | null = null
   for (const rule of rules) {
@@ -277,12 +201,6 @@ function groupTier(rules: readonly (RuleEntry | undefined)[]): FixKind | null {
   return highest
 }
 
-/**
- * Automated before judgement, because the first thing an agent has to know is which findings it must not touch —
- * a report that lists sixty hand-fixable findings before saying "and three of these are the tool's" invites
- * exactly the conflicting edit the split exists to prevent. Then most severe first, then biggest batch (the most
- * leverage per decision), then the concept id so the order is total.
- */
 function compareGroups(a: GroupCore, b: GroupCore): number {
   const section = (a.section === 'automated' ? 0 : 1) - (b.section === 'automated' ? 0 : 1)
   if (section !== 0) return section
@@ -327,13 +245,6 @@ function location(diagnostic: Diagnostic): string {
   return `${start}..${endLine}:${endColumn}`
 }
 
-/**
- * The offending line, windowed around the finding when it is too long to print whole. A head truncation would be
- * useless on the file this guard exists for — a generated or minified line whose finding sits at column nine
- * hundred — so the window is centred on the finding's own column and both cut ends are marked. **The marker is
- * never omitted**: a snippet that silently lost the code it was pointing at is the same failure as a report that
- * silently lost a finding.
- */
 function renderSnippet(source: string, diagnostic: Diagnostic): string | null {
   const lines = source.split('\n')
   const raw = lines[diagnostic.position.startLine - 1]
@@ -355,14 +266,6 @@ function renderSnippet(source: string, diagnostic: Diagnostic): string | null {
   return `${gutter}${head}${text.slice(from, to)}${tail}${more}`
 }
 
-/**
- * The suggested change as a unified diff, for a finding that arrived carrying one. `applyEdits` and
- * `unifiedDiff` are `sgate fix`'s own, not a second implementation: a diff shown here that did not match what
- * `sgate fix` would write would be worse than showing none. That is also why a rejected edit set produces an
- * explicit note rather than a silently missing diff — `applyEdits` throws on an out-of-range or overlapping edit
- * precisely so a caller cannot paper over it. Emitted unindented so the block still pastes into `git apply`,
- * which is the only reason to render a diff rather than describe the edit.
- */
 function renderDiff(diagnostic: Diagnostic, readSource: (file: string) => string | null): string | null {
   const fix = diagnostic.fix
   const file = diagnostic.file
@@ -394,11 +297,7 @@ function renderDiff(diagnostic: Diagnostic, readSource: (file: string) => string
 }
 
 type DocumentOptions = {
-  /** Print every count at its widest and include every optional block, so this render bounds any real one. It
-   *  changes only what is *printed* — the admitted set still decides which findings appear — because a sizing
-   *  pass that also changed control flow would stop bounding the thing it measures. */
   readonly sizing?: boolean
-  /** The fixed sections alone estimate above the budget, which the report has to admit to. */
   readonly overBudget?: boolean
 }
 
@@ -420,18 +319,9 @@ function renderDocument(
     .map((severity) => `${severity} ${result.counts[severity]}`)
     .join(', ')
   lines.push(`findings: ${total}${counts === '' ? '' : ` (${counts})`}`)
-  // `durationMs`, `filesFromCache`, `enginesRun` and the whole of `timings` are deliberately absent: they differ
-  // between two runs over identical source, and this report's whole value as an agent input rests on being
-  // byte-identical when the repository is. **`--timing` therefore does nothing here** — not an oversight;
-  // `sgate check` says so on stderr rather than measuring a run it will not print (see
-  // `packages/cli/src/commands/check.ts`), and an e2e test pins the property.
   lines.push(`scope: ${result.stats.filesScanned} files scanned, ${result.stats.filesAnalysed} analysed`)
 
   lines.push(...incompletenessLines(result))
-  // Said once, because the absence of a `why:` line on most groups would otherwise read as a bug in this
-  // reporter rather than what it is: the registry generator names most concepts after the engine rules it found
-  // and writes their descriptions mechanically, so those have no rationale to quote — and a mechanical
-  // description under a heading that promises to say why a finding matters is worse than nothing.
   const uncurated = groups.filter((group) => group.why === null).length
   if (uncurated > 0) {
     lines.push(
@@ -471,26 +361,8 @@ function renderDocument(
   return `${lines.join('\n')}\n`
 }
 
-/**
- * Whether an absent engine actually cost this run anything. `displaced` is populated only where the engine would
- * have *won* a concept it contests, so an empty one means its absence changed no ownership at all — nothing went
- * unchecked, nothing was downgraded. A report that says INCOMPLETE when nothing is missing teaches its reader to
- * skip the word on the run where something is.
- *
- * Exported because `sgate mcp` has to answer the same question — whether a tool result may call itself complete
- * — and a second copy of this one-liner is a second place for the distinction to drift.
- */
 export const isCoverageGap = (engine: UnavailableEngine): boolean => engine.displaced.length > 0
 
-/**
- * An engine that is registered but not installed here, under the same `INCOMPLETE:` prefix an engine *failure*
- * gets: the consequence for the reader is identical — part of the run did not happen — and one grep-able token
- * for "this report is partial" is worth more than a second vocabulary for the second cause.
- *
- * The two sub-lines are the distinction an agent has to act on: a concept nothing else covers is simply
- * unverified, while one a lower-ranked rule picked up *was* checked, just by the rule arbitration would not have
- * chosen. Collapsing them would leave an agent unable to tell which findings it is entitled to trust.
- */
 function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
   const lines: string[] = []
   for (const engine of engines.filter(isCoverageGap)) {
@@ -520,18 +392,6 @@ function unavailableLines(engines: readonly UnavailableEngine[]): string[] {
   return lines
 }
 
-/**
- * The baseline, under the same `INCOMPLETE:` prefix an absent engine gets — deliberately, because the consequence
- * for this reader is identical: findings exist here that are not below. A second vocabulary for "this report is
- * partial" would let a model learn to grep for one token and miss the other. This is the specific failure the
- * format exists to prevent, in its sharpest form: a model reads a section with no findings for a file and
- * concludes the file is clean when a baseline is doing the work — so the accepted concepts are named, and the
- * flag that reveals them is printed.
- *
- * A stale entry is the other direction and gets no `INCOMPLETE:`: nothing is missing, a finding was fixed.
- * A baseline that accepted nothing and has nothing stale prints nothing at all, unlike `pretty` — §12.3's rule is
- * that an *omission* must never be inferred from silence, and a baseline that withheld nothing omitted nothing.
- */
 function baselineLines(baseline: CheckResult['baseline']): string[] {
   if (baseline === null) return []
   const lines: string[] = []
@@ -541,8 +401,6 @@ function baselineLines(baseline: CheckResult['baseline']): string[] {
         'They are real findings, absent from everything below; do not read a clean file or section as clean. ' +
         'Run `sgate check --no-baseline` to see them.',
     )
-    // Same cap as the `uncovered:` list, deliberately shared rather than duplicated as a second `8`: both answer
-    // "how many concept ids is it worth spending budget naming", and two constants would drift apart.
     const listed = baseline.acceptedByConcept.slice(0, MAX_LISTED_UNCOVERED)
     for (const group of listed) lines.push(`  accepted: ${group.concept} — ${group.count}`)
     const more = baseline.acceptedByConcept.length - listed.length
@@ -589,25 +447,14 @@ type CoverageInput = {
   readonly shownCount: number
   readonly omitted: number
   readonly gaps: number
-  /** Findings a baseline withheld from this report. Zero when no baseline was read. */
   readonly accepted: number
   readonly budget: number | undefined
   readonly options: DocumentOptions
 }
 
-/**
- * The one block that must never be wrong, because everything downstream is read on the assumption that this
- * report is complete. It states the totals unconditionally — including on the run where nothing was dropped, so
- * "no omission notice" is never something the reader has to infer from silence — and it names the admission rule,
- * so an agent can tell what it is *not* looking at.
- */
 function coverageLines(input: CoverageInput): string[] {
   const { total, budget, gaps, accepted } = input
   const sizing = input.options.sizing === true
-  // Stated before the budget accounting, never after: a reader that takes only the first sentence has to come
-  // away with the correction, not the reassurance — and on a run with no findings the reassurance is the entire
-  // rest of the sentence. A baseline sits in the same clause as an absent engine, and for the same reason: both
-  // mean the report is not the whole of what is wrong here.
   const corrections: string[] = []
   if (gaps > 0) corrections.push(`${gaps} engine${gaps === 1 ? '' : 's'} could not run (see INCOMPLETE above)`)
   if (accepted > 0) {
@@ -622,9 +469,6 @@ function coverageLines(input: CoverageInput): string[] {
     ]
   }
 
-  // One line shape for every case, rather than a friendlier "all shown" phrasing when nothing was dropped: the
-  // sizing render has to bound the real one, and a branch whose *shorter* count can produce the *longer*
-  // sentence makes that impossible to guarantee by inspection.
   const shownCount = sizing ? total : input.shownCount
   const omitted = sizing ? total : input.omitted
   const scope = budget === undefined ? 'no --max-tokens set' : `--max-tokens ${budget}`
@@ -673,9 +517,6 @@ function sectionLines(section: Section, groups: readonly Group[]): string[] {
     return [
       '## judgement — no fix is declared for these. Decide and edit them yourself.',
       `${scale}. \`sgate fix\` will not touch them at any tier, so nothing here conflicts with a fix run.`,
-      // The third option an agent otherwise has to guess at: deciding a finding is wrong is a real outcome of
-      // judgement, and the directive is the only way to record it where the next run will see it. One line here
-      // stops an agent inventing a syntax or editing correct code to silence a false positive.
       `If one is a false positive, record that instead of changing the code: \`// ${DISABLE_DIRECTIVE} ` +
         '<concept> -- <reason>` on the line above it. The reason is required.',
     ]
@@ -695,10 +536,6 @@ function sectionLines(section: Section, groups: readonly Group[]): string[] {
       '`--suggest` adds `suggested`, `--unsafe` adds both.',
   ]
 
-  // Said when it is true, because the alternative reading is much worse. `sgate check` never asks an engine to
-  // produce fix data — for oxlint that means re-running the binary once per rule per file (spec §11.1) — so a
-  // finding here normally arrives with no edit attached, and an agent that saw a `tier unsafe` group and no diff
-  // would reasonably conclude the tool could not work one out, and start editing.
   if (!groups.some((group) => group.findings.some((finding) => finding.diagnostic.fix !== undefined))) {
     lines.push(
       `No edit is shown below: \`sgate check\` does not derive fixes, because for some engines that means ` +
@@ -748,9 +585,6 @@ function nextActionLines(
   const judgement = groups.filter((group) => group.section === 'judgement')
   const actions: string[] = []
 
-  // First, ahead of the findings work. Everything below is advice about what this report *contains*; this is the
-  // one action that changes what the next report can contain at all, and an agent that starts editing before it
-  // knows the report is partial is working from the wrong map.
   for (const engine of gaps) {
     const command = engine.install === undefined ? '' : ` (\`${engine.install}\`)`
     actions.push(

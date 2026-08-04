@@ -38,8 +38,6 @@ test('reports byte offsets, not UTF-16 indices', () => {
   expect(new TextDecoder().decode(bytes.subarray(diagnostic!.range.start, diagnostic!.range.end))).toBe('biome-ignore')
 })
 
-// Assembled rather than written out, because this repository lints itself: slop-gate's own
-// directive spelled in full anywhere in a source file *is* a directive, not a mention of one.
 const OURS = `sgate-disable-${'next-line'}`
 
 test('says nothing about a file with no foreign suppression', () => {

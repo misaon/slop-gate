@@ -23,12 +23,8 @@ test('a long message wraps at word boundaries, never mid-word', () => {
   expect(lines.length).toBeGreaterThan(1)
   for (const line of lines) expect(displayWidth(line)).toBeLessThanOrEqual(20)
 
-  // Re-joining every line with a single space must reproduce the original words in order — the
-  // only thing wrapping is allowed to change is *where* whitespace becomes a newline.
   expect(lines.join(' ')).toBe(text)
 
-  // No returned line may start or end mid-word: every line boundary must land on one of the
-  // original word boundaries.
   const originalWords = text.split(' ')
   for (const line of lines) {
     for (const word of line.split(' ')) expect(originalWords).toContain(word)
@@ -52,9 +48,6 @@ test('a lone unbreakable token wider than the width is the only line', () => {
 })
 
 test('a message containing non-ASCII measures correctly when wrapping', () => {
-  // "中文" is 2 codepoints at 2 columns each (4 total); plain ASCII words are 1 column per
-  // character. If wrapping measured by `.length` instead of `displayWidth`, these CJK words would
-  // be undercounted and this line would overflow the requested width.
   const text = '中文 中文 中文 ascii ascii'
   const lines = wrapText(text, 10)
 

@@ -20,11 +20,6 @@ test('accepts an `error` addition measured with no false positive', () => {
   expect(refuseEnable(enable('error', 35, 0), evidence)).toBeNull()
 })
 
-/**
- * The bar this whole module exists for, and the one number in it that is derived rather than
- * chosen: `resolveExitCode` fails a run on a single `error` with no opt-in anywhere, so an addition
- * at that level turns "somebody installed a package" into "the build stops".
- */
 test('refuses an `error` addition with even one measured false positive', () => {
   const refusal = refuseEnable(enable('error', 100, 1), evidence)
   expect(refusal).toContain('`error`')
@@ -51,11 +46,6 @@ test('refuses an incoherent measurement claiming more false positives than findi
   expect(refuseEnable(enable('warn', 3, 4), evidence)).toContain('more false positives')
 })
 
-/**
- * `test-framework` applies with no evidence at all — the absence of both jest and vitest *is* its
- * finding — and spec §23.2 licenses that only because it disables. An addition from the same
- * position would be a rule enabled because a repository failed to mention something.
- */
 test('refuses any addition from a profile that applied without evidence', () => {
   expect(refuseEnable(enable('warn', 35, 0), [])).toContain('no evidence')
 })

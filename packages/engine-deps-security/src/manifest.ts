@@ -2,14 +2,6 @@ import type { ByteRange } from '@misaon/slop-gate-core'
 
 const DEPENDENCY_KEYS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
 
-/**
- * The byte range of one dependency's key inside a `package.json`. A finding that points at byte zero is one nobody
- * can act on, and the dependency is a named key in a file already read — but a general position-preserving JSON
- * parser is real unstarted work, so this does the bounded thing and returns nothing rather than guess at an offset.
- *
- * Quotes are tracked while counting braces so a value containing `{` or `}` cannot end the group early —
- * `"start": "node -e '{}'"` is ordinary in a scripts block and would otherwise close it.
- */
 export function findDependencyRange(source: string, name: string): ByteRange | undefined {
   const needle = JSON.stringify(name)
   for (const group of DEPENDENCY_KEYS) {
@@ -23,14 +15,6 @@ export function findDependencyRange(source: string, name: string): ByteRange | u
 
 type Span = { readonly start: number; readonly end: number }
 
-/**
- * The braces of the group `group` names **at the manifest's top level**, which is the only place a
- * dependency declaration lives. Depth is tracked rather than taking the first occurrence from byte zero,
- * because `dependencies` is an ordinary nested key — `pnpm.packageExtensions.<pkg>.dependencies` is the
- * one every workspace root eventually grows — and either the nested block happens to contain the package
- * and the finding lands on somebody else's declaration, or it does not and the real group is never
- * searched at all, leaving the finding at byte zero.
- */
 function locateGroup(source: string, group: string): Span | undefined {
   const key = `"${group}"`
   let depth = 0
@@ -89,11 +73,6 @@ function skipSpace(source: string, from: number): number {
   return at
 }
 
-/**
- * Spec §10: `RawDiagnostic.range` is UTF-8 bytes while a JavaScript string index counts UTF-16 code units. They
- * agree on the ASCII a package name is made of, and diverge the moment anything *above* it in the manifest holds a
- * non-ASCII character — an author's name or a description, both routine.
- */
 function byteOffset(source: string, index: number): number {
   return new TextEncoder().encode(source.slice(0, index)).length
 }

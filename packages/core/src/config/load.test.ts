@@ -40,10 +40,6 @@ test('loads a plain JavaScript config', async () => {
 })
 
 test('loads a .mts config', async () => {
-  // `runInit` (packages/cli/src/commands/init.ts) writes `.mts` for a project whose package.json
-  // lacks `"type": "module"`, specifically so Node never has to guess `.ts`'s module system and
-  // print MODULE_TYPELESS_PACKAGE_JSON. That only closes the bug if `findConfigFile` actually
-  // discovers `.mts` — this is the end-to-end proof, not just a listed basename.
   await writeFile(
     join(dir, 'slop-gate.config.mts'),
     `type Level = 'warn' | 'error'
@@ -77,8 +73,6 @@ test('rejects a default export that is not an object', async () => {
 test('reports a syntax error with the real parse diagnostic, not a misleading one', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { rules: `)
 
-  // Asserting only on the filename would pass even when the "no default export" branch fires,
-  // which is what an earlier version of this code actually did.
   await expect(loadConfig(dir)).rejects.toThrow(/could not be parsed/)
   await expect(loadConfig(dir)).rejects.toThrow(/slop-gate\.config\.ts/)
   await expect(loadConfig(dir)).rejects.not.toThrow(/default export/)
@@ -93,16 +87,6 @@ test('leaves no scratch file behind when the config cannot be parsed', async () 
 })
 
 test('names the package that is missing, and says to install it', async () => {
-  // The shape `sgate init` produces: a config importing `defineConfig` from a package, run in a
-  // project where that package is not a dependency because the user reached the CLI through `npx`.
-  // The old message offered "use a relative path or a package.json imports subpath", which is
-  // advice for a path alias and nonsense for a real package — and it never said *which* import
-  // failed.
-  //
-  // A stand-in package name rather than `@misaon/slop-gate`, which is the real case: vitest aliases
-  // every workspace package to its `src` (see vitest.config.ts), so our own name resolves here and
-  // the test would pass without testing anything. The message is generic on purpose, so any
-  // uninstalled package exercises the same branch.
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
     `import { defineConfig } from '@acme/not-installed'
@@ -115,8 +99,6 @@ test('names the package that is missing, and says to install it', async () => {
 })
 
 test('still explains path aliases when the unresolved import is a relative one', async () => {
-  // A bare specifier is a package you can install; a relative path that does not exist is usually
-  // a tsconfig alias the runtime cannot see. Same error code from Node, opposite advice.
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
     `import { x } from './does-not-exist.js'
@@ -132,19 +114,6 @@ test('prefers .ts over .js when both exist', async () => {
   expect((await loadConfig(dir))?.config.ignore).toEqual(['from-ts'])
 })
 
-// `suppressModuleTypelessPackageJsonWarning` unit tests below exercise the wrapper directly via
-// synthetic `process.emitWarning` calls, deliberately not through `loadConfig` importing a real
-// typeless `.ts` fixture: vitest loads test-tree files (including a dynamically imported fixture
-// under a `mkdtemp` temp dir) through its own transform pipeline rather than Node's native
-// CommonJS-or-ESM detection, so the real MODULE_TYPELESS_PACKAGE_JSON warning never actually fires
-// under vitest regardless of this fix — confirmed by running the existing CLI-level fixtures
-// (which already combine a typeless `package.json` with a `.ts` config) under `vitest run` and
-// finding zero occurrences even before this change existed. That Node itself no longer prints it was
-// proven outside vitest instead, and this is the result: a plain-`node` scratch project pairing a
-// typeless `package.json` with a `.ts` config prints the warning, and prints nothing once the wrapper
-// is installed. These two tests pin the wrapper's own removal/filter/restore contract, which vitest
-// can observe directly and reliably.
-
 test('suppresses only the MODULE_TYPELESS_PACKAGE_JSON code, letting any other warning code through', async () => {
   const seen: string[] = []
   const listener = (warning: NodeJS.ErrnoException): void => {
@@ -156,9 +125,6 @@ test('suppresses only the MODULE_TYPELESS_PACKAGE_JSON code, letting any other w
     await suppressModuleTypelessPackageJsonWarning(async () => {
       process.emitWarning('typeless config warning', { code: 'MODULE_TYPELESS_PACKAGE_JSON' })
       process.emitWarning('an unrelated warning', { code: 'SOME_OTHER_CODE' })
-      // `emitWarning`'s own dispatch is not necessarily synchronous with this call — give both a
-      // full tick to actually be delivered while the wrapper's filter is still installed, the same
-      // margin the wrapper itself grants Node's real, deferred module-type warning.
       await new Promise<void>((resolve) => setImmediate(resolve))
     })
   } finally {
@@ -179,7 +145,6 @@ test('restores the previous listeners afterwards, so a later unrelated warning s
   try {
     await suppressModuleTypelessPackageJsonWarning(async () => {})
 
-    // Exactly restored — not leaked (extra filter left behind) and not duplicated.
     expect(process.listeners('warning').length).toBe(countBefore)
 
     process.emitWarning('after the config load finished', { code: 'AFTER_RESTORE_CODE' })
@@ -191,10 +156,6 @@ test('restores the previous listeners afterwards, so a later unrelated warning s
 })
 
 test('two overlapping suppressions still restore the original listeners, in either finish order', async () => {
-  // The non-re-entrant version installed a filter closing over "whatever was installed when *I*
-  // started". Two in flight at once and the inner one finishing second reinstalled the outer one's
-  // filter as the only 'warning' listener — for the rest of the process, which is the opposite of
-  // the scoping this wrapper's whole design is for.
   const before = process.listeners('warning')
 
   const outerGate = Promise.withResolvers<void>()
@@ -236,10 +197,6 @@ test('a suppression still in flight keeps filtering after an overlapping one fin
 })
 
 test('rejects a config key whose value is the wrong shape, naming the key and the file', async () => {
-  // `extends: 'recommended'` reads as correct to a human and is the single most likely mistake in
-  // this file. Unvalidated it reached `resolveConfig`, which iterated the string character by
-  // character and failed with a bare `Cannot convert undefined or null to object` — a TypeError's
-  // own words, naming neither the config file nor the key.
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { extends: 'recommended' }`)
 
   await expect(loadConfig(dir)).rejects.toThrow(/slop-gate\.config\.ts/)
@@ -263,8 +220,6 @@ test('rejects a non-object where a rule map belongs', async () => {
 })
 
 test('accepts every documented key at its documented shape', async () => {
-  // The other half of the shape check: a valid config must not be refused by it. Every key of
-  // `SlopGateConfig` at once, so a validator that is too strict about any one of them fails here.
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
     `export default {
@@ -308,13 +263,6 @@ test('lists the known keys when the unknown one resembles none of them', async (
 })
 
 test('prefers .ts over .mts when both exist', async () => {
-  // Deliberately unchanged by fix 3 (packages/cli/src/commands/init.ts): `runInit` only ever
-  // writes one of the two (its own existence check looks for both before choosing), so in the
-  // normal lifecycle of a project the two never coexist. The one case where they legitimately can
-  // — `sgate init --force` regenerates the extension for the project's *current* module type
-  // while a stale file from before a "type": "module" migration is still sitting on disk — is
-  // exactly the case where the fresher, actively-chosen file should win, and it is also the one a
-  // human is more likely to be editing by hand. `.ts` first serves both.
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default { ignore: ['from-ts'] }`)
   await writeFile(join(dir, 'slop-gate.config.mts'), `export default { ignore: ['from-mts'] }`)
   expect((await loadConfig(dir))?.config.ignore).toEqual(['from-ts'])

@@ -27,8 +27,6 @@ test('filters a mixed batch down to owned diagnostics', () => {
 })
 
 test('respects the language a concept is owned for', () => {
-  // The whole point of `(concept, language)` ownership: the same rule owns `correctness.parse-error`
-  // for `ts` and not for `yaml`, and a finding is kept or dropped on that basis alone.
   const split: OwnerMap = new Map([
     [
       'correctness.parse-error',
@@ -42,15 +40,10 @@ test('respects the language a concept is owned for', () => {
 
   expect(isOwned(split, { ...candidate, language: 'ts' })).toBe(true)
   expect(isOwned(split, { ...candidate, language: 'yaml' })).toBe(false)
-  // No language named means "owned anywhere", which is what a caller with no file in hand wants.
   expect(isOwned(split, candidate)).toBe(true)
 })
 
 test('ignores the language when a single rule owns the concept outright', () => {
-  // The language dimension exists to pick between owners. With one owner there is nobody to pick
-  // between, and enforcing it anyway drops legitimate findings: a project engine reports against
-  // files it was never handed — `tsc` naming `tsconfig.json`, language `jsonc`, is the real case —
-  // and its rule's `languages` list will never mention them.
   const sole: OwnerMap = new Map([
     ['types.type-error', [{ owner: { engine: 'tsc' as const, engineRuleId: 'type-error' }, languages: ['ts' as const] }]],
   ])

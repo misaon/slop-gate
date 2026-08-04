@@ -21,10 +21,8 @@ export { parseAstGrepOutput } from './parse.ts'
 export { readScanSummary, type AstGrepScanSummary } from './summary.ts'
 export { resolveAstGrepBinary, type AstGrepInvocation, type ResolveAstGrepBinaryOptions } from './resolve-binary.ts'
 
-/** `ast-grep scan` exits 1 when any `severity: error` rule matched; only higher codes are real failures. Confirmed against 0.45.0: a `warning`-severity match exits 0. */
 const MAX_FINDINGS_EXIT_CODE = 1
 
-/** How many of the batch's largest files to name when ast-grep silently skips one. */
 const SKIPPED_FILE_HINT_COUNT = 3
 
 const MISSING_AST_GREP =
@@ -34,8 +32,6 @@ const MISSING_AST_GREP =
   '`PATH` ast-grep is used deliberately and this error cannot occur.)'
 
 export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engine {
-  // `binaryPath` is the same test-only override the other three adapters carry: spawned exactly as given.
-  // Unlike theirs it needs no `node` prefix in *either* case — see resolve-binary.ts.
   const invocation: AstGrepInvocation | undefined =
     options.binaryPath === undefined ? resolveAstGrepBinary() : { command: options.binaryPath, prefixArgs: [] }
 
@@ -48,18 +44,9 @@ export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engi
     id: 'astgrep',
 
     capabilities: {
-      // Exactly the four our rule documents cover, and no more. ast-grep supports twenty-odd languages, but
-      // claiming one here makes the planner assign files this engine's ruleset has nothing to say about —
-      // every one a cache entry written and a subprocess argument paid for. `vue`/`svelte`/`astro` are absent
-      // for a stronger reason: ast-grep has no grammar for them at all, so those files would be walked past
-      // in silence.
       languages: ['ts', 'tsx', 'js', 'jsx'],
       granularity: 'file',
       provides: [],
-      // The *plumbing* for `sgate fix` is here and tested — the adapter carries ast-grep's `replacement`
-      // through as a `RawFix` (see `parse.ts`'s `fixOf`). The capability stays `false` because it describes
-      // what this engine will actually produce on a run, and none of the five shipped rules declares a
-      // `fix:`; claiming it now would promise edits this ruleset has none of.
       fixes: false,
     },
 
@@ -84,19 +71,10 @@ async function* execute(
   context: RunContext,
   signal: AbortSignal,
 ): AsyncIterable<RawDiagnostic> {
-  // Not merely an optimisation, on both counts. `ast-grep scan` with no path arguments defaults to scanning
-  // `.` — an empty batch would walk the entire repository — and `--rule` pointed at an empty document
-  // hard-fails with "Cannot parse rule" rather than finding nothing. Both confirmed against 0.45.0.
   if (batch.files.length === 0 || handle.ruleCount === 0) return
 
-  // **Zero-byte files never reach ast-grep**, because it counts them in `skippedFileCount` and
-  // `assertSummary` below cannot tell that skip from the dangerous one. Measured against 0.45.0: a file
-  // of exactly 0 bytes is skipped, one holding a single newline is not — so the discriminator is
-  // emptiness itself, not size in general. Dropping them here rather than relaxing the guard keeps the
-  // guard exact for every file that could actually have carried a finding; a file with no bytes has
-  // nothing to analyse, so removing it changes no result. Found on 2 of 20 public repositories
-  // (`medusajs/medusa`, `excalidraw/excalidraw`), both of which held an empty `global.d.ts` and both of
-  // which failed the whole run.
+  // ast-grep counts a zero-byte file as skipped, which `assertSummary` cannot tell from the
+  // dangerous skip. Filtered here so that guard stays exact for files that had bytes.
   const scanned = batch.files.filter((file) => file.size > 0)
   if (scanned.length === 0) return
 
@@ -106,9 +84,6 @@ async function* execute(
     '--rule',
     handle.path,
     '--json=compact',
-    // The ruleset/coverage assertion, on stderr — ast-grep's answer to oxlint's `number_of_rules`, and
-    // load-bearing for the same reason: without it both of this adapter's silent-failure modes look exactly
-    // like a clean run. See `assertSummary`.
     '--inspect',
     'summary',
     ...scanned.map((file) => file.path),
@@ -129,27 +104,8 @@ async function* execute(
   yield* parseAstGrepOutput(stdout, context.rootDir)
 }
 
-/**
- * Turns ast-grep's two silent-failure modes into loud ones.
- *
- * **A file it declines to parse is reported as a clean file.** Reproduced against 0.45.0: a 4.8 MB JavaScript
- * file produced zero findings and exit 0, the only trace being `skippedFileCount=1` in this summary — and
- * slop-gate would then cache that file as having no findings. The threshold is a property of the parse tree
- * rather than of byte count alone (a 3.7 MB file of statements parsed, a 4.1 MB one did not), and
- * `skippedFileCount` is 0 for the benign cases — a language with no rule document, an extension ast-grep does
- * not recognise — so this does not fire on an ordinary mixed batch.
- *
- * **One benign skip is not visible here**, and it is handled before the scan rather than excused after it:
- * ast-grep also counts a zero-byte file as skipped. Those are filtered out of `scanned` in `execute`, so by
- * the time this runs every remaining skip is a file that had bytes ast-grep chose not to read.
- *
- * **A ruleset that did not load is also a clean run.** `effectiveRuleCount` is the count of rule *documents*
- * ast-grep actually activated, which is exactly what `EngineConfigHandle.ruleCount` records, so a document
- * silently rejected on a version bump fails here instead of quietly removing a concept's coverage.
- *
- * A missing summary is itself a failure rather than a reason to skip the check: an adapter whose guard has
- * been disabled by an upstream format change should say so, not carry on unguarded.
- */
+// ast-grep reports a file it declined to parse as a clean file, and a ruleset that failed to load
+// as a clean run. Both are indistinguishable from success without this.
 function assertSummary(summary: AstGrepScanSummary | null, scanned: readonly InventoryFile[], handle: EngineConfigHandle): void {
   if (summary === null) {
     throw new EngineError(
