@@ -152,6 +152,8 @@ One file, fully typed, with autocompletion over every concept id:
 import { defineConfig } from '@misaon/slop-gate'
 
 export default defineConfig({
+  // `recommended` is the strict one. `essential` is the level below it: only the rules whose findings
+  // would fail a build — 218 of 352, derived from each rule's own severity so the two cannot drift.
   extends: ['recommended'],
   rules: {
     'slop.as-any-cast': 'off',                       // a library of type machinery may need it
@@ -187,7 +189,6 @@ catch:
 | Gap | What it means for you |
 |---|---|
 | **The formatter is opt-in, not default** | oxfmt 0.62.0 has no style options, so on by default it would rewrite every project's quotes and semicolons with no way to configure it. Turn it on with `'formatting.unformatted': 'warn'` |
-| **No preset below `recommended`** | strictness can only be turned down rule by rule |
 | **No Nuxt or Tailwind profile** | two named frameworks are undetected |
 | **Not published** | install from a clone |
 

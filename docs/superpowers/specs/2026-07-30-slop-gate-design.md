@@ -531,28 +531,34 @@ Prettier, and it is documented explicitly.
 
 ### 6.5 Turning the strictness down
 
-**Not built.** `recommended` is the strict preset by design (§1.3) and today it is also the floor:
-`extends: ['recommended']` or nothing, then rule-by-rule edits. A project that finds the default too
-severe has to disagree with it 350 times, which is the maintenance burden §1.1 exists to remove.
+`recommended` is the strict preset by design (§1.3), and `essential` is the level below it: the rules
+whose findings slop-gate would fail a build over, and nothing else. One word in `extends`.
 
-The gap is a preset *below* `recommended`, and the design constraint is that it must not be assembled
-by taste. Two candidate definitions, and the difference between them matters:
+**The definition is derived, not chosen.** Every rule in `recommended` already carries a severity
+decided per rule against a corpus, and `error` versus `warn` is exactly the judgement "would we stop a
+build for this". `essential` is `recommended` filtered to the `error` rules, so it needs no second
+opinion about which rules matter and cannot drift from the first one: promoting a rule to `error`
+adds it to `essential` automatically, and demoting it removes it.
 
-- **By category.** Keep `correctness` and `security`, drop `pedantic`, `style` and `restriction`.
-  Mechanical, explicable in one sentence, and derivable from data the registry already carries.
-- **By what a project can act on today.** Keep everything whose findings a repository could
-  plausibly clear, drop the rules that fire in the hundreds on ordinary code.
+That is 218 of 352 concepts — a 38% reduction, and the whole of what remains is what would have failed
+the build anyway. A project on `essential` still gets every type error, every `correctness` rule we are
+confident about, and the security and dependency checks; what it stops hearing is the advisory half.
 
-The second is more useful and much harder to defend, because "plausibly clear" is a judgement about
-someone else's codebase. The first is the one to build: a reader can predict what it contains, and
-`sgate rules list` already reports the category that decides it. A third level below that —
-errors-only — is worth considering for the first run on an existing repository, where the honest
-alternative today is `sgate baseline create` (§12.2), which is a better answer to that particular
-problem and already exists.
+**An earlier version of this section proposed a by-category definition — keep `correctness` and
+`security`, drop `pedantic`, `style` and `restriction` — and the data refuted it.** `recommended`
+contains 264 `correctness`, 40 `suspicious`, 26 `config` and 24 everything-else; `pedantic` and
+`restriction` are two concepts each and `style` is none. Dropping those three would remove **4 rules of
+352** and produce a level indistinguishable from the one above it. The proposal was written from the
+group *vocabulary* (§5.1) rather than from what the preset actually holds, which is the mistake worth
+recording: the taxonomy's shape says nothing about the distribution across it.
 
-Whatever ships, the level has to be one word in `extends`, and the levels have to compose with
-framework profiles by the same *floor, never a ceiling* rule as §23.2 — a profile may not quietly
-raise a project that asked for less.
+Below `essential` there is deliberately nothing. A repository that cannot pass even the error rules
+does not want a third preset — it wants `sgate baseline create` (§12.2), which accepts everything
+present today and fails only on what is added next. That is a better answer to "we have 4,000 findings
+and a deadline" than any preset, because it keeps the gate at full strictness for new code.
+
+Levels compose with framework profiles by §23.2's *floor, never a ceiling* rule: a profile may raise a
+concept a project left at a lower level, and may never lower one it asked for.
 
 ---
 
