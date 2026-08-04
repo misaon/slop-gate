@@ -5,6 +5,7 @@ import type { EngineId } from '../registry/types.ts'
 
 export type FrameworkId =
   | 'angular'
+  | 'chai'
   | 'mikro-orm'
   | 'nestjs'
   | 'nestjs-express'
