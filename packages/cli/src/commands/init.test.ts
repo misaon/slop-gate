@@ -15,9 +15,9 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-// A real `npm install -D @misaon/slop-gate` is what makes the generated config's
-// `import { defineConfig } from '@misaon/slop-gate'` resolve. This used to say nobody runs
-// `sgate init` without having installed that package first; `npx @misaon/slop-gate init` does
+// A real `npm install -D sgate` is what makes the generated config's
+// `import { defineConfig } from 'sgate'` resolve. This used to say nobody runs
+// `sgate init` without having installed that package first; `npx sgate init` does
 // exactly that, which is why `missingPackageHint` exists. This stands in for that
 // install without depending on packages/cli's own dist (this repo's `pnpm test` does not build
 // first; see index.test.ts for the same reasoning). It deliberately mirrors only the *contract*
@@ -25,11 +25,11 @@ afterEach(async () => {
 // identity function — not the real package's build output, since index.test.ts already proves
 // that contract holds for the real thing.
 const installStubPackage = async (): Promise<void> => {
-  const target = join(dir, 'node_modules', '@misaon', 'slop-gate')
+  const target = join(dir, 'node_modules', 'sgate')
   await mkdir(target, { recursive: true })
   await writeFile(
     join(target, 'package.json'),
-    JSON.stringify({ name: '@misaon/slop-gate', type: 'module', exports: { '.': './index.js' } }),
+    JSON.stringify({ name: 'sgate', type: 'module', exports: { '.': './index.js' } }),
   )
   await writeFile(join(target, 'index.js'), 'export const defineConfig = (config) => config\n')
 }
@@ -154,11 +154,11 @@ test('running init twice changes nothing the second time', async () => {
 })
 
 test('tells the user to install the package when the generated config could not load', async () => {
-  // The `npx @misaon/slop-gate init` path, reported from a real project. `init` writes a config
+  // The `npx sgate init` path, reported from a real project. `init` writes a config
   // importing `defineConfig` from this package, and npx runs the CLI from its own cache — so the
   // project has no such dependency and the very next `sgate check` dies loading the config. `init`
   // is the last moment anyone can be told, so it tells them here.
-  expect(await missingPackageHint(dir)).toMatch(/npm install -D @misaon\/slop-gate/)
+  expect(await missingPackageHint(dir)).toMatch(/npm install -D sgate/)
 })
 
 test('says nothing when the package is already a dependency of the project', async () => {

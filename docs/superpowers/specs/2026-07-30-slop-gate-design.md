@@ -3,7 +3,7 @@
 **Date:** 2026-07-30
 **Status:** Approved, ready for implementation planning
 **Repository:** https://github.com/misaon/slop-gate
-**Package:** `@misaon/slop-gate` · **Binary:** `sgate` (alias `slop-gate`)
+**Package:** `sgate` · **Binary:** `sgate` (alias `slop-gate`)
 
 ---
 
@@ -17,7 +17,7 @@ and to an AI agent tasked with fixing them.
 The developer experience is three commands:
 
 ```
-npm install -D @misaon/slop-gate
+npm install -D sgate
 sgate init      # detects the repo, writes a tailored config, migrates existing tooling
 sgate check     # analyses the whole monorepo
 sgate fix       # applies what can be applied safely
@@ -170,7 +170,7 @@ Each package has one purpose, a documented interface, and no knowledge of its co
 
 ```
 packages/
-  cli/                  @misaon/slop-gate            argument parsing, command wiring, bins
+  cli/                  sgate            argument parsing, command wiring, bins
   core/                 @misaon/slop-gate-core       config, registry, discovery, planner,
                                                      scheduler, cache, diagnostics, fix arbiter
   reporters/            @misaon/slop-gate-reporters  every output format
@@ -380,7 +380,7 @@ the collection endpoint first would mean asking for data before we could act on 
 roots. `.js`, `.mjs` and `.mts` are accepted.
 
 ```ts
-import { defineConfig } from '@misaon/slop-gate'
+import { defineConfig } from 'sgate'
 
 export default defineConfig({
   extends: ['recommended', 'typescript', 'vue', 'tailwind'],

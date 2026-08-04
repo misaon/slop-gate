@@ -9,7 +9,7 @@
   "commit": false,
   "fixed": [
     [
-      "@misaon/slop-gate",
+      "sgate",
       "@misaon/slop-gate-*"
     ]
   ],
