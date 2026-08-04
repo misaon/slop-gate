@@ -157,3 +157,46 @@ test('converts a Windows-style backslash path to POSIX before returning it', asy
   const [found] = await collect(parseTscOutput(stdout, dir))
   expect(found?.file).toBe('src/a.ts')
 })
+
+test('drops TS2307 for a single-file component that is really there', async () => {
+  // tsc cannot read an SFC at all — resolving `./Card.vue` needs `vue-tsc`, which is what a Vue or
+  // Nuxt project's own `typecheck` script runs. Measured on `nuxt/movies`: **10 of 10
+  // `types.type-error` findings were this, at `error`, and every `.vue` file named existed.** The
+  // project's own `vue-tsc --noEmit` reports none of them, which is exactly the agreement
+  // `types.type-error` is supposed to hold to.
+  await writeFile(join(dir, 'src/Card.vue'), '<template><div /></template>\n')
+  await writeFile(join(dir, 'src/Card.test.ts'), "import Card from './Card.vue'\nexport default Card\n")
+  const stdout = `src/Card.test.ts(8,19): error TS2307: Cannot find module './Card.vue' or its corresponding type declarations.\n`
+
+  expect(await collect(parseTscOutput(stdout, dir))).toEqual([])
+})
+
+test('keeps TS2307 for a single-file component that is not there', async () => {
+  // The half that makes this a resolution check rather than a blanket exemption: a typo in an SFC
+  // import is a real error, and tsc is the only engine that reports it.
+  await writeFile(join(dir, 'src/Card.test.ts'), "import Card from './Missing.vue'\nexport default Card\n")
+  const stdout = `src/Card.test.ts(8,19): error TS2307: Cannot find module './Missing.vue' or its corresponding type declarations.\n`
+
+  const found = await collect(parseTscOutput(stdout, dir))
+  expect(found).toHaveLength(1)
+  expect(found[0]?.message).toContain('TS2307')
+})
+
+test('keeps TS2307 for an ordinary module, however it is spelled', async () => {
+  await writeFile(join(dir, 'src/helper.ts'), 'export const a = 1\n')
+  await writeFile(join(dir, 'src/a.ts'), "import { a } from './helper'\nexport default a\n")
+  const stdout = `src/a.ts(1,20): error TS2307: Cannot find module './helper' or its corresponding type declarations.\n`
+
+  expect(await collect(parseTscOutput(stdout, dir))).toHaveLength(1)
+})
+
+test('drops TS2307 for a Svelte or Astro component that exists', async () => {
+  await writeFile(join(dir, 'src/A.svelte'), '<div />\n')
+  await writeFile(join(dir, 'src/B.astro'), '<div />\n')
+  await writeFile(join(dir, 'src/a.ts'), "import A from './A.svelte'\nimport B from './B.astro'\nexport default [A, B]\n")
+  const stdout =
+    `src/a.ts(1,20): error TS2307: Cannot find module './A.svelte' or its corresponding type declarations.\n` +
+    `src/a.ts(2,20): error TS2307: Cannot find module './B.astro' or its corresponding type declarations.\n`
+
+  expect(await collect(parseTscOutput(stdout, dir))).toEqual([])
+})
