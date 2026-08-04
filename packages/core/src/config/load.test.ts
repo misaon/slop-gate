@@ -92,10 +92,34 @@ test('leaves no scratch file behind when the config cannot be parsed', async () 
   expect((await readdir(dir)).filter((f) => f.endsWith('.sgate.mjs'))).toEqual([])
 })
 
-test('explains path aliases when an import cannot be resolved', async () => {
+test('names the package that is missing, and says to install it', async () => {
+  // The shape `sgate init` produces: a config importing `defineConfig` from a package, run in a
+  // project where that package is not a dependency because the user reached the CLI through `npx`.
+  // The old message offered "use a relative path or a package.json imports subpath", which is
+  // advice for a path alias and nonsense for a real package — and it never said *which* import
+  // failed.
+  //
+  // A stand-in package name rather than `@misaon/slop-gate`, which is the real case: vitest aliases
+  // every workspace package to its `src` (see vitest.config.ts), so our own name resolves here and
+  // the test would pass without testing anything. The message is generic on purpose, so any
+  // uninstalled package exercises the same branch.
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
-    `import { x } from '@app/shared'
+    `import { defineConfig } from '@acme/not-installed'
+     export default defineConfig({ extends: ['recommended'] })
+    `,
+  )
+
+  await expect(loadConfig(dir)).rejects.toThrow(/@acme\/not-installed/)
+  await expect(loadConfig(dir)).rejects.toThrow(/npm install -D @acme\/not-installed/)
+})
+
+test('still explains path aliases when the unresolved import is a relative one', async () => {
+  // A bare specifier is a package you can install; a relative path that does not exist is usually
+  // a tsconfig alias the runtime cannot see. Same error code from Node, opposite advice.
+  await writeFile(
+    join(dir, 'slop-gate.config.ts'),
+    `import { x } from './does-not-exist.js'
      export default { ignore: [x] }
     `,
   )
