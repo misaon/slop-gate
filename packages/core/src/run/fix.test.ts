@@ -10,12 +10,6 @@ import { runFix, type FixOptions } from './fix.ts'
 
 let dir: string
 
-/**
- * Every rule in a test needs its **own** concept. Arbitration elects exactly one owner per concept
- * (spec §5.3) and `normalizeDiagnostics` drops any diagnostic from a non-owner, so two entries
- * sharing a concept silently reduces to one rule ever reporting — which would make every overlap and
- * oscillation test below pass for the wrong reason.
- */
 const CONCEPTS = [
   'correctness.no-debugger',
   'style.no-var',
@@ -38,11 +32,6 @@ const entry = (over: Partial<RuleEntry> & Pick<RuleEntry, 'engineRuleId' | 'conc
   ...over,
 })
 
-/**
- * An engine whose findings are recomputed from the file's *current* content on every `run` — the
- * only way to test a loop whose whole purpose is re-running engines over files it just rewrote. A
- * fixed finding list would make every pass identical and every convergence test vacuous.
- */
 const reactiveEngine = (options: {
   id?: EngineId
   granularity?: 'file' | 'project'
@@ -72,7 +61,6 @@ const finding = (over: Found): RawDiagnostic => ({
   ...over,
 })
 
-/** A finding whose fix rewrites exactly the range it reports. The shape almost every test wants. */
 const fixAt = (engineRuleId: string, start: number, end: number, replacement: string, file?: string): RawDiagnostic =>
   finding({
     engineRuleId,
@@ -105,8 +93,6 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-// --- The loop ---------------------------------------------------------------------------------
-
 test('a single safe fix is applied and the file is rewritten', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'if (a == 1) {}\n')
 
@@ -132,7 +118,6 @@ test('a single safe fix is applied and the file is rewritten', async () => {
 test('the loop iterates until no fix remains', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'aaa\n')
 
-  // One `a` per pass, so reaching `bbb` needs three of them plus one that confirms the fixed point.
   const result = await runFix(
     base({
       engines: [
@@ -154,7 +139,6 @@ test('the loop iterates until no fix remains', async () => {
 test('the pass limit stops a loop that never converges and reports it as truncated', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'x\n')
 
-  // Always appends, so the file never stops changing and never repeats a state either.
   const result = await runFix(
     base({
       maxPasses: 3,
@@ -168,8 +152,6 @@ test('the pass limit stops a loop that never converges and reports it as truncat
   expect(result.truncated).toBe(true)
   expect(await read('src/a.ts')).toBe('x\nxxx')
 })
-
-// --- Overlap (spec §11 step 2) -----------------------------------------------------------------
 
 test('two rules overlapping on the same range: the higher-priority one wins and the loser runs next pass', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'AAAA\n')
@@ -192,7 +174,6 @@ test('two rules overlapping on the same range: the higher-priority one wins and 
     }),
   )
 
-  // Pass 1 applies `high` only; pass 2 applies `low` on the now-unobstructed range.
   expect(await read('src/a.ts')).toBe('BBzz\n')
   expect(result.skipped.overlap).toBe(1)
   expect(result.rules).toEqual([
@@ -217,7 +198,6 @@ test('a nested edit inside a higher-priority one never reaches the file', async 
     }),
   )
 
-  // The corruption this guards against is `let v = 2` with `XXXXX` spliced into the middle of it.
   expect(await read('src/a.ts')).toBe('let v = 2\n')
 })
 
@@ -241,8 +221,6 @@ test('exactly adjacent edits from two rules are both applied in one pass', async
 test('one rule reporting two overlapping findings still drops one deterministically', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'abcdef\n')
 
-  // No priority, severity or rule-id difference to break the tie — only the range ordering appended
-  // to `compareEditPrecedence` keeps this from depending on which order the engine yielded them in.
   await runFix(
     base({
       maxPasses: 1,
@@ -252,8 +230,6 @@ test('one rule reporting two overlapping findings still drops one deterministica
 
   expect(await read('src/a.ts')).toBe('Xdef\n')
 })
-
-// --- Oscillation (spec §11 step 5) -------------------------------------------------------------
 
 test('two rules rewriting each other stop the file and name both', async () => {
   await writeFile(join(dir, 'src/a.ts'), 'const a = 1\n')
@@ -283,7 +259,6 @@ test('two rules rewriting each other stop the file and name both', async () => {
   expect(diagnostic?.message).toContain('oxlint/drop-type')
   expect(diagnostic?.severity).toBe('error')
 
-  // Stopped well inside the pass limit, and left at a state the pipeline chose rather than mid-cycle.
   expect(result.passes).toBeLessThan(10)
   expect(await read('src/a.ts')).toBe('const a: number = 1\n')
 })
@@ -338,8 +313,6 @@ test('silencing config.fix-oscillation hides the report but never restarts the l
   expect(result.oscillations).toEqual([])
   expect(result.passes).toBeLessThan(10)
 })
-
-// --- Safety rails -----------------------------------------------------------------------------
 
 const alwaysFixes = (): Engine => reactiveEngine({ onRun: (_source, path) => [fixAt('r', 0, 1, 'Z', path)] })
 
@@ -483,8 +456,6 @@ test('a fix attributed to a file outside the inventory is counted and dropped', 
   await writeFile(join(dir, 'escape.ts'), 'a\n')
   await writeFile(join(dir, '.gitignore'), 'escape.ts\n')
 
-  // A project-granularity engine is explicitly allowed to report against files the plan never
-  // assigned it (see `runProjectAssignment`); the write allowlist is what stops one becoming an edit.
   const rogue = reactiveEngine({
     granularity: 'project',
     onRun: (_source, path) => (path === 'src/a.ts' ? [fixAt('r', 0, 1, 'Z', 'escape.ts')] : []),
@@ -640,9 +611,6 @@ test('writes go through writeFileAtomic, leaving no scratch file behind', async 
 
   await runFix(base({ engines: [alwaysFixes()] }))
 
-  // `writeFileAtomic` writes `<target>.<uuid>.tmp` and renames. A leftover means either the rename
-  // path was skipped for a plain `writeFile`, or a failure dropped the scratch file in the user's
-  // source tree — both worth catching here rather than in a bug report.
   const { readdir } = await import('node:fs/promises')
   expect((await readdir(join(dir, 'src'))).filter((name) => name.endsWith('.tmp'))).toEqual([])
   expect(await read('src/a.ts')).toBe('Z\n')

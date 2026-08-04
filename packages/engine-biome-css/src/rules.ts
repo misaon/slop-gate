@@ -1,26 +1,6 @@
-/**
- * Biome's CSS-capable rule vocabulary, split into the rules this engine can be asked to run and the
- * rules it never enables at all.
- *
- * **The two lists must partition the vocabulary**, and `rules.test.ts` asserts it. That is the same
- * device `engine-knip` uses for knip's seventeen issue types, and it exists so no rule can be dropped
- * silently: adding one to neither list is a test failure, not an omission nobody notices.
- *
- * **How the vocabulary was established, since Biome does not publish it.** Biome's configuration
- * schema lists 511 rules with no language attached, and `biome explain <rule>` names no language
- * either — the only signal in it is the language tag on its documentation examples. That undercounts:
- * four rules Biome documents with JavaScript examples nevertheless execute on CSS. So the list below
- * is the **union** of two methods against 2.5.6 — the 31 rules whose docs carry a `css` example, and
- * every rule `biome lint --profile-rules` reported as having executed while linting CSS. 35 rules.
- */
-
-/** A rule this engine may enable. Every one has a `RuleEntry` in the core registry. */
 export type BiomeCssRule = {
-  /** Biome's own rule name, which is also `RuleEntry.engineRuleId`. */
   readonly engineRuleId: string
-  /** The group its name must be nested under in `linter.rules`. */
   readonly group: 'a11y' | 'complexity' | 'correctness' | 'nursery' | 'style' | 'suspicious'
-  /** `lint/<group>/<name>` — the `category` field the JSON reporter stamps on every finding. */
   readonly category: string
 }
 
@@ -30,12 +10,6 @@ const rule = (group: BiomeCssRule['group'], engineRuleId: string): BiomeCssRule 
   category: `lint/${group}/${engineRuleId}`,
 })
 
-/**
- * The seventeen rules in the `recommended` preset, plus the nine that have a registry entry but are
- * held out of it by `NOT_RECOMMENDED_UNCATALOGUED`. All twenty-six live here together because this list
- * answers "may the adapter enable this?", and a user who opts into an excluded concept must get a
- * config that turns the rule on.
- */
 export const BIOME_CSS_RULES: readonly BiomeCssRule[] = [
   rule('a11y', 'useGenericFontNames'),
   rule('complexity', 'noImportantStyles'),
@@ -77,23 +51,9 @@ export function ruleByCategory(category: string): BiomeCssRule | undefined {
 
 export type ExcludedRule = {
   readonly engineRuleId: string
-  /**
-   * Why this rule has no registry entry at all, as opposed to the nine that have one and are merely
-   * out of `recommended` (`NOT_RECOMMENDED_UNCATALOGUED`). The distinction is deliberate: those nine are
-   * rules someone might legitimately want, so they stay enableable by concept. These nine are ones
-   * nobody should be handed — the check is wrong, or it cannot fire, or it reports something that is
-   * not a property of the file.
-   */
   readonly reason: string
 }
 
-/**
- * The nine CSS-capable Biome rules this engine never enables, with a written reason each.
- *
- * Kept as data rather than simply omitted, for the reason `engine-knip`'s excluded issue types are:
- * an absence looks identical to an oversight, and the next person to read Biome's rule list will
- * otherwise re-derive these nine decisions from scratch.
- */
 export const EXCLUDED_RULES: readonly ExcludedRule[] = [
   {
     engineRuleId: 'noInvalidGridAreas',
@@ -184,10 +144,4 @@ export const EXCLUDED_RULES: readonly ExcludedRule[] = [
 
 export const EXCLUDED_RULE_IDS: ReadonlySet<string> = new Set(EXCLUDED_RULES.map((r) => r.engineRuleId))
 
-/**
- * The synthetic rule id the adapter assigns its own report that a stylesheet carries a
- * `biome-ignore` comment. Not a Biome rule — see `suppressions.ts` for why this is the adapter's
- * job rather than the engine's, and the `biome-css/foreign-suppression` entry in
- * `packages/core/src/registry/entries.uncatalogued.ts` for what it maps to.
- */
 export const FOREIGN_SUPPRESSION_RULE_ID = 'foreign-suppression'

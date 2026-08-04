@@ -12,7 +12,6 @@ test('maps an offset on a later line', () => {
 })
 
 test('counts columns in UTF-16 code units, not bytes', () => {
-  // 'č' is 2 bytes in UTF-8 but 1 UTF-16 code unit.
   const source = 'čč x'
   const byteOffsetOfX = new TextEncoder().encode('čč ').length
   expect(byteOffsetOfX).toBe(5)
@@ -75,9 +74,6 @@ test('rangeOfLine on the final line with no trailing newline', () => {
 })
 
 test('rangeOfLine clamps a line number past the end of the source to the last line', () => {
-  // No trailing newline, deliberately: `'aaa\nbbb\n'` would make line 3 the empty line *after* the
-  // trailing newline, which is a real (if phantom) last line, not the clamp target this test means
-  // to isolate — see the next test for that case instead.
   const index = createLineIndex('aaa\nbbb')
   expect(index.rangeOfLine(99)).toEqual(index.rangeOfLine(2))
 })
@@ -91,8 +87,6 @@ test('rangeOfLine clamps a line number below 1 to the first line', () => {
   const index = createLineIndex('aaa\nbbb\n')
   expect(index.rangeOfLine(0)).toEqual(index.rangeOfLine(1))
 })
-
-// --- offsetAt: the inverse of positionAt, needed by engines that report (line, column) text ------
 
 test('offsetAt maps line 1 column 1 to offset zero', () => {
   const index = createLineIndex('const a = 1\n')
@@ -112,8 +106,6 @@ test('offsetAt round-trips with positionAt', () => {
 })
 
 test('offsetAt counts columns in UTF-16 code units, not bytes', () => {
-  // 'č' is 2 bytes in UTF-8 but 1 UTF-16 code unit — mirrors position.test.ts's positionAt case,
-  // inverted: column 4 (just before 'x') must land on the byte offset 'x' actually starts at.
   const source = 'čč x'
   const byteOffsetOfX = new TextEncoder().encode('čč ').length
   expect(byteOffsetOfX).toBe(5)
@@ -150,10 +142,6 @@ test('offsetAtCodepointColumn counts an astral-plane character as one column', (
 })
 
 test('offsetAtCodepointColumn and offsetAt disagree by one per astral character', () => {
-  // The discriminating fixture, and the reason the two entry points exist. Three astral characters
-  // before the target make the UTF-16 column three higher than the codepoint column, so a reading
-  // that confuses the units lands three codepoints early — inside the emoji run, not on `x`.
-  // Every BMP-only input agrees, which is exactly why this case has to be written down.
   const source = '/* 😀😀😀 */ x'
   const index = createLineIndex(source)
   const byteOffsetOfX = new TextEncoder().encode('/* 😀😀😀 */ ').length

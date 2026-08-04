@@ -72,8 +72,6 @@ test('distinguishes a cached clean result from a miss', async () => {
 })
 
 test('one file per engine, whatever the number of entries — the whole point of the layout', async () => {
-  // The per-entry layout cost 8x its content in disk: 512-byte entries against a 4 KiB block minimum,
-  // 678 files and 238 directories on this repository alone.
   const store = openResultStore(cacheDir)
   for (let i = 0; i < 50; i += 1) await store.set('oxlint', K(String.fromCodePoint(97 + (i % 26))) + i, [], components)
   await store.set('astgrep', K('z'), [], components)
@@ -83,7 +81,6 @@ test('one file per engine, whatever the number of entries — the whole point of
 })
 
 test("one engine's entries are untouched by another engine's write", async () => {
-  // Engines run concurrently. A single shared file would have the last writer discard the rest.
   const store = openResultStore(cacheDir)
   await store.set('oxlint', K('a'), [diagnostic], components)
   await store.set('astgrep', K('b'), [], components)
@@ -95,7 +92,6 @@ test("one engine's entries are untouched by another engine's write", async () =>
 })
 
 test('two runs over the same entries produce byte-identical files', async () => {
-  // Insertion order differs between runs; the bytes must not, or nothing can assert a cache is unchanged.
   const write = async (order: readonly string[]): Promise<string> => {
     await rm(join(cacheDir, 'results'), { recursive: true, force: true })
     const store = openResultStore(cacheDir)
@@ -124,8 +120,6 @@ test('records what produced each entry, so a surprising cache hit can be explain
   const raw: unknown = JSON.parse(await readFile(join(cacheDir, 'results', 'oxlint.json'), 'utf8'))
   expect((raw as { entries: Record<string, { key: ResultKeyInput }> }).entries[K('g')]?.key).toEqual(components)
 })
-
-// --- ProjectResultStore: project-granularity engines (spec §8.1/§9) -------------------------------
 
 const projectComponents: ProjectResultKeyInput = {
   engineId: 'tsc',

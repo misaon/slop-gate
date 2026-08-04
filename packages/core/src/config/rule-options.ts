@@ -2,42 +2,10 @@ import type { ConceptId } from '../concepts/catalogue.ts'
 import type { RuleSetting } from './types.ts'
 
 export type OptionedRule = {
-  /**
-   * The complete setting `recommended` carries for this concept — level **and** options together,
-   * because the two were measured together and neither number means anything without the other.
-   */
   readonly setting: RuleSetting
-  /**
-   * Why these exact option values, in the same terms every other promotion in this registry is
-   * argued: a count against a named corpus, not a description of what the option does.
-   */
   readonly reason: string
 }
 
-/**
- * Rules that reach `recommended` **only because of a specific option value**, kept as data rather
- * than written inline in `presets.ts`.
- *
- * The failure this exists to prevent is one edit: somebody tidying `['warn', 'smart']` down to
- * `'warn'` because the tuple looks like clutter. That edit is invisible in review — the level is
- * unchanged and the rule is still there — and it restores 2553 findings. Here the options cannot be
- * removed without also removing the measurement that justifies the rule's presence, and
- * `presets.test.ts` asserts every row survives into `recommended` and `strict` byte for byte.
- *
- * Levels stay the same as everything else in `recommended`: `warn` unless a rule clears the bar
- * `config.compose-schema` and `types.type-error` set, which none of these do.
- */
-/**
- * The assertion shapes `expect-expect` cannot see by itself. Shared by both twins below so the jest and
- * vitest halves of one rule cannot drift into disagreeing about what an assertion is.
- *
- * `**.expect` and `**.should.**` are property chains, not function names: supertest's
- * `request(app).post(url).expect(201)` and chai's `value.should.be.equal(true)`. `*.expect` was measured
- * too and matches neither — the matcher needs `**` to cross a chain of unknown depth.
- *
- * A bare `should*` is deliberately absent where `expect*` and `assert*` are present: `shouldRetry()` is a
- * predicate, and admitting it would silence real findings to buy nothing measurable.
- */
 const ASSERTION_SHAPES = ['expect', 'expect*', 'assert*', '**.expect', '**.should.**'] as const
 
 const EXPECT_EXPECT_REASON =
@@ -55,12 +23,6 @@ const EXPECT_EXPECT_REASON =
   'residue is why the vitest twin sits at `warn` rather than the `error` its category would give it: a ' +
   'type-level test is an ordinary TypeScript pattern and must not fail a build.'
 
-/**
- * The block tags **TSDoc standardises** (`tsdoc.org`, the tag set API Extractor and TypeDoc read),
- * minus the ones oxlint's JSDoc allowlist already carries. Plus `return`, which is not a TSDoc tag at
- * all but JSDoc's own documented synonym for `@returns` — a rule reporting it as *unrecognised* is
- * wrong about JSDoc rather than about TSDoc, and it is the third most common flagged tag in the corpus.
- */
 const TSDOC_BLOCK_TAGS = [
   'decorator',
   'defaultValue',

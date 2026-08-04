@@ -1,43 +1,5 @@
 import type { ConceptDefinition } from './catalogue.ts'
 
-/**
- * Rationales for concepts the registry generator *named* but could not describe.
- *
- * `oxlint --rules --format json` publishes no description — only a `docs_url` — so
- * `concepts.generated.ts` fills the field with a factual passthrough of the rule's own name
- * ("Generated from oxlint's `unicorn/no-useless-spread` rule (category: correctness). No Useless
- * Spread."). That is honest but useless as *rationale*: a developer deciding whether to act, and a
- * model deciding whether it may edit, both need the consequence, not the id restated. The `agent`
- * reporter's answer was to omit its `why:` line for the whole generated set and fall back to the
- * third-party docs URL (spec §12).
- *
- * This array is the curated half of that set. A concept listed here is vocabulary the generator now
- * treats as already-known (`scripts/generate-registry.ts` folds it into the same `known` set as
- * `HAND_WRITTEN_CONCEPTS`), so it drops out of `concepts.generated.ts` and out of
- * `GENERATED_CONCEPT_IDS` — which is what makes the reporter print the rationale rather than skip
- * it. `curated.test.ts` asserts that link both ways; without it the prose below would be written and
- * never shown.
- *
- * Separate from `HAND_WRITTEN_CONCEPTS` rather than appended to it, because the provenance differs
- * and stays worth seeing: those ids were chosen by a human and are named in type-checked code
- * (`registry/overrides.ts`), while these were named mechanically by the generator and only later
- * given prose. The practical consequence is drift — an oxlint rename retires the id out from under
- * the rationale — which `curated.test.ts` guards by requiring every id here to still be claimed by
- * some rule entry.
- *
- * Scope, deliberately not "all 801": every concept `recommended` enables at `error` (an `error`
- * fails a build with no opt-in, so it is the set a user is guaranteed to meet), plus every concept
- * observed firing on a 145k-line Next.js monorepo. Whatever is left is a rule at `warn` in a preset
- * nobody has been measured against yet; it keeps the honest generated label until it turns up in a
- * real run. `curated.test.ts` holds the `error` half of that boundary as a guard, so a new oxlint
- * `correctness` rule cannot arrive at `error` without a rationale.
- *
- * Voice: state the consequence in one or two sentences. Do not restate the rule name — the
- * concept id is already on screen directly above wherever this is rendered.
- *
- * `as const satisfies`, not a plain annotation — see `concepts.generated.ts` on why widening an id
- * to `string` here would collapse `ConceptId` for the whole codebase.
- */
 export const CURATED_CONCEPTS = [
   {
     id: 'correctness.alt-text',

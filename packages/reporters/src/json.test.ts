@@ -164,6 +164,5 @@ test('carries the timing breakdown verbatim, phases and per-rule counts both', (
     unattributedMs: 9.8,
     rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 23 }],
   })
-  // Additive: a v4 reader finds every key it knew exactly where it was.
   expect(parsed['version']).toBe(4)
 })

@@ -32,8 +32,6 @@ test('a cycle that does not reach the original still names every rule inside the
   ledger.record('src/a.ts', bytes('v2'), ['oxlint/a'])
   const repeat = ledger.record('src/a.ts', bytes('v1'), ['oxlint/b'])
 
-  // `oxlint/first` produced v1 before the loop began and is not part of the fight; the two rules
-  // trading v1 and v2 between them are.
   expect(repeat?.rules).toEqual(['oxlint/a', 'oxlint/b'])
 })
 
@@ -72,8 +70,6 @@ test('recording a file that was never seeded throws rather than guessing its sta
 })
 
 test('a buffer identical to the previous pass is a repeat of the immediately preceding state', () => {
-  // Not a rule fight — an engine re-reporting a fix that changes nothing. It is still a fixed point
-  // the loop must not spin on, and naming the rule that produced it is the actionable answer.
   const ledger = createOscillationLedger()
   ledger.seed('src/a.ts', bytes('v0'))
 

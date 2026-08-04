@@ -29,8 +29,6 @@ const result = (over: Partial<CheckResult> = {}): CheckResult => ({
   ...over,
 })
 
-/** One absent engine that cost the run two concepts: one nothing else covers, one a lower-ranked
- *  rule picked up. Both halves matter — a hole and a downgrade are different facts. */
 const absentEngine = (over: Partial<UnavailableEngine> = {}): UnavailableEngine => ({
   engine: 'astgrep',
   reason: '`ast-grep` was not found on PATH',
@@ -83,8 +81,6 @@ const done = (diagnostics: readonly Diagnostic[], over: Partial<CheckResult> = {
 const repeat = (count: number, over: (index: number) => Partial<Diagnostic>): Diagnostic[] =>
   Array.from({ length: count }, (_, index) => diagnostic(over(index)))
 
-/** The reporter's own accounting, restated here so a budget assertion is measured the way the
- *  reporter measures — not against a second, looser idea of what a token is. */
 const estimate = (text: string): number => Math.ceil(new TextEncoder().encode(text).length / 3)
 
 const coverageLine = (output: string): string => output.split('\n').find((line) => line.startsWith('coverage:')) ?? ''
@@ -121,9 +117,6 @@ test('splits findings by whether `sgate fix` handles them and names the flag nee
 })
 
 test('a rule the run arbitrated against decides the tier, not the shipped registry', () => {
-  // `CheckOptions.entries` is a real seam (`resolveRun` takes it), so a run that narrowed or
-  // replaced the registry must not have the reporter quietly consult the shipped one instead and
-  // promise `sgate fix` will handle something this run's registry calls unfixable.
   const fixable = done([diagnostic({ ruleRefKey: 'oxlint/unicorn/no-useless-spread', concept: 'correctness.no-useless-spread' })])
   expect(capture([fixable], { readSource: () => null })).toContain('## automated')
 
@@ -145,9 +138,6 @@ test('a rule the run arbitrated against decides the tier, not the shipped regist
 })
 
 test('a concept whose findings do not all carry a declared fix is judgement, not automated', () => {
-  // Arbitration elects one owning rule per concept, so this shape does not arise in a real run — but
-  // the fold has to fail closed if it ever does. An agent told `sgate fix` has a finding covered
-  // leaves it alone, and nothing comes back for it.
   const output = capture([
     done([
       diagnostic({ concept: 'correctness.no-useless-spread', ruleRefKey: 'oxlint/unicorn/no-useless-spread' }),
@@ -182,12 +172,6 @@ test('states the reason once per concept instead of once per finding', () => {
 })
 
 test('omits the reason for a concept whose description is generator boilerplate, and says so once', () => {
-  // `pedantic.accessor-pairs` is one of the concepts the registry generator named *and* described,
-  // so its description restates the rule id back at the reader ("Generated from oxlint's ... rule").
-  // Printing that under `why:` would be worse than printing nothing, so the line is dropped — and a
-  // single note explains the absence, because a missing `why:` on most groups otherwise reads as a
-  // bug in the reporter. Kept synthetic on purpose: `agent.captured.test.ts` covers the other side
-  // with real findings, and every concept a real run produces now has a rationale.
   const output = capture([
     done([
       diagnostic({ concept: 'pedantic.accessor-pairs', ruleRefKey: 'oxlint/accessor-pairs', file: 'src/a.ts' }),
@@ -294,9 +278,6 @@ test('an engine failure is declared before anything else, because it makes the r
 })
 
 test('a run with no findings and a missing engine is never reported as clean', () => {
-  // The failure this whole mechanism exists to prevent: an agent reads a report, sees no findings,
-  // and concludes the files that engine owned are fine. Every place the report could be read as
-  // "clean" has to say otherwise.
   const output = capture([done([], { unavailableEngines: [absentEngine()] })])
 
   expect(output).toContain(
@@ -339,9 +320,6 @@ test('an absent engine with no install command still declares the gap', () => {
 })
 
 test('an absent engine that would have owned nothing is a note, not a gap', () => {
-  // Deliberately *not* INCOMPLETE. Nothing was lost: this engine would have lost every contest it
-  // entered, so calling the run incomplete would be crying wolf, and an `INCOMPLETE` that fires when
-  // nothing is missing is how a reader learns to skip the word.
   const output = capture([done([], { unavailableEngines: [absentEngine({ displaced: [] })] })])
 
   expect(output).not.toContain('INCOMPLETE')
@@ -386,10 +364,6 @@ test('is byte-identical across two runs over the same result', () => {
 })
 
 test('orders groups by concept when severity and size tie, whatever order they arrived in', () => {
-  // The guard against map iteration order reaching the output. Two groups that tie on every earlier
-  // key differ only by concept id, so a reporter that emitted them in insertion order would produce
-  // different bytes for the same repository depending on which file an engine happened to visit
-  // first — and the whole value of this format as an agent input rests on that never happening.
   const alpha = repeat(2, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
   const beta = repeat(2, (index) => ({ concept: 'style.beta', ruleRefKey: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` }))
 
@@ -418,8 +392,6 @@ test('reports exactly what the token budget dropped, per concept and in total', 
   const perConcept = [...output.matchAll(/^ {2}(\S+) — (\d+) of (\d+) not shown$/gm)]
   expect(perConcept.reduce((sum, match) => sum + Number(match[2]), 0)).toBe(omitted)
 
-  // The property that makes a truncated report safe to act on: the concept and its *true* count
-  // survive even when every one of its findings was dropped.
   expect(output).toContain('### style.alpha — 10 findings in 10 files')
   expect(output).toContain('### style.beta — 10 findings in 10 files')
   expect(output).toContain(`Re-run with a larger \`--max-tokens\` than 400, or without it, to see the ${omitted} finding(s) omitted above.`)
@@ -431,10 +403,6 @@ test('keeps a worked example for every concept before deepening any one of them'
     ...repeat(6, (index) => ({ concept: 'style.beta', ruleRefKey: 'oxlint/beta', severity: 'warn' as const, file: `src/b${index}.ts` })),
   ]
 
-  // Swept across every budget rather than pinned to one, so the assertion is the rotation invariant
-  // itself and not a number that has to be re-tuned whenever a line of the fixed sections changes.
-  // Every finding here renders to the same size, so rotation admits them strictly alternately and
-  // the two groups can never differ by more than one.
   const full = estimate(capture([done(many)], { maxTokens: 100_000 }))
   let sawBoth = false
   for (let budget = 200; budget <= full; budget += 40) {
@@ -452,13 +420,6 @@ test('keeps a worked example for every concept before deepening any one of them'
 test('fits every budget it can, and says so plainly for the ones it cannot', () => {
   const many = repeat(40, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
 
-  // The whole contract in one sweep, with no floor constant to keep in step with the prose: below
-  // the floor the report overruns and declares it; at or above, it fits. A report that overran
-  // without declaring it would fail here at whichever budget it happened at.
-  //
-  // Swept with and without a coverage gap, because the gap block is the newest thing the sizing
-  // render has to bound: it is printed identically in both passes, and an asymmetry there would let
-  // the finished document exceed a budget the reservation said it fitted.
   for (const unavailableEngines of [[], [absentEngine()]]) {
     let overran = 0
     for (let budget = 100; budget <= 4_000; budget += 25) {
@@ -472,9 +433,6 @@ test('fits every budget it can, and says so plainly for the ones it cannot', () 
 })
 
 test('counts a multi-byte message in bytes, so non-ASCII text cannot overrun the budget', () => {
-  // Three UTF-8 bytes per CJK character and roughly one token each: counting `String.length` here
-  // would under-count by threefold and blow straight through the budget, which is the one direction
-  // the estimate must never err in.
   const many = repeat(30, (index) => ({
     concept: 'style.alpha',
     ruleRefKey: 'oxlint/alpha',
@@ -496,9 +454,6 @@ test('prints the fixed sections in full and admits it when the budget cannot eve
 })
 
 test('never drops a finding the complete report would have fitted', () => {
-  // The complete report carries none of the bookkeeping a truncated one needs, so it can be smaller
-  // than the space that would be reserved to truncate it. Reserving first made a budget in that band
-  // produce a *larger* document than a generous budget did, and claim findings were dropped.
   const many = repeat(12, (index) => ({ concept: 'style.alpha', ruleRefKey: 'oxlint/alpha', severity: 'warn' as const, file: `src/a${index}.ts` }))
   const complete = capture([done(many)], { maxTokens: 100_000 })
 
@@ -524,12 +479,7 @@ test('reports no timing or cache figures, which would differ between two runs of
   expect(output).not.toContain('cached')
 })
 
-// --- `summariseAgentGroups`: the same grouping, without the prose ---------------------------------
-
 test('the summary lists the same concepts, in the same order and on the same side of the split, as the report', () => {
-  // The point of exporting this at all. A caller that renders the report *and* the summary — the MCP
-  // `check` tool does both — must not be able to show a concept as `automated` in one and
-  // `judgement` in the other, so both read one grouping rather than two agreeing implementations.
   const diagnostics = [
     diagnostic({ concept: 'correctness.no-useless-spread', ruleRefKey: 'oxlint/unicorn/no-useless-spread' }),
     diagnostic({ concept: 'config.unused-suppression', ruleRefKey: 'slop-gate/config.unused-suppression', severity: 'warn', file: 'src/b.ts' }),
@@ -570,9 +520,6 @@ test('the summary lists the same concepts, in the same order and on the same sid
 })
 
 test('the summary states true counts even for a concept the budget dropped every finding of', () => {
-  // The structural half of "a group header is never dropped". A caller that bounds the prose still
-  // gets the complete inventory here, so a truncated report and its summary can never disagree about
-  // how much was found.
   const many = repeat(40, (index) => ({ file: `src/${index}.ts`, fingerprint: `f${index}` }))
   const event = done(many)
 
@@ -609,8 +556,6 @@ const baselineSummary = (over: Partial<NonNullable<CheckResult['baseline']>> = {
 })
 
 test('a run with no findings left is not a clean result when a baseline accepted them', () => {
-  // The cardinal sin of this format, in its sharpest form: a model reads an empty report and concludes
-  // the repository is clean while 609 real findings sit in a file it never saw.
   const output = capture([done([], { baseline: baselineSummary() })])
 
   expect(output).toContain('INCOMPLETE: a baseline accepted 609 findings — .slop-gate/baseline.json')

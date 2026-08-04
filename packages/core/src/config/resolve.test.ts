@@ -50,12 +50,9 @@ test('an override that enables a concept widens the planner view without revivin
     },
   })
 
-  // Turned off by the root config on top of the preset: the base cascade is last-wins, so this
-  // must stay off for the planner too.
   expect(anyEnabledConcepts.has('correctness.no-debugger')).toBe(false)
   expect(maxLevelOf('correctness.no-debugger')).toBe('off')
 
-  // Enabled only by an override: the engine must still be configured to run it.
   expect(anyEnabledConcepts.has('style.no-var')).toBe(true)
   expect(maxLevelOf('style.no-var')).toBe('error')
 })
@@ -72,9 +69,6 @@ test('options replace rather than merge', () => {
 })
 
 test('a later layer setting only a level keeps the options an earlier one set', () => {
-  // The single most likely edit anyone makes to a config — raise a rule's severity — and the one
-  // that silently undid an earlier layer's measured option choice while a setting was replaced
-  // whole. Level and options are settled independently, so the raise costs nothing.
   const resolver = createRuleSetResolver({
     config: { rules: { 'pedantic.eqeqeq': ['warn', 'smart'] } },
     workspaceConfig: { file: 'packages/app/slop-gate.config.ts', config: { rules: { 'pedantic.eqeqeq': 'error' } } },

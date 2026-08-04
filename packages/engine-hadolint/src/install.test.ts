@@ -42,11 +42,6 @@ test('a verified download lands executable at the version-scoped path', async ()
   expect(result.version).toBe(HADOLINT_VERSION)
   expect(result.path).toBe(join(hadolintCacheDir({ platform: 'linux', env: {}, homeDir: home }), 'hadolint'))
   await expect(readFile(result.path, 'utf8')).resolves.toContain('echo hadolint')
-  // The npm hadolint wrapper's second defect is writing 0644 and never chmodding, so every Unix spawn
-  // fails EACCES. Asserted rather than assumed — but the assertion differs by platform rather than
-  // vanishing on one: Windows has no execute bit, so `mode & 0o111` is always 0 there and demanding it
-  // would fail a correct install. Both branches assert, because a test that silently checks nothing on
-  // one platform is how a Windows regression would ship unnoticed.
   const { mode, size } = await stat(result.path)
   const usable = process.platform === 'win32' ? size > 0 : (mode & 0o111) !== 0
   expect(usable).toBe(true)
@@ -70,8 +65,6 @@ test('a digest mismatch throws and writes nothing at all', async () => {
 })
 
 test('the shipped digests are the ones compared against, not just any digests', async () => {
-  // No `checksums` override: this drives the real `HADOLINT_CHECKSUMS` table, so a table that had
-  // drifted from upstream would fail here rather than pass against a fixture of its own making.
   const home = await scratch()
   await expect(
     installHadolint({ platform: 'linux', arch: 'x64', env: {}, homeDir: home, fetch: respond(bytes) }),

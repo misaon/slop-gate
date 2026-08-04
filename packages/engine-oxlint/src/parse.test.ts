@@ -76,8 +76,6 @@ test('skips a diagnostic with no labels rather than inventing a range', () => {
 })
 
 test('attributes a code-less error diagnostic to the parse-error rule id instead of dropping it', () => {
-  // Shape captured from the real binary against a genuinely broken file (no `code` key at all —
-  // not an empty string, not null): `oxlint --format json` on `const x: = 5`.
   const parseFailure = JSON.stringify({
     diagnostics: [
       {
@@ -157,8 +155,6 @@ test('maps a diagnostic scope oxlint spells differently from its own rule catalo
   ])
 })
 
-// Payload captured verbatim from oxlint 1.76.0 on a two-function file. Both labels are real; the
-// first one names a *different* function than the message does.
 const MULTI_LABEL = JSON.stringify({
   diagnostics: [
     {
@@ -188,15 +184,11 @@ test('anchors a declared rule on the label naming the offending node, not on the
 })
 
 test('still takes the first label when the declared anchor text is not among the labels', () => {
-  // What an oxc reword looks like from here. Falling back to the first label reproduces the old
-  // behaviour rather than guessing at an index, so a reword costs the anchor and nothing else.
   const reworded = MULTI_LABEL.replace('This function does not use any variables from the parent function', 'Reworded upstream')
   expect(parseOxlintOutput(reworded, '/repo')[0]?.range).toEqual({ start: 16, end: 31 })
 })
 
 test('leaves every rule with no declared anchor on its first label', () => {
-  // The measured property this table protects: for every multi-label rule other than the ones named
-  // in `ANCHOR_LABELS`, label 0 is the offending node, so nothing may move them.
   const twoLabels = JSON.stringify({
     diagnostics: [
       {
@@ -229,9 +221,6 @@ test('leaves every rule with no declared anchor on its first label', () => {
 })
 
 test('anchors on the declared label wherever oxlint puts it in the array', () => {
-  // Label order is not sorted by offset in oxlint's own output (`no-duplicate-imports` emits
-  // 4:40 before 3:31), so matching on the text rather than on an index is what keeps a reordering
-  // upstream from silently moving a finding.
   const reversed = JSON.parse(MULTI_LABEL) as { diagnostics: Array<{ labels: unknown[] }> }
   reversed.diagnostics[0]!.labels.reverse()
   expect(parseOxlintOutput(JSON.stringify(reversed), '/repo')[0]?.range).toEqual({ start: 93, end: 104 })

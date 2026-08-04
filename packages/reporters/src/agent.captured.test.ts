@@ -2,30 +2,6 @@ import { expect, test } from 'vitest'
 import type { CheckResult, Diagnostic } from '@misaon/slop-gate-core'
 import { createReporter } from './index.ts'
 
-/**
- * Real findings, captured verbatim from `sgate check --format json --no-cache` run against this
- * repository at commit 412575d — a subset covering every concept that run produced, with the
- * complete `correctness.no-useless-spread` set kept intact because that is the whole of the
- * automated side and the thing these tests exist to pin.
- *
- * Captured rather than synthesised because the split this file asserts is only interesting if the
- * diagnostics are ones the pipeline really emits: the `slop-gate/config.*` rule ids that have no
- * `RuleEntry` at all, the generated concepts whose descriptions are boilerplate, and the one rule
- * in the repository that the registry declares fixable — and declares fixable at `unsafe`, so the
- * agent has to be told which flag it needs. A hand-written fixture would have had a `safe` fix in
- * it, which no rule this repository triggers actually has.
- *
- * The cross-check the split is measured against, run at the same commit:
- *
- *     $ sgate fix --dry-run --unsafe
- *     sgate fix would change 3 files (3 edits, tier `unsafe`):
- *       packages/cli/src/engine-registry.ts — 1 edit
- *       packages/core/src/frameworks/detect.test.ts — 1 edit
- *       packages/engine-knip/src/index.ts — 1 edit
- *     Rules applied:
- *       oxlint/unicorn/no-useless-spread — 3
- *     65 findings on the first pass; fixable: 0 safe, 0 suggested, 3 unsafe.
- */
 const CAPTURED: readonly Diagnostic[] = [
   {
     concept: 'correctness.no-useless-spread',
@@ -231,10 +207,6 @@ test('the automated side is exactly what `sgate fix --unsafe` applies, and names
   expect(automated).toContain('Run: `sgate fix --unsafe`')
   for (const file of AUTOMATED_FILES) expect(automated).toContain(file)
 
-  // The other five concepts the run produced are all `fixKind: 'none'` (three oxlint rules) or have
-  // no registry entry at all (the two `slop-gate/config.*` ones slop-gate emits itself). Asserted as
-  // absence from the automated section rather than presence in the judgement one, because the
-  // failure that matters is a finding wrongly promised to `sgate fix`.
   for (const concept of [
     'correctness.vitest-no-conditional-expect',
     'correctness.vitest-require-to-throw-message',
@@ -248,10 +220,6 @@ test('the automated side is exactly what `sgate fix --unsafe` applies, and names
 })
 
 test('a concept slop-gate emits itself lands on the judgement side rather than being dropped', () => {
-  // `slop-gate/config.unused-suppression` has no `RuleEntry`, so a tier lookup returns nothing. The
-  // failure this guards against is treating "no entry" as "unknown, skip it": these are three of the
-  // largest finding groups on a real run of this repository, and losing them silently would be the
-  // exact class of bug this reporter exists to prevent.
   const judgement = sectionOf(report(), '## judgement')
   expect(judgement).toContain('rule: slop-gate/config.unused-suppression')
   expect(judgement).toContain('3 findings in 1 file')
@@ -272,13 +240,6 @@ test('every concept a real run produces states why it matters', () => {
   const output = report()
 
   expect(output).toContain('why: A suppression comment that matches no diagnostic, left behind after a fix.')
-  // `correctness.no-useless-spread` used to be the counter-example here: the registry generator named
-  // it *and* described it ("Generated from oxlint's `unicorn/no-useless-spread` rule..."), which
-  // restates the rule name instead of giving a reason, so the reporter dropped its `why:` line and
-  // fell back to the third-party docs URL. It now has a rationale (concepts/curated.ts), as does
-  // every other concept in this capture — which is why the note explaining an absent `why:` is
-  // itself absent. That note is asserted on a synthetic run in `agent.test.ts`; asserting it here
-  // would mean keeping one real concept deliberately unexplained to have something to point at.
   expect(output).not.toContain('Generated from')
   expect(output).not.toContain('`why:` appears only where')
   expect(output).toContain('why: Spreading a literal into a literal of the same kind')

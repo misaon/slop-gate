@@ -7,23 +7,6 @@ const decoder = new TextDecoder()
 export const encodeUtf8 = (text: string): Uint8Array => encoder.encode(text)
 export const decodeUtf8 = (bytes: Uint8Array): string => decoder.decode(bytes)
 
-/**
- * Spec §11 step 3: apply an arbitrated edit set in reverse offset order into an in-memory buffer.
- *
- * **The buffer is bytes, not a string, and that is the whole point of this function.** Engine ranges are
- * byte offsets into the file's UTF-8 encoding (spec §10) while a JavaScript string indexes UTF-16 code
- * units, so `source.slice(start, end)` is correct only for pure ASCII and silently mangles every other
- * file, further off the further in the finding is. Splicing `Uint8Array`s never converts the file at all;
- * only the replacement text is encoded.
- *
- * Reverse order lets every edit keep the offsets it was derived with, so a pass never rebases — and it
- * means the caller's edits must all come from *one* version of the buffer, which is why the fix loop
- * re-runs the engines between passes rather than reusing a previous pass's ranges.
- *
- * Both invariants `arbitrateEdits` already guarantees — in range, non-overlapping — are re-asserted here
- * and **throw rather than being repaired**. This is the last thing between an engine's arithmetic and the
- * user's source file: clamping or reordering would write bytes nobody chose while reporting success.
- */
 export function applyEdits(buffer: Uint8Array, edits: readonly CandidateEdit[]): Uint8Array {
   if (edits.length === 0) return buffer
 

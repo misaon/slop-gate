@@ -34,8 +34,6 @@ test('maps a finding onto its byte range', () => {
 })
 
 test('counts columns in codepoints, not UTF-16 code units', () => {
-  // The astral case the whole `offsetAtCodepointColumn` split exists for. Biome reports column 25
-  // here; a UTF-16 reading of 25 would land three codepoints early, inside the emoji run.
   const source = '/* 😀😀😀 */ a { color: red; color: blue; }\n'
   const expected = new TextEncoder().encode('/* 😀😀😀 */ a { color: red; ').length
   const column = [...'/* 😀😀😀 */ a { color: red; '].length + 1
@@ -57,9 +55,6 @@ test('carries the advice text as help when there is one', () => {
 })
 
 test('rejects a finding under a rule this run did not enable', () => {
-  // Biome publishes no `number_of_rules`, so this is the only guard against a rule leaking in from a
-  // preset key or an upgrade — the failure oxlint catches by counting. `noHexColors` is a real
-  // registry entry, so this is specifically about the *selection*, not the vocabulary.
   expect(() =>
     parseBiomeOutput(payload([finding({ category: 'lint/style/noHexColors' })]), { read, enabled, expectedFileCount: 1 }),
   ).toThrow(EngineError)
@@ -69,8 +64,6 @@ test('rejects a finding under a rule this run did not enable', () => {
 })
 
 test('fails when Biome reports fewer files than the batch contained', () => {
-  // A file over `files.maxSize` is skipped with `summary.skipped` still 0 and a warning whose message
-  // is the empty string. `unchanged` is the only counter that moves, so it is the only usable guard.
   expect(() => parseBiomeOutput(payload([], 3), { read, enabled, expectedFileCount: 4 })).toThrow(/4 file\(s\), biome checked 3/)
 })
 
@@ -96,8 +89,6 @@ test('collapses a file’s parse errors into one not-analysed finding', () => {
 })
 
 test('discards lint findings from a file that failed to parse', () => {
-  // Biome recovers from a parse error and keeps linting the partial tree — 986 findings came out of
-  // the 26 unparseable files in the corpus. They describe a document Biome could not fully read.
   const parseError = { severity: 'error', message: 'Unexpected value or character.', category: 'parse', location: { path: 'a.css', start: { line: 1, column: 1 }, end: { line: 1, column: 2 } }, advices: [] }
   const diagnostics = parseBiomeOutput(payload([parseError, finding()]), { read, enabled, expectedFileCount: 1 })
   expect(diagnostics.map((d) => d.engineRuleId)).toEqual([CSS_PARSE_ERROR_RULE_ID])

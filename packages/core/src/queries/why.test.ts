@@ -67,16 +67,12 @@ test('reports a concept no layer enables, even when a registry entry could serve
   expect(explanation.enablement.enabled).toBe(false)
   expect(explanation.candidates).toHaveLength(1)
   expect(explanation.ownership).toEqual([])
-  // Never enabled, so arbitration never ran for it — no owner, no overlap, not ineligible,
-  // not uncovered. The whole story is `enablement.enabled === false`.
   expect(explanation.overlaps).toEqual([])
   expect(explanation.ineligible).toEqual([])
   expect(explanation.uncovered).toBe(false)
 })
 
 test('reports the owner and an ineligible non-participating candidate — the real eslint/oxlint case', () => {
-  // Mirrors the registry's own shipped `dead-code.unused-variable` overlap (entries.uncatalogued.ts):
-  // both an oxlint and an eslint entry declare it, only oxlint actually participates in a real run.
   const entries = [
     entry({ engine: 'oxlint', engineRuleId: 'no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 0 }),
     entry({ engine: 'eslint', engineRuleId: '@typescript-eslint/no-unused-vars', concepts: ['dead-code.unused-variable'], tier: 2 }),

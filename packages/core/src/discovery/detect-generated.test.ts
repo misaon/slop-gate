@@ -25,10 +25,6 @@ test.each([
   expect(isGeneratedPath(path)).toBe(false)
 })
 
-/**
- * The carve-out below has an exception, and this is it: a marker anywhere in the name wins over the
- * `.d.ts` rule, because `types.gen.d.ts` says what it is in as many words.
- */
 test('a declaration file that also carries a marker is still generated', () => {
   expect(isGeneratedPath('src/client/types.gen.d.ts')).toBe(true)
 })

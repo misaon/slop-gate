@@ -44,10 +44,6 @@ test('a path containing a space survives the porcelain parse', async () => {
   expect(result).toEqual({ state: 'dirty', changed: ['src/my file.ts'] })
 })
 
-// Untracked files are deliberately not dirt: `sgate fix` never creates a file, and a build output or
-// a scratch note sitting in the tree is not a reason to refuse. What the rail protects is the user's
-// ability to `git diff` the tool's own edits apart from their own, and an untracked file cannot be
-// confused with an edit to a tracked one.
 test('untracked files alone do not make the worktree dirty', async () => {
   const result = await inspectWorktree('/repo', {
     run: runner({

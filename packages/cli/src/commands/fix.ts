@@ -5,11 +5,6 @@ import { defaultEngines } from '../engine-registry.ts'
 import { EXIT_CODES } from '../exit-codes.ts'
 import { resolveRootDir } from '../root-dir.ts'
 
-/**
- * `sgate fix` — spec §11. The only command in this CLI that writes to the user's source, which is why every rail
- * lives below `runFix` in core (testable without a terminal) and this file only translates flags in and a
- * summary out.
- */
 export const fix = defineCommand({
   meta: { name: 'fix', description: 'Apply the fixes slop-gate can apply safely' },
   args: {
@@ -21,8 +16,6 @@ export const fix = defineCommand({
   },
   async run({ args }) {
     const rootDir = resolveRootDir(args.cwd)
-    // `--unsafe` implies `--suggest`: the tiers are cumulative (`FIX_TIER_RANK`), so asking for the
-    // highest and getting only the highest would be a surprising reading of "also apply unsafe".
     const tier: FixTier = args.unsafe ? 'unsafe' : args.suggest ? 'suggested' : 'safe'
 
     const loaded = await loadCliConfig(rootDir, DEFAULT_CONFIG)
@@ -58,13 +51,6 @@ export const fix = defineCommand({
   },
 })
 
-/**
- * Exit codes reuse `check`'s vocabulary rather than inventing a second one. A refusal is `config` (2) — the run
- * never happened and nothing was written, the same shape as an unusable configuration — except `engine-failed`,
- * which keeps `check`'s own `engine` (3). An oscillation is `findings` (1): a real, actionable diagnostic. A
- * successful fix run exits 0 even though it changed files, because the changes are the point; a CI job that
- * wants "nothing needed fixing" runs `sgate check` afterwards.
- */
 export function fixExitCode(result: FixResult): number {
   if (result.refusal !== undefined) {
     return result.refusal.reason === 'engine-failed' ? EXIT_CODES.engine : EXIT_CODES.config
@@ -72,15 +58,8 @@ export function fixExitCode(result: FixResult): number {
   return result.oscillations.length > 0 ? EXIT_CODES.findings : EXIT_CODES.clean
 }
 
-/** `suffix` is explicit because `pass` pluralises to `passes`, and `passs` did ship once. */
 const plural = (count: number, noun: string, suffix = 's'): string => `${count} ${noun}${count === 1 ? '' : suffix}`
 
-/**
- * The summary spec §11 requires on every run ("a summary of files changed and rules applied is always
- * printed"), plus the diff when `--dry-run` asked for one. Plain text, no colour and no framing, unlike the
- * `pretty` reporter: a `--dry-run` diff has to stay pipeable into `git apply`, and a framed box around a unified
- * diff would break that.
- */
 export function renderFixSummary(result: FixResult): string {
   const lines: string[] = []
 
@@ -105,8 +84,6 @@ export function renderFixSummary(result: FixResult): string {
     for (const rule of result.rules) lines.push(`  ${rule.ruleRefKey} — ${rule.count}`)
   }
 
-  // Always reported, including on a clean run: "0 of 65 findings are fixable here" is the answer to "why did
-  // nothing happen", so printing it only when something did would withhold it exactly when it is asked for.
   const { safe, suggested, unsafe } = result.initial.withFix
   lines.push('')
   lines.push(
@@ -138,9 +115,6 @@ export function renderFixSummary(result: FixResult): string {
     )
   }
 
-  // Spec §11 step 6 does not exist: no formatter engine owns `formatting.*` yet, so nothing here guarantees a fix
-  // left formatting the repository's own formatter would accept. Said on every run that changed something,
-  // because a user who does not know will find out from a noisy diff.
   if (result.files.length > 0) {
     lines.push('')
     lines.push('Formatting is not run afterwards (no formatter engine exists yet) — run yours before committing.')

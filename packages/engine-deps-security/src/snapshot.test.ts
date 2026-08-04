@@ -64,8 +64,6 @@ describe('advisorySnapshotDir', () => {
     )
   })
 
-  /** Format-scoped, like `actionlintCacheDir` is version-scoped: an older build must never read a
-   *  snapshot written in a shape it does not understand, and the path is what enforces it. */
   it('scopes the cache path by format version', () => {
     expect(advisorySnapshotDir({ env: { [CACHE_DIR_ENV]: '/cache' } })).toContain(version)
   })
@@ -86,12 +84,6 @@ describe('readSnapshotManifest', () => {
     expect(readSnapshotManifest(join(dir, 'absent'))).toBeUndefined()
   })
 
-  /**
-   * Every malformed case resolves to "not installed" rather than an exception, because the caller is
-   * `availability()` and `sgate rules why` calls that. An explain-only command must not fail because
-   * a cache is corrupt — it should report the same coverage gap an empty cache produces, naming the
-   * command that fixes it.
-   */
   it.each([
     ['truncated JSON', '{ "formatVersion": 1'],
     ['a manifest from another format version', JSON.stringify({ ...valid, formatVersion: 99 })],
@@ -113,8 +105,6 @@ describe('snapshotAgeInDays', () => {
     expect(snapshotAgeInDays(valid, new Date('2026-07-01T00:00:00.000Z'))).toBe(0)
   })
 
-  /** An unreadable date is treated as infinitely old, not as fresh. The failure has to fall on the
-   *  side that says less rather than the side that implies a check happened. */
   it('treats an unparseable date as maximally stale', () => {
     expect(snapshotAgeInDays({ ...valid, fetchedAt: 'not a date' })).toBe(Number.POSITIVE_INFINITY)
   })
@@ -136,11 +126,6 @@ describe('stalenessBand', () => {
 })
 
 describe('describeStaleness', () => {
-  /**
-   * The requirement is not that a message exists but that it changes. A line reading identically at
-   * ten days and two hundred is a line people stop reading, which turns the one honest signal about
-   * a decaying security check into wallpaper.
-   */
   it('says something different in every band', () => {
     const messages = [10, 45, 200].map(describeStaleness)
     expect(new Set(messages).size).toBe(3)

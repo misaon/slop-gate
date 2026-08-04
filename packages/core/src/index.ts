@@ -22,11 +22,6 @@ export { ConfigError, EngineError } from './errors.ts'
 
 export { ENGINE_PREFERENCE, ruleRefKey, type EngineId, type RuleEntry, type RuleRef } from './registry/types.ts'
 export { RULE_ENTRIES } from './registry/entries.ts'
-/**
- * `IneligibilityReason`, `OverlapReason` and `EngineCacheStats` (below) have no importer, and stay
- * anyway: each names a field of a type a caller receives. Dropping them would leave a consumer able
- * to read `result.stats.cacheByEngine` but not to name its element except as an indexed access.
- */
 export type {
   ConceptOwnership,
   IneligibilityReason,
@@ -68,7 +63,6 @@ export { detectLanguage } from './discovery/language.ts'
 export { buildWorkspaceGraph } from './discovery/workspaces.ts'
 export { createWalkFileSource } from './discovery/inventory.ts'
 
-// --- Framework awareness (spec §23): one detection pass, two consumers ---------------------------
 export { engineAdjustmentsFor, settingValues, settingValuesFor } from './frameworks/adjustments.ts'
 export { detectFrameworks } from './frameworks/detect.ts'
 export type { EngineSettings, FrameworkEvidence } from './frameworks/types.ts'
@@ -94,14 +88,12 @@ export { runCheck, streamCheck, type CheckEvent, type CheckResult, type EngineCa
 export type { MeasuredPhase, TimingReport } from './run/timing.ts'
 export { resolveRun, type ResolvedRun, type UnavailableEngine } from './run/resolve-run.ts'
 
-// --- `sgate fix` (spec §11) ----------------------------------------------------------------------
 export { runFix, type FixResult } from './run/fix.ts'
 export { FIX_TIER_RANK, type CandidateEdit, type FixTier } from './fix/types.ts'
 export { applyEdits, decodeUtf8, encodeUtf8 } from './fix/apply.ts'
 export { unifiedDiff } from './fix/diff.ts'
 export { editsFromRewrite } from './fix/derive.ts'
 
-// --- `sgate rules` subcommands, one answer each ---------------------------------------------------
 export { wasEnabledBeforeBeingDisabled, type ConceptEnablement, type OverrideMention } from './queries/enablement.ts'
 export { explainConcept, type ConceptWhy } from './queries/why.ts'
 export { buildRulesList, type RulesListEntry, type RulesListOptions } from './queries/list.ts'

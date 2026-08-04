@@ -6,8 +6,6 @@ import { applyEdits, decodeUtf8, encodeUtf8, type CandidateEdit, type FixTarget,
 import { deriveOxlintFixes, loadFixCatalogue } from './derive-fixes.ts'
 import { resolveOxlintBinary } from './resolve-binary.ts'
 
-// Non-null because every test here spawns the real bundled oxlint: an unresolvable one is a broken
-// install of this package, which no assertion below could say anything useful about.
 const invocation = resolveOxlintBinary()!
 let dir: string
 
@@ -41,7 +39,6 @@ test('the live catalogue reports a fix value for every rule it lists', async () 
   const catalogue = await loadFixCatalogue(invocation)
 
   expect(catalogue.size).toBeGreaterThan(500)
-  // Keyed exactly as an oxlint config keys `rules`: bare for eslint, `scope/rule` for a plugin.
   expect(catalogue.get('prefer-const')).toBeDefined()
   expect(catalogue.get('unicorn/no-useless-spread')).toBeDefined()
   expect(catalogue.get('eslint/prefer-const')).toBeUndefined()
@@ -61,15 +58,10 @@ test('a real safe fix is derived from the real binary and reproduces oxlint own 
   expect(derived).toHaveLength(1)
   expect(derived[0]?.engineRuleId).toBe('prefer-const')
   expect(await applyDerived('a.ts', derived[0]!.edits)).toBe('const z = 3\nexport { z }\n')
-  // The user's file is only read, never written, by the derivation itself.
   expect(await readFile(join(dir, 'a.ts'), 'utf8')).toBe('let z = 3\nexport { z }\n')
 })
 
 test('the derivation runs the rule at the options the check run used, not at oxlint\'s defaults', async () => {
-  // Against the real binary, because this is the whole reason the selection reaches `deriveFixes` at
-  // all. `eqeqeq` under its default `always` rewrites both comparisons; under `smart` it exempts the
-  // `== null` one — which is exactly the finding a check configured with `smart` never showed the user.
-  // Derive with an empty selection and the first edit reappears, applying a fix for a finding nobody saw.
   await writeFile(join(dir, 'a.ts'), 'export const f = (a: unknown, b: unknown) => a == null || a == b\n')
 
   const strict = await deriveOxlintFixes({
@@ -95,9 +87,6 @@ test('the derivation runs the rule at the options the check run used, not at oxl
   )
 })
 
-// `unicorn/no-useless-spread` is `fixable_dangerous_fix` in the catalogue, so it needs
-// `--fix-dangerously`; `--fix` happens to apply it too, but `--fix-suggestions` does not. Choosing
-// the flag from the catalogue value rather than from the requested tier is what makes this work.
 test('a dangerous fix is derived using the flag its catalogue entry calls for', async () => {
   await writeFile(join(dir, 'a.ts'), 'const copy = [...[1, 2, 3]]\nexport { copy }\n')
 
@@ -112,12 +101,6 @@ test('a dangerous fix is derived using the flag its catalogue entry calls for', 
   expect(await applyDerived('a.ts', derived[0]!.edits)).toBe('const copy = [1, 2, 3]\nexport { copy }\n')
 })
 
-// The other half of the flag choice, and the one that pins its *order*. `unicorn/no-new-array` is
-// `fixable_dangerous_suggestion` — a rule whose only fix data is a dangerous suggestion, of which the
-// catalogue holds three. Measured against oxlint 1.76.0 on `const x = new Array(5)`: `--fix` leaves it
-// alone, `--fix-suggestions` leaves it alone, only `--fix-dangerously` rewrites it. So `flagFor` must
-// keep testing `dangerous` before `suggestion`; reversed, this rule derives nothing at all, which the
-// pipeline cannot tell apart from "this rule has no fix".
 test('a rule whose only fix data is a dangerous suggestion is still derived', async () => {
   await writeFile(join(dir, 'a.ts'), 'const x = new Array(5)\nexport { x }\n')
 
@@ -144,7 +127,6 @@ test('two occurrences of one rule in a file become two separate edits, not one s
     signal: new AbortController().signal,
   })
 
-  // One edit per occurrence is what lets another rule's edit between them survive arbitration.
   expect(derived[0]!.edits.length).toBe(2)
   expect(await applyDerived('a.ts', derived[0]!.edits)).toBe(
     'const a = 1\nconst spacer = 2\nconst b = 3\nexport { a, b, spacer }\n',
@@ -236,8 +218,6 @@ test('two rules over the same file are derived independently, each attributed to
   })
 
   expect(derived.map((d) => d.engineRuleId).sort()).toEqual(['prefer-const', 'unicorn/no-useless-spread'])
-  // Each rule's edits are derived against the *original* buffer, so neither has seen the other's
-  // rewrite — which is exactly what makes them arbitrable against each other in one pass.
   for (const one of derived) {
     for (const edit of one.edits) {
       expect(edit.range.end).toBeLessThanOrEqual(encodeUtf8(await readFile(join(dir, 'a.ts'), 'utf8')).length)

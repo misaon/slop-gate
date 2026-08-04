@@ -14,7 +14,6 @@ test('reads a value the file sets itself', async () => {
   })
 })
 
-/** The measured monorepo shape: a leaf app reaching the value two levels up. */
 test('follows extends two levels up to the file that actually sets jsx', async () => {
   const result = await resolveJsx(
     'apps/web/tsconfig.json',
@@ -129,9 +128,6 @@ test('ends rather than hangs on a cycle', async () => {
 })
 
 test('resolves jsxImportSource through the same extends chain as jsx', async () => {
-  // Resolved independently of `jsx`: TypeScript inherits each compiler option on its own, and the
-  // measured shape (`solidjs/solid-start`) writes both in the same file while `honojs/hono` reaches
-  // its base config for everything else.
   const result = await resolveJsxImportSource(
     'apps/site/tsconfig.json',
     from({
@@ -157,10 +153,6 @@ test('reports a jsxImportSource chain it cannot follow rather than calling it em
 })
 
 test('scopes a config to its own include patterns, cut back to their literal prefix', async () => {
-  // `include` is what makes the difference between "this config governs the repository" and "this
-  // config governs `src/`" — and on `honojs/hono` that is the difference between standing down and
-  // turning the rule off for 2 053 findings. The trailing glob is added because a bare `"src"` entry
-  // means the directory's contents, which picomatch would not match on its own.
   expect(await resolveIncludeScope('tsconfig.spec.json', from({
     'tsconfig.spec.json': JSON.stringify({ include: ['src', 'src/middleware/keys.test.json'] }),
   }))).toEqual(['src/**'])
@@ -179,8 +171,6 @@ test('resolves include patterns relative to the config, not the repository root'
 })
 
 test('an include list that is not plain string literals falls back to the whole directory', async () => {
-  // Same standing-down instinct as everywhere else here: a scope that cannot be read is not narrowed
-  // on a guess, it widens to the directory, which is the cautious direction for a disable.
   expect(await resolveIncludeScope('packages/ui/tsconfig.json', from({
     'packages/ui/tsconfig.json': '{ "include": [1, 2] }',
   }))).toEqual(['packages/ui/**'])

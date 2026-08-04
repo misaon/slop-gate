@@ -19,12 +19,6 @@ const TSCONFIG = JSON.stringify({
   compilerOptions: { strict: true, noEmit: true, module: 'nodenext', moduleResolution: 'nodenext', target: 'es2022' },
 })
 
-// `typescript` is a *peer* dependency (see resolve-binary.ts): `createTscEngine({ rootDir })`
-// resolves it by walking up from `rootDir` through real ancestor `node_modules` directories, the same
-// way Node itself would. A fixture under `os.tmpdir()` shares no ancestor with this repo at all, so
-// that walk would never reach this workspace's own hoisted `typescript` — these fixtures live inside
-// the package instead (gitignored: `.test-tmp/`), which is what lets every test below exercise the
-// real, installed `typescript` binary rather than an injected stub.
 const fixturesRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '.test-tmp')
 
 beforeEach(async () => {
@@ -47,7 +41,6 @@ test('declares project granularity and ts/tsx languages', () => {
   const engine = createTscEngine({ rootDir: dir })
   expect(engine.capabilities.granularity).toBe('project')
   expect(engine.capabilities.languages).toEqual(['ts', 'tsx'])
-  // Deliberately not ['types'] — see the long comment on the tsc registry entry for why.
   expect(engine.capabilities.provides).toEqual([])
   expect(engine.id).toBe('tsc')
 })
@@ -58,7 +51,6 @@ test('materializeConfig returns the tsconfig path itself as handle.path, writing
 
   expect(handle.path).toBe(join(dir, 'tsconfig.json'))
   await handle.dispose()
-  // dispose() must not have deleted the user's own tsconfig.
   await expect(access(handle.path)).resolves.toBeUndefined()
 })
 
@@ -78,11 +70,6 @@ test('materializeConfig produces the same rulesetHash for identical inputs, a di
 })
 
 test('materializeConfig reads the level out of the setting and ignores the options half', async () => {
-  // This adapter has no enablement comparison to invert — `buildPlan` has already dropped an off rule,
-  // and `run` shells out to `tsc -p` regardless — so the failure the widened setting invites here is
-  // the cache one: hashing the whole setting would make `['error', …]` a different ruleset from
-  // `['error']` and re-check a whole program for a value this adapter never reads. `type-error` has no
-  // options grammar; what `tsc` reports is decided by the tsconfig, which is hashed separately.
   const engine = createTscEngine({ rootDir: dir })
   const bare = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
   const withOptions = await engine.materializeConfig(new Map([['type-error', ['error', { probe: true }] as const]]), context)
@@ -112,9 +99,6 @@ test('finds a real type error in a real file', async () => {
 }, 60_000)
 
 test('run() ignores the batch argument: tsc checks whatever the tsconfig itself declares', async () => {
-  // The defining behaviour of project granularity: passing an *empty* batch must not stop tsc from
-  // finding a real error elsewhere in the tsconfig-defined program — `-p` mode does not take file
-  // arguments at all (confirmed directly: mixing them is a hard `tsc` error, TS5042).
   await writeFile(join(dir, 'src/a.ts'), 'export const a: number = "bad"\n')
   const engine = createTscEngine({ rootDir: dir })
   const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
@@ -148,8 +132,6 @@ test('surfaces a genuine syntax error', async () => {
 }, 60_000)
 
 test('a missing tsconfig is a coverage gap, and a run over no projects yields nothing rather than throwing', async () => {
-  // It used to raise TS5058 from tsc itself. A repository with nothing to typecheck has not failed, and
-  // `availability()` is where that is said aloud — the planner reads it and never reaches `run()`.
   await rm(join(dir, 'tsconfig.json'))
   const engine = createTscEngine({ rootDir: dir })
 
@@ -184,7 +166,6 @@ test('writes --incremental build info under cacheDir/tsc, never inside the analy
   const tscCacheFiles = await readdir(join(cacheDir, 'tsc'))
   expect(tscCacheFiles.some((name) => name.endsWith('.tsbuildinfo'))).toBe(true)
 
-  // Nothing named *.tsbuildinfo leaked into the project's own directories.
   const projectRootFiles = await readdir(dir)
   expect(projectRootFiles.some((name) => name.endsWith('.tsbuildinfo'))).toBe(false)
   const srcFiles = await readdir(join(dir, 'src'))
@@ -228,15 +209,6 @@ test('honours an explicit tsconfigPath when deciding availability', async () => 
 })
 
 test('is a coverage gap, not a crash, when the project has no typescript of its own to run', async () => {
-  // The Windows-only CI failure that found this, reproduced deterministically on every platform.
-  // A directory under `os.tmpdir()` has no `node_modules` anywhere above it on any OS, so Node's
-  // resolution cannot reach a `typescript` — which is precisely the condition every one of these
-  // fixtures would be in if they did not deliberately live inside this package (see `fixturesRoot`).
-  //
-  // Historically `resolveScriptBin` handed back a bare-`tsc`-on-PATH fallback here and
-  // `availability()` said yes on the strength of the tsconfig alone. `run()` then spawned a command
-  // that a POSIX CI runner happens to have on PATH and a Windows one can never execute by bare name:
-  // `spawn tsc ENOENT`, an EngineError, which `resolveExitCode` maps to exit 3 and fails the run.
   const detached = await mkdtemp(join(tmpdir(), 'sgate-tsc-no-typescript-'))
   try {
     await writeFile(join(detached, 'tsconfig.json'), TSCONFIG)
@@ -253,10 +225,6 @@ test('is a coverage gap, not a crash, when the project has no typescript of its 
 })
 
 test('every entry point refuses, not just the availability probe', async () => {
-  // `availability()` is advice: `resolve-run.ts` honours it, and a caller constructing the engine
-  // directly does not have to. Before the resolver stopped substituting a bare `tsc`, that caller got
-  // the machine's TypeScript version reported back with no indication anything was wrong — the run
-  // looked successful. Both methods that reach the binary now say what is missing instead.
   const detached = await mkdtemp(join(tmpdir(), 'sgate-tsc-refuses-'))
   try {
     await writeFile(join(detached, 'tsconfig.json'), TSCONFIG)
@@ -269,26 +237,16 @@ test('every entry point refuses, not just the availability probe', async () => {
 })
 
 test('a resolvable typescript plus a tsconfig is what makes it available — both, not either', async () => {
-  // `dir` lives under `.test-tmp/` inside this package, so the workspace's hoisted `typescript` is
-  // reachable from it; the tsconfig is written by `beforeEach`. Removing either precondition alone
-  // must be enough to stand the engine down.
   expect(await createTscEngine({ rootDir: dir }).availability?.()).toEqual({ available: true })
 
   await rm(join(dir, 'tsconfig.json'))
   expect(await createTscEngine({ rootDir: dir }).availability?.()).toMatchObject({ available: false })
 })
 
-/**
- * A monorepo root that only lists its projects. `tsc -p` reads no source there, so "available, 0 findings"
- * would be a clean bill of health over zero files — measured on a real repository before this check existed.
- */
 test('reports a coverage gap when a solution tsconfig references nothing that exists', async () => {
   const solutionDir = await mkdtemp(join(tmpdir(), 'sgate-tsc-solution-'))
   try {
-    // References that resolve to nothing leave no projects, and an empty project set is the gap.
     await writeFile(join(solutionDir, 'tsconfig.json'), JSON.stringify({ files: [], references: [{ path: 'packages/a' }] }))
-    // rootDir stays this repository so `typescript` resolves — the gap under test is the project set,
-    // and the engine checks for a compiler first.
     const engine = createTscEngine({ rootDir: process.cwd(), tsconfigPath: join(solutionDir, 'tsconfig.json') })
 
     const availability = await engine.availability?.()
@@ -313,10 +271,6 @@ test('stays available for a tsconfig that declares its own inputs alongside refe
 })
 
 test('typechecks every package of a workspace with no root project of its own', async () => {
-  // The shape three of four real monorepos have: no root tsconfig, one per package. Before project
-  // discovery this repository was reported as having nothing to typecheck, and the error below went unseen.
-  // Under `fixturesRoot`, not `os.tmpdir()`, for the reason the comment there gives: the peer-dependency
-  // walk has to reach this workspace's own `typescript`.
   const repo = await mkdtemp(join(fixturesRoot, 'workspace-'))
   try {
     await writeFile(join(repo, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n")
@@ -339,8 +293,6 @@ test('typechecks every package of a workspace with no root project of its own', 
     const found = await collect(engine.run({ files: [] }, handle, { rootDir: repo, tmpDir: join(repo, '.cache') }, AbortSignal.timeout(120_000)))
     await handle.dispose()
 
-    // A literal POSIX path, not `join`: `parseTscOutput` runs every file through `toRepoRelative`, so the
-    // separator is `/` on Windows too — composing the expectation with `join` is what broke this on CI.
     expect(found.map((d) => d.file)).toEqual(['packages/broken/src/index.ts'])
     expect(found[0]?.message).toContain('not assignable')
   } finally {

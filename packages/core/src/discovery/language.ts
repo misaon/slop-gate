@@ -30,10 +30,8 @@ const BY_EXTENSION: Readonly<Record<string, LanguageId>> = {
   dockerfile: 'dockerfile',
 }
 
-/** Files whose name, not extension, decides the language. */
 const JSONC_BASENAMES = new Set(['tsconfig.json', 'jsconfig.json', '.oxlintrc.json', 'biome.json'])
 
-/** `tsconfig.build.json`, `jsconfig.app.json` — the project-references naming convention. */
 const JSONC_PATTERN = /^(?:tsconfig|jsconfig)\..+\.json$/
 
 const WORKFLOW_PATTERN = /^\.github\/workflows\/[^/]+\.ya?ml$/

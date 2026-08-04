@@ -27,8 +27,6 @@ const result = (over: Partial<FixResult> = {}): FixResult => ({
   ...over,
 })
 
-// --- Summary rendering ---------------------------------------------------------------------
-
 test('a refusal prints only the refusal, never a summary implying a run happened', () => {
   const output = renderFixSummary(
     result({ refusal: { reason: 'dirty-worktree', message: 'The git worktree has uncommitted changes.' } }),
@@ -118,8 +116,6 @@ test('a truncated real run tells the user to run again', () => {
   expect(output).toContain('Stopped after 10 passes without reaching a fixed point')
 })
 
-// --- Exit codes ----------------------------------------------------------------------------
-
 test('a clean fix run exits 0 even though it changed files', () => {
   expect(fixExitCode(result({ files: [{ file: 'a.ts', rules: [], edits: 1, diff: '' }] }))).toBe(EXIT_CODES.clean)
 })
@@ -133,8 +129,6 @@ test('a refusal exits with the config code, and an engine failure with the engin
 test('an oscillation exits with the findings code', () => {
   expect(fixExitCode(result({ oscillations: [{ concept: 'config.fix-oscillation' } as never] }))).toBe(EXIT_CODES.findings)
 })
-
-// --- The real command over a real repository -------------------------------------------------
 
 beforeEach(async () => {
   originalExitCode = process.exitCode

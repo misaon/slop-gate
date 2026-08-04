@@ -1,16 +1,6 @@
 import { expect, test } from 'vitest'
 import { parseSuppressions } from './parse.ts'
 
-/**
- * The three directive tokens, spliced rather than written whole — the same idiom, for the same
- * reason, as `reporters/src/agent.ts`. `parseSuppressions` scans raw text with no notion of comments
- * or string literals, so a file that spells a token out verbatim *is* carrying that directive; a file
- * whose entire job is to feed directive text to the parser as input data would carry twenty of them,
- * every one reported as `config.unused-suppression` against this repository. Only the source text is
- * broken: each value below is byte-for-byte the real token, which is the point — these tests must
- * exercise the parser on exactly what a user writes, never on a lookalike. Every fixture in this file
- * is built from these, negative ones included, so the literal token appears nowhere below.
- */
 const NEXT_LINE = `sgate-disable${'-next-line'}`
 const LINE = `sgate-disable${'-line'}`
 const FILE = `sgate-disable${'-file'}`
@@ -129,8 +119,6 @@ test('does not match the token embedded in a longer identifier', () => {
 })
 
 test('does not match a near-miss suffix', () => {
-  // `next-line` requires a word boundary right after it; `next-lines` fails that boundary check
-  // and must not be misread as `disable-next-line`.
   expect(parseSuppressions(`// ${NEXT_LINE}s\n`)).toEqual([])
 })
 
@@ -144,11 +132,6 @@ test('two directives on the same line each get their own scope, not a merged one
 })
 
 test('text between two directives on one line leaks into the first reason — a known consequence of not parsing comment syntax', () => {
-  // The first directive's "rest of line" runs up to the *second directive's own match*, not to any
-  // comment boundary in between (there is no comment-boundary concept at all) — so a block
-  // comment's closer and the next one's opener are just more characters of the first directive's
-  // reason. Documented here for the same reason the string-literal test above is: so the behaviour
-  // is a pinned, intentional trade-off, not a silent surprise.
   const source = `/* ${LINE} a.one -- first */ /* ${LINE} a.two -- second */\n`
   const [first, second] = parseSuppressions(source)
   expect(first?.reason).toBe('first */ /*')
@@ -156,10 +139,6 @@ test('text between two directives on one line leaks into the first reason — a 
 })
 
 test('matches the token inside a string literal — a documented cost, not a bug', () => {
-  // Whole-line token scanning does not distinguish a real comment from a string literal containing
-  // the same text. This assertion is where that cost is now evidenced: it used to be evidenced by
-  // the phantom findings this file itself produced, which is a worse form of proof — noise nobody
-  // can tell from a regression, in every measurement taken against this repository.
   const [directive] = parseSuppressions(`const s = "${NEXT_LINE} a.one -- reason"\n`)
   expect(directive?.targets).toEqual(['a.one'])
 })

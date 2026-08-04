@@ -7,27 +7,8 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
 import { RULE_ENTRIES, createWalkFileSource, runCheck } from '@misaon/slop-gate-core'
 import { ACTIONLINT_PATH_ENV, CACHE_DIR_ENV, createActionlintEngine, resolveActionlintBinary } from './index.ts'
 
-/**
- * Availability-gated ownership, end to end, against a real binary that is really absent.
- *
- * The machinery — `unavailableEngines`, `'engine-unavailable'`, `ElectionResult.displaced` — landed
- * with stub engines and has never met a real adapter, because until now no shipped adapter declared
- * `availability()`. That is what this file is for.
- *
- * **What it deliberately does not show is a handover.** The plan was for actionlint to take
- * `correctness.parse-error` from the `schema` engine when present and hand it back when absent, which
- * would have produced a `displaced` entry with `insteadOwnedBy` set. The corpus measurement removed
- * the case for that transfer — zero parse errors and zero duplicate keys across 403 real workflow
- * files, against a recorded regression in position quality if it happened — so actionlint claims
- * neither concept and nothing else claims a `config.workflow-*` one. The transition it does prove is
- * the other shape: concepts that are owned when the binary is present and are a *reported coverage
- * gap*, `insteadOwnedBy: undefined`, when it is not.
- */
 const run = promisify(execFile)
 const installed = resolveActionlintBinary()
-// Inlined at each call site rather than aliased: `oxlint`'s vitest rules only recognise a test
-// through the `test.*` member expression, so a `const withBinary = test.skipIf(...)` binding makes
-// every assertion inside look like a standalone `expect`.
 const noBinary = installed === undefined
 
 const WORKFLOW = [
@@ -73,8 +54,6 @@ afterEach(async () => {
 })
 
 function hideActionlint(): void {
-  // A `PATH` and a cache that genuinely contain nothing, and no override — the resolver runs for real
-  // against a filesystem where the binary is really not there.
   process.env['PATH'] = join(dir, 'empty-path')
   process.env[CACHE_DIR_ENV] = join(dir, 'empty-cache')
   delete process.env[ACTIONLINT_PATH_ENV]
@@ -93,7 +72,6 @@ test.skipIf(noBinary)('with the binary present, actionlint owns its concepts and
 })
 
 test('with the binary absent, the concept is a named coverage gap rather than a silent pass', async () => {
-  // Runs whether or not actionlint is installed: hiding it is the point of the test.
   hideActionlint()
   const result = await runCheck({ ...options(), engines: [createActionlintEngine()] })
 
@@ -105,10 +83,6 @@ test('with the binary absent, the concept is a named coverage gap rather than a 
     reason: expect.stringContaining('actionlint was not found'),
     install: 'sgate engines install actionlint',
   })
-  // `displaced` names the concept and leaves `insteadOwnedBy` undefined, which is the accurate
-  // answer: actionlint would have owned this and nothing else claims it, so nothing steps in. This is
-  // the shape the machinery was never exercised in — every prior test had a substitute engine ready
-  // to take over — and it is the one a real absent actionlint actually produces.
   expect(result.unavailableEngines[0]?.displaced).toEqual([
     {
       concept: 'config.workflow-expression',
@@ -120,8 +94,6 @@ test('with the binary absent, the concept is a named coverage gap rather than a 
 })
 
 test('an absent engine is a coverage gap, never an engine failure', async () => {
-  // The distinction `IneligibilityReason` draws: "this build does not include actionlint" and
-  // "actionlint is not installed here" are different facts, and neither is "actionlint crashed".
   hideActionlint()
   const result = await runCheck({ ...options(), engines: [createActionlintEngine()] })
   expect(result.engineFailures).toEqual([])
@@ -129,8 +101,6 @@ test('an absent engine is a coverage gap, never an engine failure', async () => 
 })
 
 test.skipIf(noBinary)('the same repository, the same config, differs only by whether the binary is there', async () => {
-  // Stated as one assertion because it is the property the whole optional-engine design exists to
-  // deliver: absence changes coverage, and says so, rather than changing the verdict silently.
   hideActionlint()
   const absent = await runCheck({ ...options(), engines: [createActionlintEngine()] })
 

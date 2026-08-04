@@ -19,9 +19,6 @@ afterEach(async () => {
 })
 
 test('emits one document per declared language, not one per rule', () => {
-  // The single most consequential property of this materialiser, and a silent failure if it
-  // regresses: ast-grep's `language:` takes one value, `TypeScript` does not cover `.tsx`, and a
-  // missing document produces zero findings and exit 0 rather than an error.
   const config = buildAstGrepConfig(new Map([['slop-swallowed-error', ['warn'] as const]]))
 
   expect(config.documents.map((d) => d.language)).toEqual(['TypeScript', 'Tsx', 'JavaScript'])
@@ -30,9 +27,6 @@ test('emits one document per declared language, not one per rule', () => {
 })
 
 test('reuses one rule id across every language document', () => {
-  // Duplicate ids across documents are accepted by ast-grep and every finding reports the shared
-  // id. That is what keeps one `engineRuleId` per concept: two registry entries claiming one
-  // concept would make arbitration elect one and discard the other's findings entirely.
   const config = buildAstGrepConfig(new Map([['slop-narrative-comment', ['warn'] as const]]))
   const ids = [...config.text.matchAll(/^id: (.+)$/gm)].map((match) => match[1])
 
@@ -53,9 +47,6 @@ test('omits a rule set to off', () => {
 })
 
 test('a rule set to off with options is still off', () => {
-  // The level has to be read out of the setting, not compared against it: an `['off', …]` value is not
-  // `'off'`, so a comparison against the whole setting reads a disabled rule as enabled and writes a
-  // document for it. Restore that comparison and this test finds `slop-emoji-in-code` in the config.
   const config = buildAstGrepConfig(
     new Map<string, EngineRuleSetting>([
       ['slop-double-cast', ['warn']],
@@ -74,15 +65,10 @@ test('writes the elected level in ast-grep spelling', () => {
 })
 
 test('throws rather than silently dropping an elected id this package has no rule for', () => {
-  // Reaching this means the registry (`entries.uncatalogued.ts`) and `ASTGREP_RULES` have drifted apart.
-  // Dropping it would produce a run that looks clean; the ruleset assertion in `run` cannot catch it
-  // either, because the expected count is derived from what was written.
   expect(() => buildAstGrepConfig(new Map([['slop-invented-rule', ['warn'] as const]]))).toThrow(/slop-invented-rule/)
 })
 
 test('produces an empty document set for an empty selection', () => {
-  // `--rule` pointed at an empty file hard-fails with "Cannot parse rule" (confirmed against
-  // 0.45.0), so `run` must skip the spawn entirely — `ruleCount: 0` is the signal it checks.
   const config = buildAstGrepConfig(new Map())
   expect(config.text).toBe('')
   expect(config.documents).toEqual([])
@@ -118,7 +104,7 @@ test('ruleCount counts documents, which is what --inspect summary reports back',
     context,
   )
 
-  expect(handle.ruleCount).toBe(5) // 2 TypeScript-family + 3 script-family documents.
+  expect(handle.ruleCount).toBe(5)
   await handle.dispose()
 })
 
@@ -131,9 +117,6 @@ test('writes the rule file and removes it on dispose', async () => {
 })
 
 test('escapes a message or note containing an apostrophe', () => {
-  // Every message and note is written as a YAML single-quoted scalar, chosen so the backslashes in
-  // a rule body's regex stay literal. That makes `'` the one character needing an escape, and a
-  // rule author writing "don't" would otherwise produce a rule file ast-grep refuses to parse.
   const config = buildAstGrepConfig(new Map(ASTGREP_RULES.map((rule) => [rule.engineRuleId, ['warn'] as const])))
   for (const line of config.text.split('\n')) {
     if (!line.startsWith('message: ') && !line.startsWith('note: ')) continue

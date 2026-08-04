@@ -46,15 +46,6 @@ const everything = (): EngineRuleSelection => new Map(KNIP_SURFACED_ISSUE_TYPES.
 const summarize = (found: readonly RawDiagnostic[]): string[] =>
   found.map((d) => `${d.engineRuleId} ${d.file} ${d.message}`).sort()
 
-/**
- * The shape the whole adapter exists for, reduced to its smallest reproducible form: a repository
- * with a nested `docs/package.json` and **no workspace declaration anywhere** — no `workspaces` key,
- * no `pnpm-workspace.yaml`. This is the srvc-bat shape the grounding measurement found knip's accuracy
- * collapsing on (spec §13.2).
- *
- * knip is *bundled* (a `dependencies` entry of this package), so unlike `engine-tsc`'s fixtures these
- * do not need to share an ancestor with this repository to resolve the binary — `os.tmpdir()` is fine.
- */
 const writeUndeclaredWorkspaceFixture = async (): Promise<void> => {
   await write(
     'package.json',
@@ -85,10 +76,6 @@ test('declares project granularity, and json alongside the script languages', ()
   const engine = createKnipEngine()
   expect(engine.id).toBe('knip')
   expect(engine.capabilities.granularity).toBe('project')
-  // `json`/`jsonc` are what put every `package.json` into the assigned file list — without them the
-  // workspace map cannot be synthesized at all, and a manifest edit would not invalidate the cache.
-  // `vue`/`svelte`/`astro` are here for the second half of that same reason: knip compiles them, so
-  // an edit to one changes its answer and has to change the cache key. See the capability comment.
   expect(engine.capabilities.languages).toEqual(['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro', 'json', 'jsonc'])
   expect(engine.capabilities.provides).toEqual([])
   expect(engine.capabilities.fixes).toBe(false)
@@ -100,8 +87,6 @@ test(
     await writeUndeclaredWorkspaceFixture()
     const engine = createKnipEngine()
 
-    // Both runs use the identical materialised ruleset and the identical repository on disk. The only
-    // difference is whether the inventory told the adapter that `docs/package.json` exists.
     const blind = await engine.materializeConfig(everything(), context)
     const withoutNestedManifest = await collect(
       engine.run({ files: [file('package.json'), file('src/index.ts')] }, blind, context, AbortSignal.timeout(TIMEOUT)),
@@ -119,13 +104,9 @@ test(
     )
     await informed.dispose()
 
-    // Blind: knip sees one package rooted at the repository root. `docs/package.json` is not a
-    // manifest it knows about, so `docs-only-dep` is never even a candidate for being unused.
     expect(summarize(withoutNestedManifest)).not.toContainEqual(expect.stringContaining('docs-only-dep'))
     expect(summarize(withoutNestedManifest).some((line) => line.startsWith('devDependencies'))).toBe(false)
 
-    // Informed: `docs` is its own workspace, its manifest is read, and its genuinely-unused
-    // devDependency surfaces. This is the finding a bare `knip` run on this repository cannot produce.
     expect(summarize(withNestedManifest)).toContainEqual(
       'devDependencies docs/package.json Unused devDependency `docs-only-dep`.',
     )
@@ -137,10 +118,6 @@ test(
 test(
   'the synthesized map reproduces a properly-declared workspace exactly',
   async () => {
-    // The strongest available statement of what the synthesis is: not an approximation of a declared
-    // workspace layout, but the same thing. Same repository twice — once with `workspaces` declared in
-    // its root manifest and the adapter kept blind, once undeclared and the adapter informed by the
-    // inventory — must produce identical findings.
     await writeUndeclaredWorkspaceFixture()
     const engine = createKnipEngine()
     const files = [file('package.json'), file('src/index.ts'), file('docs/package.json'), file('docs/build.ts')]
@@ -179,7 +156,6 @@ test(
     const blindHandle = await blind.materializeConfig(everything(), context)
     const reported = await collect(blind.run({ files }, blindHandle, context, AbortSignal.timeout(TIMEOUT)))
     await blindHandle.dispose()
-    // Baseline: knip genuinely does report it. Nothing imports a config file loaded by path at runtime.
     expect(reported.map((d) => d.file)).toContain('slop-gate.config.ts')
 
     const aware = createKnipEngine({ configFile: 'slop-gate.config.ts' })
@@ -207,7 +183,6 @@ test(
       ),
     )
 
-    // knip reports fourteen of its seventeen issue types by default. Electing one must yield one.
     expect(new Set(found.map((d) => d.engineRuleId))).toEqual(new Set(['files']))
     expect(found.length).toBeGreaterThan(0)
     await handle.dispose()
@@ -267,15 +242,9 @@ test(
 test(
   'every issue type the installed knip reports by default is accounted for by the mapping table',
   async () => {
-    // `KNIP_ISSUE_TYPES` is transcribed from knip's own `ISSUE_TYPES` constant, which knip does not
-    // export — so it can drift. This is the guard: run the *installed* binary with no include/exclude
-    // at all and confirm the mapping table already knows every type it chose to report. A knip release
-    // that adds a default-reported issue type fails here, instead of silently producing findings this
-    // adapter drops on the floor.
     await writeUndeclaredWorkspaceFixture()
     await write('.slop-gate/tmp/defaults.json', JSON.stringify({ workspaces: { '.': {}, docs: {} } }))
 
-    // Non-null: this case spawns the real bundled knip, and an unresolvable one is a broken install.
     const invocation = resolveKnipBinary()!
     const { stdout } = await promisify(execFile)(
       invocation.command,
@@ -295,8 +264,6 @@ test(
     const report = JSON.parse(stdout) as { issues: Array<Record<string, unknown>> }
     const reported = new Set(Object.keys(report.issues[0] ?? {}))
     reported.delete('file')
-    // `owners` appears only when the repository has a CODEOWNERS file; it is reporter metadata, not an
-    // issue type, and the fixture has none — asserted rather than filtered so it stays that way.
     expect(reported.has('owners')).toBe(false)
     expect(reported.size).toBeGreaterThan(0)
     expect([...reported].filter((type) => !KNIP_ISSUE_TYPES.includes(type as never))).toEqual([])
@@ -315,7 +282,6 @@ test(
       engine.run({ files: [file('package.json'), file('src/index.ts')] }, handle, context, AbortSignal.timeout(TIMEOUT)),
     )
 
-    // knip caches only with an explicit `--cache`; confirm it left nothing behind under the default.
     await expect(stat(join(dir, 'node_modules', '.cache', 'knip'))).rejects.toThrow(/^ENOENT/)
     await handle.dispose()
     await expect(stat(handle.path)).rejects.toThrow(/^ENOENT/)
@@ -323,13 +289,6 @@ test(
   TIMEOUT,
 )
 
-// --- Framework awareness (spec §23): the three knip cases the M0 follow-ups measured -------------
-
-/**
- * Runs the whole detection chain against the fixture currently on disk and narrows it to knip, so
- * these tests exercise the real profiles rather than hand-written adjustments. `paths` is the
- * inventory the planner would have assigned.
- */
 const knipAdjustments = async (paths: readonly string[]): Promise<EngineSettings> => {
   const detection = await detectFrameworks({
     inventory: {
@@ -342,7 +301,6 @@ const knipAdjustments = async (paths: readonly string[]): Promise<EngineSettings
   return engineAdjustmentsFor('knip', detection)
 }
 
-/** The same repository analysed twice: once as knip sees it today, once with the profiles applied. */
 const withAndWithout = async (
   paths: readonly string[],
 ): Promise<{ before: string[]; after: string[]; adjustments: EngineSettings }> => {
@@ -393,8 +351,6 @@ test(
       { key: 'entry', workspace: '', values: ['mikro-orm.config.ts', 'src/migrations/*.{js,mjs,cjs,ts,mts,cts}'] },
     ])
 
-    // Without the profile these are exactly the findings §13.2 measured: files nothing imports, and
-    // the dependencies that are only reachable through them.
     expect(before).toContainEqual(expect.stringContaining('files src/migrations/Migration001.ts'))
     expect(before).toContainEqual(expect.stringContaining('files mikro-orm.config.ts'))
     expect(before).toContainEqual(expect.stringContaining('@mikro-orm/migrations'))
@@ -405,14 +361,6 @@ test(
   TIMEOUT,
 )
 
-/**
- * The single highest-risk line in the framework change, pinned behaviourally. A workspace-level
- * `entry` **replaces** knip's defaults (`KNIP_DEFAULT_ENTRY`, config.ts), so a contribution written
- * without them un-registers `src/index.ts` as an entry point — and the symptom is knip reporting
- * *fewer* findings, which reads like the tool getting better. Both assertions below fail if the
- * defaults are ever dropped: the entry file itself becomes an unused file, and the dependency only it
- * imports becomes an unused dependency.
- */
 test(
   'a contributed entry is unioned onto knip own defaults, not written over them',
   async () => {
@@ -468,14 +416,6 @@ test(
 )
 
 test('is unavailable when a manifest declares dependencies that are not installed', async () => {
-  // knip resolves imports through `node_modules`, so an uninstalled repository does not make it
-  // report *less* — it makes it report wrongly, in both directions. Measured on `withastro/docs`:
-  // **3 308 `deps.unresolved-import` findings at `error` without `node_modules`, and 2 with it.**
-  // Its `tsconfig.json` extends `astro/tsconfigs/strict`, which cannot resolve, so knip loses the
-  // local `"paths": { "~/*": ["./src/*"] }` and every `~/components/*.astro` import from an `.mdx`
-  // file becomes unresolved. `directus/directus` shows the identical shape at 3 765. And it is not
-  // only noise: `nuxt/nuxt.com` reported 43 unused exports uninstalled against 65 installed, so the
-  // uninstalled run also *hid* 22 real ones.
   await write('package.json', JSON.stringify({ name: 'root', dependencies: { 'used-dep': '^1.0.0' } }))
   const engine = createKnipEngine({ rootDir: dir })
 
@@ -495,8 +435,6 @@ test('is available when the declared dependencies are installed', async () => {
 })
 
 test('is available in a repository that declares no dependencies at all', async () => {
-  // The distinction that keeps this from firing on a repository which is simply dependency-free:
-  // absent `node_modules` is only evidence of "not installed" when something asked to be installed.
   await write('package.json', JSON.stringify({ name: 'root' }))
   const engine = createKnipEngine({ rootDir: dir })
 

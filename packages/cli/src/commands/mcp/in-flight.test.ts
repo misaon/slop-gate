@@ -49,8 +49,6 @@ test('idle waits for the last of several calls, not the first', async () => {
 })
 
 test('a call that throws still releases the wait, and the rejection reaches the caller', async () => {
-  // The direction that hangs a server rather than failing it: a handler that throws with the count
-  // never decremented leaves `idle` unresolved forever, and the process never exits.
   const inFlight = createInFlight()
   await expect(inFlight.track(() => Promise.reject(new Error('boom')))).rejects.toThrow('boom')
   await expect(inFlight.idle()).resolves.toBeUndefined()

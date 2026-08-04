@@ -8,14 +8,6 @@ import { BASELINE_VERSION, type BaselineEntry, type BaselineFile } from './types
 
 const BASELINE_FILENAME = 'baseline.json'
 
-/**
- * `.slop-gate/baseline.json`, as spec §12.2 names it — beside the cache rather than at the repository root,
- * because `sgate init` already creates that directory.
- *
- * The directory is gitignored wholesale by `init`'s `.slop-gate/.gitignore`, and a baseline that is not committed
- * is not a baseline — CI would read none. `init` therefore negates this one filename, and `sgate baseline create`
- * checks the negation is present and says so when it is not.
- */
 export function baselinePathFor(rootDir: string): string {
   return join(rootDir, '.slop-gate', BASELINE_FILENAME)
 }
@@ -28,16 +20,6 @@ export function entriesOf(diagnostics: readonly Diagnostic[]): BaselineEntry[] {
   }))
 }
 
-/**
- * Hand-rolled rather than `JSON.stringify(_, null, 2)`, for the one reason this file exists: it is committed, and
- * it is read in a diff. Two-space pretty-printing spreads each finding over five lines, so accepting one more
- * finding reads as a five-line change and a reordering reads as a rewrite. One line per finding makes `git diff`
- * state exactly what was accepted and what was dropped.
- *
- * Sorted by path, then concept, then fingerprint — `null` first, matching how `run/check.ts` already orders a
- * diagnostic with nothing to attribute. Nothing time-, machine- or version-dependent goes in: a `createdAt` would
- * make two identical runs disagree, and git already records when and by whom.
- */
 export function serializeBaseline(entries: readonly BaselineEntry[]): string {
   const lines = sortEntries(entries).map(
     (entry) =>
@@ -48,11 +30,6 @@ export function serializeBaseline(entries: readonly BaselineEntry[]): string {
   return `{\n  "version": ${BASELINE_VERSION},\n  "accepted": [${body}]\n}\n`
 }
 
-/**
- * Every rejection names the path, because the person reading it is looking at a file they or a teammate committed,
- * not at a stack trace. Unknown keys are rejected too: a hand-added `note` that `sgate baseline update` would
- * silently discard is worse than one that was refused.
- */
 export function parseBaseline(text: string, path: string): BaselineFile {
   let parsed: unknown
   try {
@@ -73,9 +50,6 @@ export function parseBaseline(text: string, path: string): BaselineFile {
   if (!Array.isArray(record['accepted'])) {
     throw new ConfigError(`${path} has no \`accepted\` array.`)
   }
-  // Sorted on the way in, not only on the way out. The file is hand-editable, and everything a run derives from it
-  // in order — the stale list a report prints — has to be the same for one repository state whether or not someone
-  // shuffled the lines.
   const accepted = sortEntries(record['accepted'].map((raw, index) => parseEntry(raw, path, index)))
   return { version: BASELINE_VERSION, accepted }
 }
@@ -105,7 +79,6 @@ function parseEntry(raw: unknown, path: string, index: number): BaselineEntry {
   return { file, concept, fingerprint }
 }
 
-/** `null` when there is no baseline — distinct from an empty one, which accepts nothing on purpose. */
 export async function readBaseline(path: string): Promise<BaselineFile | null> {
   let text: string
   try {

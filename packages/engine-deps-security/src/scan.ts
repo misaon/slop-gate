@@ -7,7 +7,6 @@ import { advisoryUrl, type DepsSecurityRuleId } from './rules.ts'
 import { describeStaleness, snapshotAgeInDays, stalenessBand, type SnapshotManifest } from './snapshot.ts'
 
 export type PackageManifest = {
-  /** Repo-relative, POSIX separators. */
   readonly file: string
   readonly source: string
 }
@@ -20,7 +19,6 @@ export type ScanInput = {
   readonly malicious: AdvisoryTable
   readonly snapshot: SnapshotManifest
   readonly enabled: ReadonlySet<DepsSecurityRuleId>
-  /** Lockfiles found beside the one being read, whose formats this engine cannot parse. */
   readonly unsupportedLockfiles?: readonly { readonly file: string; readonly manager: string }[]
   readonly now?: Date
 }
@@ -60,11 +58,6 @@ export function scanDependencies(input: ScanInput): readonly RawDiagnostic[] {
 
 type Anchor = { readonly file: string; readonly range: ByteRange }
 
-/**
- * Where a finding about a package should point. A direct dependency has a manifest line; a transitive one borrows
- * the line of whichever direct dependency reaches it and names the chain in the message instead. Only when neither
- * exists does this fall back to the lockfile at byte zero — an entry the manifest no longer mentions at all.
- */
 function anchorFor(input: ScanInput): (path: readonly string[]) => Anchor {
   const lockfileAnchor: Anchor = { file: input.lockfile.file, range: { start: 0, end: 0 } }
   const cache = new Map<string, Anchor>()
@@ -94,9 +87,6 @@ function* matches(
   rule: Extract<DepsSecurityRuleId, 'vulnerability' | 'malware'>,
   locate: (path: readonly string[]) => Anchor,
 ): Generator<RawDiagnostic> {
-  // The same `name@version` can sit at several places in a tree, but it is one fact about one release and every
-  // copy would land on the same manifest line with the same text — unlike knip's per-referencing-file duplication,
-  // where each finding had its own position and its own suppression site.
   const seen = new Set<string>()
 
   for (const installed of input.parsed.packages) {
@@ -139,27 +129,11 @@ function remedy(rule: 'vulnerability' | 'malware', installed: ResolvedPackage): 
       root === undefined ? '' : ` It is reached through \`${root}\`.`
     }`
   }
-  // Deliberately not "upgrade to <fixed>": OSV's fixed version fixes the *package*, not necessarily a version this
-  // tree can reach — a transitive dependency is pinned by its dependent, and naming a version the user cannot
-  // install without changing something else reads as an instruction that does not work.
   return root === undefined || root === installed.name
     ? `Upgrade \`${installed.name}\` past the affected range.`
     : `\`${installed.name}\` is a transitive dependency; upgrading \`${root}\` is usually what moves it.`
 }
 
-/**
- * A manifest entry the lockfile never resolved. Both causes are named because offline they cannot be told apart:
- * the package may not exist on the registry — the hallucinated-dependency case — or the lockfile may predate the
- * edit that added it.
- *
- * The realistic reach is narrower than it looks: `npm install` and `pnpm install` both fail outright on an
- * unresolvable `dependencies` or `peerDependencies` entry, so a committed lockfile in that state is rare.
- * `optionalDependencies` is the case that stays silent — both exit 0 and omit the entry — and a platform-specific
- * optional dependency does *not* trip this, because both write those into the lockfile with their `os`/`cpu`
- * constraints intact.
- *
- * @yields one diagnostic per manifest entry the lockfile did not resolve.
- */
 function* missingFromLockfile(input: ScanInput): Generator<RawDiagnostic> {
   for (const manifest of input.manifests) {
     for (const dependency of manifestDependencies(manifest.source)) {
@@ -179,13 +153,6 @@ function* missingFromLockfile(input: ScanInput): Generator<RawDiagnostic> {
   }
 }
 
-/**
- * Everything this run did not actually cover — a snapshot past its freshness band, and each unreadable lockfile —
- * said out loud. Reported as findings rather than logged because a diagnostic survives into every reporter, into
- * SARIF and into the agent output, where a log line does not.
- *
- * @yields one diagnostic per gap: a snapshot past its freshness band, and each unreadable lockfile.
- */
 function* coverageGaps(input: ScanInput): Generator<RawDiagnostic> {
   const days = snapshotAgeInDays(input.snapshot, input.now ?? new Date())
   if (stalenessBand(days) !== 'fresh') {

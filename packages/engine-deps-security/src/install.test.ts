@@ -11,12 +11,6 @@ import type { AdvisoryTable } from './advisory.ts'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
 
-/**
- * An archive in OSV's exact publishing shape — streamed, so local headers carry no sizes — holding
- * four advisory documents copied verbatim out of the real npm export, plus a withdrawn one, a
- * PyPI-only one and a non-JSON file. Everything the reader has to skip is represented, because a
- * filter that silently stops filtering looks identical to one that never ran.
- */
 const sample = new Uint8Array(readFileSync(join(fixtures, 'osv-sample.zip')))
 const maliciousOnly = new Uint8Array(readFileSync(join(fixtures, 'osv-malicious-only.zip')))
 
@@ -48,9 +42,6 @@ describe('installAdvisorySnapshot', () => {
     const vulnerable = JSON.parse(await readFile(join(result.directory, VULNERABLE_FILE), 'utf8')) as AdvisoryTable
     const malicious = JSON.parse(await readFile(join(result.directory, MALICIOUS_FILE), 'utf8')) as AdvisoryTable
 
-    // Five package entries from two advisories, not two: both are prototype-pollution reports that
-    // name every republished form of the affected library. An index keyed by advisory rather than by
-    // package would answer "is `lodash-es` affected" with silence.
     expect(Object.keys(vulnerable)).toEqual(['lodash', 'lodash-amd', 'lodash-es', 'lodash.defaultsdeep', 'minimist'])
     expect(Object.keys(malicious).sort()).toEqual(['chalk', 'debug'])
     expect(malicious['chalk']?.[0]?.versions).toEqual(['5.6.1'])
@@ -69,12 +60,6 @@ describe('installAdvisorySnapshot', () => {
     expect(vulnerable['lodash']?.map((record) => record.id)).not.toContain('GHSA-withdrawn-0000-0000')
   })
 
-  /**
-   * The guard that matters most here. A snapshot with no vulnerability data in it would make every
-   * repository read as clean — the same silent false negative `npm audit --offline` produces, except
-   * baked onto disk and repeated on every run until someone reinstalls. An archive that yields none
-   * is far likelier to mean the layout changed than that npm has no advisories.
-   */
   it('refuses to install a snapshot that would report every repository clean', async () => {
     await expect(install(maliciousOnly)).rejects.toThrow(AdvisoryInstallError)
     await expect(install(maliciousOnly)).rejects.toThrow(/report every repository clean/)
@@ -128,8 +113,6 @@ describe('installAdvisorySnapshot', () => {
 })
 
 describe('writeAdvisorySnapshot', () => {
-  /** The supported way to build a snapshot for an air-gapped image, so it is tested as an entry
-   *  point rather than only through the installer. */
   it('writes a readable snapshot to an arbitrary directory', async () => {
     const directory = join(dir, 'baked-in')
     await writeAdvisorySnapshot(

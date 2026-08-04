@@ -7,21 +7,6 @@ import { detectLanguage, type InventoryFile, type RawDiagnostic, type RunContext
 import { createAstGrepEngine } from './index.ts'
 import { ASTGREP_RULES } from './rules.ts'
 
-/**
- * Spec §14 makes false-positive fixtures mandatory rather than optional for a slop rule, so every
- * rule here is proved in both directions against the real ast-grep binary.
- *
- * A positive fixture marks each line it expects a finding on with `SLOP_HIT`, and the assertion runs
- * both ways: every finding must land on a marked line, *and* every marked line must produce one.
- * Counting markers rather than hard-coding line numbers is what lets a fixture grow a case without
- * renumbering an expectation — and the two-way check is what stops a rule that matches everything
- * from passing.
- *
- * A negative fixture is not a formality either. `narrative-comment.negative.ts` is the six candidate
- * patterns that were measured out, each one a real comment from the corpus that produced the
- * measurement, and `emoji-in-code.negative.ts` is the `\p{Emoji}` trap in full. Both would pass
- * again the moment someone widens a regex, which is exactly when someone needs to be told.
- */
 const FIXTURES = dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures')
 const MARKER = 'SLOP_HIT'
 
@@ -89,8 +74,6 @@ for (const testCase of CASES) {
       .split('\n')
       .flatMap((line, index) => (line.includes(MARKER) ? [index + 1] : []))
 
-    // Stated as two unconditional assertions rather than a branch: a guarded `expect` can pass by
-    // never running, which is the vacuous-assertion trap the M0 follow-ups record.
     expect(marked.length > 0, 'a positive fixture marks expected lines; a negative one marks none').toBe(
       testCase.polarity === 'positive',
     )
@@ -99,8 +82,6 @@ for (const testCase of CASES) {
 }
 
 test('every shipped rule has both a positive and a negative fixture', () => {
-  // The bar spec §14 sets, enforced rather than trusted: adding a rule to `ASTGREP_RULES` without
-  // measuring it in both directions fails here instead of shipping.
   for (const rule of ASTGREP_RULES) {
     const polarities = new Set(CASES.filter((c) => c.engineRuleId === rule.engineRuleId).map((c) => c.polarity))
     expect(polarities, `${rule.engineRuleId} is missing a fixture`).toEqual(new Set(['positive', 'negative']))
@@ -108,12 +89,6 @@ test('every shipped rule has both a positive and a negative fixture', () => {
 })
 
 test('each of the three ast-grep languages is proved end to end by some positive fixture', () => {
-  // ast-grep's extension mapping is per-document and not the one our `LanguageId` uses: a
-  // `language: TypeScript` document does not match `.tsx`, and a `language: JavaScript` one does not
-  // match `.ts`. A missing document is silent — the file is scanned, nothing matches, exit 0 — so
-  // the mapping needs proving against the real binary at least once per language. Which *rule*
-  // proves each one does not matter (the per-rule document emission is asserted in config.test.ts,
-  // where it is pure); that every language is reached does.
   const extensions = new Set(
     CASES.filter((c) => c.polarity === 'positive').map((c) => c.file.slice(c.file.lastIndexOf('.'))),
   )

@@ -1,14 +1,3 @@
-/**
- * actionlint's own rule names — the `kind` field of its JSON output — and what each one is called in
- * slop-gate's concept vocabulary.
- *
- * **Selection is enforced here, not by configuring actionlint.** actionlint has no per-rule
- * enable/disable: `-ignore` takes message regexes and the config file takes runner labels and path
- * globs, so there is no way to ask the binary for a subset of its rules. Every rule therefore always
- * runs, and this adapter drops what was not elected — which also means `EngineConfigHandle.ruleCount`
- * cannot be cross-checked against anything the binary reports, the same gap `tsc` has for the same
- * reason (no introspectable catalogue).
- */
 export const ACTIONLINT_RULES = [
   { engineRuleId: 'action', concept: 'config.workflow-action' },
   { engineRuleId: 'credentials', concept: 'security.workflow-hardcoded-credential' },
@@ -32,17 +21,6 @@ export type ActionlintRuleId = (typeof ACTIONLINT_RULES)[number]['engineRuleId']
 
 export const ACTIONLINT_RULE_IDS: readonly string[] = ACTIONLINT_RULES.map((rule) => rule.engineRuleId)
 
-/**
- * The two rule names that must never appear in output, because their integrations are switched off.
- *
- * actionlint shells out to `shellcheck` and `pyflakes`, and neither is opt-in: both flags default to
- * the bare command name, so the checks run wherever those binaries happen to exist and are silently
- * skipped where they do not. A finding under either kind means `-shellcheck= -pyflakes=` stopped
- * taking effect, and the run would then be importing a second tool's findings with no registry entry,
- * no concept mapping and nothing to explain them — see the M0 follow-ups on why shellcheck is a
- * candidate engine in its own right rather than an actionlint implementation detail. Loud rather than
- * dropped: a silent drop would hide the same non-reproducibility from us that it hides from the user.
- */
 export const DISABLED_INTEGRATION_RULES: readonly string[] = ['shellcheck', 'pyflakes']
 
 export type MessageExclusion = {
@@ -51,14 +29,6 @@ export type MessageExclusion = {
   readonly reason: string
 }
 
-/**
- * Findings dropped by message, inside rules that are otherwise shipped. First-class data with a
- * written reason for the same purpose `registry/not-recommended.ts` serves at rule granularity: so that
- * nobody deletes one later believing its absence from the output was accidental.
- *
- * Every entry is a measured false-positive class from the 403-workflow corpus (17 repositories,
- * default-branch HEADs), and every one has a fixture in `fixtures/` proving it is still filtered.
- */
 export const MESSAGE_EXCLUSIONS: readonly MessageExclusion[] = [
   {
     engineRuleId: 'expression',
@@ -121,10 +91,6 @@ export type MessageRewrite = {
   readonly reason: string
 }
 
-/**
- * Messages surfaced differently from how actionlint words them. Kept to the cases where repeating
- * upstream verbatim would be actively misleading — not a style pass over someone else's diagnostics.
- */
 export const MESSAGE_REWRITES: readonly MessageRewrite[] = [
   {
     engineRuleId: 'if-cond',

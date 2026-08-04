@@ -78,11 +78,6 @@ describe('availability', () => {
     expect(await engineFor().availability?.()).toEqual({ available: true })
   })
 
-  /**
-   * A snapshot merely being old must not make the engine vanish. Reporting it unavailable would turn
-   * a calendar date into a build failure with no commit behind it, and would throw away every finding
-   * the snapshot can still make — the age is a diagnostic instead.
-   */
   it('stays available when the snapshot is old, and says so as a finding instead', async () => {
     await installSnapshot(new Date(Date.now() - 200 * 86_400_000).toISOString())
     expect(await engineFor().availability?.()).toEqual({ available: true })
@@ -120,9 +115,6 @@ describe('materializeConfig', () => {
   })
 
   it('keeps a rule set to off out of the payload even when it carries options', async () => {
-    // `rules` in the payload is this engine's whole enablement decision, and it used to be computed by
-    // comparing the selection value against `'off'` — false for an `['off', …]` value, which would
-    // report advisories for a rule the user turned off.
     await installSnapshot()
     const selection = new Map<string, EngineRuleSetting>([
       ['vulnerability', ['warn']],
@@ -196,10 +188,6 @@ describe('run', () => {
     expect(await runEngine(engineFor(), new Map())).toEqual([])
   })
 
-  /**
-   * The one outcome this engine may never produce is a clean bill of health it did not earn. A yarn
-   * lockfile it cannot parse has to be said out loud, not passed over.
-   */
   it('reports an unreadable lockfile format rather than reporting nothing', async () => {
     await installSnapshot()
     await writeFile(join(root, 'package.json'), JSON.stringify({ dependencies: { axios: '0.21.0' } }))
@@ -221,7 +209,6 @@ describe('run', () => {
     expect(found[0]?.message).toContain('No lockfile was found')
   })
 
-  /** A gap that fires when coverage is in fact complete is how a gap line stops being read. */
   it('stays silent when there is no lockfile and no dependency to have missed', async () => {
     await installSnapshot()
     await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'app' }))
@@ -246,7 +233,6 @@ describe('run', () => {
 
     await expect(async () => {
       for await (const _ of engine.run({ files: [] }, handle, context(), AbortSignal.timeout(5000))) {
-        // The throw happens before the first yield; the loop only exists to start the generator.
       }
     }).rejects.toThrow(EngineError)
   })

@@ -29,9 +29,6 @@ const capture = (result: ConceptWhy, contextOver: Partial<RulesReporterContext> 
   return output
 }
 
-/** Collapses runs of whitespace (including the newline/indent a wrapped ineligibility explanation
- *  now introduces — see `wrapText`'s use in `why.ts`) so a phrase-level assertion still matches
- *  regardless of exactly where the renderer happened to wrap the line it appears in. */
 const flat = (output: string): string => output.replace(/\s+/g, ' ')
 
 test('reports an unknown concept without throwing, and does not attempt to describe it', () => {
@@ -54,8 +51,6 @@ test('explains a concept no layer ever enables', () => {
 })
 
 test('names the layer that decided the options, separately from the one that decided the level', () => {
-  // The arbitration question options introduce: a preset can settle the options while a config file
-  // settles the level, and "what won" has to be answerable for each in one sentence.
   const output = flat(
     capture(
       explanation({
@@ -137,10 +132,6 @@ test('shows the owner and an ineligible non-participating engine — the real ox
     }),
   )
 
-  // The whole line, not two `toContain`s. A sole owner is folded onto the label's own line, and the
-  // fold is a string edit on that label — a `Owner:` here and a `oxlint/no-unused-vars` somewhere
-  // below would satisfy both substring checks while the fold silently stopped happening, or while it
-  // happened and mangled the separator between the two halves.
   const ownerLine = output.split('\n').find((line) => line.includes('Owner'))
   expect(ownerLine).toMatch(/^\s+\S+\s+Owner: oxlint\/no-unused-vars \(tier 0\)$/)
   expect(output).toContain('eslint/@typescript-eslint/no-unused-vars')
@@ -169,31 +160,19 @@ test('explains a type-aware candidate blocked on a missing capability, citing th
   expect(flat(output)).toContain('type-aware support is not wired up')
   expect(flat(output)).toContain('2026-07-31-m0-followups.md')
 
-  // Measured printing this against a real type-aware concept (`correctness.no-floating-promises`
-  // with `rules why`, capability text included): the unwrapped line ran to 228 characters — this
-  // reason's explanation must never be handed to the terminal as one raw line the way it used to be.
   const lines = output.split('\n')
   const candidateLine = lines.find((line) => line.includes('oxlint/no-floating-promises'))
   expect(candidateLine).toBeDefined()
   const candidateLineIndex = lines.indexOf(candidateLine!)
-  // Collect every subsequent line up to the next blank line (the wrapped continuation of this
-  // candidate's explanation, before `writeUnit`'s own unit-separating blank line).
   const continuationLines: string[] = []
   for (let i = candidateLineIndex + 1; i < lines.length && lines[i] !== ''; i++) continuationLines.push(lines[i]!)
-  expect(continuationLines.length).toBeGreaterThan(0) // long enough to actually wrap
+  expect(continuationLines.length).toBeGreaterThan(0)
 
-  // `wrapText`'s own contract (see its doc comment) breaks only at whitespace: a single token wider
-  // than the budget — here, the doc path itself, with no internal whitespace to break on — is
-  // emitted whole rather than split mid-character. So every line must fit the frame *unless* it is
-  // exactly one such unsplittable token, which is what actually happens on the last line below.
   for (const line of [candidateLine!, ...continuationLines]) {
     if (displayWidth(line) <= 80) continue
     expect(line.trim().split(/\s+/), line).toHaveLength(1)
   }
 
-  // Wrapping must not drop, duplicate or reorder words from the underlying explanation text —
-  // `ineligibilityText` itself is not exported, so this pins the literal wording `why.ts` builds for
-  // this reason rather than reaching into the private helper that produces it.
   const rejoined = [candidateLine!.slice(candidateLine!.indexOf('—')), ...continuationLines]
     .map((line) => line.trim())
     .join(' ')
@@ -204,10 +183,6 @@ test('explains a type-aware candidate blocked on a missing capability, citing th
 })
 
 test('explains a language mismatch without implying a genuine coverage gap', () => {
-  // Reproduces a real bug found running this against the actual registry: the owner section used
-  // to print nothing at all for this state (neither the "Owner:" nor the "Uncovered" branch
-  // fired), and the closing verdict claimed "no capable engine owns it" — indistinguishable from a
-  // real gap. Both are fixed to say plainly that this is not a coverage gap.
   const output = capture(
     explanation({
       concept: 'style.no-var',
@@ -219,10 +194,8 @@ test('explains a language mismatch without implying a genuine coverage gap', () 
   expect(flat(output)).toMatch(/no files in a language this rule applies to/)
   expect(output).toMatch(/not applicable/i)
   expect(output).not.toMatch(/uncovered/i)
-  expect(output).toMatch(/no matching-language files in this repository/i) // the closing verdict
+  expect(output).toMatch(/no matching-language files in this repository/i)
 
-  // The verdict line must actually fit the frame at the default width, unlike the first version of
-  // this fix (91 characters against a 78-column budget), which truncated mid-sentence.
   const verdictLine = output.split('\n').find((line) => line.includes('Produces no findings'))
   expect(verdictLine).toBeDefined()
   expect(verdictLine).not.toContain('…')
@@ -319,11 +292,6 @@ const nextRaise = {
   evidence: NEXT_EVIDENCE,
 }
 
-/**
- * The additive half of spec \u00a723.2, rendered. Two things have to be legible at a glance and neither
- * was needed while profiles could only subtract: which direction the profile pushed, and the count
- * that entitled it to.
- */
 test('a profile that turns a concept on says so, and shows the measurement that earned it', () => {
   const output = flat(
     capture(
@@ -350,15 +318,9 @@ test('a profile that turns a concept on says so, and shows the measurement that 
   expect(output).toContain('framework nestjs -> error')
   expect(output).toContain('Framework: nestjs asks for `error`')
   expect(output).toContain('measured on a 145k-line Next.js monorepo: 35 findings, 0 false')
-  // No overruling happened, so the precedence line stays out of the way entirely.
   expect(output).not.toContain('A profile is a default')
 })
 
-/**
- * The property the task called non-negotiable, as the reader sees it. The provenance table shows the
- * profile asking and the config answering; the one added line names the winner, so nobody has to
- * infer a precedence rule from the order of two rows.
- */
 test('a user`s own `off` beats a profile enabling the concept, and the output says which won', () => {
   const output = flat(
     capture(
@@ -382,8 +344,6 @@ test('a user`s own `off` beats a profile enabling the concept, and the output sa
 
   expect(output).toContain('framework `nestjs` enabled this at `error`, but root config `slop-gate.config.ts` turned it off')
   expect(output).toContain('A profile is a default: root config `slop-gate.config.ts` set `off` and beats `nestjs`.')
-  // The profile wanted this concept *on*, so attributing the silence to it would name the one party
-  // that argued against it.
   expect(output).not.toContain('framework `nestjs` turned it off')
   expect(output).toContain('Produces no findings: not enabled by any layer.')
 })
@@ -428,9 +388,6 @@ test('says which detected profile stood down, and why, rather than staying silen
 })
 
 test('an absent better owner is one extra line inside the owners block', () => {
-  // The readability bar this has to clear: the split-ownership block is two lines and legible at a
-  // glance. Saying "and actionlint would own it if installed" must cost one more line, not a
-  // paragraph — if it needs three, the model is too complicated, not the output too small.
   const output = capture(
     explanation({
       concept: 'correctness.parse-error',
@@ -455,16 +412,9 @@ test('an absent better owner is one extra line inside the owners block', () => {
   expect(block.some((line) => line.includes('actionlint/syntax-check would own github-workflow — not installed'))).toBe(
     true,
   )
-  // One header, two owners, one displaced note. Four lines for the whole ownership story.
   expect(block).toHaveLength(4)
 })
 
-/**
- * The path-scoped case, which has to read differently from the repository-wide one in two places: the
- * profile line has to say *where*, and the "a profile is a default" note must not fire. That note
- * compares the profile's level against `maxLevelOf` — the strongest level anywhere in the repository —
- * and a profile that only ever claimed its own globs was not overruled by a level outside them.
- */
 test('a path-scoped framework level names its globs and is not reported as overruled', () => {
   const output = flat(
     capture(
@@ -504,12 +454,6 @@ test('a path-scoped framework level names its globs and is not reported as overr
   expect(output).not.toContain('A profile is a default')
 })
 
-/**
- * Enumerating a complement scales with the repository: the `nextjs` profile's scope is 8 globs on
- * `dubinc/dub`, 60 on `shadcn-ui/ui` and 112 on `calcom/cal.com`, and one 112-glob provenance line
- * buries every other line in the report. Shortened for display only — `--format json` still carries
- * all of them, which is where a reader who wants all 112 should be looking.
- */
 test('a long path scope is shortened for display, in the provenance line and the profile line alike', () => {
   const globs = Array.from({ length: 115 }, (_, i) => `packages/p${String(i).padStart(3, '0')}/**`)
   const output = flat(

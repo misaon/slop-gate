@@ -33,8 +33,6 @@ test('the environment override wins over everything else, and is reported as suc
 })
 
 test('an environment override naming a file that does not exist resolves to nothing rather than falling through', () => {
-  // Falling back would turn a typo in the override into "we silently used a different binary than you
-  // asked for" — the single outcome an override exists to rule out.
   const resolved = resolveToolBinary(
     SPEC,
     options({
@@ -57,8 +55,6 @@ test('PATH is searched in order, and the first hit wins', () => {
 })
 
 test('an empty PATH entry is skipped rather than resolved against the working directory', () => {
-  // `':/usr/bin'` and a trailing `:` both produce an empty segment, and `join('', 'toolish')` is the
-  // relative name `toolish` — a probe against wherever the process happens to be running.
   const probed: string[] = []
   const resolved = resolveToolBinary(
     SPEC,
@@ -75,8 +71,6 @@ test('an empty PATH entry is skipped rather than resolved against the working di
 })
 
 test('an already-installed PATH binary is preferred over a populated cache', () => {
-  // The whole point of discovering PATH first: a machine that already has the tool must never trigger
-  // a download, and must never quietly run our copy instead of the one the user installed.
   const onPath = join('/usr/bin', 'toolish')
   const resolved = resolveToolBinary(SPEC, options({ env: { PATH: '/usr/bin' }, fileExists: exists(onPath, cachedBinary()) }))
   expect(resolved).toEqual({ command: onPath, source: 'path' })

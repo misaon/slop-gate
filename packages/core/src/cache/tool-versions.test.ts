@@ -8,12 +8,6 @@ let dir: string
 let cacheDir: string
 let binary: string
 
-/**
- * Backdates the fixture binary so it registers as long settled. Every test asserting a *stat*
- * decision has to do this: a file written moments ago is inside the racy window, so the cache
- * re-probes it no matter what its size, mtime and inode say, and an assertion about those would pass
- * without exercising the comparison it names.
- */
 const backdate = async (path: string): Promise<void> => {
   const past = new Date(Date.now() - 3_600_000)
   await utimes(path, past, past)
@@ -70,10 +64,6 @@ test('re-probes when the binary is replaced with one of a different size', async
 })
 
 test('re-probes when a same-size replacement kept the mtime, because the inode moved', async () => {
-  // The realistic staleness shape for a *tool* binary, and the one `(size, mtimeMs)` alone cannot
-  // see: an archive extraction or `cp -p` restores the recorded timestamp, so a new build of the
-  // same byte length looks untouched. It is a different file, so its inode differs — which is why
-  // the identity records one.
   await write('#!/bin/sh\nAAA\n')
   const first = await openToolVersionCache(cacheDir)
   await first.resolve([binary], async () => '1.2.3')
@@ -100,8 +90,6 @@ test('re-probes a binary written inside the racy window even when its identity m
 })
 
 test('keys on the whole invocation, so two scripts run through one Node do not collide', async () => {
-  // `resolveScriptBin` returns `{ command: process.execPath, prefixArgs: [scriptPath] }`, so every
-  // bundled JS engine shares one `command`. Keying on that alone would hand oxlint's version to tsc.
   const oxlint = join(dir, 'oxlint.js')
   const tsc = join(dir, 'tsc.js')
   await writeFile(oxlint, 'a')

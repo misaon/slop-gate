@@ -42,12 +42,6 @@ const planWith = (args: {
   engines: Engine[]
   files: InventoryFile[]
   rules: Record<string, RuleSetting>
-  /**
-   * Concepts to elect *regardless* of what the resolver says about them. Only one test needs this, and
-   * it needs it because `RuleSetResolver.anyEnabledConcepts` already drops an `off` concept — so a rule
-   * whose resolved level is `off` cannot reach `buildPlan` through the normal path, and the guard that
-   * would drop it there is untestable without forcing the election.
-   */
   electAlso?: readonly string[]
 }) => {
   const resolver = createRuleSetResolver({ config: { rules: args.rules as never } })
@@ -159,15 +153,6 @@ test('gives a rule with no options a setting holding nothing but its level', () 
 })
 
 test('never puts an off rule in the selection, so no adapter can read one as enabled', () => {
-  // The invariant the adapters' own `['off', …]` guards are the second line of defence for: a rule that
-  // resolves to `off` is dropped before a setting is built for it at all, so an engine never has to
-  // decide what an off rule means (see `EngineRuleSetting`).
-  //
-  // `electAlso` forces the election because there are *two* filters in front of this one and the outer
-  // one already catches everything: `anyEnabledConcepts` drops an off concept before `electOwners`
-  // sees it, so without forcing, this test would pass with `buildPlan`'s own guard deleted — verified
-  // by deleting it. Which is worth saying plainly: that guard is unreachable in production today, and
-  // this test pins it as a guard rather than as the mechanism.
   const plan = planWith({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'no-debugger', concepts: ['correctness.no-debugger'] }),
@@ -183,9 +168,6 @@ test('never puts an off rule in the selection, so no adapter can read one as ena
 })
 
 test('resolves a multi-concept rule\'s options in sorted concept order', () => {
-  // Two concepts of one rule carrying different options has no right answer, only a determinate
-  // one. Pinned so it cannot start depending on registry declaration order — the property
-  // `electOwners` maintains for arbitration, held here too.
   const entries = [
     entry({
       engine: 'oxlint',

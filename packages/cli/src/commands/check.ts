@@ -11,18 +11,12 @@ import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
 import { resolveRootDir } from '../root-dir.ts'
 
-/** `'invalid'` rather than a thrown error or a silent `undefined` — see the call site. */
 export function parseMaxTokens(raw: string | undefined): number | undefined | 'invalid' {
   if (raw === undefined) return undefined
   const value = Number(raw)
   return Number.isSafeInteger(value) && value > 0 ? value : 'invalid'
 }
 
-/**
- * `0` is admitted, unlike `parseMaxTokens`: `--max-warnings 0` is the flag's whole point. The empty
- * string is refused explicitly because `Number('')` is `0` — the one value that must not be reachable
- * by accident here, since it turns `--max-warnings=` into the strictest possible gate.
- */
 export function parseMaxWarnings(raw: string | undefined): number | undefined | 'invalid' {
   if (raw === undefined) return undefined
   if (raw.trim() === '') return 'invalid'
@@ -36,12 +30,7 @@ export const check = defineCommand({
     format: { type: 'string', default: 'pretty', description: `Output format (${REPORTER_NAMES.join(', ')})` },
     'max-warnings': { type: 'string', description: 'Fail when warnings exceed this count' },
     'max-tokens': { type: 'string', description: 'Bound the `agent` report to this many estimated tokens' },
-    // Named `cache` (default true), not `no-cache`: citty strips the `no-` prefix from any raw `--no-X` argv
-    // token and reads it as "negate X", whether or not an arg literally named `no-X` exists. **An arg named
-    // `no-cache` can therefore never be set from `--no-cache`** — citty negates an undefined `cache` and
-    // `no-cache` keeps its default forever.
     cache: { type: 'boolean', default: true, negativeDescription: 'Ignore cached results' },
-    // Named for the same reason `cache` is — citty reads `--no-baseline` as "negate `baseline`".
     baseline: { type: 'boolean', default: true, negativeDescription: 'Report every finding, including the accepted ones' },
     'require-engines': {
       type: 'boolean',
@@ -56,9 +45,6 @@ export const check = defineCommand({
 
     if (!validateFormat(args.format)) return
 
-    // Rejected rather than coerced or ignored. `--max-tokens` is the one flag whose whole purpose is to make the
-    // report drop findings: a typo falling back to "no limit" hands an agent a report far larger than its
-    // context, and a typo becoming `0` hands it one with no findings at all.
     const maxTokens = parseMaxTokens(args['max-tokens'])
     if (maxTokens === 'invalid') {
       process.stderr.write(`--max-tokens must be a positive integer, got: ${args['max-tokens']}\n`)
@@ -66,10 +52,6 @@ export const check = defineCommand({
       return
     }
 
-    // Refused here, before any engine runs, for the same reason `--max-tokens` is. The silent version
-    // dropped a `NaN` threshold and let a negative one through: `--max-warnings abc` exited 0 on a
-    // repository full of warnings, and `--max-warnings -1` failed a clean one — either way the gate's
-    // verdict came from a typo rather than from the findings.
     const maxWarnings = parseMaxWarnings(args['max-warnings'])
     if (maxWarnings === 'invalid') {
       process.stderr.write(`--max-warnings must be a non-negative integer, got: ${args['max-warnings']}\n`)
@@ -77,10 +59,6 @@ export const check = defineCommand({
       return
     }
 
-    // Refused for `agent` rather than collected and dropped: that reporter withholds everything run-dependent on
-    // purpose, so its output is byte-identical between a cold and a warm run (`packages/reporters/src/agent.ts`,
-    // and the e2e test that pins it) — there is nowhere for a breakdown to go. Said on stderr, because the
-    // alternative is a flag that measures a run and silently prints nothing.
     const timing = args.timing === true && args.format !== 'agent'
     if (args.timing === true && !timing) {
       process.stderr.write('--timing is ignored by `--format=agent`: that report is byte-identical between runs by design.\n')
@@ -97,10 +75,6 @@ export const check = defineCommand({
     process.once('SIGINT', onInterrupt)
     process.once('SIGTERM', onInterrupt)
 
-    // The run's source text, shared with `streamCheck` (see `CheckOptions.sources`) rather than kept as a second
-    // copy. Both directions matter: a file some engine examined is already in here by the time its diagnostics
-    // reach the reporter, while a file every engine served from cache was never read at all, so the reporter's
-    // own read below is what fills it.
     const sources = new Map<string, string>()
 
     const reporter = createReporter(args.format, {
@@ -111,9 +85,6 @@ export const check = defineCommand({
       version: readCliVersion(),
       ...(maxTokens === undefined ? {} : { maxTokens }),
       readSource: (file) => {
-        // `file` is `null` for an orchestrator-level diagnostic with nothing to attribute (see `Diagnostic.file`).
-        // Guarded explicitly rather than left to `join(rootDir, null)` throwing into the `catch` below — that
-        // would work by accident, not by contract.
         if (file === null) return null
         const held = sources.get(file)
         if (held !== undefined) return held
@@ -122,9 +93,6 @@ export const check = defineCommand({
           sources.set(file, content)
           return content
         } catch {
-          // A failure is deliberately not remembered: storing a `null` needs a value type wider than the run's
-          // own map, and the case — a file deleted between discovery and rendering — is bounded by the frame
-          // dedupe to a handful of retries.
           return null
         }
       },
@@ -140,9 +108,6 @@ export const check = defineCommand({
         useCache: args.cache,
         useBaseline: args.baseline,
         sources,
-        // From process start, not from the top of `streamCheck`. This process exists to run one check, so node
-        // boot, the module graph and `loadCliConfig` are part of what the user waited for — roughly half the
-        // wall clock of a warm run, and `--timing`'s largest row. See `CheckOptions.startedAt`.
         startedAt: 0,
         timing,
         signal: controller.signal,
@@ -156,10 +121,6 @@ export const check = defineCommand({
     }
 
     const unavailableEngines = result?.unavailableEngines ?? []
-    // Written to stderr, not left to the reporter. `pretty` shows an absent engine only when it actually cost the
-    // run coverage while `--require-engines` fails on absence regardless — without this, the one case the flag
-    // exists for (a CI image missing a tool the repository does not yet exercise) exits 3 with nothing on screen
-    // naming the tool or the flag.
     if (args['require-engines'] === true) {
       for (const engine of unavailableEngines) {
         const install = engine.install === undefined ? '' : ` Install it with \`${engine.install}\`.`

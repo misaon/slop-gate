@@ -3,13 +3,8 @@ import { displayWidth } from '../display-width.ts'
 import { createFrameKit, plural } from '../box.ts'
 import type { RulesReporterContext } from './context.ts'
 
-/** Bumped to 2 by `suppressed` becoming `overlaps`, and each record's own `suppressed` becoming
- *  `loser`: a v1 reader finds both keys missing rather than renamed, and an empty `suppressed` reads
- *  as a run with no overlaps at all. */
 export const RULES_CONFLICTS_JSON_VERSION = 2
 
-/** Matches the message `run/check.ts`'s `configDiagnostics` builds for the same `config.dead-override` case —
- *  the words a user already sees inline in `sgate check`, not a second wording of the same fact. */
 function deadOverrideText(key: string): string {
   return `\`${key}\` does not name a known concept or a rule any engine provides.`
 }

@@ -35,16 +35,6 @@ test('looks a concept up by id', () => {
 })
 
 test('separates generated descriptions from written ones', () => {
-  // The property consumers actually rely on: a generated description restates the rule's name and a
-  // written one states the consequence, so anything presenting a description as rationale has to be
-  // able to tell them apart. Asserted on both sides — a set that quietly went empty, or one that
-  // swallowed the written half, would pass a membership check written only one way.
-  //
-  // `pedantic.accessor-pairs` stands in for the still-generated majority: a rule outside
-  // `recommended`, so nothing has yet had reason to write its rationale. `correctness.no-debugger` is
-  // hand-written vocabulary and `correctness.no-useless-spread` is a mechanically-named concept a
-  // human has since described (concepts/curated.ts) — the second is the case worth pinning, because
-  // writing prose without dropping the concept out of this set is a silent no-op.
   expect(GENERATED_CONCEPT_IDS.has('pedantic.accessor-pairs')).toBe(true)
   expect(GENERATED_CONCEPT_IDS.has('correctness.no-debugger')).toBe(false)
   expect(GENERATED_CONCEPT_IDS.has('correctness.no-useless-spread')).toBe(false)

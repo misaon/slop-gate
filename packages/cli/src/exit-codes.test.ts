@@ -34,8 +34,6 @@ test('an engine failure outranks findings', () => {
 })
 
 test('a registered engine that is not installed is not a failure by default', () => {
-  // The default has to stay usable on a laptop that never installed the optional tool. The run is
-  // still honest about it — every reporter prints the gap — but it does not fail.
   expect(resolveExitCode({ ...clean, unavailableEngines: [{ engine: 'hadolint' }] })).toBe(EXIT_CODES.clean)
 })
 

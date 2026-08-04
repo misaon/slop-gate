@@ -49,9 +49,6 @@ test('catches a value of the wrong type and points at the key', () => {
 })
 
 test('reports one finding per defect, not one per failed oneOf branch', () => {
-  // ajv reports this three times over: `type` (must be array), `enum` (the bad condition) and the
-  // `oneOf` that failed as a whole. A reader needs the `enum` — the other two are that one restated
-  // at a level of the schema they did not write.
   const source =
     'services:\n  web:\n    image: nginx\n    depends_on:\n      db:\n        condition: service_ok\n  db:\n    image: postgres\n'
   const findings = check(source)
@@ -77,8 +74,6 @@ test('reports two genuinely separate defects separately', () => {
 })
 
 test('falls back to the document start when a pointer names no node', () => {
-  // Defensive: a schema that reports a path the parser cannot resolve must still produce a usable
-  // finding rather than an exception or a range of NaN.
   const source = 'services: 5\n'
   const findings = check(source)
 

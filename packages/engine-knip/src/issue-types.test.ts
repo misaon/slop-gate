@@ -46,18 +46,10 @@ test('isSurfacedIssueType accepts a surfaced type and rejects an excluded or unk
 })
 
 test('the shipped registry carries exactly one entry per surfaced issue type, and none for an excluded one', () => {
-  // The other half of "record every exclusion as first-class data": the table above says which
-  // categories are surfaced, and this is what makes that statement load-bearing rather than
-  // decorative. A category added to the table but never given a `RuleEntry` would be unelectable and
-  // silently absent; a `RuleEntry` for a category the table excludes would be elected, configured into
-  // knip's `include`, and then dropped on the floor by the parser.
   expect(knipEntries.map((entry) => entry.engineRuleId).sort(compareStrings)).toEqual([...KNIP_SURFACED_ISSUE_TYPES])
 })
 
 test('every knip entry maps to exactly one concept, and no two entries share it', () => {
-  // knip's issue types are mutually exclusive by construction — an unused file is not also an unused
-  // export — so nothing here needs `classify`, and a shared concept would mean two categories fighting
-  // over one owner during arbitration.
   const concepts = knipEntries.flatMap((entry) => entry.concepts)
   expect(concepts).toHaveLength(knipEntries.length)
   expect(new Set(concepts).size).toBe(concepts.length)

@@ -28,23 +28,10 @@ beforeEach(async () => {
 afterEach(async () => {
   if (originalSnapshotPath === undefined) delete process.env[SNAPSHOT_PATH_ENV]
   else process.env[SNAPSHOT_PATH_ENV] = originalSnapshotPath
-  // Every test here drives the real `check.run`, which sets `process.exitCode` as a side
-  // effect. Restoring it prevents a test's simulated exit code from leaking into vitest's own
-  // process and silently corrupting the exit status of the actual `pnpm test` invocation.
   process.exitCode = originalExitCode
   await rm(dir, { recursive: true, force: true })
 })
 
-/**
- * Gives the dependency-security engine an advisory snapshot, so what these tests describe is the
- * tool rather than whether this machine has ever run `sgate engines install advisories`. Same
- * discipline as the actionlint stub below: construct the premise, never inherit it from a laptop.
- *
- * Dated now, deliberately. A snapshot past a week old reports its own age as a finding — that is the
- * engine working correctly, and here it would be indistinguishable from the regressions these tests
- * exist to catch. The tables are empty because none of these fixtures has a lockfile to match
- * against; what is being constructed is availability, not findings.
- */
 async function installAdvisoryFixture(root: string): Promise<string> {
   const directory = join(root, '.advisory-snapshot')
   await writeAdvisorySnapshot(
@@ -94,25 +81,12 @@ async function runCheckCapturingStdout(args: Record<string, unknown> = {}): Prom
 }
 
 test('does not stay on a stale exit code left over from a previous call', async () => {
-  // Nothing about *this* run is a config error: there is no config file in `dir`, so
-  // `loadConfig` resolves cleanly. A caller that invokes `check.run` more than once in the same
-  // process (a test harness, an embedding tool) without spawning a fresh process each time must
-  // not have a leftover `process.exitCode` from an unrelated earlier call change this run's
-  // outcome.
   process.exitCode = EXIT_CODES.config
   await runCheck()
   expect(process.exitCode).toBe(EXIT_CODES.clean)
 })
 
 test('a config diagnostic reports the config file as repo-relative, not the absolute path loadConfig resolved', async () => {
-  // `loadConfig` (and the `findConfigFile` it wraps) always resolves an absolute path — it walks
-  // up from `cwd` until it finds one. Writing a real config file on disk here, unlike the other
-  // tests in this file, is exactly what makes `loadConfig` take that path instead of returning
-  // `null`. The bad rule key deterministically triggers `config.dead-override` regardless of which
-  // engines are registered — `extends: ['recommended']` alone used to be enough (the registry's
-  // oxlint/eslint tier overlap on `dead-code.unused-variable` fired unconditionally), but fix 1
-  // made arbitration drop a registry entry whose engine never participates in the run, so a plain
-  // `recommended` config with only oxlint registered no longer produces any `config.*` diagnostic.
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
     "export default { extends: ['recommended'], rules: { 'oxlint/no-such-rule': 'error' } }\n",
@@ -129,17 +103,6 @@ test('a config diagnostic reports the config file as repo-relative, not the abso
 })
 
 test('produces no config diagnostics when no config file exists and only oxlint is registered', async () => {
-  // Supersedes the old "names no file when no config file exists" regression test. Before fix 1,
-  // `DEFAULT_CONFIG = { extends: ['recommended'] }` unconditionally triggered `config.rule-overlap`
-  // (the registry's oxlint/eslint tier overlap fired regardless of which engines actually ran), and
-  // that diagnostic used to be wrongly attributed to the literal default `slop-gate.config.ts` — a
-  // path that does not exist anywhere in `dir` (docs/superpowers/specs/2026-07-31-m0-followups.md,
-  // "Found by first real-world use"). Fix 1 removes the trigger itself: with no config file and no
-  // overrides, arbitration only ever considers oxlint (the one engine `check.ts` registers), so
-  // there is no overlap to suppress and nothing left to attribute to a `file: null` diagnostic at
-  // all. The null-file attribution contract itself is still covered directly against `streamCheck`
-  // by `packages/core/src/run/check.test.ts` ("a config diagnostic is attributed to no file..."),
-  // using a bad rule key rather than the now-removed unconditional overlap.
   const output = await runCheckCapturingStdout()
   const report = JSON.parse(output) as { diagnostics: Array<{ concept: string }> }
 
@@ -158,10 +121,6 @@ test('accepts the agent format and reports its coverage even on a clean reposito
   const output = await runCheckCapturingStdout({ format: 'agent' })
 
   expect(output).toContain('slop-gate agent report v1')
-  // Not "no findings. Nothing was omitted." — this fixture is a bare temp directory with no
-  // `tsconfig.json`, and `types.type-error` is in `recommended`, so `tsc` is a genuine coverage gap
-  // here. The agent report saying so is the point of the format: a clean section that is clean only
-  // because an engine could not run must never read as clean.
   expect(output).toContain('coverage: 1 engine could not run (see INCOMPLETE above)')
   expect(output).toContain('unchecked: types.type-error')
 })
@@ -172,21 +131,12 @@ test('--max-tokens reaches the agent reporter and bounds what it prints', async 
   const unbounded = await runCheckCapturingStdout({ format: 'agent' })
   const bounded = await runCheckCapturingStdout({ format: 'agent', 'max-tokens': '200' })
 
-  // Deliberately not a hard-coded finding count: this test is about `--max-tokens` bounding the
-  // report, and coupling it to how many findings `recommended` happens to produce made it fail every
-  // time the preset grew. What must hold is that the unbounded run omits nothing.
   expect(unbounded).toContain('findings shown, 0 omitted (no --max-tokens set).')
   expect(bounded).toContain('(--max-tokens 200)')
   expect(bounded).toContain('omitted')
 })
 
 test('rejects a --max-tokens that is not a positive integer instead of ignoring it', async () => {
-  // Silently falling back to "no limit" hands an agent a report far larger than the context it
-  // asked to fit; silently coercing to 0 hands it one with no findings in it. Both are worse than
-  // refusing, so the flag is validated before any engine runs.
-  // Accumulated into a local rather than asserted off the spy: `mockRestore` clears the recorded
-  // calls, so a `toHaveBeenCalledWith` after the `finally` reads an empty history and passes or
-  // fails for the wrong reason.
   let written = ''
   const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
     written += chunk
@@ -214,15 +164,12 @@ test('parseMaxTokens accepts a positive integer and refuses everything else', ()
 
 test('parseMaxWarnings accepts zero and any count above it, and refuses everything else', () => {
   expect(parseMaxWarnings(undefined)).toBeUndefined()
-  // Unlike `--max-tokens`, `0` is the flag's most useful value — it is what our own CI gate passes.
   expect(parseMaxWarnings('0')).toBe(0)
   expect(parseMaxWarnings('25')).toBe(25)
   for (const raw of ['-1', '1.5', 'abc', '', '1e400', 'Infinity', 'NaN']) expect(parseMaxWarnings(raw), raw).toBe('invalid')
 })
 
 test('rejects a --max-warnings that is not a non-negative integer instead of ignoring it', async () => {
-  // The silent-drop version of this exited 0 on `--max-warnings abc` with nothing on stderr, which
-  // is a CI gate that reports success because its own threshold failed to parse.
   let written = ''
   const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
     written += chunk
@@ -258,15 +205,6 @@ test('a negative --max-warnings is refused rather than passed through as an alwa
 })
 
 test('--no-cache reaches the command as cache: false through citty real argv parser', () => {
-  // Regression test: this must go through citty's own `parseArgs`, not a hand-built `args`
-  // object like the tests above use. citty treats any raw `--no-X` token as "negate X" before
-  // its parser ever looks at the arg definitions, regardless of whether an arg literally named
-  // `no-X` exists. An arg previously named `no-cache` was silently un-settable from the command
-  // line for exactly this reason: `--no-cache` negated a nonexistent `cache` flag instead, and
-  // `no-cache` kept its `false` default forever, so `sgate check --no-cache` never actually
-  // bypassed the cache. Hand-constructing `{ 'no-cache': true }` in the tests above would never
-  // have exposed that: it skips the parser and lands directly on the field the bug prevented
-  // `--no-cache` from ever reaching.
   const argsDef = check.args as never
   expect(parseArgs([], argsDef)['cache']).toBe(true)
   expect(parseArgs(['--no-cache'], argsDef)['cache']).toBe(false)
@@ -280,33 +218,11 @@ test('--require-engines is off unless asked for, and reaches the command through
 })
 
 test('--require-engines on a fully equipped machine still exits clean', async () => {
-  // The direction that is cheap to get wrong: the flag must add no failure of its own when nothing
-  // is missing. The failing direction is `exit-codes.test.ts`'s, which can supply an absent engine
-  // directly, and the companion test below, which drives the real resolver.
-  //
-  // **The premise is constructed, not assumed.** This test used to be written as "no engine in
-  // `defaultEngines` declares `availability`, so nothing can be missing", and that stopped being
-  // true the moment actionlint was registered — after which it passed on a developer machine with
-  // actionlint installed and failed on every CI runner without it, which is a test asserting the
-  // state of a laptop. `SLOP_GATE_ACTIONLINT_PATH` is what the adapter's own resolver reads first,
-  // so pointing it at a file that exists makes the engine available through the real code path with
-  // nothing downloaded. The file is never executed: `actionlint` is scoped to `github-workflow` and
-  // the fixture directory contains no workflow, so arbitration never elects it and `run` is never
-  // reached.
-  // **The tsc half of the same premise, and it takes two things, not one.** `tsc` is unavailable
-  // without a project *and* without a `typescript` of the project's own — this fixture is a bare
-  // temp directory under `os.tmpdir()`, which has neither. Supplying only the tsconfig is what shipped
-  // first, and it passed on macOS and Linux for the wrong reason: `resolveTscBinary` fell through to a
-  // bare `tsc` on `PATH`, which a POSIX CI runner happens to have and Windows cannot execute by bare
-  // name. Both halves are therefore constructed here, and the linked `typescript` is the workspace's
-  // own — a junction rather than a symlink so it needs no elevation on Windows.
   await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ compilerOptions: { noEmit: true }, include: ['*.ts'] }))
   const typescriptDir = dirname(createRequire(import.meta.url).resolve('typescript/package.json'))
   await mkdir(join(dir, 'node_modules'), { recursive: true })
   await symlink(typescriptDir, join(dir, 'node_modules', 'typescript'), 'junction')
 
-  // hadolint is the same shape as actionlint and needs the same construction: scoped to
-  // `dockerfile`, so the fixture never elects it, but `--require-engines` still counts it absent.
   const stub = join(dir, 'actionlint-stub')
   const hadolintStub = join(dir, 'hadolint-stub')
   await writeFile(stub, '')
@@ -318,10 +234,6 @@ test('--require-engines on a fully equipped machine still exits clean', async ()
   try {
     const output = await runCheckCapturingStdout({ 'require-engines': true })
 
-    // Asserted before the exit code, and deliberately: `expected 3 to be +0` is the least
-    // informative thing this run knows, and it has now sent two people hunting through two
-    // different engines. Both banners name the engine, so a regression fails with the engine in
-    // the message instead of a bare number.
     expect(output).not.toMatch(/COVERAGE GAP|ENGINE FAILED/)
     expect(process.exitCode).toBe(EXIT_CODES.clean)
   } finally {
@@ -333,16 +245,6 @@ test('--require-engines on a fully equipped machine still exits clean', async ()
 })
 
 test('--require-engines on a machine missing an optional engine exits 3 and names it', async () => {
-  // The other half, and the one CI is uniquely good at: every runner is a clean machine with no
-  // actionlint on it, so this is the only place the absent-binary path meets a genuinely absent
-  // binary rather than an injected stub. Constructed here too, so it holds on a developer machine
-  // that does have actionlint installed.
-  // Absence is forced through `SLOP_GATE_ACTIONLINT_PATH` naming a file that does not exist —
-  // documented to resolve to nothing rather than fall through to `PATH`, so a typo in an override
-  // can never silently run a different binary. Emptying `PATH` instead would have worked here too,
-  // and is what `engine-actionlint`'s own availability test does, but this test drives the *whole*
-  // engine set through the real `check.run`, and taking `PATH` away from oxlint, tsc and knip on the
-  // way to making a point about actionlint is a way to fail on one runner and not another.
   const saved = process.env['SLOP_GATE_ACTIONLINT_PATH']
   let written = ''
   const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
@@ -370,8 +272,6 @@ test('--timing puts the breakdown in the json document, and its rows account for
     timings: { startupMs: number; phases: Array<{ name: string; durationMs: number }>; unattributedMs: number }
   }
 
-  // The four things that are not engine work, all accounted for: node boot, the module graph and
-  // `loadCliConfig` are `startupMs` (the CLI passes `startedAt: 0`), and the inventory walk is a phase.
   expect(report.timings.startupMs).toBeGreaterThan(0)
   expect(report.timings.phases.map((phase) => phase.name)).toContain('discover')
 
@@ -410,7 +310,6 @@ test('--timing with --format=agent says it is ignored rather than measuring a ru
   }
 
   expect(written).toContain('--timing is ignored by `--format=agent`')
-  // The report itself is untouched: that is the property the note exists to protect.
   expect(output).toContain('slop-gate agent report v1')
   expect(output).not.toContain('unattributed')
 })

@@ -31,34 +31,14 @@ export { resolveKnipBinary, resolveKnipPackageJson, type KnipInvocation } from '
 const run = promisify(execFile)
 
 export type CreateKnipEngineOptions = {
-  /**
-   * Repo-relative path of the slop-gate config file, when one was found. knip reports it as an unused
-   * file otherwise — nothing imports it, we load it by path at runtime. See `buildIgnore` in config.ts.
-   */
   configFile?: string
-  /**
-   * The user's own `ignore` globs from `slop-gate.config.ts`. A project-granularity engine picks its own
-   * files, so core's inventory filtering never reaches it — without this, knip reports on directories the
-   * user explicitly excluded. See `buildIgnore` in config.ts for the measurement.
-   */
   ignore?: readonly string[]
-  /** Test-only escape hatch, mirroring the other two adapters': spawned exactly as given, with no `node` prefix. */
   binaryPath?: string
-  /**
-   * The repository being analysed, needed only by `availability()` — knip itself is bundled and resolves
-   * from this package. Omitted, the installed-dependencies probe stands down and the engine is always
-   * available, which is the pre-existing behaviour.
-   */
   rootDir?: string
 }
 
 const DEPENDENCIES_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
 
-/**
- * Whether the root manifest asks for anything to be installed. Read from the manifest rather than from a
- * lockfile, because a lockfile is a record of a *resolution* and can outlive the `node_modules` it
- * describes — the question here is whether this repository wants dependencies at all.
- */
 function declaresDependencies(manifest: unknown): boolean {
   if (typeof manifest !== 'object' || manifest === null) return false
   const record = manifest as Record<string, unknown>
@@ -68,17 +48,6 @@ function declaresDependencies(manifest: unknown): boolean {
   })
 }
 
-/**
- * knip: the second project-granularity engine (spec §8.1) and the second dedicated dead-code /
- * dependency-hygiene domain owner (spec §13.1).
- *
- * **`rootDir` is not what it is for `createTscEngine`**, and the difference is the peer-vs-bundled one:
- * `typescript` must be resolved from the analysed project so a type error matches the developer's own
- * editor, whereas knip is a `dependencies` entry of this package with no editor counterpart to agree with,
- * so it resolves from this package's own install location and its version is a property of slop-gate rather
- * than of the repository. Nothing here reads `rootDir` to find the *binary*; `availability()` reads it to
- * ask whether the repository's own dependencies are installed, which is a fact about the repository.
- */
 const MISSING_KNIP =
   'the bundled `knip` package could not be resolved from this installation of slop-gate, and it will ' +
   'not fall back to a `knip` on PATH — knip’s version is a property of slop-gate, not of the ' +
@@ -88,10 +57,6 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
   const invocation: KnipInvocation | undefined =
     options.binaryPath === undefined ? resolveKnipBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  // An unresolvable bundled dependency is a broken installation of slop-gate, not a coverage gap — see
-  // `resolveScriptBin`'s own note. Never a fallback to a `knip` on `PATH` either: `version()` reads the
-  // bundled manifest, so a substituted binary would report one version while running another, and the
-  // cache key would record the wrong one.
   const required = (): KnipInvocation => {
     if (invocation === undefined) throw new EngineError('knip', MISSING_KNIP)
     return invocation
@@ -101,70 +66,17 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
     id: 'knip',
 
     capabilities: {
-      // `json` and `jsonc` are here for two reasons, neither of them "knip lints JSON". First, **the
-      // workspace map is derived from the assigned file list** (`synthesizeKnipWorkspaces`), and a
-      // `package.json` only reaches `run()` via `batch.files` if `buildPlan` considered its language
-      // supported — without `json`, the one thing this adapter exists to do cannot happen. Second, **cache
-      // invalidation** — spec §9: "knip has no incremental mode; it is re-run only when JS/TS files,
-      // `package.json` files or the workspace graph changed." A project assignment's cache key folds in every
-      // assigned file's content hash, so declaring these languages is what makes a manifest or tsconfig edit
-      // invalidate knip's cached result.
-      //
-      // `yaml` is deliberately *not* claimed even though `pnpm-workspace.yaml` is part of the workspace
-      // graph: this adapter overrides knip's own workspace discovery entirely, so that file no longer
-      // influences the outcome — and claiming `yaml` would pull every CI workflow in the repository into
-      // knip's assigned file set for nothing.
-      //
-      // **`vue`, `svelte` and `astro` are the second half of the cache-invalidation reason**, and their
-      // absence was a silent false *negative*. knip compiles all three through its own plugins
-      // (`plugins/vue` registers `.vue` on a `vue`/`nuxt` dependency, `plugins/astro` registers `.astro`
-      // and `.mdx`, `plugins/svelte` `.svelte` — verified against 6.31.0), so an import written inside an
-      // SFC is part of the graph knip answers from. A project engine's cache key folds in the files the
-      // *plan* assigned it, and the plan assigns by declared language — so an engine that analyses a
-      // language it does not claim holds a key that cannot move when that language changes. Measured on a
-      // three-file Vue fixture: dropping `App.vue`'s only import of an export left the warm run reporting
-      // nothing, while `--no-cache` over the identical tree reported the now-dead export. A gate that
-      // answers "clean" from a stale entry is the one failure direction that cannot be noticed.
-      //
-      // **`markdown` is knowingly not claimed, and that leaves `.mdx` uncovered.** knip's Astro plugin
-      // compiles `.mdx`, so the same staleness applies to it — but slop-gate's language map sends `.md`
-      // and `.mdx` to one id (`discovery/language.ts`), and claiming it would assign every README and
-      // changelog in the repository to knip to fix a case only `.mdx` has. Recorded rather than fixed
-      // silently: the cost of the gap is a stale knip result after an `.mdx`-only edit, and `--no-cache`
-      // is the workaround until the language map can tell the two apart.
+      // Not "knip lints these". A project engine's cache key folds in the files the plan assigned
+      // it, so a language knip *analyses* but does not claim can change without invalidating the
+      // cached result — a stale "clean". `yaml` is deliberately absent: this adapter overrides
+      // knip's workspace discovery, so `pnpm-workspace.yaml` no longer affects the outcome.
+      // `markdown` too, which leaves `.mdx` uncovered: it shares an id with every README.
       languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro', 'json', 'jsonc'],
       granularity: 'project',
-      // knip consumes a workspace graph; it does not make one available to other engines' rules. Same
-      // reasoning as the `tsc` entry's `provides: []` in packages/core/src/registry/entries.uncatalogued.ts.
       provides: [],
-      // knip has a real `--fix`, including file deletion. Wiring it into the fix pipeline (spec §11) is
-      // its own milestone; claiming the capability now would let `sgate fix` promise edits this adapter
-      // cannot produce.
       fixes: false,
     },
 
-    /**
-     * **Declared for a bundled engine, on the `engine-tsc` precedent and for the same reason.** knip is
-     * present by construction; what may be missing is the *repository's* `node_modules`, and knip resolves
-     * every import through it.
-     *
-     * An uninstalled repository does not make knip report *less*. It makes it report **wrongly, in both
-     * directions**. Measured on `withastro/docs`: **3,308 `deps.unresolved-import` findings at `error`
-     * without `node_modules`, and 2 with it.** Its `tsconfig.json` extends `astro/tsconfigs/strict`, which
-     * cannot resolve, so knip loses the local `"paths": { "~/*": ["./src/*"] }` and every
-     * `~/components/*.astro` import written in an `.mdx` file becomes unresolved — 1,405 distinct files.
-     * `directus/directus` shows the identical shape at 3,765, all `@/...` alias specifiers.
-     *
-     * And it is not merely noise, which is what rules out suppressing the two affected issue types and
-     * keeping the rest: `nuxt/nuxt.com` reported **43** unused exports uninstalled against **65**
-     * installed, so the uninstalled run also *hid* 22 real findings. A result that is wrong in both
-     * directions is not a partial result, and the honest report of it is a coverage gap naming the command
-     * that closes it — exactly what `tsc` already does when the project has no `typescript`.
-     *
-     * **Two conditions, not one.** Absent `node_modules` is evidence of "not installed" only when
-     * something asked to be installed, so a genuinely dependency-free repository keeps knip. The probe is
-     * one `readFile` of the root manifest and one `stat`, inside `Engine.availability`'s stated budget.
-     */
     async availability() {
       if (options.rootDir === undefined) return { available: true as const }
 
@@ -175,7 +87,6 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
       try {
         parsed = JSON.parse(manifest)
       } catch {
-        // An unparseable manifest is knip's own finding to report, not a reason to stand this engine down.
         return { available: true as const }
       }
       if (!declaresDependencies(parsed)) return { available: true as const }
@@ -197,9 +108,6 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
     },
 
     async version() {
-      // Read, not spawned: `knip --version` is a full Node process launch for a string sitting in a
-      // manifest this package already knows how to find, and a fully-cached run still calls `version()`
-      // for every registered engine. `engine-tsc` made the same trade.
       const manifest = JSON.parse(await readFile(resolveKnipPackageJson('knip/package.json'), 'utf8')) as {
         version?: string
       }
@@ -231,10 +139,6 @@ async function* execute(
   context: RunContext,
   signal: AbortSignal,
 ): AsyncIterable<RawDiagnostic> {
-  // The one place `batch` matters for a project engine. `engine-tsc` ignores its batch entirely (a
-  // tsconfig already declares the program); knip's equivalent declaration is the workspace map, and the
-  // repository is under no obligation to have written one — the inventory has, implicitly, by listing
-  // every `package.json`. See `synthesizeKnipWorkspaces`.
   const { include } = await mergeWorkspacesIntoConfig(
     handle.path,
     synthesizeKnipWorkspaces(batch.files),
@@ -247,13 +151,8 @@ async function* execute(
     handle.path,
     '--reporter',
     'json',
-    // Collapses exit-code handling to "0 or it failed": without it knip exits 1 for "found issues" and 2
-    // for "could not run". Confirmed against knip 6.31.0: `--no-exit-code` suppresses the issue-count exit
-    // *only* — a real failure (a missing `package.json`, an unreadable config) still exits 2.
     '--no-exit-code',
-    // Progress goes to stderr, but it is redrawn continuously and pointless for a piped run.
     '--no-progress',
-    // Configuration hints are advice about the user's *knip* config — which is ours, synthesized.
     '--no-config-hints',
   ]
 

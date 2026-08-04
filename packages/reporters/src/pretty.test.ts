@@ -4,8 +4,6 @@ import { displayWidth, hasWideOrFullwidthCharacter } from './display-width.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
 
-// Built from a char code, not a literal escape in this source file, purely so the byte sequence
-// is unambiguous on review — this file's own diff would otherwise contain a raw control character.
 const ANSI_ESCAPE = String.fromCharCode(27) + '['
 
 const diagnostic = (over: Partial<Diagnostic> = {}): Diagnostic => ({
@@ -69,9 +67,6 @@ const capture = (events: CheckEvent[], contextOver: Partial<ReporterContext> = {
   return output
 }
 
-// Diagnostics carrying their own count, so a single `done` event produces a run whose `diagnostics`
-// array is internally consistent with `counts` and long enough to exercise the "Most frequent"
-// threshold without hand-listing dozens of object literals.
 const manyDiagnostics = (specs: ReadonlyArray<{ concept: string; count: number; file?: string }>): Diagnostic[] => {
   const out: Diagnostic[] = []
   for (const spec of specs) {
@@ -143,9 +138,6 @@ test('summarises counts, scanned/analysed/cached files and duration', () => {
 })
 
 test('folds analysed and cached into one clause once every analysed file came from the cache', () => {
-  // A fully-warm run: every file the plan assigned to an engine was served from the cache. Saying
-  // "127 analysed · 127 cached" reads like a coincidence rather than the whole story — "(all
-  // cached)" says the same thing without repeating the number.
   const output = capture([
     { type: 'done', result: result({ stats: { filesScanned: 179, filesAnalysed: 127, filesFromCache: 127, cacheByEngine: [], enginesRun: 1, durationMs: 83 } }) },
   ])
@@ -156,9 +148,6 @@ test('folds analysed and cached into one clause once every analysed file came fr
 })
 
 test('does not claim anything was cached when nothing was analysed', () => {
-  // No engine covers any of the scanned files (e.g. a repo of only .json/.md/lockfiles) — 0
-  // analysed necessarily means 0 cached too, but saying so is redundant, not just crisp: "0
-  // analysed" alone does not imply a cache failure the way "0 analysed · 0 cached" reads.
   const output = capture([
     { type: 'done', result: result({ stats: { filesScanned: 5, filesAnalysed: 0, filesFromCache: 0, cacheByEngine: [], enginesRun: 0, durationMs: 3 } }) },
   ])
@@ -180,10 +169,6 @@ test('shows the analysed/cached split when they differ', () => {
 })
 
 test('names each engine when the aggregate cache count understates the run', () => {
-  // The reason `stats.cacheByEngine` exists: `filesFromCache` needs *every* engine that claimed a file
-  // to have hit, so one whole-program engine invalidating on any edit reports 3 out of 353 while the
-  // per-file engines were served 351 each. "3 cached" is not wrong, and on its own it is read as "the
-  // cache did nothing".
   const output = capture([
     {
       type: 'done',
@@ -215,9 +200,6 @@ test('names each engine when the aggregate cache count understates the run', () 
 })
 
 test('keeps the per-engine breakdown off a run where it would add nothing', () => {
-  // Two cases, and the same predicate covers both: a cold run has every engine at zero, so no engine
-  // exceeds the aggregate; a fully warm one has nothing left to explain. Printing a breakdown either
-  // time would be footer noise on the two most common runs there are.
   const cold = capture([
     {
       type: 'done',
@@ -261,8 +243,6 @@ test('keeps the per-engine breakdown off a run where it would add nothing', () =
 })
 
 test('wraps the per-engine breakdown rather than letting the frame truncate an engine off it', () => {
-  // The engines worth naming are the ones with the fewest hits, and they sort last — so truncating to
-  // the frame width would drop precisely the ones the block exists for.
   const output = capture(
     [
       {
@@ -292,15 +272,11 @@ test('wraps the per-engine breakdown rather than letting the frame truncate an e
 
   expect(output).toContain('tsc 0/353')
   expect(output).toContain('knip 0/12')
-  // Every framed line stays exactly one frame wide, breakdown lines included.
   const framed = output.split('\n').filter((line) => line.includes('│') || line.includes('|'))
   expect(new Set(framed.map((line) => line.length)).size).toBe(1)
 })
 
 test('pluralises the severity nouns a developer reads on every run', () => {
-  // The scanned/analysed/cached line no longer carries a noun to pluralise at all — fix 4 dropped
-  // "file(s)" from it entirely (see pretty.ts's `writeSummary`), so this test now covers what's
-  // left with a noun: the severity counts, which still say "error" vs "errors".
   const singular = capture([{ type: 'done', result: result({ counts: { error: 1, warn: 0, info: 0 } }) }])
   expect(singular).toContain('1 error')
   expect(singular).not.toContain('1 errors')
@@ -401,9 +377,6 @@ test('shows a code frame for the first finding of a concept in a file, not for a
     { type: 'done', result: result({ counts: { error: 2, warn: 0, info: 0 } }) },
   ])
 
-  // The frame renders the source line via `readSource`, which this test's `capture` stubs to a
-  // fixed two-line body containing exactly one `debugger` token — so the frame's underline
-  // (rendered once per shown frame) is the reliable signal of how many frames were drawn.
   const frameOccurrences = output.match(/[━^]{2,}/g) ?? []
   expect(frameOccurrences).toHaveLength(1)
 })
@@ -465,7 +438,7 @@ test('truncates a long file path from the left, keeping the filename', () => {
       { type: 'diagnostic', diagnostic: diagnostic({ file: longPath }) },
       { type: 'done', result: result() },
     ],
-    { width: 60 }, // narrow enough that this 70-character path cannot fit un-truncated
+    { width: 60 },
   )
 
   expect(output).toContain('…')
@@ -474,12 +447,6 @@ test('truncates a long file path from the left, keeping the filename', () => {
 })
 
 test('frame borders stay aligned to the same display width across a full run', () => {
-  // Every content line between the top and bottom border must resolve to exactly the same display
-  // width, or the right-hand border characters would not line up. This only proves `frameRow`'s own
-  // padding is self-consistent by `displayWidth`'s accounting — it cannot catch a real terminal
-  // rendering a glyph narrower than the standard says, which is exactly why framed lines carry no
-  // wide/fullwidth glyphs at all any more (see "never puts a wide or fullwidth character in a framed
-  // line", below) rather than relying on measuring them correctly.
   const output = capture([
     { type: 'diagnostic', diagnostic: diagnostic({ severity: 'error' }) },
     { type: 'diagnostic', diagnostic: diagnostic({ severity: 'warn', fingerprint: 'w', concept: 'dead-code.unused-variable' }) },
@@ -487,10 +454,6 @@ test('frame borders stay aligned to the same display width across a full run', (
     { type: 'done', result: result({ counts: { error: 1, warn: 1, info: 1 } }) },
   ])
 
-  // Anchored at the start of the line (after the two-space page margin): a bordered frame row
-  // always begins with the vertical bar there. A code frame's own gutter (e.g. "        2 │  ...")
-  // also contains a "│", deep in the middle of the line, and must not be picked up here — it is
-  // not part of a bordered box and is not expected to share its width.
   const borderLines = output.split('\n').filter((line) => /^ {2}[│╭╰]/.test(line))
   expect(borderLines.length).toBeGreaterThan(0)
   const widths = new Set(borderLines.map((line) => displayWidth(line)))
@@ -505,21 +468,13 @@ test('frame top and bottom borders match the content rows in display width', () 
 })
 
 test('never puts a wide or fullwidth character in a framed line', () => {
-  // The invariant, not the workaround: `displayWidth`'s count of an emoji is standards-correct, but
-  // real terminals disagree with the standard often enough that a framed line can never safely
-  // contain one — see `hasWideOrFullwidthCharacter`'s doc comment. Stating this as an invariant, and
-  // checking every framed line of the busiest footer this reporter draws (all three severities, the
-  // "Most frequent" block, a rule overlap and an uncovered concept together), is what stops a
-  // future glyph added to the footer from quietly reintroducing the bug fix 2 closed.
   const busy = manyDiagnostics([
     { concept: 'dead-code.unused-variable', count: 7 },
     { concept: 'slop.as-any-cast', count: 2 },
     { concept: 'correctness.no-debugger', count: 1 },
   ])
   const outputs = [
-    // Clean run: header plus the "No issues found" footer.
     capture([{ type: 'done', result: result({ diagnostics: [], counts: { error: 0, warn: 0, info: 0 } }) }]),
-    // Every severity, "Most frequent", a rule overlap and an uncovered concept at once.
     capture([
       {
         type: 'done',
@@ -586,26 +541,21 @@ test('wraps a long message with continuation lines aligned to the message column
   expect(firstLine).toBeDefined()
   expect(conceptLine).toBeDefined()
 
-  // The concept line already sits at "the message column" (see `detailIndent` in pretty.ts); every
-  // wrapped continuation line of the message above it must land at that same indent, not under the
-  // severity glyph.
   const indent = conceptLine!.slice(0, conceptLine!.length - conceptLine!.trimStart().length)
   expect(indent.length).toBeGreaterThan(0)
 
   const continuationLines = lines.slice(lines.indexOf(firstLine!) + 1, lines.indexOf(conceptLine!))
-  expect(continuationLines.length).toBeGreaterThan(1) // long enough to wrap onto more than one continuation line
+  expect(continuationLines.length).toBeGreaterThan(1)
 
   for (const line of continuationLines) {
     expect(line.startsWith(indent)).toBe(true)
-    expect(line.startsWith(`${indent} `)).toBe(false) // exactly the message column, not one column further in
+    expect(line.startsWith(`${indent} `)).toBe(false)
   }
 
-  // Wrapping must not drop, duplicate, or reorder words.
   const firstFragment = firstLine!.slice(firstLine!.indexOf('2:3') + '2:3'.length).trim()
   const rejoined = [firstFragment, ...continuationLines.map((line) => line.trim())].join(' ')
   expect(rejoined).toBe(longMessage)
 
-  // No produced line may run past the frame's available width.
   for (const line of [firstLine!, ...continuationLines]) expect(displayWidth(line)).toBeLessThanOrEqual(80)
 })
 
@@ -618,8 +568,6 @@ test('a message shorter than the available width is not wrapped or altered', () 
 })
 
 test('an unbreakable token in a message (e.g. a long path) is not broken across lines', () => {
-  // Reproduces the real defect this fix targets: `config.rule-overlap`'s actual message is one
-  // long, mostly-unbroken run of concept and rule identifiers with no short words to wrap on.
   const longToken = 'oxlint/no-unused-vars-and-eslint/@typescript-eslint/no-unused-vars-both-detect-dead-code.unused-variable'
   const output = capture([
     {
@@ -632,14 +580,10 @@ test('an unbreakable token in a message (e.g. a long path) is not broken across 
   expect(output).toContain(longToken)
   const tokenLine = output.split('\n').find((line) => line.includes(longToken))
   expect(tokenLine).toBeDefined()
-  // The token line is allowed to run past the frame width (an unbroken identifier beats a chopped
-  // one), but the token substring itself must appear whole, contiguous, and un-split.
   expect(tokenLine).toContain(longToken)
 })
 
 test('clamps frame width between 60 and 100 regardless of the reported terminal width', () => {
-  // The border line's own display width is `context.width` clamped to [60, 100], plus the
-  // constant two-column page margin that sits outside the box on every printed line.
   const narrow = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }], { width: 20 })
   const narrowBorder = narrow.split('\n').find((line) => line.includes('╭'))
   expect(narrowBorder).toBeDefined()
@@ -781,8 +725,6 @@ test('folds the phases too small to matter into one row rather than dropping the
 })
 
 test('keeps a phase worth naming on a run one engine dominates, where a share alone would fold it away', () => {
-  // 26 ms of a 6-second cold run is 0.4% — under the share floor, and exactly the row someone timing
-  // the run wants to compare against the engine that took the other 83%.
   const phases = [
     { name: 'run:tsc', durationMs: 5039, count: 1 },
     { name: 'discover', durationMs: 26, count: 1 },
@@ -831,6 +773,5 @@ test('a run with nothing to report per rule prints the phases and no empty headi
 test('the timing block never widens the output past the frame', () => {
   const output = capture([timed({ rules: [{ ruleRefKey: `oxlint/${'x'.repeat(120)}`, findings: 1 }] })])
 
-  // 82: the 80-column frame plus the two-space left margin every line in this reporter carries.
   for (const line of output.split('\n')) expect(displayWidth(line)).toBeLessThanOrEqual(82)
 })

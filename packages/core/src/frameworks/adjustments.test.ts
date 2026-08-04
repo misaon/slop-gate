@@ -7,7 +7,6 @@ import type { FrameworkAdjustment, FrameworkApplication, FrameworkDetection, Fra
 
 const UNSTABLE = 'suspicious.no-unstable-nested-components' as ConceptId
 const EXTRANEOUS = 'suspicious.no-extraneous-class' as ConceptId
-/** Deliberately a concept no preset enables, so a scoped addition is the only thing that could. */
 const HOOKS = 'pedantic.rules-of-hooks' as ConceptId
 
 const evidence = [
@@ -42,17 +41,10 @@ const levelsFor = (concept: ConceptId, ...applications: readonly FrameworkApplic
     .filter((layer) => layer.rules[concept] !== undefined)
     .map((layer) => [layer.source, layer.rules[concept]])
 
-// --- the join across profiles -------------------------------------------------------------------
-
 test('a profile can now turn a concept on, which is the whole point of this change', () => {
   expect(levelsFor(UNSTABLE, applied('nestjs', [enable(UNSTABLE, 'error')]))).toEqual([['nestjs', 'error']])
 })
 
-/**
- * The case the user described as Next.js deviating from plain React: two profiles that both want a
- * concept on, one of them louder. No precedence table decides it — the strictest is simply the join
- * of a chain, so the answer is the same whichever order they ran in.
- */
 test('two profiles enabling one concept settle on the stricter level, and only that one is emitted', () => {
   const levels = levelsFor(UNSTABLE, applied('angular', [enable(UNSTABLE, 'warn')]), applied('nestjs', [enable(UNSTABLE, 'error')]))
   expect(levels).toEqual([['nestjs', 'error']])
@@ -69,11 +61,6 @@ test('and the answer does not depend on which profile is listed first', () => {
   expect(backwards).toEqual(forwards)
 })
 
-/**
- * The asymmetry the whole design turns on, as an algebraic property rather than a policy check:
- * `off` is absorbing, so no addition can ever revive a concept another profile measured as wrong
- * here. A wrong addition loses to a subtraction; a wrong subtraction only ever costs coverage.
- */
 test('`off` from any profile beats a louder setting from any other, whichever ran first', () => {
   expect(levelsFor(EXTRANEOUS, applied('angular', [disable(EXTRANEOUS)]), applied('nestjs', [enable(EXTRANEOUS, 'error')]))).toEqual([
     ['angular', 'off'],
@@ -94,8 +81,6 @@ test('one profile contradicting itself resolves by the same join rather than by 
   expect(levelsFor(UNSTABLE, applied('nestjs', [enable(UNSTABLE, 'error'), disable(UNSTABLE)]))).toEqual([['nestjs', 'off']])
 })
 
-// --- what the cascade does with the layer --------------------------------------------------------
-
 const resolve = (rules: Record<string, RuleLevel>, ...applications: readonly FrameworkApplication[]) =>
   createRuleSetResolver({
     config: { rules: rules as never },
@@ -104,7 +89,6 @@ const resolve = (rules: Record<string, RuleLevel>, ...applications: readonly Fra
 
 const levelOf = (concept: ConceptId, resolver: ReturnType<typeof resolve>) => resolver.base.rules.get(concept as RuleKey)?.level
 
-/** The property the task called non-negotiable, and the one `rules why` has to be able to say. */
 test('a user writing `off` beats a profile enabling the same concept at `error`', () => {
   const resolver = resolve({ [UNSTABLE]: 'off' }, applied('nestjs', [enable(UNSTABLE, 'error')]))
   expect(levelOf(UNSTABLE, resolver)).toBe('off')
@@ -119,11 +103,6 @@ test('a user writing `warn` beats a profile enabling the same concept at `error`
   expect(levelOf(UNSTABLE, resolve({ [UNSTABLE]: 'warn' }, applied('nestjs', [enable(UNSTABLE, 'error')])))).toBe('warn')
 })
 
-/**
- * A profile states a floor, never a ceiling. Without this an author writing `'x': 'warn'` to mean
- * "make sure this is on" would silently downgrade a preset that had it at `error` — a subtraction
- * wearing the vocabulary of an addition, and the one way `enable-concept` could lose coverage.
- */
 test('a profile enabling below what an earlier layer already set changes nothing, and records nothing', () => {
   const resolver = createRuleSetResolver({
     config: { extends: ['recommended'], rules: {} },
@@ -147,7 +126,6 @@ test('a profile enabling above what an earlier layer set does apply, and is reco
   ])
 })
 
-/** `off` is not a level to be outranked — a subtraction applies against anything the presets said. */
 test('a profile disabling a concept a preset set at `warn` still applies', () => {
   const resolver = createRuleSetResolver({
     config: { extends: ['recommended'], rules: {} },
@@ -156,10 +134,6 @@ test('a profile disabling a concept a preset set at `warn` still applies', () =>
   expect(resolver.base.rules.get(UNSTABLE as RuleKey)?.level).toBe('off')
 })
 
-/**
- * A raise must not discard the options the preset chose. `materialize` already separates the two
- * facts; this pins that an addition, which never carries options, is not an exception to it.
- */
 test('raising the level of an optioned preset rule leaves its options alone', () => {
   const resolver = createRuleSetResolver({
     config: { rules: { [UNSTABLE]: ['warn', { allowAsProps: true }] } as never },
@@ -172,8 +146,6 @@ test('raising the level of an optioned preset rule leaves its options alone', ()
   expect(resolver.base.rules.get(UNSTABLE as RuleKey)?.options).toEqual([{ allowAsProps: true }])
   expect(withFramework.base.rules.get(UNSTABLE as RuleKey)?.optionsFrom?.layer).not.toBe('framework')
 })
-
-// --- path-scoped adjustments ---------------------------------------------------------------------
 
 const scopedDisable = (concept: ConceptId, paths: readonly string[]): FrameworkAdjustment => ({
   kind: 'disable-concept',
@@ -223,11 +195,6 @@ test('the provenance names the profile and the globs, not an anonymous override 
   ])
 })
 
-/**
- * The same non-negotiable as the unscoped case, and the reason these layers are spliced in at the
- * framework position rather than appended after the user's own `overrides`: a profile that came last
- * would beat the human, and narrowing its claim to a glob does not earn it that.
- */
 test('a user writing `off` still beats a path-scoped profile enabling the same concept at `error`', () => {
   const application = applied('nextjs', [scopedEnable(UNSTABLE, 'error', ['apps/web/**'])])
   const resolver = createRuleSetResolver({
@@ -238,7 +205,6 @@ test('a user writing `off` still beats a path-scoped profile enabling the same c
   expect(resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as RuleKey)?.level).toBe('off')
 })
 
-/** A floor, never a ceiling — the property that keeps a narrower scope from being a hidden subtraction. */
 test('a path-scoped level below what the base cascade holds changes nothing there', () => {
   const resolver = scoped(applied('nextjs', [scopedEnable(UNSTABLE, 'info', ['apps/web/**'])]))
   const resolution = resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as RuleKey)
@@ -246,11 +212,6 @@ test('a path-scoped level below what the base cascade holds changes nothing ther
   expect(resolution?.provenance.map((step) => step.layer)).toEqual(['preset'])
 })
 
-/**
- * A concept enabled only under a glob must still be configured on the engine for the whole run, or
- * the scope is silently dead — the same contract `anyEnabledConcepts` already holds for a user's own
- * `overrides`, now extended to the layer profiles write.
- */
 test('a concept only a scoped addition enables still counts as enabled somewhere', () => {
   const resolver = scoped(applied('nextjs', [scopedEnable(HOOKS, 'error', ['apps/web/**'])]))
   expect(resolver.base.rules.get(HOOKS as RuleKey)).toBeUndefined()
@@ -291,7 +252,6 @@ test('one profile scoping two different concepts to two glob sets emits one laye
   ])
 })
 
-/** Options decide whether a finding exists at all, so no scoped layer can ever carry any. */
 test('a path-scoped layer never lands in `ignoredOverrideOptions`', () => {
   expect(scoped(applied('nextjs', [scopedDisable(UNSTABLE, ['packages/ui/**'])])).ignoredOverrideOptions).toEqual([])
 })

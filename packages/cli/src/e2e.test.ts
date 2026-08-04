@@ -15,12 +15,6 @@ const suppressedFileConcepts = (result: { diagnostics: readonly { file: string |
   result.diagnostics.filter((d) => d.file === 'src/suppressed.ts').map((d) => d.concept)
 
 const check = async (useCache: boolean, useBaseline = true) => {
-  // Mirrors what `sgate check` itself does (packages/cli/src/commands/check.ts): `loadConfig`
-  // resolves the fixture's own `slop-gate.config.ts` to an absolute path, which the caller must
-  // relativize before it reaches `streamCheck` — `configFile` lands verbatim in every `config.*`
-  // diagnostic's `file` field, and paths are repo-relative POSIX in every public data structure.
-  // Without this, the fixture's config is never actually loaded from disk, so no `config.*`
-  // diagnostic is ever produced here and this class of bug (an absolute `configFile`) is invisible.
   const loaded = await loadConfig(dir)
   return runCheck({
     rootDir: dir,
@@ -53,10 +47,6 @@ test('finds the seeded problems in the dirty file and nothing in the clean one',
 test('reports every diagnostic with a canonical rule id, a concept and a position', async () => {
   const diagnostics = (await check(false)).diagnostics
 
-  // The registry's own oxlint/eslint tier overlap on `dead-code.unused-variable` fires
-  // unconditionally (§5.3) — `recommended` enables `config.rule-overlap`, so this run must produce
-  // one. Without this assertion, the relative-path check below would pass vacuously the moment
-  // `configFile` stopped being wired up, exactly the gap that let the absolute-path bug through.
   expect(diagnostics.some((d) => d.concept.startsWith('config.'))).toBe(true)
 
   for (const diagnostic of diagnostics) {
@@ -77,21 +67,11 @@ test('reports the same findings from cache on a second run', async () => {
 }, 60_000)
 
 test('the warm run does strictly less work than the cold run', async () => {
-  // Asserted as *work*, not as elapsed time. The wall-clock version of this test compared
-  // `durationMs` between two runs and failed on a shared CI runner at 173ms vs 163ms — a 6% margin
-  // that says nothing about the cache and everything about what else the machine was doing. Cache
-  // hits and engine invocations are counters the run controls, so they hold on a loaded runner and
-  // still fail for the reason this test exists: a cache that stopped being consulted.
   const cold = await check(true)
   const warm = await check(true)
 
   expect(cold.stats.filesFromCache).toBe(0)
   expect(warm.stats.filesFromCache).toBe(warm.stats.filesAnalysed)
-
-  // Not asserted: that the warm run invokes fewer engines. `enginesRun` is 1 either way, because the
-  // planner is not cache-aware — an engine with every result already cached is still constructed and
-  // asked for its version and config. That gap is recorded in the M0 follow-ups under "Restructure
-  // before M2"; when it closes, this is the assertion to add.
 }, 60_000)
 
 test('never reports two diagnostics with the same concept at the same position', async () => {
@@ -104,10 +84,6 @@ test('never reports two diagnostics with the same concept at the same position',
 }, 60_000)
 
 test('a warm run still reports each of two byte-identical files, not a cross-file duplicate', async () => {
-  // fixtures/basic/src/twin-a.ts and twin-b.ts are byte-identical. The result cache key is
-  // per-content, not per-path (packages/core/src/cache/keys.ts): without the file path folded in,
-  // both files collide on one cache entry on a warm run, so this is the property that class of bug
-  // breaks — unlike the cache-off test above, which never touches the cache at all.
   await check(true)
   const warm = await check(true)
 
@@ -141,11 +117,6 @@ const agentReport = (result: CheckResult, maxTokens?: number): string => {
 }
 
 test('the agent report is byte-identical whether the run was served cold or from cache', async () => {
-  // The end of the determinism chain the unit tests cover a link at a time: a real oxlint run over
-  // real files, once cold and once warm, through the real reporter. `stats.durationMs` and
-  // `stats.filesFromCache` differ between these two results by construction, so this is the test
-  // that fails the moment either of them reaches the output — and with it the property that makes
-  // this format diffable and cacheable.
   const cold = await check(true)
   const warm = await check(true)
 
@@ -167,18 +138,12 @@ test('the agent report accounts for every finding the same run reported', async 
 }, 60_000)
 
 test('an inline suppression hides a real oxlint finding, and an unused one is reported', async () => {
-  // Exercises the full pipeline the unit tests in packages/core stub out: a real oxlint byte
-  // offset, a real line index, a real cached per-file result — not a hand-built `RawDiagnostic`.
-  // fixtures/basic/src/suppressed.ts seeds two directives: one that matches its debugger statement
-  // (must disappear from the result) and one that matches nothing (must surface as
-  // config.unused-suppression, which `recommended` enables by default — see config/presets.ts).
   const result = await check(false)
   const concepts = suppressedFileConcepts(result)
 
   expect(concepts).not.toContain('correctness.no-debugger')
   expect(concepts).toContain('config.unused-suppression')
 
-  // dirty.ts's own, unsuppressed debugger is untouched by the fixture file above.
   expect(result.diagnostics.some((d) => d.file === 'src/dirty.ts' && d.concept === 'correctness.no-debugger')).toBe(true)
 }, 60_000)
 
@@ -200,10 +165,6 @@ test('a baseline built from a run accepts exactly that run, byte-identically twi
   await writeBaseline(path, entriesOf(cold.diagnostics))
   const first = readFileSync(path, 'utf8')
 
-  // Determinism, on the one artefact that is committed and reviewed: rebuilding it from a second run
-  // over unchanged sources must produce the same bytes, or every `sgate baseline update` would show a
-  // diff nobody made. `useBaseline: false` is what `sgate baseline create` itself passes — derived
-  // through the baseline it replaces, a rebuild would only ever re-accept what was already accepted.
   await writeBaseline(path, entriesOf((await check(false, false)).diagnostics))
   expect(readFileSync(path, 'utf8')).toBe(first)
 
@@ -215,9 +176,6 @@ test('a baseline built from a run accepts exactly that run, byte-identically twi
 }, 120_000)
 
 test('the baseline accepts the same findings whether the run was served cold or from cache', async () => {
-  // Acceptance is applied after the cache, never folded into a cache entry (`run/check.ts`). Were it
-  // baked in, editing the baseline would leave a warm run enforcing the previous one — a gate whose
-  // verdict depends on which files happened to be cached.
   await writeBaseline(baselinePathFor(dir), entriesOf((await check(false, false)).diagnostics))
 
   const cold = await check(true)

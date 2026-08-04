@@ -92,7 +92,6 @@ test('the result does not depend on input order', () => {
 })
 
 test('a chain drops only the middle edit when the two ends do not touch each other', () => {
-  // a and c are disjoint; b overlaps both and outranks neither.
   const a = edit({ range: { start: 0, end: 10 }, ruleRefKey: 'oxlint/a', priority: 90 })
   const b = edit({ range: { start: 8, end: 22 }, ruleRefKey: 'oxlint/b', priority: 10 })
   const c = edit({ range: { start: 20, end: 30 }, ruleRefKey: 'oxlint/c', priority: 80 })

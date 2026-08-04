@@ -28,8 +28,6 @@ test('accepts a finding the baseline holds and passes one it does not', () => {
 })
 
 test('matches on the fingerprint alone, so a finding that moved down a file is still accepted', () => {
-  // The fingerprint already excludes line numbers (§10.1). Re-checking the path or the position here
-  // would put them back in through the side door, which is the one thing this must not do.
   const subject = matcher([entry('src/a.ts', 'slop.double-cast', 'aaaa')])
   expect(subject.accepts(diagnostic('aaaa', { position: { startLine: 400, startColumn: 3, endLine: 400, endColumn: 9 } }))).toBe(
     true,
@@ -93,8 +91,6 @@ test('an empty baseline accepts nothing and has nothing stale', () => {
 })
 
 test('a duplicate entry is not double-counted as stale when it matched once', () => {
-  // Two entries can only share a fingerprint if the file was hand-edited; both describe the same
-  // finding, so one match satisfies both rather than leaving a phantom "fixed" finding behind.
   const subject = matcher([entry('src/a.ts', 'slop.double-cast', 'aaaa'), entry('src/a.ts', 'slop.double-cast', 'aaaa')])
   subject.accepts(diagnostic('aaaa'))
   expect(subject.summarise().stale).toEqual([])

@@ -3,7 +3,6 @@ import type { FrameKit } from '../box.ts'
 import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_STYLE } from '../severity.ts'
 import type { RulesReporterContext } from './context.ts'
 
-/** The longest severity word (`error`) — every level column pads to this so level text lines up. */
 export const LEVEL_COLUMN_WIDTH = 5
 
 export function levelGlyph(level: Exclude<RuleLevel, 'off'>, context: RulesReporterContext, paint: FrameKit['paint']): string {
@@ -12,8 +11,6 @@ export function levelGlyph(level: Exclude<RuleLevel, 'off'>, context: RulesRepor
   return paint(SEVERITY_STYLE[severity], glyph[severity])
 }
 
-/** Built once per render, so a renderer can look up a candidate's tier or docs URL by the `RuleRef` that
- *  election/ineligibility records carry. */
 export function indexCandidates(candidates: readonly RuleEntry[]): ReadonlyMap<string, RuleEntry> {
   return new Map(candidates.map((entry) => [ruleRefKey(entry), entry]))
 }

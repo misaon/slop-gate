@@ -30,7 +30,6 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-/** The fixture's own config, resolved the way every command resolves it. */
 const loadedConfig = async (): Promise<SlopGateConfig> => {
   const loaded = await loadCliConfig(dir, DEFAULT_CONFIG)
   if (loaded.kind === 'error') throw new Error(loaded.message)
@@ -185,8 +184,6 @@ test('update on a repository with no baseline points at create rather than writi
 
 test('show reads the file and spawns no engine, so it cannot report staleness', async () => {
   await run(create, { force: false })
-  // Deleting the source would make the finding stale for a *run*; `show` reads the file only, so its
-  // answer is unchanged. That is the boundary, asserted rather than described.
   await rm(join(dir, 'dirty.ts'))
   const { out } = await run(show, {})
 

@@ -17,20 +17,8 @@ const entry = (over: Partial<RuleEntry> & Pick<RuleEntry, 'engine' | 'engineRule
 
 const ALL_LANGUAGES = new Set(['ts' as const])
 const NO_CAPABILITIES = new Set<never>()
-// Every engine known to the registry: the tests below exercise tier/pin/tiebreak/capability/
-// language filtering in isolation, so they should not also be exercising engine-participation
-// filtering (covered separately below) — passing the full set is the "no filter" baseline.
 const ALL_ENGINES: ReadonlySet<EngineId> = new Set(ENGINE_PREFERENCE)
 
-/**
- * The sole owner of a concept, asserting there is exactly one.
- *
- * Ownership is `(concept, language)`-keyed, so the general answer is a list. Every test above this
- * file's per-language section is a single-language election where that list has one entry, and
- * asserting the whole `ConceptOwnership[]` in each would bury what each test is actually about.
- * The embedded `expect` is the point: if a change ever splits ownership in one of these, the test
- * says so rather than silently reading the first element.
- */
 const ownerOf = (result: ReturnType<typeof electOwners>, concept: string): RuleRef | undefined => {
   const ownership = result.owners.get(concept) ?? []
   expect(ownership.length, `${concept} should have a single owner here`).toBeLessThanOrEqual(1)
@@ -178,11 +166,6 @@ test('admits a capability-requiring candidate once the capability is present', (
 })
 
 test('excludes a candidate whose engine did not participate in this run', () => {
-  // Reproduces the M0 follow-up this closes: the registry can carry a `RuleEntry` for an engine
-  // the caller never instantiated (the shipped registry's `eslint` entry exists purely so
-  // `entries.test.ts` can prove a real overlap exists — see "the shipped registry contains a real
-  // overlap"). A `RuleEntry` existing is not the same as its engine actually running, and arbitration
-  // must not elect — or record an overlap against — a rule whose engine will never be invoked.
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['dead-code.unused-variable'] }),
@@ -195,8 +178,6 @@ test('excludes a candidate whose engine did not participate in this run', () => 
   })
 
   expect(ownerOf(result, 'dead-code.unused-variable')?.engine).toBe('oxlint')
-  // Not just "oxlint wins" — the eslint entry must never appear as an overlap loser either,
-  // or a run with only oxlint would still report an overlap that never happened.
   expect(result.overlaps).toEqual([])
 })
 
@@ -214,10 +195,6 @@ test('reports a concept as uncovered when its only candidate belongs to a non-pa
 })
 
 test('excludes candidates whose languages are absent from the repository, but does not report it as uncovered', () => {
-  // A language mismatch is not a coverage gap: the candidate is otherwise fully capable (its engine
-  // participated, no capability was missing, it isn't deprecated) and would run if this repository
-  // contained CSS files. Reporting this as "no capable engine" would be noise about the repository's
-  // shape (it has no CSS), not a real shortfall — see `ElectionResult.uncovered`'s doc comment.
   const result = electOwners({
     entries: [entry({ engine: 'biome-css', engineRuleId: 'css-rule', concepts: ['style.no-var'], languages: ['css'] })],
     enabledConcepts: new Set(['style.no-var']),
@@ -233,11 +210,7 @@ test('excludes candidates whose languages are absent from the repository, but do
 test('separates a language mismatch from a genuine coverage gap within the same run', () => {
   const result = electOwners({
     entries: [
-      // Right engine, no missing capability, not deprecated — this fails only because the repo
-      // has no CSS files. Not a gap.
       entry({ engine: 'oxlint', engineRuleId: 'css-rule', concepts: ['style.no-var'], languages: ['css'] }),
-      // Right language for this repo, but its only candidate's engine never participated in this
-      // run at all — a real gap, independent of language.
       entry({ engine: 'eslint', engineRuleId: 'eslint-only', concepts: ['dead-code.unused-variable'], tier: 2 }),
     ],
     enabledConcepts: new Set(['style.no-var', 'dead-code.unused-variable']),
@@ -250,8 +223,6 @@ test('separates a language mismatch from a genuine coverage gap within the same 
 })
 
 test('reports a genuine coverage gap even when the missing piece is a capability, not language', () => {
-  // The one candidate has the right engine and the right language, but requires a capability
-  // (`types`) nothing in this run provides — a real gap no amount of matching language fixes.
   const result = electOwners({
     entries: [
       entry({ engine: 'tsgolint', engineRuleId: 'typed', concepts: ['slop.as-any-cast'], tier: 1, requires: ['types'] }),
@@ -289,10 +260,6 @@ test('honours a pinned owner even when a faster candidate exists', () => {
 })
 
 test('never reports a concept slop-gate services itself as uncovered', () => {
-  // `config.rule-overlap`, `config.dead-override` and `config.unused-suppression` are emitted by
-  // the orchestrator (packages/core/src/run/check.ts), not by any engine rule — no `RuleEntry` will
-  // ever claim them, so without this exclusion every user sees "N enabled concepts have no capable
-  // engine" about the tool's own diagnostics on every single run.
   const result = electOwners({
     entries: [],
     enabledConcepts: new Set(['config.rule-overlap', 'config.dead-override', 'config.unused-suppression']),
@@ -438,8 +405,6 @@ test('never records the winner as its own loser', () => {
   expect(result.overlaps).toEqual([])
 })
 
-// --- `ineligible`: the rejection reasons `isCapable`/`isApplicable` used to discard silently -----
-
 test('records a deprecated candidate as ineligible instead of discarding it silently', () => {
   const result = electOwners({
     entries: [entry({ engine: 'oxlint', engineRuleId: 'old', concepts: ['style.no-var'], deprecated: { since: '0.2.0' } })],
@@ -513,10 +478,6 @@ test('records a language-mismatch candidate as ineligible, the same case elsewhe
 })
 
 test('records every otherwise-eligible candidate as ineligible when a pin names an engine with no rule here', () => {
-  // Companion to 'reports a concept as uncovered when the pinned engine offers no rule': that test
-  // only proves the concept goes uncovered. Before this field existed, `oxlint/fast` — fully
-  // capable, fully applicable, exactly the kind of candidate that otherwise wins outright — vanished
-  // with no record whatsoever the moment the pin named an engine with nothing to offer.
   const result = electOwners({
     entries: [entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['style.no-var'] })],
     enabledConcepts: new Set(['style.no-var']),
@@ -533,9 +494,6 @@ test('records every otherwise-eligible candidate as ineligible when a pin names 
 })
 
 test('does not record a pinned-elsewhere candidate as ineligible when the pin still elects a real winner', () => {
-  // The 'pinned-to-other-engine' branch only fires when the pin leaves *no* winner at all. When a
-  // winner is elected, every non-winning `ranked` candidate already gets a `RuleOverlap`
-  // (reason 'pinned-owner' when the pin is what rejected it) — it must not *also* appear here.
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'fast', concepts: ['dead-code.unused-variable'] }),
@@ -576,24 +534,10 @@ test('orders rule ids by code unit rather than locale collation', () => {
     participatingEngines: ALL_ENGINES,
   })
 
-  // 'Z' (U+005A) precedes 'a' (U+0061) by code unit; locale collation would invert this.
   expect(ownerOf(result, 'style.no-var')?.engineRuleId).toBe('Zebra')
 })
 
-// ---------------------------------------------------------------------------
-// Ownership is keyed by (concept, language), not by concept alone.
-//
-// The property this project sells is that exactly one rule may report a given concept **at a given
-// place**. Keying uniqueness on the repository approximated that and got it wrong in one direction:
-// two engines covering disjoint languages were treated as a collision when they can never meet on a
-// file. These tests pin the corrected invariant.
-// ---------------------------------------------------------------------------
-
 test('two engines covering disjoint languages both own the concept, and neither loses', () => {
-  // The reproduction that motivated the change. Before it, oxlint won `correctness.parse-error`
-  // outright in any repository containing both TypeScript and YAML, the YAML rule was recorded as
-  // `lower-tier` loser, and `sgate check` emitted a `config.rule-overlap` for an overlap that
-  // cannot happen — the two rules never see the same file.
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'parse-error', concepts: ['correctness.parse-error'], tier: 0 }),
@@ -644,8 +588,6 @@ test('a genuine collision on a shared language still yields an overlap, and name
 })
 
 test('records an overlap only on the languages the candidates actually share', () => {
-  // The partial-overlap case, which neither keying scheme handles by accident: oxlint owns `ts`
-  // uncontested, both contest `yaml`, and the overlap record names `yaml` alone.
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'wide', concepts: ['correctness.parse-error'], tier: 0, languages: ['ts', 'yaml'] }),
@@ -672,9 +614,6 @@ test('records an overlap only on the languages the candidates actually share', (
 })
 
 test('records one overlap per losing rule, not one per language it lost on', () => {
-  // Volume matters: a loser beaten across four languages is one fact about one rule, and reporting
-  // it four times would make `rules conflicts` and `config.rule-overlap` noisier the moment this
-  // change landed. The languages ride along on the single record instead.
   const result = electOwners({
     entries: [
       entry({ engine: 'oxlint', engineRuleId: 'w', concepts: ['dead-code.unused-variable'], tier: 0, languages: ['ts', 'tsx', 'js', 'jsx'] }),
@@ -717,21 +656,10 @@ test('a pin applies per language and leaves the pinned engine owning only what i
     pinnedOwners: { 'correctness.parse-error': 'schema' },
   })
 
-  // The pin wins `yaml`, where schema has a rule. `ts` has no schema candidate at all, so the pin
-  // leaves it unowned rather than handing it to an engine that cannot check it.
   expect(result.owners.get('correctness.parse-error')).toEqual([
     { owner: { engine: 'schema', engineRuleId: 'narrow' }, languages: ['yaml'] },
   ])
 })
-
-// ---------------------------------------------------------------------------
-// Availability gates ownership.
-//
-// An engine that is not installed cannot own a concept: the next-ranked eligible entry takes it.
-// Without this, an optional engine that wins a concept and is then absent takes the concept down
-// with it — the always-available engine that could have reported it has been arbitrated out, and
-// the finding is lost to a gap we elected rather than one we had.
-// ---------------------------------------------------------------------------
 
 const parseError = (over: Partial<RuleEntry> = {}): RuleEntry =>
   entry({ engine: 'oxlint', engineRuleId: 'parse-error', concepts: ['correctness.parse-error'], ...over })
@@ -750,8 +678,6 @@ test('hands the concept to the next-ranked engine when the winner is not install
   })
 
   expect(ownerOf(result, 'correctness.parse-error')).toEqual({ engine: 'schema', engineRuleId: 'parse-error' })
-  // Not an overlap: the actionlint rule never contested anything, so calling it a loser would
-  // put a rule overlap in the output for two engines that never met.
   expect(result.overlaps).toEqual([])
   expect(result.ineligible).toEqual([
     {
@@ -867,8 +793,6 @@ test('reports no owner at all, and says why, when the only candidate is not inst
 })
 
 test('does not displace anything when the absent engine would have lost anyway', () => {
-  // A slower absent engine changes nothing, and saying "actionlint would own this" when it would
-  // not is worse than saying nothing — it sends a reader to install a tool that would not help.
   const result = electOwners({
     entries: [
       parseError({ engine: 'oxlint', engineRuleId: 'parse-error', tier: 0 }),
@@ -902,7 +826,6 @@ test('tells "not installed" apart from "not registered"', () => {
     unavailableEngines: new Set(['actionlint']),
   })
 
-  // Two different facts a user comparing two machines has to be able to tell apart.
   expect(notRegistered.ineligible[0]?.reason).toBe('engine-not-participating')
   expect(notInstalled.ineligible[0]?.reason).toBe('engine-unavailable')
   expect(notRegistered.displaced).toEqual([])

@@ -21,9 +21,6 @@ const unusedVars: RuleEntry = {
   since: '0.1.0',
 }
 
-// Built from scratch rather than `{ ...unusedVars, classify: undefined }`: `RuleEntry.classify` is
-// optional, and `exactOptionalPropertyTypes` rejects assigning `undefined` to override it — the
-// key must be absent, not present-with-undefined.
 const noDebugger: RuleEntry = {
   engine: 'oxlint',
   engineRuleId: 'no-debugger',
@@ -41,11 +38,6 @@ const noDebugger: RuleEntry = {
 
 const entries = [unusedVars, noDebugger]
 
-/**
- * An owner map in the `(concept, language)` shape `electOwners` now produces. The tests here are all
- * about a single `.ts` file, so every concept is owned for `ts` and the language dimension is
- * uniform — see `registry/elect.test.ts` for the split-ownership cases.
- */
 const ownerMap = (pairs: readonly (readonly [string, RuleRef])[]): OwnerMap =>
   new Map(pairs.map(([concept, owner]) => [concept, [{ owner, languages: ['ts' as const] }]]))
 
@@ -180,18 +172,6 @@ test('gives repeated identical findings in one file distinct fingerprints', () =
   expect(first?.fingerprint).not.toBe(second?.fingerprint)
 })
 
-/**
- * The instability nobody recorded, and the reason the M0 follow-ups' "position-based fingerprints
- * would churn a baseline every run" was aimed slightly off target. Fingerprints exclude line numbers
- * by design (§10.1) — but `occurrenceIndex` was counted per `(concept, file)` in the order the engine
- * emitted its findings, so two findings of one concept on textually different lines swapped indices
- * whenever the engine swapped their order, and *both* fingerprints changed. actionlint iterates a
- * workflow's jobs over a randomised Go map and lints files concurrently, so that reordering is not
- * hypothetical; a baseline would have recorded it as two findings fixed and two new ones.
- *
- * Asserted as a set, because the per-diagnostic order is genuinely the engine's and there is nothing
- * to promise about it — what a baseline compares is the set.
- */
 test('the fingerprints of one file do not depend on the order the engine reported them in', () => {
   const forward = [
     raw({ engineRuleId: 'no-unused-vars', message: 'unused import', range: { start: 0, end: 26 } }),
@@ -205,17 +185,6 @@ test('the fingerprints of one file do not depend on the order the engine reporte
   expect([...inOrder].sort()).toEqual([...reversed].sort())
 })
 
-/**
- * The sibling of the order-invariance case above, and the one a baseline (spec §12.2) meets on an
- * ordinary working day rather than only under a nondeterministic engine: a *new* finding of the same
- * concept appears above two existing ones.
- *
- * Permuting a fixed set and growing the set are different edits, and the per-`(concept, file)` counter
- * broke on both. Measured against the real oxlint binary while building `sgate baseline`: with the
- * counter keyed per file, adding one non-capturing helper above two others reported 3 new findings and
- * 2 fixed ones — for an edit that touched neither. Keyed on the window, as it now is, the same edit
- * reports exactly the 1 finding that was actually written.
- */
 test('a new finding above two existing ones leaves both their fingerprints alone', () => {
   const before = "import { a } from 'x'\nimport { b } from 'y'\n"
   const after = "import { c } from 'z'\nimport { a } from 'x'\nimport { b } from 'y'\n"
@@ -242,9 +211,6 @@ test('a new finding above two existing ones leaves both their fingerprints alone
   const now = grown.map((diagnostic) => diagnostic.fingerprint)
   expect(kept).toHaveLength(2)
   expect(now).toHaveLength(3)
-  // Both survivors still match, and exactly one fingerprint in the grown run is new. Asserted in both
-  // directions: "the old two are still there" alone would also pass if every fingerprint collapsed to
-  // one value.
   expect(now).toEqual(expect.arrayContaining(kept))
   expect(now.filter((fingerprint) => !kept.includes(fingerprint))).toHaveLength(1)
 })
@@ -262,28 +228,12 @@ test('maps raw severities that have no resolved level', () => {
   expect(advice?.severity).toBe('warn')
 })
 
-// --- Inline suppressions (design spec §6.3) ------------------------------------------------------
-// The three directive tokens, spliced rather than written whole — the same idiom, for the same
-// reason, as `reporters/src/agent.ts`. `parseSuppressions` scans raw text with no notion of comments
-// or string literals, so a fixture that spells a token out verbatim is a real directive as far as
-// `sgate check` on this repository is concerned, reported as `config.unused-suppression` against this
-// file. Only the source text is broken: each value below is byte-for-byte the real token, which is
-// the point — these tests must drive normalization with exactly what a user writes.
 const NEXT_LINE = `sgate-disable${'-next-line'}`
 const LINE = `sgate-disable${'-line'}`
 const FILE = `sgate-disable${'-file'}`
 
-// The tests below deliberately bypass the shared `run()` helper above: it always serves the
-// module-level `source` constant regardless of the file argument (`sourceOf: () => source`), fine for
-// every test above (none of them care what the source text says) but wrong here, where the
-// suppression comment's exact text is the point of the test. Each test below declares its own local
-// `fileSource` instead — a distinct name, not `source` again, specifically so it does not shadow the
-// module-level constant (oxlint's own `no-shadow` rightly flags that, see correctness.shadows-outer-binding).
-
 test('marks a matching finding as suppressed instead of dropping it', () => {
   const fileSource = `// ${NEXT_LINE} correctness.no-debugger -- test reason\ndebugger\n`
-  // `lastIndexOf`, not `indexOf`: the directive's own text contains "debugger" as a substring of
-  // "no-debugger", which `indexOf` would find first — the real statement is the *last* occurrence.
   const debuggerOffset = fileSource.lastIndexOf('debugger')
 
   const [only] = normalizeDiagnostics({
@@ -317,10 +267,6 @@ test('disable-line suppresses a finding on the same line as the comment', () => 
 test('disable-file suppresses a matching finding anywhere in the file', () => {
   const fileSource = `// ${FILE} correctness.no-debugger -- test reason\n\n\n\ndebugger\n`
   const debuggerOffset = fileSource.lastIndexOf('debugger')
-  // The real statement is genuinely on a later line, not just the last string occurrence — this is
-  // the property that distinguishes `disable-file` (line-agnostic) from the `disable-next-line`
-  // test above, so pin it down rather than asserting suppression alone, which `appliesToLine: null`
-  // would satisfy even if this offset pointed at the wrong line by accident.
   expect(createLineIndex(fileSource).positionAt(debuggerOffset).line).toBe(5)
 
   const [only] = normalizeDiagnostics({
@@ -392,9 +338,6 @@ test('does not emit config.unused-suppression when its own level is off', () => 
 })
 
 test('a directive in a file with zero raws is invisible without suppressionScanFiles', () => {
-  // Pins the contract `run/check.ts` relies on: a file an engine reports nothing for never
-  // otherwise appears to this function at all, so a stale suppression comment in it would
-  // silently go undetected unless the caller explicitly names the file here.
   const fileSource = `// ${NEXT_LINE} correctness.no-debugger -- reason\nconst ok = 1\n`
 
   const result = normalizeDiagnostics({
@@ -454,18 +397,9 @@ test('a file with no directives at all is unaffected', () => {
   expect(result[0]?.suppressed).toBeUndefined()
 })
 
-// Spelled in parts on purpose. `parseSuppressions` reads raw file text with no idea of string
-// literals, so a test *about* directives that writes one out in full turns this file into a source
-// of phantom `config.unused-suppression` findings against slop-gate's own `check` — the ten already
-// above are exactly that. Assembling the token keeps the runtime source identical and the file text
-// inert; the underlying limitation is recorded in the M0 follow-ups.
 const directive = (rest: string): string => `// sgate-${'disable-next-line'} ${rest}`
 
 test('an engine that owns none of a directive\'s targets does not call it unused', () => {
-  // The defect this guards was user-visible the moment a second file-granularity engine existed:
-  // `normalizeDiagnostics` runs once per (engine, file) and sees only that engine's diagnostics, so
-  // oxlint's pass over a file whose only finding is ast-grep's reported the (correctly working)
-  // suppression as matching nothing.
   const fileSource = `${directive('slop.double-cast -- checked above')}\nconst a = 1\n`
   const withAstGrep: OwnerMap = new Map(owners).set('slop.double-cast', [
     { owner: { engine: 'astgrep', engineRuleId: 'slop-double-cast' }, languages: ['ts'] },
@@ -485,8 +419,6 @@ test('an engine that owns none of a directive\'s targets does not call it unused
 })
 
 test('the owning engine still calls its own unmatched directive unused', () => {
-  // The other half, and the one that would make the guard above vacuous if it were wrong: scoping by
-  // ownership must not stop the engine that *does* own the concept from reporting a dead suppression.
   const fileSource = `${directive('correctness.no-debugger -- stale')}\nconst a = 1\n`
 
   const result = normalizeDiagnostics({
@@ -503,9 +435,6 @@ test('the owning engine still calls its own unmatched directive unused', () => {
 })
 
 test('a target no participating engine owns is still reported, by whoever is looking', () => {
-  // A directive naming a concept nothing covers can never match and is the dead suppression this
-  // concept exists for. Excluding every engine on ownership grounds would silently stop reporting
-  // it; `run/check.ts` collapses the resulting duplicates instead.
   const fileSource = `${directive('style.invented-concept -- stale')}\nconst a = 1\n`
 
   const result = normalizeDiagnostics({
@@ -522,8 +451,6 @@ test('a target no participating engine owns is still reported, by whoever is loo
 })
 
 test('a rule-id target is resolved by its engine prefix, not through the election', () => {
-  // `directiveMatches` accepts `oxlint/no-shadow` as well as a concept id, so ownership has to be
-  // readable from the spelling too — otherwise the rule-id form keeps the bug the concept form lost.
   const fileSource = `${directive('astgrep/slop-double-cast -- checked above')}\nconst a = 1\n`
 
   const result = normalizeDiagnostics({
@@ -540,8 +467,6 @@ test('a rule-id target is resolved by its engine prefix, not through the electio
 })
 
 test('a missing reason is reported regardless of who owns the target', () => {
-  // Deliberately not scoped by ownership: whether a directive carries a reason is a property of the
-  // comment, not of any engine. Duplicates across engines are collapsed in `run/check.ts`.
   const fileSource = `${directive('slop.double-cast')}\nconst a = 1\n`
   const withAstGrep: OwnerMap = new Map(owners).set('slop.double-cast', [
     { owner: { engine: 'astgrep', engineRuleId: 'slop-double-cast' }, languages: ['ts'] },
@@ -560,8 +485,6 @@ test('a missing reason is reported regardless of who owns the target', () => {
   expect(result.map((d) => d.concept)).toEqual(['config.suppression-missing-reason'])
 })
 
-// --- Fix data (spec §11 step 1): the engine supplies edits, the registry supplies the tier -------
-
 const fixEdits = [{ range: { start: 0, end: 26 }, replacement: '' }]
 
 test('an engine fix is carried onto the diagnostic with the registry entry as its tier', () => {
@@ -569,7 +492,6 @@ test('an engine fix is carried onto the diagnostic with the registry entry as it
     raw({ engineRuleId: 'no-debugger', message: 'debugger', fix: { edits: fixEdits } }),
   ])
 
-  // `suggested` comes from `noDebugger.fixKind`, not from anything the raw diagnostic said.
   expect(diagnostic?.fix).toEqual({
     kind: 'suggested',
     description: 'Apply the no-debugger fix.',

@@ -47,9 +47,6 @@ test('computes a byte range anchored at the reported (line, column), one charact
 
   const [found] = await collect(parseTscOutput(stdout, dir))
 
-  // Line 2, column 9 (1-based) is the 'x' in "  const x: number = ...". tsc gives only a starting
-  // position — never a length, unlike oxlint's byte spans — so the range is a deliberate
-  // one-character span at that exact position (see parse.ts's module doc comment).
   const columnXOffset = source.indexOf('const x') + 'const '.length
   expect(found?.range.start).toBe(columnXOffset)
   expect(found?.range.end).toBe(columnXOffset + 1)
@@ -57,9 +54,6 @@ test('computes a byte range anchored at the reported (line, column), one charact
 
 test('joins a multi-line diagnostic (indented continuation lines) into one message', async () => {
   await writeFile(join(dir, 'src/g.ts'), 'function pick(x: string): void\nfunction pick(x: boolean): void\nfunction pick(x: string | boolean): void {}\n\npick(42)\n')
-  // Captured verbatim from the real tsc 5.9.3 binary against this exact fixture: continuation lines
-  // carry no file/line/col prefix at all, and indentation is the only signal they belong to the
-  // diagnostic above them.
   const stdout = [
     'src/g.ts(5,6): error TS2769: No overload matches this call.',
     "  Overload 1 of 2, '(x: string): void', gave the following error.",
@@ -109,14 +103,12 @@ test('reports several diagnostics across several files, each attributed to its o
 })
 
 test('throws an EngineError for a global diagnostic with no location (e.g. a missing tsconfig)', async () => {
-  // Captured verbatim: `tsc -p tsconfig.json` when tsconfig.json does not exist (see the report).
   const stdout = "error TS5058: The specified path does not exist: 'tsconfig.json'.\n"
 
   await expect(collect(parseTscOutput(stdout, dir))).rejects.toThrow(/TS5058/)
 })
 
 test('throws an EngineError for "no inputs were found", another global diagnostic', async () => {
-  // Captured verbatim against a real tsconfig whose "include" matched nothing.
   const stdout =
     "error TS18003: No inputs were found in config file '/repo/tsconfig.json'. " +
     "Specified 'include' paths were '[\"nowhere/**/*\"]' and 'exclude' paths were '[]'.\n"
@@ -125,8 +117,6 @@ test('throws an EngineError for "no inputs were found", another global diagnosti
 })
 
 test('a malformed tsconfig is parsed as an ordinary located diagnostic against tsconfig.json itself', async () => {
-  // Captured verbatim: `tsc -p tsconfig.json` against a tsconfig containing a stray `]`. No special
-  // casing needed — tsconfig.json is just another file tsc can attribute a diagnostic to.
   await writeFile(join(dir, 'tsconfig.json'), '{ "compilerOptions": { "strict": true, ] }\n')
   const stdout = ['tsconfig.json(1,40): error TS1136: Property assignment expected.', "tsconfig.json(2,1): error TS1005: '}' expected."].join(
     '\n',
@@ -140,9 +130,6 @@ test('a malformed tsconfig is parsed as an ordinary located diagnostic against t
 })
 
 test('recognises a synthetic "warning" severity line, even though real tsc 5.9.3 was never observed to emit one', async () => {
-  // Every case captured against the real tsc 5.9.3 binary reported severity "error", never
-  // "warning" — this pins the parser's own regex handles the word too, defensively, without
-  // asserting real tsc ever produces it.
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
   const stdout = 'src/a.ts(1,1): warning TS0000: synthetic warning for parser coverage.\n'
 
@@ -159,11 +146,6 @@ test('converts a Windows-style backslash path to POSIX before returning it', asy
 })
 
 test('drops TS2307 for a single-file component that is really there', async () => {
-  // tsc cannot read an SFC at all — resolving `./Card.vue` needs `vue-tsc`, which is what a Vue or
-  // Nuxt project's own `typecheck` script runs. Measured on `nuxt/movies`: **10 of 10
-  // `types.type-error` findings were this, at `error`, and every `.vue` file named existed.** The
-  // project's own `vue-tsc --noEmit` reports none of them, which is exactly the agreement
-  // `types.type-error` is supposed to hold to.
   await writeFile(join(dir, 'src/Card.vue'), '<template><div /></template>\n')
   await writeFile(join(dir, 'src/Card.test.ts'), "import Card from './Card.vue'\nexport default Card\n")
   const stdout = `src/Card.test.ts(8,19): error TS2307: Cannot find module './Card.vue' or its corresponding type declarations.\n`
@@ -172,8 +154,6 @@ test('drops TS2307 for a single-file component that is really there', async () =
 })
 
 test('keeps TS2307 for a single-file component that is not there', async () => {
-  // The half that makes this a resolution check rather than a blanket exemption: a typo in an SFC
-  // import is a real error, and tsc is the only engine that reports it.
   await writeFile(join(dir, 'src/Card.test.ts'), "import Card from './Missing.vue'\nexport default Card\n")
   const stdout = `src/Card.test.ts(8,19): error TS2307: Cannot find module './Missing.vue' or its corresponding type declarations.\n`
 

@@ -1,14 +1,3 @@
-/**
- * The known name a mistyped one most likely meant, or `undefined` when nothing is close enough.
- *
- * Transpositions count as one edit rather than two (optimal string alignment, not plain Levenshtein),
- * because swapped adjacent characters are the most common typing slip and `ignoer` should reach `ignore`
- * as confidently as `ignor` does.
- *
- * The threshold scales with the shorter name so that short names cannot be turned into each other:
- * `owner` earns `owners` and `x` earns nothing. Suggesting a wrong key is worse than suggesting none,
- * because the reader tries it and gets a second error.
- */
 export function nearestName(typed: string, known: Iterable<string>): string | undefined {
   const needle = typed.toLowerCase()
   let best: { name: string; distance: number } | undefined
@@ -22,7 +11,6 @@ export function nearestName(typed: string, known: Iterable<string>): string | un
   return best?.name
 }
 
-/** Damerau-Levenshtein restricted to adjacent transpositions, over two rows rather than a full table. */
 function editDistance(a: string, b: string): number {
   if (a === b) return 0
 

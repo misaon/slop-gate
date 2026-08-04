@@ -6,21 +6,6 @@ import { afterAll, beforeAll, expect, test } from 'vitest'
 import type { EngineRuleSelection, InventoryFile, RawDiagnostic, RunContext } from '@misaon/slop-gate-core'
 import { HADOLINT_RULE_IDS, createHadolintEngine, resolveHadolintBinary } from './index.ts'
 
-/**
- * Both directions against the real binary, because the whole case for this engine is a measurement
- * and a measurement nothing re-checks decays into a claim.
- *
- * Four kinds of case, the last two carrying the design decisions:
- *
- * - `positive` — the named rule fires.
- * - `negative` — a well-formed Dockerfile every shipped rule stays silent on.
- * - `filtered` — hadolint **does** report and `SOURCE_EXCLUSIONS` must remove it. Asserted from both
- *   ends: the raw binary is required to report the class, so a fixture that stopped triggering it
- *   would fail here rather than pass by accident.
- * - `excluded` — the measured false-positive classes behind `NOT_RECOMMENDED_UNCATALOGUED`, kept executable
- *   so the reasons in that table stay true. `no-user` is the important one: it pins that hadolint
- *   says **nothing** about a Dockerfile that never drops privileges.
- */
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures'), 'tree')
 const installed = resolveHadolintBinary()
 const noBinary = installed === undefined
@@ -73,30 +58,21 @@ test.skipIf(noBinary)('every shipped rule stays silent on a well-formed Dockerfi
 })
 
 test.skipIf(noBinary)('DL3025 is filtered on HEALTHCHECK, and hadolint really does report it', async () => {
-  // Both ends. If hadolint stopped emitting DL3025 for `HEALTHCHECK`, the exclusion would be dead code
-  // and this fixture would be silently pointless — so the raw output is asserted too.
   const raw = await rawCodes('Dockerfile.healthcheck.filtered')
   expect(raw).toContain('DL3025')
   expect(await runOn('Dockerfile.healthcheck.filtered')).toEqual([])
 })
 
 test.skipIf(noBinary)('hadolint reports nothing at all about a Dockerfile with no USER', async () => {
-  // The finding that removed the original reason for prioritising this engine. `DL3002` fires only on
-  // an explicit `USER root`, never on absence, so a container that never drops privileges is invisible.
   expect(await rawCodes('Dockerfile.no-user.excluded')).toEqual([])
 })
 
 test.skipIf(noBinary)('DL3066 fires on a named non-root user, and is excluded for exactly that reason', async () => {
-  // 69 corpus findings on `USER nobody`, `USER node`, `USER appuser` — the rule complains about the
-  // recommended practice. Pinned as raw output so the exclusion's reasoning stays checkable.
   expect(await rawCodes('Dockerfile.named-user.excluded')).toContain('DL3066')
   expect(await runOn('Dockerfile.named-user.excluded')).toEqual([])
 })
 
 test.skipIf(noBinary)('a rule set to off with options is still off', async () => {
-  // The `-c` config below carries no ruleset we trust, so the set `materializeConfig` hands to `run` *is*
-  // this engine's enablement decision — and it used to be built from `selection.keys()`, which reads any
-  // present setting as enabled, an `['off', …]` value included. `DL3007` is the rule the fixture fires.
   const only = await runWith('Dockerfile.base-image.positive', new Map([['DL3007', ['error']]]))
   expect(only.map((diagnostic) => diagnostic.engineRuleId)).toContain('DL3007')
 

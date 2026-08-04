@@ -7,11 +7,6 @@ import { electOwners } from './elect.ts'
 import { RULE_ENTRIES } from './entries.ts'
 import { ENGINE_PREFERENCE, ruleRefKey, type RuleEntry } from './types.ts'
 
-// `RULE_ENTRIES` is deliberately `as const satisfies readonly RuleEntry[]` so each entry keeps
-// its narrow literal type (see registry/entries.ts). That means entries which omit an optional
-// field, like `classify`, don't structurally have that key, and the union's `engine` type only
-// includes the literals actually present. The checks below need the declared `RuleEntry` shape
-// instead, so they read through this widened view rather than `RULE_ENTRIES` directly.
 const WIDENED_ENTRIES: readonly RuleEntry[] = RULE_ENTRIES
 
 test('every referenced concept exists in the catalogue', () => {
@@ -50,7 +45,6 @@ test('an entry that declares a fix also declares what the fix touches', () => {
 })
 
 test('no rule entry claims a formatting concept', () => {
-  // The formatter is the permanent owner of `formatting.*` (spec 5.3).
   const offenders = WIDENED_ENTRIES.filter(
     (e) => e.engine !== 'oxfmt' && e.concepts.some((c) => c.startsWith('formatting.')),
   )
@@ -80,10 +74,6 @@ test('every classify pattern is a valid regular expression', () => {
 })
 
 test('the shipped registry contains a real overlap and resolves it to oxlint', () => {
-  // This tests the registry's *contents* — that a genuine tier overlap exists between two shipped
-  // entries — not a real run's engine set, so both engines that own an entry in `RULE_ENTRIES` are
-  // named as participating here even though a real `sgate check` only ever instantiates oxlint
-  // (packages/cli/src/commands/check.ts). See elect.test.ts for the run-time filter itself.
   const result = electOwners({
     entries: RULE_ENTRIES,
     enabledConcepts: new Set(['dead-code.unused-variable']),
@@ -103,11 +93,6 @@ test('no two entries share an engine and rule id', () => {
 })
 
 test('every manually excluded rule exists, and none of its concepts reaches `recommended`', () => {
-  // What makes `NOT_RECOMMENDED_UNCATALOGUED` data rather than prose. An uncatalogued engine's rules enter
-  // `recommended` only by being listed in `config/presets.ts`, so nothing applies that table the way
-  // the oxlint generator applies `NOT_RECOMMENDED_GENERATED` — without this, a written reason and the preset
-  // could disagree and neither would notice. That is already true of the two `slop.*` exclusions,
-  // whose reasons live in a comment.
   const recommended = PRESETS.recommended
   for (const [key, exclusion] of Object.entries(NOT_RECOMMENDED_UNCATALOGUED)) {
     const entry = WIDENED_ENTRIES.find((candidate) => ruleRefKey(candidate) === key)
@@ -120,10 +105,6 @@ test('every manually excluded rule exists, and none of its concepts reaches `rec
 })
 
 test('actionlint claims neither parse errors nor duplicate keys, which stay with the schema engine', () => {
-  // The reversal the corpus measurement forced, asserted so it cannot be undone by accident. Zero
-  // findings of either kind across 403 real workflow files, and the M0 follow-ups record that
-  // actionlint reports an unresolved YAML alias at `line: 0, column: 0` where the schema engine gives
-  // the exact token — so this is the concept ownership that was *not* transferred.
   const owned = WIDENED_ENTRIES.filter((entry) => entry.engine === 'actionlint').flatMap((entry) => entry.concepts)
   expect(owned).not.toContain('correctness.parse-error')
   expect(owned).not.toContain('correctness.no-duplicate-object-key')

@@ -15,8 +15,6 @@ test('binds every filename Docker itself documents, at any depth', () => {
 })
 
 test('binds the environment-suffixed forms, which are the ones a real repository actually has', () => {
-  // Measured against the corpus: the suffixed forms are how multi-environment repositories name
-  // their compose files, and a fragment validates cleanly (see the schema's own optionality).
   for (const path of ['compose.override.yaml', 'compose.prod.yaml', 'docker-compose.dev.yml']) {
     expect(bindSchema(path)?.id, path).toBe('compose-spec')
   }

@@ -40,18 +40,11 @@ test('a `..` walk out of the root is refused, and the message says to start a se
 })
 
 test('an absolute path outside the root is refused for being outside it, not for anything else', () => {
-  // The target is a real directory, so "outside the root" is the only thing left to refuse it for.
-  // Pointed at something that did not exist, this test would pass on the existence check alone and
-  // keep passing with the containment check deleted.
   const refused = resolveToolRoot(join(dir, 'packages'), resolve(dir, 'packages', '..', '..'))
   expect(refused.kind === 'refused' && refused.message).toContain('must be inside the directory this server was started in')
 })
 
 test('a sibling directory whose name merely starts with the root is refused', async () => {
-  // `relative()` from `/a/b` to `/a/bb` is `../bb`. A bare `startsWith('..')` check gets this right
-  // by accident and a bare string-prefix check on the paths themselves gets it wrong, so it is
-  // pinned: `/a/bb` is not inside `/a/b`. Created on disk for the same reason as above — a refusal
-  // has to be attributable to containment and nothing else.
   await mkdir(join(dir, 'packages-elsewhere'))
   const refused = resolveToolRoot(join(dir, 'packages'), join(dir, 'packages-elsewhere'))
   expect(refused.kind === 'refused' && refused.message).toContain('must be inside the directory this server was started in')
