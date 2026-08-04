@@ -117,7 +117,7 @@ const recommended: RuleMap = {
   // **The other five stay out, and each for a reason that survived the re-measurement:**
   // `deps.unused-dependency` (1/1 false here — `oxlint`, which `engine-oxlint` reaches through
   // `require.resolve`, invisible to any import graph) and `deps.unused-dev-dependency` (1/1 false —
-  // `sgate`, used only by the config file slop-gate itself tells knip to ignore) are both
+  // `@misaon/slop-gate`, used only by the config file slop-gate itself tells knip to ignore) are both
   // dynamic-resolution failures that framework profiles do not touch. `deps.unlisted-binary` has one
   // true and one false against it and has not been re-measured since. `dead-code.unused-enum-member`
   // and `dead-code.duplicate-export` have produced **zero findings on real code** in every

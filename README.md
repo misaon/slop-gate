@@ -9,14 +9,14 @@
 
 A quality gate for the era where most code is written fast and read slowly.
 
-[![npm](https://img.shields.io/npm/v/sgate?style=for-the-badge&labelColor=0b0b0f&color=6366f1)](https://www.npmjs.com/package/sgate)
-[![downloads](https://img.shields.io/npm/dm/sgate?style=for-the-badge&labelColor=0b0b0f&color=8b5cf6)](https://www.npmjs.com/package/sgate)
+[![npm](https://img.shields.io/npm/v/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=6366f1)](https://www.npmjs.com/package/@misaon/slop-gate)
+[![downloads](https://img.shields.io/npm/dm/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=8b5cf6)](https://www.npmjs.com/package/@misaon/slop-gate)
 [![CI](https://img.shields.io/github/actions/workflow/status/misaon/slop-gate/ci.yml?branch=main&style=for-the-badge&labelColor=0b0b0f&color=22c55e&label=ci)](https://github.com/misaon/slop-gate/actions/workflows/ci.yml)
-[![node](https://img.shields.io/node/v/sgate?style=for-the-badge&labelColor=0b0b0f&color=14b8a6)](https://nodejs.org)
-[![license](https://img.shields.io/npm/l/sgate?style=for-the-badge&labelColor=0b0b0f&color=64748b)](LICENSE)
+[![node](https://img.shields.io/node/v/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=14b8a6)](https://nodejs.org)
+[![license](https://img.shields.io/npm/l/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=64748b)](LICENSE)
 
 ```bash
-npx sgate check
+npx @misaon/slop-gate check
 ```
 
 *No install, no config, no files written — it just tells you what it finds.*
@@ -153,15 +153,16 @@ do it.
 ## Install
 
 ```bash
-npm install -D sgate
+npm install -D @misaon/slop-gate
 npx sgate init      # reads the repo, writes one tailored config
 npx sgate check     # analyses everything
 npx sgate fix       # applies only what is safe
 ```
 
-The package is `sgate` and so is the command, which is why `npx sgate` works with nothing
-installed at all. `slop-gate` is a second name for the same binary, for anyone who prefers
-typing the project's name.
+The binary is `sgate` (and `slop-gate`), so `npx sgate …` works **once the package is
+installed** — that is what puts the binary in `node_modules/.bin`. Without installing first,
+name the package instead: `npx @misaon/slop-gate check`. `npx sgate` on its own would go
+looking for a package called `sgate`, which is not this one.
 
 Node 24+. Engines are bundled — no Docker, no Java, no `pip install`.
 
@@ -184,7 +185,7 @@ Node 24+. Engines are bundled — no Docker, no Java, no `pip install`.
 
 Findings land **in the pull request**, not in a log somebody has to scroll.
 
-This assumes `sgate` is in your `devDependencies`, which is what `npm ci` puts
+This assumes `@misaon/slop-gate` is in your `devDependencies`, which is what `npm ci` puts
 the `sgate` binary on the path. Pinning it there rather than fetching the latest on every run
 is the point: a CI job whose analyser can change under it is a job whose verdict you cannot
 reproduce.
@@ -237,7 +238,7 @@ One file, fully typed, autocompletion over every concept id:
 
 ```ts
 // slop-gate.config.ts
-import { defineConfig } from 'sgate'
+import { defineConfig } from '@misaon/slop-gate'
 
 export default defineConfig({
   // `recommended` IS the strict one. There is no strict mode to remember to turn on.

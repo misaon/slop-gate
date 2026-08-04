@@ -20,15 +20,15 @@ importers:
       '@commitlint/config-conventional':
         specifier: 21.2.0
         version: 21.2.0
+      '@misaon/slop-gate':
+        specifier: workspace:*
+        version: link:packages/cli
       '@misaon/slop-gate-engine-oxlint':
         specifier: workspace:*
         version: link:packages/engine-oxlint
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
-      sgate:
-        specifier: workspace:*
-        version: link:packages/cli
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(oxc-resolver@11.24.2)(typescript@7.0.2)
