@@ -1,4 +1,4 @@
-import { defineConfig } from 'sgate'
+import { defineConfig } from '@misaon/slop-gate'
 
 export default defineConfig({
   extends: ['recommended'],

@@ -5,7 +5,7 @@ import { buildWorkspaceGraph } from '@misaon/slop-gate-core'
 import { upsertAgentsSection } from '../agents-md.ts'
 import { resolveRootDir } from '../root-dir.ts'
 
-const CONFIG_TEMPLATE = `import { defineConfig } from 'sgate'
+const CONFIG_TEMPLATE = `import { defineConfig } from '@misaon/slop-gate'
 
 export default defineConfig({
   extends: ['recommended'],
@@ -108,13 +108,13 @@ export async function runInit(options: {
 }
 
 /** The package the generated config imports `defineConfig` from — see `CONFIG_TEMPLATE`. */
-const PACKAGE_NAME = 'sgate'
+const PACKAGE_NAME = '@misaon/slop-gate'
 
 /**
  * Advice to print when the config this command just wrote will not load, or `undefined` when it
  * will.
  *
- * **The failure it prevents was reported from a real project.** `npx sgate init` runs
+ * **The failure it prevents was reported from a real project.** `npx @misaon/slop-gate init` runs
  * the CLI out of npx's cache, so the package is nowhere in the target project — and the config
  * written here imports `defineConfig` from it. `init` then said "Run `sgate check` next", and that
  * check died before analysing anything. `init` is the last moment anyone can be told, because it is
