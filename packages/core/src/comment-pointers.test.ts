@@ -196,3 +196,28 @@ test('no illustration is listed that no comment mentions any more', () => {
   const stale = [...ILLUSTRATIVE].filter((path) => !mentioned.has(path)).sort(compareStrings)
   expect(stale).toEqual([])
 })
+
+/**
+ * The same rot, one level up: the spec cross-references its own sections ~48 times and the README links
+ * into the spec. Renaming a heading breaks both silently, and both are the first thing a new reader opens.
+ */
+test('every section reference inside the design spec resolves to a heading in it', () => {
+  const source = readFileSync(resolve(repoRoot, SPEC), 'utf8')
+  const ids = (pattern: RegExp): Set<string> =>
+    new Set([...source.matchAll(pattern)].flatMap(([, id]) => (id === undefined ? [] : [id])))
+  const headings = ids(/^#{2,4}\s+(\d+(?:\.\d+)*)/gm)
+  const referenced = ids(/§\s?(\d+(?:\.\d+)*)/g)
+
+  const broken = [...referenced].filter((id) => !headings.has(id)).sort(compareStrings)
+
+  expect(broken).toEqual([])
+})
+
+test('every repo-relative link in the README resolves on disk', () => {
+  const source = readFileSync(resolve(repoRoot, 'README.md'), 'utf8')
+  const targets = [...source.matchAll(/\]\((?!https?:|#)([^)#]+)/g)].flatMap(([, path]) => (path === undefined ? [] : [path]))
+
+  const missing = targets.filter((path) => !existsSync(resolve(repoRoot, path))).sort(compareStrings)
+
+  expect(missing).toEqual([])
+})
