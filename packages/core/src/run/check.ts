@@ -465,7 +465,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
                 configHash,
               }
               const key = deriveResultKey(components)
-              return { file, components, key, hit: useCache ? await resultStore.get(key) : null }
+              return { file, components, key, hit: useCache ? await resultStore.get(engine.id, key) : null }
             },
           ))
 
@@ -542,7 +542,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               // same array rather than silently losing it (see `NormalizeInput.suppressionScanFiles`
               // and this file's own module doc comment). Only `collected`/the stream below decide
               // what the user actually sees.
-              if (useCache) await timing.phase(`cache-write:${engine.id}`, () => resultStore.set(keys.get(path)!, normalized, keyInputs.get(path)!))
+              if (useCache) await timing.phase(`cache-write:${engine.id}`, () => resultStore.set(engine.id, keys.get(path)!, normalized, keyInputs.get(path)!))
               for (const diagnostic of normalized) {
                 if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
                 collected.push(diagnostic)
@@ -564,7 +564,14 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     // one thing a `--no-cache` run still created inside the analysed repository — a `.slop-gate/` directory
     // appearing in someone's `git status` from a command they asked to be cacheless, and the only reason
     // the tool could not be pointed at a read-only checkout at all.
-    if (useCache) await timing.phase('stat-index-persist', () => statIndex.persist())
+    if (useCache) {
+      await timing.phase('stat-index-persist', () => statIndex.persist())
+      // Deferred to here, not written through on each entry: see `openResultStore` for the 8x disk cost
+      // the per-entry layout carried, and why one file per engine makes the concurrent-write race
+      // inexpressible rather than coordinated.
+      await timing.phase('results-persist', () => resultStore.persist())
+      await timing.phase('project-results-persist', () => projectResultStore.persist())
+    }
     else await removeIfEmpty(join(options.rootDir, '.slop-gate', 'tmp'), join(options.rootDir, '.slop-gate'))
     // Deferred to one write rather than written through on each miss: a cold run misses on every
     // engine at once, and six concurrent atomic writes to one file would leave whichever landed last,
