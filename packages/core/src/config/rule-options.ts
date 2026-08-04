@@ -55,7 +55,50 @@ const EXPECT_EXPECT_REASON =
   'residue is why the vitest twin sits at `warn` rather than the `error` its category would give it: a ' +
   'type-level test is an ordinary TypeScript pattern and must not fail a build.'
 
+/**
+ * The block tags **TSDoc standardises** (`tsdoc.org`, the tag set API Extractor and TypeDoc read),
+ * minus the ones oxlint's JSDoc allowlist already carries. Plus `return`, which is not a TSDoc tag at
+ * all but JSDoc's own documented synonym for `@returns` — a rule reporting it as *unrecognised* is
+ * wrong about JSDoc rather than about TSDoc, and it is the third most common flagged tag in the corpus.
+ */
+const TSDOC_BLOCK_TAGS = [
+  'decorator',
+  'defaultValue',
+  'eventProperty',
+  'experimental',
+  'inheritDoc',
+  'label',
+  'packageDocumentation',
+  'privateRemarks',
+  'remarks',
+  'sealed',
+  'typeParam',
+  'return',
+] as const
+
 export const OPTIONED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, OptionedRule>>> = {
+  'correctness.check-tag-names': {
+    setting: ['warn', { definedTags: [...TSDOC_BLOCK_TAGS] }],
+    reason:
+      '**2,643 findings across twelve repositories of a 20-repository corpus, of which 141 are block ' +
+      'tags TSDoc standardises and 98 are `@return`.** oxlint validates against *JSDoc*’s tag list ' +
+      '(verified against 1.76.0: `@privateRemarks`, `@defaultValue` and `@typeParam` are all reported ' +
+      'as invalid), and a TypeScript codebase documents with TSDoc — so the rule tells projects ' +
+      'following a published standard that the standard is a typo. `@return` is not TSDoc at all: ' +
+      'JSDoc itself documents it as a synonym for `@returns`, so reporting it as *unrecognised* is ' +
+      'wrong about JSDoc.\n\n' +
+      'Per tag, measured by reading the source at each finding’s byte range: `@defaultValue` 43, ' +
+      '`@privateRemarks` 34, `@typeParam` 32, `@experimental` 13, `@link` 6, `@remarks` 6, ' +
+      '`@deprecated` 3, plus `@return` 98.\n\n' +
+      '**This deliberately fixes 239 of the 2,643 and leaves 2,502 standing**, because the rest are ' +
+      'tags a project invented for its own tooling — `@schema` 598 and `@oas` 502 on medusa, ' +
+      '`@publicApi` 367 on nest, `@zh_CN` 216 on vue-vben-admin — and those really are unknown to any ' +
+      'toolchain but that project’s own. The escape hatch is the same option written in the user’s ' +
+      'config, which is the right place for a fact only that repository knows. Verified against oxlint ' +
+      '1.76.0 that `definedTags` is honoured for this rule: adding `schema` silences `@schema` and ' +
+      'leaves the other two reported.',
+  },
+
   'correctness.jest-expect-expect': {
     setting: ['warn', { assertFunctionNames: [...ASSERTION_SHAPES] }],
     reason: EXPECT_EXPECT_REASON,
