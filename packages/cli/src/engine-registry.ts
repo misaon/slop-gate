@@ -37,6 +37,7 @@ export function defaultEngines(rootDir: string, configFile?: string, ignore?: re
     createOxfmtEngine(),
     createTscEngine({ rootDir }),
     createKnipEngine({
+      rootDir,
       ...(configFile === undefined ? {} : { configFile }),
       ...(ignore === undefined ? {} : { ignore }),
     }),

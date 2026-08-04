@@ -466,3 +466,39 @@ test(
   },
   TIMEOUT,
 )
+
+test('is unavailable when a manifest declares dependencies that are not installed', async () => {
+  // knip resolves imports through `node_modules`, so an uninstalled repository does not make it
+  // report *less* — it makes it report wrongly, in both directions. Measured on `withastro/docs`:
+  // **3 308 `deps.unresolved-import` findings at `error` without `node_modules`, and 2 with it.**
+  // Its `tsconfig.json` extends `astro/tsconfigs/strict`, which cannot resolve, so knip loses the
+  // local `"paths": { "~/*": ["./src/*"] }` and every `~/components/*.astro` import from an `.mdx`
+  // file becomes unresolved. `directus/directus` shows the identical shape at 3 765. And it is not
+  // only noise: `nuxt/nuxt.com` reported 43 unused exports uninstalled against 65 installed, so the
+  // uninstalled run also *hid* 22 real ones.
+  await write('package.json', JSON.stringify({ name: 'root', dependencies: { 'used-dep': '^1.0.0' } }))
+  const engine = createKnipEngine({ rootDir: dir })
+
+  expect(await engine.availability?.()).toEqual({
+    available: false,
+    reason: expect.stringContaining('node_modules'),
+    install: expect.stringContaining('install'),
+  })
+})
+
+test('is available when the declared dependencies are installed', async () => {
+  await write('package.json', JSON.stringify({ name: 'root', dependencies: { 'used-dep': '^1.0.0' } }))
+  await mkdir(join(dir, 'node_modules'), { recursive: true })
+  const engine = createKnipEngine({ rootDir: dir })
+
+  expect(await engine.availability?.()).toEqual({ available: true })
+})
+
+test('is available in a repository that declares no dependencies at all', async () => {
+  // The distinction that keeps this from firing on a repository which is simply dependency-free:
+  // absent `node_modules` is only evidence of "not installed" when something asked to be installed.
+  await write('package.json', JSON.stringify({ name: 'root' }))
+  const engine = createKnipEngine({ rootDir: dir })
+
+  expect(await engine.availability?.()).toEqual({ available: true })
+})

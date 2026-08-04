@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   EngineError,
@@ -43,17 +44,40 @@ export type CreateKnipEngineOptions = {
   ignore?: readonly string[]
   /** Test-only escape hatch, mirroring the other two adapters': spawned exactly as given, with no `node` prefix. */
   binaryPath?: string
+  /**
+   * The repository being analysed, needed only by `availability()` — knip itself is bundled and resolves
+   * from this package. Omitted, the installed-dependencies probe stands down and the engine is always
+   * available, which is the pre-existing behaviour.
+   */
+  rootDir?: string
+}
+
+const DEPENDENCIES_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
+
+/**
+ * Whether the root manifest asks for anything to be installed. Read from the manifest rather than from a
+ * lockfile, because a lockfile is a record of a *resolution* and can outlive the `node_modules` it
+ * describes — the question here is whether this repository wants dependencies at all.
+ */
+function declaresDependencies(manifest: unknown): boolean {
+  if (typeof manifest !== 'object' || manifest === null) return false
+  const record = manifest as Record<string, unknown>
+  return DEPENDENCIES_FIELDS.some((field) => {
+    const value = record[field]
+    return typeof value === 'object' && value !== null && Object.keys(value).length > 0
+  })
 }
 
 /**
  * knip: the second project-granularity engine (spec §8.1) and the second dedicated dead-code /
  * dependency-hygiene domain owner (spec §13.1).
  *
- * **No `rootDir` at construction**, unlike `createTscEngine`, and the difference is exactly the
- * peer-vs-bundled one: `typescript` must be resolved from the analysed project so a type error matches the
- * developer's own editor, whereas knip is a `dependencies` entry of this package with no editor counterpart
- * to agree with, so it resolves from this package's own install location and its version is a property of
- * slop-gate rather than of the repository.
+ * **`rootDir` is not what it is for `createTscEngine`**, and the difference is the peer-vs-bundled one:
+ * `typescript` must be resolved from the analysed project so a type error matches the developer's own
+ * editor, whereas knip is a `dependencies` entry of this package with no editor counterpart to agree with,
+ * so it resolves from this package's own install location and its version is a property of slop-gate rather
+ * than of the repository. Nothing here reads `rootDir` to find the *binary*; `availability()` reads it to
+ * ask whether the repository's own dependencies are installed, which is a fact about the repository.
  */
 const MISSING_KNIP =
   'the bundled `knip` package could not be resolved from this installation of slop-gate, and it will ' +
@@ -117,6 +141,59 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
       // its own milestone; claiming the capability now would let `sgate fix` promise edits this adapter
       // cannot produce.
       fixes: false,
+    },
+
+    /**
+     * **Declared for a bundled engine, on the `engine-tsc` precedent and for the same reason.** knip is
+     * present by construction; what may be missing is the *repository's* `node_modules`, and knip resolves
+     * every import through it.
+     *
+     * An uninstalled repository does not make knip report *less*. It makes it report **wrongly, in both
+     * directions**. Measured on `withastro/docs`: **3,308 `deps.unresolved-import` findings at `error`
+     * without `node_modules`, and 2 with it.** Its `tsconfig.json` extends `astro/tsconfigs/strict`, which
+     * cannot resolve, so knip loses the local `"paths": { "~/*": ["./src/*"] }` and every
+     * `~/components/*.astro` import written in an `.mdx` file becomes unresolved — 1,405 distinct files.
+     * `directus/directus` shows the identical shape at 3,765, all `@/...` alias specifiers.
+     *
+     * And it is not merely noise, which is what rules out suppressing the two affected issue types and
+     * keeping the rest: `nuxt/nuxt.com` reported **43** unused exports uninstalled against **65**
+     * installed, so the uninstalled run also *hid* 22 real findings. A result that is wrong in both
+     * directions is not a partial result, and the honest report of it is a coverage gap naming the command
+     * that closes it — exactly what `tsc` already does when the project has no `typescript`.
+     *
+     * **Two conditions, not one.** Absent `node_modules` is evidence of "not installed" only when
+     * something asked to be installed, so a genuinely dependency-free repository keeps knip. The probe is
+     * one `readFile` of the root manifest and one `stat`, inside `Engine.availability`'s stated budget.
+     */
+    async availability() {
+      if (options.rootDir === undefined) return { available: true as const }
+
+      const manifest = await readFile(join(options.rootDir, 'package.json'), 'utf8').catch(() => null)
+      if (manifest === null) return { available: true as const }
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(manifest)
+      } catch {
+        // An unparseable manifest is knip's own finding to report, not a reason to stand this engine down.
+        return { available: true as const }
+      }
+      if (!declaresDependencies(parsed)) return { available: true as const }
+
+      const installed = await stat(join(options.rootDir, 'node_modules')).then(
+        (entry) => entry.isDirectory(),
+        () => false,
+      )
+      if (installed) return { available: true as const }
+
+      return {
+        available: false as const,
+        reason:
+          'this repository declares dependencies but has no `node_modules`, and knip resolves every import ' +
+          'through it — uninstalled it reports imports as unresolved that are not, and misses dead code it ' +
+          'would otherwise find, so its answer would be wrong in both directions rather than merely partial',
+        install: 'npm install',
+      }
     },
 
     async version() {
