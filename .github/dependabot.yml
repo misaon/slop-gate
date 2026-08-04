@@ -7,6 +7,14 @@ updates:
     directory: /
     schedule: { interval: weekly, day: monday }
     open-pull-requests-limit: 10
+    ignore:
+      # `@types/node` describes a Node *major*, and `engines.node` here is `>=24`. Typechecking
+      # against 26's surface would let a Node 26-only API compile and then throw on the oldest
+      # runtime this package claims to support — a break CI cannot catch, because `pnpm typecheck`
+      # runs once against whatever is installed rather than once per matrix entry. Pinned to the
+      # minimum supported major deliberately; raise it when `engines.node` rises.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: 'chore(deps)'
       prefix-development: 'chore(deps-dev)'
