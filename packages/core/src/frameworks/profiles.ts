@@ -589,6 +589,65 @@ const TEST_SCOPES = ['jest', 'vitest'] as const
  */
 const JEST_TEST_FILES = ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'] as const
 
+/**
+ * chai asserts through **property access**, not through a call: `result.dry.should.be.true` and
+ * `expect(x).to.exist` are complete assertions whose last link is a getter with a side effect. To
+ * `no-unused-expressions` that is a statement computing a value nobody uses, which is precisely the
+ * shape it exists to report — so the rule is not merely noisy here, it is describing the assertion
+ * library's entire API as dead code. This is why `eslint-plugin-chai-friendly` exists upstream.
+ *
+ * **Measured across a 20-repository corpus: `dead-code.no-op-expression` produced 3,363 findings at
+ * `error`, and 3,097 of them are in the two repositories that declare `chai`.** Classified by reading
+ * the source line behind every finding's byte range rather than by counting:
+ *
+ * - `typeorm/typeorm` — **1,700 of 1,700** match a chai assertion shape (`.to.be`/`.to.have` 1,216,
+ *   `.should` 221, `.to.exist`/`.to.undefined` 263). No residue at all.
+ * - `nestjs/nest` — 1,334 of the 1,342 inside test files.
+ *
+ * **Path-scoped, and the scope is doing real work in both directions.** 55 of nest's findings and 1 of
+ * typeorm's are in production code — `nest-application.ts`, `router-execution-context.ts` — and every
+ * one of those survives. So do the 8 genuine findings inside nest's own test files
+ * (`multiProviderInstances.charAt;`, `server.context;`), which is the honest cost of this profile:
+ * **8 of the 3,041 findings it silences, 0.26%**, against a rule left otherwise unusable on a chai
+ * codebase. It is `error`, so those 3,041 break a build.
+ *
+ * **Gated on the dependency, which is what keeps the rule sharp elsewhere.** hono and trpc produce 48
+ * and 39 findings inside test files with *no* chai assertion among them — they assert with vitest's
+ * `expect`, a call rather than a bare expression — and neither declares `chai`, so this profile never
+ * touches them.
+ *
+ * **`disable-concept` because oxlint offers nothing narrower.** `no-unused-expressions` takes
+ * `allowShortCircuit`, `allowTernary` and `allowTaggedTemplates`; none of the three describes a
+ * property-access assertion chain, and there is no upstream option that does.
+ */
+function chaiAssertionFalsePositive(): FrameworkAdjustment {
+  return {
+    kind: 'disable-concept',
+    concept: 'dead-code.no-op-expression',
+    paths: [...JEST_TEST_FILES],
+    reason:
+      'chai asserts through property access — `expect(x).to.exist`, `value.should.be.true` — so every ' +
+      'assertion it makes is a bare expression statement, which is exactly what this rule reports. ' +
+      'Measured: 1,700 of 1,700 findings on typeorm and 1,334 of 1,342 in-test findings on nest were ' +
+      'chai assertions. Confined to test files, so a genuine no-op in production code still reports.',
+  }
+}
+
+/**
+ * Kept out of `testFramework` above even though both profiles end at a test-file glob, because they
+ * turn on different facts: that one elects between two oxlint *plugins* whose rules double-report, and
+ * would disable this one on a repository using chai under vitest — where the finding is just as false.
+ */
+const chai = defineProfile<void>({
+  id: 'chai',
+  summary: 'chai — assertions are property accesses, not calls',
+  async detect(context) {
+    const evidence = dependencyEvidence(context, ['chai'])
+    return evidence === null ? null : { evidence: [evidence], parameters: undefined }
+  },
+  consequences: () => [chaiAssertionFalsePositive()],
+})
+
 type TestFrameworkLayout = {
   /** Scopes whose dual-firing concepts go off, sorted by `TEST_SCOPES` order. */
   readonly disabledScopes: readonly string[]
@@ -687,6 +746,7 @@ function normaliseDirectory(value: string): string {
 /** Evaluated in this order, but the order is inert: merging is a sorted set union (spec §23.3). */
 export const FRAMEWORK_PROFILES: readonly AnyFrameworkProfile[] = [
   angular,
+  chai,
   mikroOrm,
   nestjs,
   nestjsExpress,

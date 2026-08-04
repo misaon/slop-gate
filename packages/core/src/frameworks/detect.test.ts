@@ -564,6 +564,40 @@ test('a jest repository turns the mock-factory false positive off in test files 
   expect(level('src/service.ts')).toBe('warn')
 })
 
+// --- chai -------------------------------------------------------------------------------------
+
+test('a chai repository turns the no-op-expression rule off in test files only', async () => {
+  const detection = await detect({ 'package.json': manifest({ chai: '^5.0.0' }, 'devDependencies') })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+  const level = (path: string) => resolver.forFile(path).rules.get('dead-code.no-op-expression' as RuleKey)?.level
+
+  expect(level('test/functional/query-builder.test.ts')).toBe('off')
+  expect(level('integration/injector/multiple-providers.spec.ts')).toBe('off')
+  expect(level('src/__tests__/thing.ts')).toBe('off')
+  // The whole reason this is path-scoped: a genuine no-op statement in production code still reports,
+  // and 55 of nest's 1 397 findings were exactly that.
+  expect(level('packages/core/nest-application.ts')).toBe('error')
+})
+
+test('a repository that does not declare chai keeps the rule on everywhere', async () => {
+  // Measured: hono and trpc produce 48 and 39 findings inside test files with *no* chai assertion among
+  // them — they assert with vitest's `expect`, which is a call and not a bare expression. Gating on the
+  // dependency is what keeps those genuine findings.
+  const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+
+  expect(resolver.forFile('src/thing.test.ts').rules.get('dead-code.no-op-expression' as RuleKey)?.level).toBe('error')
+  expect(applied(detection, 'chai')).toBeUndefined()
+})
+
 test('a vitest-only repository keeps the mock-factory rule on, because upstream exempts only jest', async () => {
   const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
   const resolver = createRuleSetResolver({
