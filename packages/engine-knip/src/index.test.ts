@@ -87,7 +87,9 @@ test('declares project granularity, and json alongside the script languages', ()
   expect(engine.capabilities.granularity).toBe('project')
   // `json`/`jsonc` are what put every `package.json` into the assigned file list — without them the
   // workspace map cannot be synthesized at all, and a manifest edit would not invalidate the cache.
-  expect(engine.capabilities.languages).toEqual(['ts', 'tsx', 'js', 'jsx', 'json', 'jsonc'])
+  // `vue`/`svelte`/`astro` are here for the second half of that same reason: knip compiles them, so
+  // an edit to one changes its answer and has to change the cache key. See the capability comment.
+  expect(engine.capabilities.languages).toEqual(['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro', 'json', 'jsonc'])
   expect(engine.capabilities.provides).toEqual([])
   expect(engine.capabilities.fixes).toBe(false)
 })

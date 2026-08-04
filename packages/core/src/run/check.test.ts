@@ -187,6 +187,30 @@ test('re-runs the engine after a file changes', async () => {
   expect(runs).toBe(2)
 })
 
+test('a project engine that claims a framework file language re-runs when one of those files changes', async () => {
+  // The mechanism `engine-knip`'s `vue`/`svelte`/`astro` capabilities rely on, pinned here because the
+  // failure it prevents is silent and points the wrong way. knip compiles `.vue` through its own Vue
+  // plugin, so an import written in an SFC is part of its graph — but a project engine's cache key is
+  // built from the files the *plan assigned* it, and the plan assigns by declared language. An engine
+  // that analyses a language it does not claim gets a key that cannot move when that language changes,
+  // and answers a stale "clean" forever. Measured before the fix on a three-file Vue fixture: dropping
+  // the only import of an export from `App.vue` left the warm run reporting nothing, while `--no-cache`
+  // on the same tree reported the now-dead export.
+  await writeFile(join(dir, 'src/App.vue'), '<script setup lang="ts">\nimport { a } from "./a"\n</script>\n')
+  let runs = 0
+  const engine = () =>
+    ({
+      ...stubEngine({ onRun: () => (runs += 1) }),
+      capabilities: { languages: ['ts', 'vue'], granularity: 'project', provides: [], fixes: false },
+    }) as Engine
+
+  await runCheck({ ...baseOptions(), engines: [engine()] })
+  await writeFile(join(dir, 'src/App.vue'), '<script setup lang="ts">\nconst a = 1\n</script>\n')
+  await runCheck({ ...baseOptions(), engines: [engine()] })
+
+  expect(runs).toBe(2)
+})
+
 test('re-runs the engine after a rule entry changes without adding or removing a rule id', async () => {
   let runs = 0
   const engine = () => stubEngine({ findings: [debuggerFinding('src/a.ts')], onRun: () => (runs += 1) })
