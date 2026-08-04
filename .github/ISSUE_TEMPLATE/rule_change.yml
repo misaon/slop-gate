@@ -1,0 +1,51 @@
+name: Rule change
+description: A rule is too noisy, too quiet, or should exist and does not.
+labels: [rule]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The bar here is a **count against real code**, not fixtures — a rule we ship wrongly
+        turns somebody's CI red on code that was fine.
+
+        If you have not measured it, open this anyway and say so. A described mechanism is a
+        perfectly good starting point; a confident number nobody can reproduce is not.
+
+  - type: input
+    id: concept
+    attributes:
+      label: Concept or rule id
+      placeholder: dead-code.no-op-expression
+    validations: { required: true }
+
+  - type: dropdown
+    id: direction
+    attributes:
+      label: What should change
+      options:
+        - 'Too noisy — it fires on correct code'
+        - 'Too quiet — it misses something real'
+        - 'It should not be in the default preset'
+        - 'It does not exist and should'
+    validations: { required: true }
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: >
+        A count against a named repository if you have one, and — importantly — whether you
+        read a sample of the source rather than going by the number. Two rules with identical
+        counts routinely have opposite verdicts.
+      placeholder: |
+        typeorm/typeorm: 1 700 findings. I read 20 at random; all 20 were chai assertions
+        (`expect(x).to.exist`), which are property accesses, not dead code.
+    validations: { required: true }
+
+  - type: textarea
+    id: cost
+    attributes:
+      label: What would changing it cost
+      description: >
+        If the rule is turned off or narrowed, what real findings go with it? An honest
+        estimate is fine.
