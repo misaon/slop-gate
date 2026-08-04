@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises'
+import { globSync } from 'node:fs'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
@@ -38,52 +39,90 @@ afterEach(async () => {
   await rm(cacheDir, { recursive: true, force: true })
 })
 
+const K = (c: string): string => c.repeat(64)
+const filesIn = (): readonly string[] => globSync('**/*', { cwd: cacheDir }).filter((p) => p.endsWith('.json'))
+
 test('returns null for an unknown key', async () => {
-  expect(await openResultStore(cacheDir).get('a'.repeat(64))).toBeNull()
+  expect(await openResultStore(cacheDir).get('oxlint', K('a'))).toBeNull()
 })
 
-test('round-trips diagnostics', async () => {
+test('round-trips diagnostics through a persist and a fresh store', async () => {
   const store = openResultStore(cacheDir)
-  await store.set('b'.repeat(64), [diagnostic], components)
-  expect(await store.get('b'.repeat(64))).toEqual([diagnostic])
+  await store.set('oxlint', K('b'), [diagnostic], components)
+  await store.persist()
+
+  expect(await openResultStore(cacheDir).get('oxlint', K('b'))).toEqual([diagnostic])
+})
+
+test('nothing reaches disk before persist, so a crashed run leaves no half-written cache', async () => {
+  const store = openResultStore(cacheDir)
+  await store.set('oxlint', K('b'), [diagnostic], components)
+
+  expect(filesIn()).toEqual([])
 })
 
 test('distinguishes a cached clean result from a miss', async () => {
   const store = openResultStore(cacheDir)
-  const key = 'c'.repeat(64)
-  await store.set(key, [], components)
+  await store.set('oxlint', K('c'), [], components)
+  await store.persist()
 
-  expect(await store.get(key)).toEqual([])
-  expect(await store.get('d'.repeat(64))).toBeNull()
+  const reopened = openResultStore(cacheDir)
+  expect(await reopened.get('oxlint', K('c'))).toEqual([])
+  expect(await reopened.get('oxlint', K('d'))).toBeNull()
 })
 
-test('treats a corrupt entry as a miss', async () => {
+test('one file per engine, whatever the number of entries — the whole point of the layout', async () => {
+  // The per-entry layout cost 8x its content in disk: 512-byte entries against a 4 KiB block minimum,
+  // 678 files and 238 directories on this repository alone.
   const store = openResultStore(cacheDir)
-  const key = 'e'.repeat(64)
-  await store.set(key, [diagnostic], components)
-  await mkdir(join(cacheDir, 'results', key.slice(0, 2)), { recursive: true })
-  await writeFile(join(cacheDir, 'results', key.slice(0, 2), `${key}.json`), '{ not json')
+  for (let i = 0; i < 50; i += 1) await store.set('oxlint', K(String.fromCodePoint(97 + (i % 26))) + i, [], components)
+  await store.set('astgrep', K('z'), [], components)
+  await store.persist()
 
-  expect(await store.get(key)).toBeNull()
+  expect(filesIn().toSorted()).toEqual([join('results', 'astgrep.json'), join('results', 'oxlint.json')])
 })
 
-test('shards entries by key prefix to keep directories small', async () => {
+test("one engine's entries are untouched by another engine's write", async () => {
+  // Engines run concurrently. A single shared file would have the last writer discard the rest.
   const store = openResultStore(cacheDir)
-  const key = 'f0'.padEnd(64, '0')
-  await store.set(key, [], components)
-  const { access } = await import('node:fs/promises')
-  await expect(access(join(cacheDir, 'results', 'f0', `${key}.json`))).resolves.toBeUndefined()
+  await store.set('oxlint', K('a'), [diagnostic], components)
+  await store.set('astgrep', K('b'), [], components)
+  await store.persist()
+
+  const reopened = openResultStore(cacheDir)
+  expect(await reopened.get('oxlint', K('a'))).toEqual([diagnostic])
+  expect(await reopened.get('astgrep', K('b'))).toEqual([])
 })
 
-test('records what produced the entry, so a surprising cache hit can be explained', async () => {
-  const store = openResultStore(cacheDir)
-  const key = 'g'.repeat(64)
-  await store.set(key, [diagnostic], components)
+test('two runs over the same entries produce byte-identical files', async () => {
+  // Insertion order differs between runs; the bytes must not, or nothing can assert a cache is unchanged.
+  const write = async (order: readonly string[]): Promise<string> => {
+    await rm(join(cacheDir, 'results'), { recursive: true, force: true })
+    const store = openResultStore(cacheDir)
+    for (const key of order) await store.set('oxlint', key, [diagnostic], components)
+    await store.persist()
+    return readFile(join(cacheDir, 'results', 'oxlint.json'), 'utf8')
+  }
 
-  const raw: unknown = JSON.parse(
-    await readFile(join(cacheDir, 'results', key.slice(0, 2), `${key}.json`), 'utf8'),
-  )
-  expect((raw as { key: ResultKeyInput }).key).toEqual(components)
+  expect(await write([K('a'), K('b'), K('c')])).toBe(await write([K('c'), K('a'), K('b')]))
+})
+
+test('treats a corrupt engine file as an empty cache, never as partially valid', async () => {
+  const store = openResultStore(cacheDir)
+  await store.set('oxlint', K('e'), [diagnostic], components)
+  await store.persist()
+  await writeFile(join(cacheDir, 'results', 'oxlint.json'), '{ not json')
+
+  expect(await openResultStore(cacheDir).get('oxlint', K('e'))).toBeNull()
+})
+
+test('records what produced each entry, so a surprising cache hit can be explained', async () => {
+  const store = openResultStore(cacheDir)
+  await store.set('oxlint', K('g'), [diagnostic], components)
+  await store.persist()
+
+  const raw: unknown = JSON.parse(await readFile(join(cacheDir, 'results', 'oxlint.json'), 'utf8'))
+  expect((raw as { entries: Record<string, { key: ResultKeyInput }> }).entries[K('g')]?.key).toEqual(components)
 })
 
 // --- ProjectResultStore: project-granularity engines (spec §8.1/§9) -------------------------------
@@ -97,60 +136,35 @@ const projectComponents: ProjectResultKeyInput = {
 }
 
 test('project store returns null for an unknown key', async () => {
-  expect(await openProjectResultStore(cacheDir).get('tsc', 'a'.repeat(64))).toBeNull()
+  expect(await openProjectResultStore(cacheDir).get('tsc', K('a'))).toBeNull()
 })
 
 test('project store round-trips diagnostics keyed by engine and aggregate hash', async () => {
   const store = openProjectResultStore(cacheDir)
-  await store.set('tsc', 'b'.repeat(64), [diagnostic], projectComponents)
-  expect(await store.get('tsc', 'b'.repeat(64))).toEqual([diagnostic])
+  await store.set('tsc', K('b'), [diagnostic], projectComponents)
+  await store.persist()
+
+  expect(await openProjectResultStore(cacheDir).get('tsc', K('b'))).toEqual([diagnostic])
 })
 
-test('project store distinguishes a cached clean project (whole program, zero findings) from a miss', async () => {
+test('project store distinguishes a cached clean project from a miss', async () => {
   const store = openProjectResultStore(cacheDir)
-  const key = 'c'.repeat(64)
-  await store.set('tsc', key, [], projectComponents)
+  await store.set('tsc', K('c'), [], projectComponents)
+  await store.persist()
 
-  expect(await store.get('tsc', key)).toEqual([])
-  expect(await store.get('tsc', 'd'.repeat(64))).toBeNull()
+  const reopened = openProjectResultStore(cacheDir)
+  expect(await reopened.get('tsc', K('c'))).toEqual([])
+  expect(await reopened.get('tsc', K('d'))).toBeNull()
 })
 
-test('project store lays entries out at results/project/<engineId>/<key>.json, per spec §9', async () => {
-  const store = openProjectResultStore(cacheDir)
-  const key = 'e'.repeat(64)
-  await store.set('tsc', key, [], projectComponents)
+test('project store keeps its own subdirectory, so an engine doing both cannot collide with itself', async () => {
+  const perFile = openResultStore(cacheDir)
+  const perProject = openProjectResultStore(cacheDir)
+  await perFile.set('tsc', K('a'), [diagnostic], components)
+  await perProject.set('tsc', K('a'), [], projectComponents)
+  await perFile.persist()
+  await perProject.persist()
 
-  const { access } = await import('node:fs/promises')
-  await expect(access(join(cacheDir, 'results', 'project', 'tsc', `${key}.json`))).resolves.toBeUndefined()
-})
-
-test('project store scopes entries by engine id: the same key under two engines does not collide', async () => {
-  const store = openProjectResultStore(cacheDir)
-  const key = 'f'.repeat(64)
-  await store.set('tsc', key, [diagnostic], projectComponents)
-  await store.set('knip', key, [], { ...projectComponents, engineId: 'knip' })
-
-  expect(await store.get('tsc', key)).toEqual([diagnostic])
-  expect(await store.get('knip', key)).toEqual([])
-})
-
-test('project store treats a corrupt entry as a miss', async () => {
-  const store = openProjectResultStore(cacheDir)
-  const key = 'a1'.padEnd(64, '0')
-  await store.set('tsc', key, [diagnostic], projectComponents)
-  await mkdir(join(cacheDir, 'results', 'project', 'tsc'), { recursive: true })
-  await writeFile(join(cacheDir, 'results', 'project', 'tsc', `${key}.json`), '{ not json')
-
-  expect(await store.get('tsc', key)).toBeNull()
-})
-
-test('project store records what produced the entry, so a surprising cache hit can be explained', async () => {
-  const store = openProjectResultStore(cacheDir)
-  const key = 'a2'.padEnd(64, '0')
-  await store.set('tsc', key, [diagnostic], projectComponents)
-
-  const raw: unknown = JSON.parse(
-    await readFile(join(cacheDir, 'results', 'project', 'tsc', `${key}.json`), 'utf8'),
-  )
-  expect((raw as { key: ProjectResultKeyInput }).key).toEqual(projectComponents)
+  expect(await openResultStore(cacheDir).get('tsc', K('a'))).toEqual([diagnostic])
+  expect(await openProjectResultStore(cacheDir).get('tsc', K('a'))).toEqual([])
 })
