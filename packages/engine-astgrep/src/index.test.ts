@@ -8,7 +8,11 @@ import { createAstGrepEngine } from './index.ts'
 let dir: string
 let context: RunContext
 
-const file = (path: string, size = 0): InventoryFile => ({ path, language: 'ts', workspace: '', size, mtimeMs: 0 })
+// The default `size` is deliberately non-zero: the real inventory reads it from `stat` (see
+// `discovery/inventory.ts`), and the engine now treats 0 as "this file has no bytes to analyse" and
+// keeps it away from ast-grep. A helper defaulting to 0 would quietly claim every fixture is empty.
+const file = (path: string, size = 64): InventoryFile => ({ path, language: 'ts', workspace: '', size, mtimeMs: 0 })
+const emptyFile = (path: string): InventoryFile => file(path, 0)
 
 const collect = async (iterable: AsyncIterable<RawDiagnostic>): Promise<RawDiagnostic[]> => {
   const out: RawDiagnostic[] = []
@@ -132,7 +136,36 @@ test('fails loudly when ast-grep skips a file instead of caching it as clean', a
         AbortSignal.timeout(60_000),
       ),
     ),
-  ).rejects.toThrow(/skipped 1 of 1 assigned file\(s\).*src\/huge\.ts/s)
+  ).rejects.toThrow(/skipped 1 of 1 file\(s\) in this batch.*src\/huge\.ts/s)
+  await handle.dispose()
+})
+
+test('does not fail on a zero-byte file, which ast-grep counts as skipped', async () => {
+  // Measured against 0.45.0: a file of exactly 0 bytes lands in `skippedFileCount`, while one byte
+  // (a bare newline) does not. Untreated that makes the `skippedFileCount > 0` guard below fire on
+  // an empty `global.d.ts` — a common idiom — and fail the whole run with a message blaming a 4 MB
+  // parse limit. A file with no bytes has nothing to analyse, so its skip is the benign case.
+  await writeFile(join(dir, 'src/empty.d.ts'), '')
+  const engine = createAstGrepEngine()
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
+
+  expect(await collect(engine.run({ files: [emptyFile('src/empty.d.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await handle.dispose()
+})
+
+test('still analyses the rest of a batch that contains a zero-byte file', async () => {
+  // The empty file is dropped from the argument list, so the guard keeps its full strength for the
+  // files that remain — this fails if the fix were "ignore the guard whenever the batch has an empty file".
+  await writeFile(join(dir, 'src/empty.d.ts'), '')
+  await writeFile(join(dir, 'src/a.ts'), 'declare const v: unknown\nexport const a = v as unknown as string\n')
+  const engine = createAstGrepEngine()
+  const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
+
+  const found = await collect(
+    engine.run({ files: [emptyFile('src/empty.d.ts'), file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)),
+  )
+
+  expect(found.map((raw) => raw.file)).toEqual(['src/a.ts'])
   await handle.dispose()
 })
 

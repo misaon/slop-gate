@@ -6,6 +6,7 @@ import {
   type EngineConfigHandle,
   type EngineRuleSelection,
   type FileBatch,
+  type InventoryFile,
   type RawDiagnostic,
   type RunContext,
 } from '@misaon/slop-gate-core'
@@ -88,6 +89,17 @@ async function* execute(
   // hard-fails with "Cannot parse rule" rather than finding nothing. Both confirmed against 0.45.0.
   if (batch.files.length === 0 || handle.ruleCount === 0) return
 
+  // **Zero-byte files never reach ast-grep**, because it counts them in `skippedFileCount` and
+  // `assertSummary` below cannot tell that skip from the dangerous one. Measured against 0.45.0: a file
+  // of exactly 0 bytes is skipped, one holding a single newline is not — so the discriminator is
+  // emptiness itself, not size in general. Dropping them here rather than relaxing the guard keeps the
+  // guard exact for every file that could actually have carried a finding; a file with no bytes has
+  // nothing to analyse, so removing it changes no result. Found on 2 of 20 public repositories
+  // (`medusajs/medusa`, `excalidraw/excalidraw`), both of which held an empty `global.d.ts` and both of
+  // which failed the whole run.
+  const scanned = batch.files.filter((file) => file.size > 0)
+  if (scanned.length === 0) return
+
   const args = [
     ...invocation.prefixArgs,
     'scan',
@@ -99,7 +111,7 @@ async function* execute(
     // like a clean run. See `assertSummary`.
     '--inspect',
     'summary',
-    ...batch.files.map((file) => file.path),
+    ...scanned.map((file) => file.path),
   ]
 
   const { stdout, stderr } = await runEngineTool({
@@ -112,7 +124,7 @@ async function* execute(
     maxFindingsExitCode: MAX_FINDINGS_EXIT_CODE,
   })
 
-  assertSummary(readScanSummary(stderr), batch, handle)
+  assertSummary(readScanSummary(stderr), scanned, handle)
 
   yield* parseAstGrepOutput(stdout, context.rootDir)
 }
@@ -127,6 +139,10 @@ async function* execute(
  * `skippedFileCount` is 0 for the benign cases — a language with no rule document, an extension ast-grep does
  * not recognise — so this does not fire on an ordinary mixed batch.
  *
+ * **One benign skip is not visible here**, and it is handled before the scan rather than excused after it:
+ * ast-grep also counts a zero-byte file as skipped. Those are filtered out of `scanned` in `execute`, so by
+ * the time this runs every remaining skip is a file that had bytes ast-grep chose not to read.
+ *
  * **A ruleset that did not load is also a clean run.** `effectiveRuleCount` is the count of rule *documents*
  * ast-grep actually activated, which is exactly what `EngineConfigHandle.ruleCount` records, so a document
  * silently rejected on a version bump fails here instead of quietly removing a concept's coverage.
@@ -134,7 +150,7 @@ async function* execute(
  * A missing summary is itself a failure rather than a reason to skip the check: an adapter whose guard has
  * been disabled by an upstream format change should say so, not carry on unguarded.
  */
-function assertSummary(summary: AstGrepScanSummary | null, batch: FileBatch, handle: EngineConfigHandle): void {
+function assertSummary(summary: AstGrepScanSummary | null, scanned: readonly InventoryFile[], handle: EngineConfigHandle): void {
   if (summary === null) {
     throw new EngineError(
       'astgrep',
@@ -151,14 +167,14 @@ function assertSummary(summary: AstGrepScanSummary | null, batch: FileBatch, han
   }
 
   if (summary.skippedFileCount > 0) {
-    const largest = [...batch.files]
+    const largest = [...scanned]
       .sort((a, b) => b.size - a.size)
       .slice(0, SKIPPED_FILE_HINT_COUNT)
       .map((file) => `${file.path} (${Math.round(file.size / 1024)} KiB)`)
       .join(', ')
     throw new EngineError(
       'astgrep',
-      `ast-grep skipped ${summary.skippedFileCount} of ${batch.files.length} assigned file(s) without analysing them, ` +
+      `ast-grep skipped ${summary.skippedFileCount} of ${scanned.length} file(s) in this batch without analysing them, ` +
         'which would otherwise be indistinguishable from a clean result. The known cause is a file too large for its ' +
         `parser (reproduced at ~4 MB). Largest in this batch: ${largest}. Exclude it with \`ignore\` in slop-gate.config.ts.`,
     )
