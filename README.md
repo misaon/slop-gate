@@ -1,102 +1,181 @@
+<div align="center">
+
 # slop-gate
 
-One quality gate over many analysis engines, for repositories written with AI assistance.
+### Ten analysers. One config. One verdict you can actually trust.
+
+A quality gate for the era where most code is written fast and read slowly.
+
+[![npm](https://img.shields.io/npm/v/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=6366f1)](https://www.npmjs.com/package/@misaon/slop-gate)
+[![downloads](https://img.shields.io/npm/dm/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=8b5cf6)](https://www.npmjs.com/package/@misaon/slop-gate)
+[![CI](https://img.shields.io/github/actions/workflow/status/misaon/slop-gate/ci.yml?branch=main&style=for-the-badge&labelColor=0b0b0f&color=22c55e&label=ci)](https://github.com/misaon/slop-gate/actions/workflows/ci.yml)
+[![node](https://img.shields.io/node/v/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=14b8a6)](https://nodejs.org)
+[![license](https://img.shields.io/npm/l/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=64748b)](LICENSE)
+
+```bash
+npx sgate init && npx sgate check
+```
+
+</div>
+
+---
+
+## The problem nobody wants to say out loud
+
+Your codebase is growing faster than anyone is reading it.
+
+The code is *plausible*. It compiles. It reads well. And somewhere in it a type assertion has been
+laundered through `unknown` to get past an error, a function returns a hard-coded value behind a
+real-looking signature, and an API that was half-remembered got called with arguments that almost
+match.
+
+A reviewer catches that by being suspicious. Nobody has the attention budget to be suspicious about
+a thousand lines they did not write.
+
+So you reach for linters. And then you meet the *second* problem: turn on enough of them and you get
+duplicate findings, contradictory fixes, rules that silently shadow each other, and 15,000 warnings
+about React in a codebase that does not use React. The noise costs you the one thing the tools were
+supposed to give you — **output you can trust without checking it yourself.**
+
+slop-gate is the answer to both.
+
+## See it
+
+```
+  ╭──────────────────────────────────────────────────────────────────────────────╮
+  │  ◆  slop-gate                                                         v0.1.0 │
+  ╰──────────────────────────────────────────────────────────────────────────────╯
+
+  ▌ app/singleton.server.ts                                                    1
+
+    🟡  9:13    Type assertion laundered through `unknown`/`any`. The compiler
+                rejected the direct cast; this asserts it anyway.
+                slop.double-cast
+                help: Narrow the source type, or add a runtime type guard. If the
+                assertion is genuinely load-bearing, keep it behind an inline
+                `sgate-disable` comment saying why it holds.
+
+        9 │    const g = global as unknown as { __singletons: Record<string, unknown> };
+          │              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╭──────────────────────────────────────────────────────────────────────────────╮
+  │  12 warnings                                                                 │
+  │  69 scanned · 48 analysed (all cached) · 135 ms                              │
+  │  Most frequent                                                               │
+  │      3 ×  correctness.no-img-element                                         │
+  │      2 ×  correctness.shadows-outer-binding                                  │
+  ╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+That is a real run. 135 milliseconds, warm.
+
+## What makes it different
+
+Aggregating linters is not new — trunk, qlty and MegaLinter all do it. What none of them solve is
+that **nobody governs the rules.**
+
+### Every rule has an owner, and you can ask why
+
+Ten engines will happily report the same problem four times under four names. In slop-gate every
+rule declares the *concept* it detects, and exactly one rule owns a concept per language — decided
+deterministically, and inspectable:
+
+```console
+$ sgate rules why suspicious.react-in-jsx-scope
+
+  Enabled: yes — enabled at `warn` by preset `recommended`
+      preset                recommended -> warn
+      path-scoped framework react-jsx-transform (runtime-tests/bun/**, src/**) -> off
+
+  Framework: react-jsx-transform turns this off under `runtime-tests/bun/**`, `src/**`
+      detected via `compilerOptions.jsx` is `react-jsx` in tsconfig.spec.json
+      React 17's automatic JSX transform compiles JSX to `react/jsx-runtime` calls,
+      and a `jsxImportSource` naming another runtime compiles it to that one, so
+      importing React is unnecessary and its absence is correct. Scoped to the
+      projects whose own config says so, because another project here is on the
+      classic transform.
+```
+
+No other tool in this category can answer that question at all.
+
+### It knows what framework you are using
+
+Not "it has a Next.js preset". It reads your `tsconfig.json`, follows the `extends` chain, resolves
+`jsxImportSource`, finds every workspace manifest — and then **turns rules off with a stated reason,
+scoped to the directories the evidence covers.**
+
+Detected today: **Next.js**, **NestJS**, **Angular**, **MikroORM**, **VitePress**, **chai**, React's
+JSX transform, and which test framework you actually use. Detection carries evidence, never a
+boolean. When the evidence is ambiguous, a profile **stands down and tells you why** rather than
+guessing.
+
+### We proved it on other people's code
+
+We ran slop-gate across **20 real repositories** — 10 frontend app frameworks, 10 backend — and then
+went hunting for *our own* false positives. Reading source, not counting lines.
+
+| | before | after |
+|---|---:|---:|
+| Total findings | 78,219 | **49,783** |
+| Error-severity findings | 12,350 | **5,257** |
+| Repositories where an engine crashed | 3 | **0** |
+
+Some of what that removed:
+
+- **21,551 → 2,880** `react-in-jsx-scope`. Hono, Solid and Medusa were being told to import React.
+  15,442 of them were on one repository, and **not one** was in the directory that had caused the
+  rule to stay on.
+- **3,363 → 322** `no-unused-expressions`. chai asserts by property access — `expect(x).to.exist` is
+  a complete assertion — so the rule was calling an entire assertion library dead code. On typeorm:
+  1,700 of 1,700 findings, no residue.
+- **3,308 → 2** unresolved imports on an Astro site. The repository's only problem was that nobody
+  had run `pnpm install`. That is now a stated coverage gap instead of 3,308 red errors.
+
+Every one of those numbers is in a commit message with the method next to it. That is the standard
+here: **a count against a named repository, or it does not ship.**
+
+### A missing check is louder than a passing one
+
+```
+   COVERAGE GAP  deps-security could not run here — no advisory snapshot found;
+                 dependency vulnerabilities were not checked
+    3 concepts went unchecked. Resolve it with `sgate engines install advisories`.
+```
+
+Exiting 0 over a check that never happened is the one failure nobody notices. slop-gate refuses to
+do it.
+
+## Install
 
 ```bash
 npm install -D @misaon/slop-gate
-npx sgate init     # detects the repo, writes one tailored config
-npx sgate check    # analyses the whole monorepo
-npx sgate fix      # applies what can be applied safely
+npx sgate init      # reads the repo, writes one tailored config
+npx sgate check     # analyses everything
+npx sgate fix       # applies only what is safe
 ```
 
-> **Status: pre-release, not yet published to npm.** The commands above are what installation will
-> look like; today the only way to run it is from a clone. [What is missing](#what-is-not-built-yet)
-> is listed honestly at the bottom — including two things that matter a lot.
+Node 24+. Engines are bundled — no Docker, no Java, no `pip install`.
 
-## Why it exists
-
-A person describes what they want and a model writes the code. Sometimes that person is a developer
-who could have written it themselves and sometimes they could not, and the difference does not matter:
-neither of them read every line. A model produces *plausible* code. It compiles, it reads well, and it
-launders a type assertion through `unknown` to get past an error, leaves a function returning a
-hard-coded value, calls an API it half-remembers.
-
-A human reviewer catches that by being suspicious. Nobody has the attention budget to be suspicious
-about a thousand lines they did not write.
-
-Increasingly no person is there at all: an agent reads the ticket, writes the spec, implements it,
-opens the pull request. slop-gate is meant to be the step between *implements it* and *opens the pull
-request* — which is why its output is built to be read by a machine at the same level of detail as by
-a person, and why a finding reaching the pull request is a requirement rather than a nice integration.
-
-Three things follow, and they explain the choices that would otherwise look severe:
-
-- **Strict is the default.** A gate that passes the median AI-written commit has not gated anything.
-  `recommended` *is* the strict preset — there is no strict mode to remember to turn on.
-- **A missing check is worse than a noisy one.** An engine that could not run is reported out loud,
-  never silently skipped. Exiting 0 over a check that did not happen is the one failure nobody notices.
-- **A false positive is a bug, not a tolerable cost.** Someone who cannot fully read the code cannot
-  tell a wrong finding from a right one, so noise does not merely annoy — it destroys the only thing
-  the tool has, which is output you can trust without verifying it.
-
-## What it runs
-
-Nine engines behind one interface, one config file and one diagnostic model:
+## What runs
 
 | Engine | Covers |
 |---|---|
-| **oxlint** | JS, TS, JSX, TSX, Vue, Svelte, Astro — the bulk of the ruleset |
+| **oxlint** | JS · TS · JSX · TSX · Vue · Svelte · Astro — the bulk of the ruleset |
 | **tsc** | type errors, using *your* TypeScript, across every project a monorepo declares |
-| **knip** | dead code: unused exports, types, dependencies and files |
+| **knip** | dead code: unused exports, types, dependencies, files |
 | **ast-grep** | the `slop.*` ruleset — patterns specific to machine-written code |
-| **biome-css** | CSS and SCSS |
-| **oxfmt** | formatting — TS, JS, JSON, YAML, CSS, Markdown. Opt-in, see below |
+| **biome** | CSS and SCSS |
+| **oxfmt** | formatting — TS, JS, JSON, YAML, CSS, Markdown *(opt-in)* |
 | **actionlint** | GitHub Actions workflows |
 | **hadolint** | Dockerfiles |
-| **schema** | YAML and JSON against their schemas, incl. docker-compose |
+| **schema** | YAML and JSON against their published schemas |
 | **deps-security** | dependency advisories, from an offline snapshot |
 
-Frameworks are detected separately from languages, because a framework has rules a language does not:
-**Next.js**, **NestJS**, **Angular**, **MikroORM**, **VitePress**, React's JSX transform, and the test
-framework in use. Detection carries evidence, not a boolean, and a profile can only *raise* strictness
-— never lower what your config asked for.
+## In your pipeline
 
-## The part that is actually hard
-
-Aggregating linters is not novel; trunk, qlty and MegaLinter all do it. The problem none of them
-solves is that **nobody governs the rules.** Enable enough engines and you get duplicate findings,
-contradictory fixes, rules that silently shadow one another, and overrides that stopped applying to
-anything years ago.
-
-slop-gate's answer is a **rule registry** where every rule declares the *concept* it detects, and
-exactly one rule owns a concept per language — decided deterministically, with the reasoning
-inspectable:
-
-```bash
-sgate rules why correctness.no-debugger   # who owns this, why, and what lost
-sgate rules conflicts                     # every concept more than one engine could serve
-sgate rules list                          # the effective ruleset for this repository
-```
-
-Two consequences worth knowing:
-
-- **A rule added or removed upstream cannot pass unnoticed.** The registry is generated from each
-  engine's own catalogue and `generate:registry:check` runs in CI, so an oxlint release that adds or
-  drops a rule fails the build instead of silently changing behaviour.
-- **A rule's options are exhausted before it is disabled.** Turning a rule off loses its true
-  positives too. `eqeqeq` with `smart` dropped 2,637 findings to 84 — a 96.8% cut where every removed
-  one was provably equivalent. `expect-expect` taught to recognise supertest and chai chains dropped
-  3,206 to 584 across ten repositories, and still reports a genuinely empty test.
-
-Every rule in `recommended` is there because of a count against a named corpus, recorded next to the
-rule. Not because it sounded sensible.
-
-## In CI
-
-Findings land in the pull request, not in a log somebody has to scroll.
+Findings land **in the pull request**, not in a log somebody has to scroll.
 
 ```yaml
-# .github/workflows/quality.yml
 name: quality
 on: pull_request
 jobs:
@@ -106,9 +185,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: npm ci
-      # Annotates the diff directly. Needs no token, so it works on fork PRs.
+      # Annotates the diff. Needs no token, so it works on fork PRs.
       - run: npx sgate check --format=github
-      # Richer: rule descriptions, docs links, and findings tracked across pushes.
+      # Richer: rule descriptions, docs links, findings tracked across pushes.
       - run: npx sgate check --format=sarif > slop-gate.sarif
         if: always()
       - uses: github/codeql-action/upload-sarif@v3
@@ -116,8 +195,8 @@ jobs:
         with: { sarif_file: slop-gate.sarif }
 ```
 
-Both, not either: SARIF is richer, but uploading it needs `security-events: write`, which a **fork
-pull request does not get** — and a contributor's first PR is exactly the run whose findings matter
+Both, not either — SARIF is richer, but uploading it needs `security-events: write`, which a **fork
+pull request does not get**, and a contributor's first PR is exactly the run whose findings matter
 most. GitLab is one job:
 
 ```yaml
@@ -126,84 +205,80 @@ slop-gate:
   artifacts: { reports: { codequality: gl-code-quality-report.json } }
 ```
 
-A `warn` never arrives as a platform `error` — our warnings do not fail a run, and turning them red on
-a platform would make the distinction meaningless. Both platforms silently truncate long lists
-(GitHub shows 10 annotations per level per step), so each reporter says what it exceeded rather than
-letting a truncated report look like a clean one.
-
-## For AI agents
+## Built for agents too
 
 ```bash
 sgate check --format=agent   # a report written for a model, with a token budget
 sgate mcp                    # the same over the Model Context Protocol
 ```
 
-The `agent` format is byte-identical between a cold and a warm run — no timings, no cache counts,
-nothing run-dependent — so an agent diffing two runs sees only what changed in the code. When it has
-to truncate, it says what it dropped rather than trailing off. The MCP tools are read-only, and
-`propose_fixes` cannot write: it returns a diff.
+The `agent` format is **byte-identical between a cold and a warm run** — no timings, no cache
+counts, nothing run-dependent — so an agent diffing two runs sees only what changed in the code.
+When it truncates, it says what it dropped. The MCP tools are read-only; `propose_fixes` returns a
+diff and cannot write.
 
-## Configuration
+## Configure it
 
-One file, fully typed, with autocompletion over every concept id:
+One file, fully typed, autocompletion over every concept id:
 
 ```ts
 // slop-gate.config.ts
 import { defineConfig } from '@misaon/slop-gate'
 
 export default defineConfig({
-  // `recommended` is the strict one. `essential` is the level below it: only the rules whose findings
-  // would fail a build — 218 of 352, derived from each rule's own severity so the two cannot drift.
+  // `recommended` IS the strict one. There is no strict mode to remember to turn on.
+  // `essential` is the level below: only rules whose findings would fail a build.
   extends: ['recommended'],
   rules: {
-    'slop.as-any-cast': 'off',                       // a library of type machinery may need it
-    'pedantic.eqeqeq': ['warn', 'smart'],            // options, not off
+    'slop.as-any-cast': 'off',              // a library of type machinery may need it
+    'pedantic.eqeqeq': ['warn', 'smart'],   // options, not off
   },
-  overrides: [{ files: ['**/*.test.ts'], rules: { 'dead-code.unused-export': 'off' } }],
+  overrides: [
+    { files: ['**/*.test.ts'], rules: { 'dead-code.unused-export': 'off' } },
+  ],
 })
 ```
 
-A typo'd key is a type error, and an unknown top-level key is refused with the key it probably meant.
-`sgate baseline create` accepts everything a repository already has, so only *new* findings fail the
-build — which is how to adopt this on an existing codebase without fixing 2,000 things first.
+A typo'd key is a **type error**. An unknown top-level key is refused with the key it probably meant.
 
-## Performance
+Adopting on an existing codebase with 2,000 findings? Don't fix them first:
 
-Measured with hyperfine, on this repository (374 files) and on synthetic corpora:
+```bash
+sgate baseline create   # accept what exists — only NEW findings fail the build
+```
+
+## Speed
+
+Measured with hyperfine, on this repository (374 files) and synthetic corpora.
 
 | | |
 |---|---|
-| warm run, no changes | **124 ms** |
+| **warm run, no changes** | **124 ms** |
 | cold run | 6.0 s |
-| 2,003 files with 8,000 findings | 350 ms |
+| 2,003 files / 8,000 findings | 350 ms |
 | peak RSS at 8,003 files | 343 MB |
 
-Results are cached per (engine, file) and the cache lives in `.slop-gate/`. `--no-cache` writes
-nothing at all, so the tool can be pointed at a read-only checkout.
+Results cache per (engine, file) in `.slop-gate/`. `--no-cache` writes nothing at all, so you can
+point it at a read-only checkout.
 
-## What is not built yet
+## What is *not* built yet
 
-Stated plainly, because a README that implies otherwise is the same kind of lie this tool exists to
-catch:
+A README that implies otherwise is the same kind of lie this tool exists to catch.
 
 | Gap | What it means for you |
 |---|---|
-| **The formatter is opt-in, not default** | oxfmt 0.62.0 has no style options, so on by default it would rewrite every project's quotes and semicolons with no way to configure it. Turn it on with `'formatting.unformatted': 'warn'` |
-| **No Nuxt or Tailwind profile** | two named frameworks are undetected |
-| **Not published** | install from a clone |
+| **Formatter is opt-in** | oxfmt has no style options yet, so on by default it would rewrite every project's quotes with no way to configure it. Enable with `'formatting.unformatted': 'warn'` |
+| **No Nuxt or Tailwind profile** | Nuxt's `#shared`/`#app` aliases and Nuxt layers are not yet understood by the dead-code engine |
+| **Findings are not ranked** | thousands of findings are summarised, not prioritised |
 
-Ranking thousands of findings by severity rather than only summarising them, and a reviewable way to
-record that a finding is wrong, are designed but unbuilt. See
-[the design specification](docs/superpowers/specs/2026-07-30-slop-gate-design.md) — §1.4 lists the
-gaps, §12.5 the pull-request integration, §5.7 the false-positive question and the privacy line it
-must not cross.
+The [design specification](docs/superpowers/specs/2026-07-30-slop-gate-design.md) records every
+architectural decision and the measurement behind it. §1.4 lists the gaps.
 
-## Requirements
+## Contributing
 
-Node ≥ 24. Engines are bundled; `actionlint` and `hadolint` are resolved from `PATH` or installed on
-request with `sgate engines install`, and a missing one is a reported coverage gap rather than a
-silent skip.
+Pull requests welcome — and the bar is specific: **bring a number against a named repository.**
+[CONTRIBUTING.md](CONTRIBUTING.md) explains why, and what to do when you cannot measure something.
 
 ## Licence
 
-MIT
+[MIT](LICENSE) © Ondřej Misák
