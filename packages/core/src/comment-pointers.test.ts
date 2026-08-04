@@ -28,6 +28,8 @@ const ILLUSTRATIVE = new Set([
   'docs/.vitepress',
   'docs/package.json',
   'packages/../../shared/*',
+  'packages/admin/admin-bundler',
+  'packages/admin/dashboard',
   'packages/app',
   'packages/app/generated/keep.ts',
   'packages/emails',
