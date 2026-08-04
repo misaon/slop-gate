@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
 import { SLOP_GATE_SERVICED_CONCEPTS, isConceptId } from '../concepts/catalogue.ts'
+import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { PRESETS } from './presets.ts'
 import { OPTIONED_RECOMMENDED_RULES } from './rule-options.ts'
@@ -75,4 +76,28 @@ test('splitRuleSetting keeps a positional option list positional', () => {
   // so `smart` is only reachable as a bare positional string.
   expect(splitRuleSetting(['warn', 'smart']).options).toEqual(['smart'])
   expect(splitRuleSetting(['warn', 'always', { null: 'ignore' }]).options).toEqual(['always', { null: 'ignore' }])
+})
+
+test('essential is recommended filtered to its error rules, so the two can never disagree', () => {
+  // Derived rather than curated: a hand-written second list is what drifts, and the drift would be
+  // silent — a rule promoted to `error` in `recommended` but forgotten here is a rule a project on
+  // `essential` never hears about.
+  const essentialKeys = Object.keys(PRESETS.essential).sort(compareStrings)
+  const errorsInRecommended = Object.entries(PRESETS.recommended)
+    .filter(([, setting]) => (Array.isArray(setting) ? setting[0] : setting) === 'error')
+    .map(([concept]) => concept)
+    .sort(compareStrings)
+
+  expect(essentialKeys).toEqual(errorsInRecommended)
+  expect(essentialKeys.length).toBeGreaterThan(0)
+})
+
+test('essential carries each rule at the level recommended gave it, options and all', () => {
+  for (const [concept, setting] of Object.entries(PRESETS.essential)) {
+    expect(setting).toEqual(PRESETS.recommended[concept as RuleKey])
+  }
+})
+
+test('essential is strictly smaller than recommended, which is the point of it', () => {
+  expect(Object.keys(PRESETS.essential).length).toBeLessThan(Object.keys(PRESETS.recommended).length)
 })

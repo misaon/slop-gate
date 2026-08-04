@@ -43,7 +43,7 @@ export type OverrideBlock = {
   readonly rules: RuleMap
 }
 
-export type PresetName = 'recommended' | 'strict' | 'slop'
+export type PresetName = 'essential' | 'recommended' | 'strict' | 'slop'
 
 type EngineOptions = { readonly enabled?: boolean | 'auto' }
 

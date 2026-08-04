@@ -369,4 +369,20 @@ const strict: RuleMap = {
   'config.rule-overlap': 'warn',
 }
 
-export const PRESETS: Readonly<Record<PresetName, RuleMap>> = { recommended, strict, slop }
+/**
+ * The level below `recommended` (spec §6.5): its `error` rules and nothing else.
+ *
+ * **Derived, never curated.** `error` versus `warn` is already the per-rule judgement "would we stop a
+ * build for this", decided against a corpus and recorded on the rule. Filtering on it means `essential`
+ * cannot drift from `recommended`: promoting a rule adds it here, demoting one removes it, and nobody
+ * has to remember to edit two lists. A hand-written second list is the thing §1.1 exists to avoid.
+ *
+ * 218 of `recommended`'s 352 concepts, measured. A by-category definition was tried first — drop
+ * `pedantic`, `style` and `restriction` — and removed **4 rules of 352**, because `recommended` is 75%
+ * `correctness` and holds two `pedantic` concepts, two `restriction` and no `style` at all.
+ */
+const essential: RuleMap = Object.fromEntries(
+  Object.entries(recommended).filter(([, setting]) => (Array.isArray(setting) ? setting[0] : setting) === 'error'),
+)
+
+export const PRESETS: Readonly<Record<PresetName, RuleMap>> = { essential, recommended, strict, slop }
