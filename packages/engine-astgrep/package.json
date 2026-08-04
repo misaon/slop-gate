@@ -1,10 +1,31 @@
 {
   "name": "@misaon/slop-gate-engine-astgrep",
   "version": "0.0.0",
-  "type": "module",
+  "description": "ast-grep adapter for slop-gate: structural rules for the patterns AI writes.",
+  "keywords": [
+    "slop-gate",
+    "code-quality",
+    "static-analysis",
+    "lint"
+  ],
   "license": "MIT",
+  "author": "Ond\u0159ej Mis\u00e1k",
+  "homepage": "https://github.com/misaon/slop-gate#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/misaon/slop-gate.git",
+    "directory": "packages/engine-astgrep"
+  },
+  "bugs": {
+    "url": "https://github.com/misaon/slop-gate/issues"
+  },
+  "type": "module",
   "engines": {
     "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "exports": {
     ".": {

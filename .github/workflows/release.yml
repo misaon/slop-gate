@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Only one release may be in flight. A second push while `changeset version` is rewriting
+# manifests would race the first over the same Release PR branch.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # Opening and updating the Release PR.
+      contents: write
+      pull-requests: write
+      # The whole point: npm exchanges this for a short-lived publish credential, so no
+      # NPM_TOKEN exists anywhere to leak. It is also what makes npm attach provenance.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Changesets reads the history to work out what has already been released.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          # Deliberate, and not a performance choice: a poisoned dependency cache can expose
+          # the OIDC token to attacker-controlled install scripts. setup-node's own OIDC
+          # guidance says to turn it off in publishing workflows.
+          package-manager-cache: false
+
+      # Trusted publishing needs npm >= 11.5.1; the npm bundled with Node 24 may be older,
+      # and `changeset publish` shells out to whichever npm is on PATH.
+      - run: npm install -g npm@latest
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: changesets/action@v1
+        with:
+          version: pnpm changeset:version
+          publish: pnpm changeset:publish
+          title: 'chore(release): version packages'
+          commit: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

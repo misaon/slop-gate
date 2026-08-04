@@ -1,10 +1,37 @@
 {
   "name": "@misaon/slop-gate",
   "version": "0.0.0",
-  "type": "module",
+  "description": "One code-quality gate for AI-assisted repositories: many analysers, one config, one diagnostic model.",
+  "keywords": [
+    "lint",
+    "linter",
+    "code-quality",
+    "static-analysis",
+    "ai",
+    "oxlint",
+    "knip",
+    "typescript",
+    "monorepo",
+    "cli"
+  ],
   "license": "MIT",
+  "author": "Ond\u0159ej Mis\u00e1k",
+  "homepage": "https://github.com/misaon/slop-gate#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/misaon/slop-gate.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/misaon/slop-gate/issues"
+  },
+  "type": "module",
   "engines": {
     "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "bin": {
     "sgate": "./bin/sgate.js",
