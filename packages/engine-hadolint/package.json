@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-engine-hadolint",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "hadolint adapter for slop-gate: Dockerfile checks.",
   "keywords": [
     "slop-gate",

@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-engine-actionlint",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "actionlint adapter for slop-gate: GitHub Actions workflow checks.",
   "keywords": [
     "slop-gate",

@@ -1,5 +1,34 @@
 # @misaon/slop-gate
 
+## 0.1.1
+
+### Patch Changes
+
+- [#63](https://github.com/misaon/slop-gate/pull/63) [`5efcce2`](https://github.com/misaon/slop-gate/commit/5efcce2687e1aeb8f71eea73799f49031bdae513) Thanks [@misaon](https://github.com/misaon)! - Fix `sgate init` writing a config that `sgate check` could not load.
+
+  `init` generates a config importing `defineConfig` from `@misaon/slop-gate`. Reached through
+  `npx`, the CLI runs from npx's cache and the package is not a dependency of the project, so the
+  very next `check` failed while loading that config — and said so with advice meant for tsconfig
+  path aliases, without naming the import that failed.
+
+  `init` now tells you to install the package, and the loader names the missing specifier and
+  gives the command that fixes it. A relative import that cannot be resolved still gets the path
+  advice, which is what it is for.
+
+- Updated dependencies []:
+  - @misaon/slop-gate-core@0.1.1
+  - @misaon/slop-gate-engine-actionlint@0.1.1
+  - @misaon/slop-gate-engine-astgrep@0.1.1
+  - @misaon/slop-gate-engine-biome-css@0.1.1
+  - @misaon/slop-gate-engine-deps-security@0.1.1
+  - @misaon/slop-gate-engine-hadolint@0.1.1
+  - @misaon/slop-gate-engine-knip@0.1.1
+  - @misaon/slop-gate-engine-oxfmt@0.1.1
+  - @misaon/slop-gate-engine-oxlint@0.1.1
+  - @misaon/slop-gate-engine-schema@0.1.1
+  - @misaon/slop-gate-engine-tsc@0.1.1
+  - @misaon/slop-gate-reporters@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

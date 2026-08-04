@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-engine-oxfmt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "oxfmt adapter for slop-gate.",
   "keywords": [
     "slop-gate",
