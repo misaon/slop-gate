@@ -17,3 +17,7 @@ dist/
 # generator (packages/core/scripts/generate-registry.ts) produces reviewable, diffable source per
 # the design plan's decision 5, not a build artifact to hide.
 main.broken-import.*.generated.ts
+
+# Copied into each package by scripts/prepack.mjs at publish time; never committed.
+packages/*/LICENSE
+packages/*/README.md

@@ -24,8 +24,7 @@
     "node": ">=24"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -39,7 +38,8 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
