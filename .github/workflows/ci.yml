@@ -3,7 +3,23 @@ on:
   push: { branches: [main] }
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  # Every commit, not the pull request title, because this repository merges by rebase only:
+  # each commit lands on `main` verbatim and has to stand on its own. Its own job rather than a
+  # step in the matrix — the answer cannot differ by operating system or Node version, and
+  # paying for it six times would only slow the feedback down.
+  commitlint:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: wagoid/commitlint-github-action@v6
+
   check:
     strategy:
       fail-fast: false
