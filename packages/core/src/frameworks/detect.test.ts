@@ -296,31 +296,89 @@ test('leaves the rule alone when the classic transform is the only one configure
   expect(detection.inapplicable.some((entry) => entry.id === 'react-jsx-transform')).toBe(false)
 })
 
-test('stands down, naming both files, when two tsconfigs disagree about the transform', async () => {
+test('scopes the disable to the automatic project instead of standing down over a classic sibling', async () => {
+  // This used to stand down repository-wide. Measured cost of that on `medusajs/medusa`: 15 442
+  // findings, **none** of them in `packages/admin/admin-bundler`, the project whose `"jsx": "react"`
+  // caused the stand-down — while 11 297 were in `packages/admin/dashboard`, which declares
+  // `"jsx": "react-jsx"` itself. The evidence for the automatic project was never in doubt; only the
+  // vocabulary to act on it was missing, and `PathScope` supplied that in 1d4ff41.
   const detection = await detect({
     'apps/legacy/tsconfig.json': tsconfig('react'),
     'apps/web/tsconfig.json': tsconfig('react-jsx'),
   })
 
-  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
-  expect(detection.inapplicable).toContainEqual(
+  expect(applied(detection, 'react-jsx-transform')?.adjustments).toEqual([
     expect.objectContaining({
-      id: 'react-jsx-transform',
-      blocked: expect.stringContaining('apps/legacy/tsconfig.json'),
+      kind: 'disable-concept',
+      concept: 'suspicious.react-in-jsx-scope',
+      paths: ['apps/web/**'],
     }),
-  )
+  ])
+})
+
+test('keeps the rule on for an automatic project that contains a classic one', async () => {
+  // The subtree is the unit: `apps/web/legacy` sits inside what `apps/web/**` would turn off, so the
+  // outer project cannot be scoped without dropping the rule where the classic transform still needs
+  // it. Standing down for that one project is the whole reason disagreement was ever respected.
+  const detection = await detect({
+    'apps/web/tsconfig.json': tsconfig('react-jsx'),
+    'apps/web/legacy/tsconfig.json': tsconfig('react'),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
   expect(detection.inapplicable.find((entry) => entry.id === 'react-jsx-transform')?.blocked).toContain(
-    'apps/web/tsconfig.json',
+    'apps/web/legacy/tsconfig.json',
   )
 })
 
-test('says nothing about a transform TypeScript hands to another tool', async () => {
+test('narrows an automatic project to its own include list so a sibling classic one does not block it', async () => {
+  // `honojs/hono`: `tsconfig.spec.json` at the root declares the automatic runtime but includes only
+  // `src`, while `benchmarks/jsx/tsconfig.json` is a genuine classic-transform React benchmark. Scoped
+  // by directory the root would swallow the benchmark and stand down; scoped by `include` it does not.
+  // Measured there: 2 149 findings, only 96 of them inside `benchmarks/jsx`.
+  const detection = await detect({
+    'tsconfig.spec.json': JSON.stringify({ compilerOptions: { jsx: 'react-jsx' }, include: ['src'] }),
+    'benchmarks/jsx/tsconfig.json': tsconfig('react'),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')?.adjustments).toEqual([
+    expect.objectContaining({ kind: 'disable-concept', paths: ['src/**'] }),
+  ])
+})
+
+test('says nothing about a deferred transform with no jsxImportSource to name a runtime', async () => {
   const detection = await detect({
     'tsconfig.json': tsconfig('preserve'),
     'native/tsconfig.json': tsconfig('react-native'),
   })
   expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
   expect(detection.inapplicable.some((entry) => entry.id === 'react-jsx-transform')).toBe(false)
+})
+
+test('disables the rule when a deferred transform names a runtime that is not React', async () => {
+  // `solidjs/solid-start`: every tsconfig is `"jsx": "preserve"` with `"jsxImportSource": "solid-js"`,
+  // so the profile never fired at all — 1 670 findings, every one of them about a `React` that this
+  // project has no reason to import. `preserve` alone really is no evidence; `jsxImportSource` is.
+  const detection = await detect({
+    'tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'preserve', jsxImportSource: 'solid-js' } }),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')?.evidence).toContainEqual({
+    kind: 'config-literal',
+    file: 'tsconfig.json',
+    property: 'compilerOptions.jsxImportSource',
+    value: 'solid-js',
+  })
+  expect(applied(detection, 'react-jsx-transform')?.adjustments).toHaveLength(1)
+})
+
+test('keeps treating a deferred transform as no evidence when jsxImportSource names React itself', async () => {
+  // `"jsxImportSource": "react"` under `preserve` says the downstream tool targets React's runtime but
+  // not *which* one — the classic transform is still reachable, so this must stay silent.
+  const detection = await detect({
+    'tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'preserve', jsxImportSource: 'react' } }),
+  })
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
 })
 
 test('says nothing when no tsconfig configures jsx at all', async () => {

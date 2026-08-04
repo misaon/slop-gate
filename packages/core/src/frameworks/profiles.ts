@@ -1,9 +1,10 @@
+import { posix } from 'node:path'
 import type { ConceptId } from '../concepts/catalogue.ts'
 import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { defineProfile, dependencyEvidence, inventoryFilesMatching, relativeToWorkspace } from './detect.ts'
 import { extractStringLiteral } from './literal.ts'
-import { resolveJsx, TSCONFIG, type JsxTransform } from './tsconfig.ts'
+import { resolveIncludeScope, resolveJsx, resolveJsxImportSource, TSCONFIG } from './tsconfig.ts'
 import type { AnyFrameworkProfile, FrameworkAdjustment, FrameworkEvidence } from './types.ts'
 
 /** Orders two `[file, …]` pairs, so an evidence list never depends on `Map` insertion order. */
@@ -275,10 +276,17 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
  * - `react-jsx`, `react-jsxdev` → **no error**. The rule cannot be right here.
  * - `preserve`, `react-native` → **no error either**, because TypeScript emits the JSX untouched and
  *   never looks for a factory. That silence is not evidence of the automatic runtime: Babel, SWC or
- *   Metro decides, and nothing readable offline says which. Both are therefore treated as *no
- *   evidence in either direction* — the rule stays on, and it is the only coverage those projects
- *   get, since tsc offers none. This is the profile's biggest deliberate gap: a Next.js repository
- *   left on Next's own `"jsx": "preserve"` default gets nothing from it.
+ *   Metro decides. On its own it is therefore *no evidence in either direction*, and the rule stays on.
+ *
+ * **`jsxImportSource` is the evidence `jsx` alone withholds, and reading it closed the profile's
+ * biggest gap.** The downstream tool `preserve` defers to is not unknowable — the same
+ * `compilerOptions` block usually names whose runtime it targets, and anything other than `react`
+ * settles the question outright. Measured on a 20-repository corpus: `solidjs/solid-start` is
+ * `"jsx": "preserve"` with `"jsxImportSource": "solid-js"` in every one of its configs and produced
+ * **1,670 findings** while this profile did not fire at all; `honojs/hono` pairs `react-jsx` with
+ * `"jsxImportSource": "hono/jsx"`, and 888 of its findings are inside `src/jsx/dom` — Hono's *own*
+ * JSX runtime. `"jsxImportSource": "react"` is deliberately not evidence: it names React's runtime
+ * without saying which of the two transforms compiles to it.
  *
  * **Every question here is about the *resolved* value, never the declared one** (`tsconfig.ts`). In a
  * monorepo the leaf config usually says almost nothing — that is the point of the file. On the
@@ -287,17 +295,30 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
  * "../../tsconfig.app.json"`, two levels up. A config that is silent is *not* a dissenter, and a
  * config that inherits `react` from a base *is* one even though it says nothing itself.
  *
- * **Disagreement stands the profile down.** `disable-concept` is repository-global — the adjustment
- * vocabulary has no file-scoped shape and §23.3 is the reason it does not — so one package on the
- * classic transform cannot be excluded from a repository-wide "off". Standing down restores the
- * status quo the user can already see, and `sgate rules why` names the two files that disagree,
- * which is a one-line fix in their own tsconfig. Applying anyway would silently drop the rule in the
- * one place it is load-bearing.
+ * **Disagreement scopes the profile down, and used to stand it down entirely.** This comment said
+ * `disable-concept` was repository-global and that the adjustment vocabulary had no file-scoped shape.
+ * That stopped being true one day later: `PathScope` landed in 1d4ff41 for the `nextjs` profile, and
+ * this one was never revisited. The cost of that, measured on a 20-repository corpus:
+ * `medusajs/medusa` reported **15,442 findings, none of them in `packages/admin/admin-bundler`** — the
+ * project whose `"jsx": "react"` caused the stand-down — while 11,297 were in
+ * `packages/admin/dashboard`, which sets `"jsx": "react-jsx"` in its own config. The evidence for the
+ * automatic project was never in doubt; only the vocabulary to act on it was.
  *
- * **So does a chain that cannot be followed**, for the same reason one level removed: an ancestor
- * that could not be read may be the one setting `"jsx": "react"`, and the difference between "no
- * ancestor sets it" and "I could not see whether an ancestor sets it" is exactly the difference
- * between applying safely and applying blind.
+ * So a dissenter now subtracts the projects it actually governs rather than the whole repository, and
+ * the profile stands down only when nothing survives that subtraction — which is still the right
+ * answer when the classic project *contains* the automatic one, since a scope cannot have a hole.
+ *
+ * **A project's scope is its own `include` list, or its directory when it has none** (`tsconfig.ts`).
+ * The distinction is not academic: `honojs/hono` declares the automatic runtime in a root
+ * `tsconfig.spec.json` that includes only `src`, while `benchmarks/jsx/tsconfig.json` is a genuine
+ * classic-transform React benchmark. Scoped by directory the root config swallows the benchmark and
+ * the profile stands down; scoped by `include` the two do not touch, and 2,053 of hono's 2,149
+ * findings go away while the 96 inside `benchmarks/jsx` correctly stay.
+ *
+ * **A chain that cannot be followed dissents exactly like a classic one**, for the same reason one
+ * level removed: an ancestor that could not be read may be the one setting `"jsx": "react"`, and the
+ * difference between "no ancestor sets it" and "I could not see whether an ancestor sets it" is
+ * exactly the difference between applying safely and applying blind.
  *
  * **`disable-concept` because oxlint offers nothing narrower.** Confirmed against 1.76.0: the rule
  * takes no options at all (*this rule does not accept configuration options*, and the bundled
@@ -310,66 +331,108 @@ const vitepress = defineProfile<readonly VitePressSite[]>({
  * obsoletes in the same stroke, is **not in the registry** because oxlint does not implement it —
  * `oxlint --rules --format json` lists 64 rules in the `react` scope and that is not one of them.
  */
-const reactJsxTransform = defineProfile<void>({
+/** `null` means the whole repository — every config agrees, so there is nothing to scope around. */
+type JsxRuntimeScope = { readonly paths: readonly string[] | null }
+
+/** The `/**` tail `resolveIncludeScope` adds, removed to get a plain directory for the overlap test. */
+const scopeBase = (pattern: string): string => (pattern === '**' ? '' : pattern.slice(0, -3))
+
+/** True when either directory contains the other, `''` being the repository root. */
+function overlaps(a: string, b: string): boolean {
+  return a === '' || b === '' || a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
+}
+
+const reactJsxTransform = defineProfile<JsxRuntimeScope>({
   id: 'react-jsx-transform',
-  summary: 'React — TypeScript is configured for the automatic JSX runtime',
+  summary: 'React — TypeScript is configured for a JSX runtime that is not React’s classic one',
   async detect(context) {
     const configs = inventoryFilesMatching(context, (path) => TSCONFIG.test(path))
     const resolved = await Promise.all(
-      configs.map(async (file) => ({ file: file.path, jsx: await resolveJsx(file.path, context.readText) })),
+      configs.map(async (file) => ({
+        file: file.path,
+        jsx: await resolveJsx(file.path, context.readText),
+        importSource: await resolveJsxImportSource(file.path, context.readText),
+        scope: await resolveIncludeScope(file.path, context.readText),
+      })),
     )
+
+    // A project needs no `React` in scope when TypeScript compiles its JSX to `react/jsx-runtime`
+    // calls, *or* when `jsxImportSource` names somebody else's runtime entirely. The second is what
+    // `preserve` alone cannot tell you and is the only evidence a Solid or Hono repository offers.
+    const notReact = resolved.filter(
+      (entry) =>
+        (entry.jsx.kind === 'set' && entry.jsx.transform === 'automatic') ||
+        (entry.jsx.kind === 'set' &&
+          entry.jsx.transform === 'deferred' &&
+          entry.importSource.kind === 'set' &&
+          entry.importSource.value !== 'react'),
+    )
+    if (notReact.length === 0) return null
 
     // Deduplicated on the *declaring* file, not the resolving one: three apps inheriting one
     // `tsconfig.app.json` are one fact about the repository, not three.
-    const declaring = new Map<string, { value: string; transform: JsxTransform }>()
-    for (const entry of resolved) {
-      if (entry.jsx.kind !== 'set') continue
-      declaring.set(entry.jsx.declaredIn, { value: entry.jsx.value, transform: entry.jsx.transform })
+    const declaring = new Map<string, { property: string; value: string }>()
+    for (const entry of notReact) {
+      if (entry.jsx.kind === 'set' && entry.jsx.transform === 'automatic') {
+        declaring.set(entry.jsx.declaredIn, { property: 'compilerOptions.jsx', value: entry.jsx.value })
+      } else if (entry.importSource.kind === 'set') {
+        declaring.set(entry.importSource.declaredIn, {
+          property: 'compilerOptions.jsxImportSource',
+          value: entry.importSource.value,
+        })
+      }
     }
+    const evidence = [...declaring]
+      .sort(byFile)
+      .map(([file, found]) => ({ kind: 'config-literal' as const, file, property: found.property, value: found.value }))
 
-    const automatic = [...declaring].filter(([, jsx]) => jsx.transform === 'automatic').sort(byFile)
-    if (automatic.length === 0) return null
+    // Two kinds of dissent, treated identically because they cost the same thing. A config on the
+    // classic transform *needs* the rule. A config whose `extends` chain broke may be one — an
+    // ancestor this could not read may set `"jsx": "react"` — and "I could not see" is not "no".
+    const dissenting = resolved
+      .filter((entry) => (entry.jsx.kind === 'set' && entry.jsx.transform === 'classic') || entry.jsx.kind === 'unknown')
+      .sort((a, b) => compareStrings(a.file, b.file))
+    if (dissenting.length === 0) return { evidence, parameters: { paths: null } }
 
-    const evidence = automatic.map(([file, jsx]) => ({
-      kind: 'config-literal' as const,
-      file,
-      property: 'compilerOptions.jsx',
-      value: jsx.value,
-    }))
+    const dissentDirs = dissenting.map((entry) => posix.dirname(entry.file)).map((dir) => (dir === '.' ? '' : dir))
+    const paths = [
+      ...new Set(
+        notReact.flatMap((entry) =>
+          entry.scope.filter((pattern) => !dissentDirs.some((dir) => overlaps(scopeBase(pattern), dir))),
+        ),
+      ),
+    ].sort(compareStrings)
 
-    const classic = [...declaring].filter(([, jsx]) => jsx.transform === 'classic').sort(byFile)
-    if (classic.length > 0) {
+    if (paths.length === 0) {
+      const first = dissenting[0]!
       return {
         evidence,
         blocked:
-          `${classic[0]![0]} sets \`"jsx": "react"\` while ${automatic[0]![0]} sets ` +
-          `\`"jsx": "${automatic[0]![1].value}"\`, and the rule can only be turned off for the whole ` +
-          'repository, so turning it off would drop it where the classic transform still needs it',
+          first.jsx.kind === 'unknown'
+            ? `${first.jsx.reason}, so whether that project uses the classic transform cannot be determined ` +
+              'without following the chain, and every project that does use the automatic runtime sits ' +
+              'inside or around it'
+            : // The *declaring* file, not the project that inherited it: that is the one line a user
+              // would have to edit, and in a monorepo it is usually not the config named here.
+              `${first.jsx.kind === 'set' ? first.jsx.declaredIn : first.file} sets \`"jsx": "react"\` inside or ` +
+              'around every project configured for another runtime, so turning the rule off would drop it ' +
+              'where the classic transform still needs it',
       }
     }
 
-    // A config whose `extends` chain broke resolves to no value, and that is not the same as one
-    // that resolves to nothing: an ancestor this could not read may set `"jsx": "react"`, and
-    // applying past it would drop the rule exactly where it is load-bearing without saying so.
-    const unknown = resolved.filter((entry) => entry.jsx.kind === 'unknown').sort((a, b) => compareStrings(a.file, b.file))
-    if (unknown.length > 0) {
-      const first = unknown[0]!
-      return {
-        evidence,
-        blocked:
-          `${(first.jsx as { reason: string }).reason}, so whether that project uses the classic ` +
-          'transform cannot be determined without following the chain',
-      }
-    }
-
-    return { evidence, parameters: undefined }
+    return { evidence, parameters: { paths } }
   },
-  consequences: () => [
+  consequences: (scope) => [
     {
       kind: 'disable-concept',
       concept: 'suspicious.react-in-jsx-scope' as ConceptId,
+      ...(scope.paths === null ? {} : { paths: scope.paths }),
       reason:
-        "React 17's automatic JSX transform compiles JSX to `react/jsx-runtime` calls, so importing React is unnecessary and its absence is correct.",
+        "React 17's automatic JSX transform compiles JSX to `react/jsx-runtime` calls, and a `jsxImportSource` " +
+        'naming another runtime compiles it to that one, so importing React is unnecessary and its absence is correct.' +
+        (scope.paths === null
+          ? ''
+          : ' Scoped to the projects whose own config says so, because another project here is on the classic transform.'),
     },
   ],
 })

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { resolveJsx } from './tsconfig.ts'
+import { resolveIncludeScope, resolveJsx, resolveJsxImportSource } from './tsconfig.ts'
 
 const from = (files: Record<string, string>) => async (path: string) => files[path] ?? null
 
@@ -126,4 +126,62 @@ test('ends rather than hangs on a cycle', async () => {
     }),
   )
   expect(result).toEqual({ kind: 'none' })
+})
+
+test('resolves jsxImportSource through the same extends chain as jsx', async () => {
+  // Resolved independently of `jsx`: TypeScript inherits each compiler option on its own, and the
+  // measured shape (`solidjs/solid-start`) writes both in the same file while `honojs/hono` reaches
+  // its base config for everything else.
+  const result = await resolveJsxImportSource(
+    'apps/site/tsconfig.json',
+    from({
+      'apps/site/tsconfig.json': JSON.stringify({ extends: '../../tsconfig.base.json', compilerOptions: { jsx: 'preserve' } }),
+      'tsconfig.base.json': JSON.stringify({ compilerOptions: { jsxImportSource: 'solid-js' } }),
+    }),
+  )
+
+  expect(result).toEqual({ kind: 'set', value: 'solid-js', declaredIn: 'tsconfig.base.json' })
+})
+
+test('a chain that configures no jsxImportSource is empty, not unknown', async () => {
+  expect(await resolveJsxImportSource('tsconfig.json', from({ 'tsconfig.json': jsx('react-jsx') }))).toEqual({ kind: 'none' })
+})
+
+test('reports a jsxImportSource chain it cannot follow rather than calling it empty', async () => {
+  const result = await resolveJsxImportSource(
+    'tsconfig.json',
+    from({ 'tsconfig.json': JSON.stringify({ extends: './missing.json' }) }),
+  )
+
+  expect(result.kind).toBe('unknown')
+})
+
+test('scopes a config to its own include patterns, cut back to their literal prefix', async () => {
+  // `include` is what makes the difference between "this config governs the repository" and "this
+  // config governs `src/`" — and on `honojs/hono` that is the difference between standing down and
+  // turning the rule off for 2 053 findings. The trailing glob is added because a bare `"src"` entry
+  // means the directory's contents, which picomatch would not match on its own.
+  expect(await resolveIncludeScope('tsconfig.spec.json', from({
+    'tsconfig.spec.json': JSON.stringify({ include: ['src', 'src/middleware/keys.test.json'] }),
+  }))).toEqual(['src/**'])
+})
+
+test('scopes a config with no include to its whole directory', async () => {
+  expect(await resolveIncludeScope('packages/ui/tsconfig.json', from({
+    'packages/ui/tsconfig.json': jsx('react-jsx'),
+  }))).toEqual(['packages/ui/**'])
+})
+
+test('resolves include patterns relative to the config, not the repository root', async () => {
+  expect(await resolveIncludeScope('packages/dash/tsconfig.json', from({
+    'packages/dash/tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react-jsx' }, include: ['src'] }),
+  }))).toEqual(['packages/dash/src/**'])
+})
+
+test('an include list that is not plain string literals falls back to the whole directory', async () => {
+  // Same standing-down instinct as everywhere else here: a scope that cannot be read is not narrowed
+  // on a guess, it widens to the directory, which is the cautious direction for a disable.
+  expect(await resolveIncludeScope('packages/ui/tsconfig.json', from({
+    'packages/ui/tsconfig.json': '{ "include": [1, 2] }',
+  }))).toEqual(['packages/ui/**'])
 })
