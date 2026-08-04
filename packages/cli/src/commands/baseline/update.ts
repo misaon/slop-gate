@@ -3,6 +3,7 @@ import { defineCommand } from 'citty'
 import { baselinePathFor, readBaseline, writeBaseline } from '@misaon/slop-gate-core'
 import { EXIT_CODES } from '../../exit-codes.ts'
 import { baselineRun, writeBreakdown } from './shared.ts'
+import { resolveRootDir } from '../../root-dir.ts'
 
 /**
  * Prunes, and only prunes: an entry that no longer matches any finding is removed, and nothing is added.
@@ -20,7 +21,7 @@ export const update = defineCommand({
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
     const path = baselinePathFor(rootDir)
     const shown = relative(rootDir, path).replaceAll('\\', '/')
 

@@ -6,6 +6,7 @@ import { validateFormat } from '../../format.ts'
 import { supportsColor, supportsUnicode } from '../../terminal.ts'
 import { readCliVersion } from '../../version.ts'
 import { prepareRulesRun } from './shared.ts'
+import { resolveRootDir } from '../../root-dir.ts'
 
 export const why = defineCommand({
   meta: { name: 'why', description: 'Explain why a concept is (or is not) enabled, and who owns it' },
@@ -15,7 +16,7 @@ export const why = defineCommand({
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
     if (!validateFormat(args.format)) return
 
     const resolved = await prepareRulesRun(rootDir)
