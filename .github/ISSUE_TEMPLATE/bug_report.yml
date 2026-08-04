@@ -1,0 +1,61 @@
+name: Bug report
+description: slop-gate crashed, or reported something that is not true of your code.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two questions answer most reports before we even read the rest: **were your
+        dependencies installed**, and **what does the JSON report say**. Several analysers
+        answer differently without `node_modules`, so please fill those in.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did slop-gate report or do, and what did you expect instead?
+      placeholder: |
+        `deps.unresolved-import` fired on `#shared/types`, which resolves fine in my app.
+    validations: { required: true }
+
+  - type: textarea
+    id: report
+    attributes:
+      label: Report output
+      description: >
+        Output of `sgate check --format=json`, or the relevant part. If a rule fired wrongly,
+        the `diagnostics` entry plus the source line it points at is exactly what we need.
+      render: json
+    validations: { required: true }
+
+  - type: dropdown
+    id: installed
+    attributes:
+      label: Were dependencies installed when you ran it?
+      options:
+        - 'Yes — node_modules was present'
+        - 'No'
+        - 'Not sure'
+    validations: { required: true }
+
+  - type: input
+    id: version
+    attributes:
+      label: slop-gate version
+      description: Output of `sgate --version`.
+    validations: { required: true }
+
+  - type: input
+    id: env
+    attributes:
+      label: Node version and OS
+      placeholder: Node 24.14.0, macOS 15
+    validations: { required: true }
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >
+        A public repository, or the smallest tree that shows it. If you cannot share code,
+        the shape of it is still useful — framework, workspace layout, which config files exist.

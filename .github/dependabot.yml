@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # The analysers are the product. An oxlint or knip bump changes what this tool reports, so
+  # these land as individual pull requests that CI and the dogfood get to argue with — a
+  # grouped bump would hide which upgrade moved the numbers.
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      # Everything that is not an analyser can move together; none of it changes a finding.
+      dev-tooling:
+        patterns: ['*']
+        exclude-patterns:
+          - 'oxlint'
+          - 'oxfmt'
+          - 'knip'
+          - '@ast-grep/*'
+          - '@biomejs/*'
+          - 'typescript'
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    commit-message:
+      prefix: 'ci'
+    groups:
+      actions:
+        patterns: ['*']
