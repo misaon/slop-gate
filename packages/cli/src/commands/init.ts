@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { defineCommand } from 'citty'
 import { buildWorkspaceGraph } from '@misaon/slop-gate-core'
@@ -107,6 +107,37 @@ export async function runInit(options: {
   return { created, skipped }
 }
 
+/** The package the generated config imports `defineConfig` from — see `CONFIG_TEMPLATE`. */
+const PACKAGE_NAME = '@misaon/slop-gate'
+
+/**
+ * Advice to print when the config this command just wrote will not load, or `undefined` when it
+ * will.
+ *
+ * **The failure it prevents was reported from a real project.** `npx @misaon/slop-gate init` runs
+ * the CLI out of npx's cache, so the package is nowhere in the target project — and the config
+ * written here imports `defineConfig` from it. `init` then said "Run `sgate check` next", and that
+ * check died before analysing anything. `init` is the last moment anyone can be told, because it is
+ * the step that creates the dependency.
+ *
+ * A `stat` of the resolved directory rather than `require.resolve`: this package is ESM-only with an
+ * `exports` map, so a CJS resolve of it can fail for reasons that have nothing to do with whether it
+ * is installed. Presence at `<rootDir>/node_modules/<name>` is exactly the condition the config's own
+ * import will be resolved against, which is the question being asked.
+ */
+export async function missingPackageHint(rootDir: string): Promise<string | undefined> {
+  const installed = await stat(join(rootDir, 'node_modules', ...PACKAGE_NAME.split('/'))).then(
+    (entry) => entry.isDirectory(),
+    () => false,
+  )
+  if (installed) return undefined
+
+  return (
+    `\n  ${PACKAGE_NAME} is not installed in this project, and the config just written imports ` +
+    `\`defineConfig\` from it.\n  Install it before running a check:  npm install -D ${PACKAGE_NAME}\n`
+  )
+}
+
 export const init = defineCommand({
   meta: { name: 'init', description: 'Set slop-gate up in this repository' },
   args: {
@@ -120,6 +151,10 @@ export const init = defineCommand({
 
     for (const file of created) process.stdout.write(`  created  ${file}\n`)
     for (const file of skipped) process.stdout.write(`  kept     ${file}\n`)
+
+    const hint = await missingPackageHint(rootDir)
+    if (hint !== undefined) process.stdout.write(hint)
+
     process.stdout.write(`\nDetected ${workspaces.nodes.length} workspace(s). Run \`sgate check\` next.\n`)
   },
 })

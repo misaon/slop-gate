@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { runInit } from './init.ts'
+import { missingPackageHint, runInit } from './init.ts'
 
 let dir: string
 
@@ -16,8 +16,9 @@ afterEach(async () => {
 })
 
 // A real `npm install -D @misaon/slop-gate` is what makes the generated config's
-// `import { defineConfig } from '@misaon/slop-gate'` resolve — nobody runs `sgate init` without
-// having installed the package that provides `sgate` in the first place. This stands in for that
+// `import { defineConfig } from '@misaon/slop-gate'` resolve. This used to say nobody runs
+// `sgate init` without having installed that package first; `npx @misaon/slop-gate init` does
+// exactly that, which is why `missingPackageHint` exists. This stands in for that
 // install without depending on packages/cli's own dist (this repo's `pnpm test` does not build
 // first; see index.test.ts for the same reasoning). It deliberately mirrors only the *contract*
 // packages/cli/src/index.ts and package.json establish — a module type and a `defineConfig`
@@ -150,4 +151,17 @@ test('running init twice changes nothing the second time', async () => {
   expect(second.created).not.toContain('slop-gate.config.ts')
   expect(second.created).not.toContain('slop-gate.config.mts')
   expect(await readFile(join(dir, 'AGENTS.md'), 'utf8')).toBe(before)
+})
+
+test('tells the user to install the package when the generated config could not load', async () => {
+  // The `npx @misaon/slop-gate init` path, reported from a real project. `init` writes a config
+  // importing `defineConfig` from this package, and npx runs the CLI from its own cache — so the
+  // project has no such dependency and the very next `sgate check` dies loading the config. `init`
+  // is the last moment anyone can be told, so it tells them here.
+  expect(await missingPackageHint(dir)).toMatch(/npm install -D @misaon\/slop-gate/)
+})
+
+test('says nothing when the package is already a dependency of the project', async () => {
+  await installStubPackage()
+  expect(await missingPackageHint(dir)).toBeUndefined()
 })

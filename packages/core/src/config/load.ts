@@ -121,12 +121,7 @@ async function importModule(file: string): Promise<unknown> {
     return await suppressModuleTypelessPackageJsonWarning(() => import(pathToFileURL(file).href))
   } catch (cause) {
     if (isModuleNotFound(cause)) {
-      throw new ConfigError(
-        `${file} imports a module that could not be resolved. Config files are loaded by the ` +
-          `runtime directly, so tsconfig path aliases are not available — use a relative path or a ` +
-          `package.json "imports" subpath instead.`,
-        { cause },
-      )
+      throw new ConfigError(unresolvedImportMessage(file, cause), { cause })
     }
     return await importTransformed(file, cause)
   }
@@ -230,6 +225,50 @@ export async function suppressModuleTypelessPackageJsonWarning<T>(fn: () => Prom
 
 function isModuleNotFound(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ERR_MODULE_NOT_FOUND'
+}
+
+/**
+ * Node names the thing it could not find, and the two spellings mean opposite remedies. Captured
+ * from Node 24 rather than assumed:
+ *
+ *     Cannot find package '@misaon/slop-gate' imported from …/slop-gate.config.ts
+ *     Cannot find module '/abs/path/nope.js'  imported from …/slop-gate.config.ts
+ */
+const UNRESOLVED = /Cannot find (package|module) '([^']+)'/
+
+/**
+ * A config that cannot load is the first thing a new user sees go wrong, so the message has to name
+ * what failed and what to do about it.
+ *
+ * **The advice used to be wrong in the most common case.** `sgate init` writes a config importing
+ * `defineConfig` from this tool's own package, and a user who reached `init` through `npx` has no
+ * such dependency in their project — so the very next `sgate check` failed with "use a relative path
+ * or a package.json `imports` subpath instead", which is advice for a tsconfig alias and nonsense
+ * for a real package. It also never said *which* import failed.
+ *
+ * Split on Node's own two spellings rather than on anything we guess: a bare specifier is a package
+ * somebody can install, and a path that does not exist is usually an alias the runtime cannot see.
+ * Nothing here special-cases this tool's own package name — "install the thing you imported" is the
+ * right answer for `zod` too.
+ */
+function unresolvedImportMessage(file: string, cause: unknown): string {
+  const match = UNRESOLVED.exec(describe(cause))
+  const specifier = match?.[2]
+
+  if (match?.[1] === 'package' && specifier !== undefined) {
+    return (
+      `${file} imports \`${specifier}\`, which is not installed in this project. Config files are ` +
+      `loaded by the runtime directly, so every package a config imports has to be a real ` +
+      `dependency — install it with \`npm install -D ${specifier}\`.`
+    )
+  }
+
+  const named = specifier === undefined ? 'a module' : `\`${specifier}\``
+  return (
+    `${file} imports ${named}, which could not be resolved. Config files are loaded by the ` +
+    `runtime directly, so tsconfig path aliases are not available — use a relative path or a ` +
+    `package.json "imports" subpath instead.`
+  )
 }
 
 function describe(error: unknown): string {
