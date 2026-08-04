@@ -13,7 +13,7 @@
   "homepage": "https://github.com/misaon/slop-gate#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/misaon/slop-gate.git",
+    "url": "git+https://github.com/misaon/slop-gate.git",
     "directory": "packages/engine-tsc"
   },
   "bugs": {
