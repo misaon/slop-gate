@@ -1,6 +1,9 @@
 <div align="center">
 
-# slop-gate
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-wide-darkmode.png">
+  <img src="docs/assets/logo-wide-lightmode.png" alt="slop-gate" width="460">
+</picture>
 
 ### Ten analysers. One config. One verdict you can actually trust.
 
@@ -274,11 +277,36 @@ A README that implies otherwise is the same kind of lie this tool exists to catc
 The [design specification](docs/superpowers/specs/2026-07-30-slop-gate-design.md) records every
 architectural decision and the measurement behind it. §1.4 lists the gaps.
 
+## Trusted by
+
+<div align="center">
+<br>
+
+<a href="https://www.techfides.cz">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/techfides-darkmode.svg">
+    <img src="docs/assets/techfides-lightmode.svg" alt="TechFides" height="34">
+  </picture>
+</a>
+
+<br>
+
+*Running slop-gate on production codebases.*<br>
+Using it at work? [Open a pull request](https://github.com/misaon/slop-gate/pulls) and add yourself.
+
+</div>
+
 ## Contributing
 
 Pull requests welcome — and the bar is specific: **bring a number against a named repository.**
 [CONTRIBUTING.md](CONTRIBUTING.md) explains why, and what to do when you cannot measure something.
 
-## Licence
+---
 
-[MIT](LICENSE) © Ondřej Misák
+<div align="center">
+
+<img src="docs/assets/logo.png" alt="" width="52">
+
+**[MIT](LICENSE)** © Ondřej Misák
+
+</div>
