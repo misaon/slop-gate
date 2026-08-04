@@ -95,7 +95,6 @@ exists. As of 2026-08-04 the notable gaps against §1.3 are:
 | Gap | Consequence |
 |---|---|
 | No formatter adapter (§13's oxfmt entry) | "one tool instead of prettier + eslint + …" is not yet true; a project still needs a formatter |
-| No SARIF / GitHub / GitLab reporter (§12.5) | findings do not reach a pull request, so the agent workflow above is unserved |
 | No preset below `recommended` (§6.5) | strictness cannot be turned down except rule by rule |
 | No Nuxt or Tailwind profile (§23) | two of the four named frameworks are undetected |
 | No README, unpublished | it cannot be installed |
@@ -1103,10 +1102,10 @@ total either way, and `--format=json` carries every phase and every rule uncappe
 
 ### 12.5 Reaching the pull request
 
-**Not built**, and it is the largest gap against §1.3. Today's reporters are `pretty`, `json` and
-`agent`: a terminal, a document, and an agent's context. None of them puts a finding next to the line
-that caused it in a pull request, so the ticket-to-PR workflow §1.3 describes gets a red check and a
-log to scroll — which is the review burden this tool exists to remove, moved rather than removed.
+Built. Before it, the reporters were `pretty`, `json` and `agent` — a terminal, a document, and an
+agent's context — and none of them put a finding next to the line that caused it in a pull request, so
+the ticket-to-PR workflow §1.3 describes got a red check and a log to scroll. That is the review
+burden this tool exists to remove, moved rather than removed.
 
 Three outputs, in this order:
 
@@ -1124,13 +1123,31 @@ Three outputs, in this order:
 3. **GitLab Code Quality.** A distinct JSON shape keyed on a fingerprint, which MRs render as
    inline findings. Same projection, different envelope.
 
-Two things that must not be got wrong. **Severity has to map honestly**: a `warn` that arrives as a
-SARIF `error` turns our own "warnings do not fail a run" policy into a red pull request, and the
-mapping belongs in one table next to `LEVEL_TO_SEVERITY` rather than in three reporters. And
-**annotations are subject to platform caps** — GitHub renders at most 10 annotations per step of each
-level and truncates silently, which is the same silent-truncation failure §12.4 refuses for timings.
-A run that produced more than a platform will show has to say so in the output it *can* fully
-control.
+Two things that must not be got wrong, both of them now enforced by tests rather than by care.
+
+**Severity has to map honestly.** A `warn` arriving as a SARIF `error` turns our own "warnings do not
+fail a run" policy into a red pull request. The mapping lives in one table, `PLATFORM_SEVERITY`, and
+the tests assert that no platform is told a warning is an error and that no two of our three
+severities collapse into one name. GitLab's scale is the only one needing a decision rather than a
+lookup: `major` for an error, `minor` for a warning, and `critical`/`blocker` deliberately unclaimed,
+because nothing in a `Diagnostic` measures blast radius and taking it from a lint category would be
+inventing severity we never established.
+
+**Both platforms truncate and neither says so.** GitHub renders 10 annotations per level per step and
+50 per job, drops the rest, and shows nothing in the UI — numbers documented under *Actions limits*
+rather than on the workflow-commands page. SARIF ingest accepts 25,000 results per run. That is the
+silent-truncation failure §12.4 refuses for timings, arriving from outside, and a truncated report is
+indistinguishable from a clean one to whoever is looking at the platform. So each reporter says what
+it exceeded, in the stream it does control: SARIF through
+`invocations[].toolExecutionNotifications`, GitHub through a `::notice` — a notice specifically, so
+the message announcing that warnings are hidden cannot itself occupy a warning slot.
+
+One more thing the format forced. Workflow-command messages need `%`, CR and LF escaped, and property
+values additionally `:` and `,`, which are the command's own delimiters. Unescaped, a multi-line
+diagnostic ends its command at the first newline and leaves the rest on stdout as log text, and a
+concept containing a colon truncates the property list and attaches the annotation to the wrong place.
+`actions/toolkit`'s `escapeData`/`escapeProperty` is the only normative description of this encoding;
+the documentation does not cover it.
 
 The `agent` reporter's determinism rule (§12.3) does not extend here: these formats exist to be read
 by a platform, and a fingerprint that changes between identical runs would break de-duplication, so
