@@ -90,7 +90,25 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
       // graph: this adapter overrides knip's own workspace discovery entirely, so that file no longer
       // influences the outcome — and claiming `yaml` would pull every CI workflow in the repository into
       // knip's assigned file set for nothing.
-      languages: ['ts', 'tsx', 'js', 'jsx', 'json', 'jsonc'],
+      //
+      // **`vue`, `svelte` and `astro` are the second half of the cache-invalidation reason**, and their
+      // absence was a silent false *negative*. knip compiles all three through its own plugins
+      // (`plugins/vue` registers `.vue` on a `vue`/`nuxt` dependency, `plugins/astro` registers `.astro`
+      // and `.mdx`, `plugins/svelte` `.svelte` — verified against 6.31.0), so an import written inside an
+      // SFC is part of the graph knip answers from. A project engine's cache key folds in the files the
+      // *plan* assigned it, and the plan assigns by declared language — so an engine that analyses a
+      // language it does not claim holds a key that cannot move when that language changes. Measured on a
+      // three-file Vue fixture: dropping `App.vue`'s only import of an export left the warm run reporting
+      // nothing, while `--no-cache` over the identical tree reported the now-dead export. A gate that
+      // answers "clean" from a stale entry is the one failure direction that cannot be noticed.
+      //
+      // **`markdown` is knowingly not claimed, and that leaves `.mdx` uncovered.** knip's Astro plugin
+      // compiles `.mdx`, so the same staleness applies to it — but slop-gate's language map sends `.md`
+      // and `.mdx` to one id (`discovery/language.ts`), and claiming it would assign every README and
+      // changelog in the repository to knip to fix a case only `.mdx` has. Recorded rather than fixed
+      // silently: the cost of the gap is a stale knip result after an `.mdx`-only edit, and `--no-cache`
+      // is the workaround until the language map can tell the two apart.
+      languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro', 'json', 'jsonc'],
       granularity: 'project',
       // knip consumes a workspace graph; it does not make one available to other engines' rules. Same
       // reasoning as the `tsc` entry's `provides: []` in packages/core/src/registry/entries.uncatalogued.ts.
