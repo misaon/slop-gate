@@ -16,6 +16,13 @@
     "isolatedModules": true,
     "erasableSyntaxOnly": true,
     "skipLibCheck": true,
+    // The only ambient type package this repository depends on, named rather than discovered.
+    // Left implicit, TypeScript includes every `@types/*` it can see by walking `node_modules`
+    // upwards — which in a pnpm workspace means a package's globals depend on what happens to be
+    // hoisted to the root, and TypeScript 7 does not walk to the root at all (303 errors of
+    // `Cannot find name 'process'` on an otherwise unchanged tree). Naming it makes both compilers
+    // agree and stops a package silently relying on globals it never declared.
+    "types": ["node"],
     "declaration": true,
     "noEmit": true,
     "allowImportingTsExtensions": true
