@@ -54,3 +54,9 @@ jobs:
           commit: 'chore(release): version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Provenance is asked for here rather than in each `publishConfig`, so that the one
+          # publish that cannot run here — the first one, which npm requires to happen before a
+          # trusted publisher can be configured at all — is not blocked by it. Provenance can only
+          # be generated on a cloud CI runner; a manifest demanding it makes a local `npm publish`
+          # fail outright.
+          NPM_CONFIG_PROVENANCE: 'true'

@@ -24,8 +24,7 @@
     "node": ">=24"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "exports": {
     ".": {
@@ -41,7 +40,8 @@
     "build": "tsdown",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "generate:registry": "node scripts/generate-registry.ts",
-    "generate:registry:check": "node scripts/generate-registry.ts --check"
+    "generate:registry:check": "node scripts/generate-registry.ts --check",
+    "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
     "ignore": "^7.0.6",
