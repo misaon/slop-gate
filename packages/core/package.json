@@ -1,10 +1,31 @@
 {
   "name": "@misaon/slop-gate-core",
   "version": "0.0.0",
-  "type": "module",
+  "description": "The slop-gate orchestrator: rule registry, arbitration, framework profiles, planner and cache.",
+  "keywords": [
+    "slop-gate",
+    "code-quality",
+    "static-analysis",
+    "lint"
+  ],
   "license": "MIT",
+  "author": "Ond\u0159ej Mis\u00e1k",
+  "homepage": "https://github.com/misaon/slop-gate#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/misaon/slop-gate.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/misaon/slop-gate/issues"
+  },
+  "type": "module",
   "engines": {
     "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "exports": {
     ".": {
