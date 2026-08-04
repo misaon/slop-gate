@@ -49,6 +49,57 @@ on top of that substrate.
 - **Not a formatter of its own.** Formatting is delegated to oxfmt, exclusively.
 - **Not a security scanner** beyond what the aggregated engines provide.
 
+### 1.3 Who runs it, and when
+
+§1.1 says what is unsolved. This says who is standing there when it runs, because every judgement
+call in this document is settled against it — and a rule that looks pedantic in the abstract is
+usually the right call once the reader knows whose code it is reading.
+
+**A person describes what they want and a model writes the code.** That is the case this tool is
+for. Sometimes the person is a developer who could have written it themselves, sometimes they could
+not, and the difference does not matter here: neither of them reviewed every line, and a model
+produces plausible code, not correct code. It compiles, it reads well, and it invents a type
+assertion to get past an error, leaves a function that returns a hard-coded value, calls an API it
+half-remembers. A human reviewer catches that by being suspicious. Nobody has the attention budget
+to be suspicious about a thousand lines they did not write.
+
+**Increasingly no person is there at all.** The workflow this has to serve is a ticket in, code out:
+an agent reads the issue, writes the specification, implements it, opens the pull request, and hands
+a human the review. slop-gate is the step between "implements it" and "opens the pull request" —
+which is why the tool has to be legible to a machine at the same level of detail as to a person
+(§12.3), and why "the findings appeared in the pull request" is a product requirement rather than a
+nice integration (§12.5). An agent that cannot see what it got wrong cannot fix it, and a reviewer
+who has to find it by hand is doing the job this tool exists to do.
+
+Three consequences follow, and they are the reason for choices elsewhere in this document that would
+otherwise look severe:
+
+- **Strict is the default, not an opt-in.** A gate that passes the median AI-written commit has not
+  gated anything. `recommended` is the strict preset; there is no separate "strict mode" to remember
+  to turn on. §6 covers turning it down.
+- **A missing check is worse than a noisy one.** A coverage gap is reported out loud and never
+  silently skipped — see §12's *Making a coverage gap unrepresentable* and `unavailableEngines`. Exit
+  0 over an engine that did not run is the one failure mode nobody can notice.
+- **A false positive is a bug against this purpose, not a tolerable cost.** Somebody who cannot
+  fully read the code cannot tell a wrong finding from a right one, so noise does not merely annoy
+  them: it destroys the tool's only value, which is that its output can be trusted without
+  verification. This is why rules are argued with counts against named corpora rather than opinions,
+  and why a rule's *options* are exhausted before it is disabled (§5).
+
+### 1.4 What is not built yet
+
+This document was approved before implementation and describes the whole design. Several parts of it
+are still unbuilt, and a reader should not infer from a section's existence that the behaviour
+exists. As of 2026-08-04 the notable gaps against §1.3 are:
+
+| Gap | Consequence |
+|---|---|
+| No formatter adapter (§13's oxfmt entry) | "one tool instead of prettier + eslint + …" is not yet true; a project still needs a formatter |
+| No SARIF / GitHub / GitLab reporter (§12.5) | findings do not reach a pull request, so the agent workflow above is unserved |
+| No preset below `recommended` (§6.5) | strictness cannot be turned down except rule by rule |
+| No Nuxt or Tailwind profile (§23) | two of the four named frameworks are undetected |
+| No README, unpublished | it cannot be installed |
+
 ---
 
 ## 2. Decisions
@@ -288,6 +339,38 @@ Registry generation also emits a `.d.ts` containing a union of all concept ids a
 types. `defineConfig` is therefore fully autocompleting and type-checked across hundreds of rules,
 with inline documentation from `docsUrl`. Typos in concept names become type errors.
 
+### 5.7 Learning which rules are wrong, and the line that cannot be crossed
+
+Every rule in `recommended` is there because of a count against a named corpus (§14, §21). That
+discipline is honest but slow, and it measures the corpora we happened to clone — not the code the
+tool actually runs on. A user who marks a finding as wrong knows something no corpus told us, and
+today that knowledge goes nowhere: they disable the rule locally and we never hear it.
+
+**The mechanism worth building is local first.** `sgate rules why <concept>` already explains a
+finding; the counterpart is a way to record "this one is wrong" *in the repository*, as data rather
+than as a suppression comment. That is worth having on its own merits — a per-project record of
+disagreements is reviewable, greppable, and survives the person who added it, which an inline
+`sgate-disable` does not. It also happens to be exactly the payload a shared corpus would need.
+
+**Sending it anywhere is a separate decision, and the constraints are not negotiable.** slop-gate
+analyses private code, frequently under an employer's control, and the analysed repository is not
+ours to describe. So:
+
+- **Opt-in, per repository, in the config file** — never a default, never a first-run prompt, never an
+  environment variable somebody's CI sets for everyone.
+- **No code, ever.** The fingerprint (§10.1) is a hash of the rule, the concept and the *text of the
+  line*, so the line itself is not recoverable from it, and nothing else leaves. Not the file path,
+  which names the product; not the repository; not the surrounding source. A report is
+  `(concept, engineRuleId, engine version, fingerprint, "wrong")` and nothing more.
+- **Useless without volume, and that is the honest risk.** A handful of reports cannot distinguish "a
+  bad rule" from "one unusual codebase", and acting on thin data would make the ruleset worse in
+  exactly the way §1.3 says is fatal. The threshold for changing a rule stays what it is now — a
+  measurement — with reports serving as the thing that tells us *where to point the measurement*.
+
+That last point is the reason this is not built yet and should not be rushed: the value is entirely
+in the aggregate, the aggregate needs users, and the users arrive after §12.5 and a README. Building
+the collection endpoint first would mean asking for data before we could act on it.
+
 ---
 
 ## 6. Configuration
@@ -446,6 +529,31 @@ on the message text, which is Node's to reword at any time.
 
 Loading a config file executes repository code. This is the same trust model as ESLint, Vite and
 Prettier, and it is documented explicitly.
+
+### 6.5 Turning the strictness down
+
+**Not built.** `recommended` is the strict preset by design (§1.3) and today it is also the floor:
+`extends: ['recommended']` or nothing, then rule-by-rule edits. A project that finds the default too
+severe has to disagree with it 350 times, which is the maintenance burden §1.1 exists to remove.
+
+The gap is a preset *below* `recommended`, and the design constraint is that it must not be assembled
+by taste. Two candidate definitions, and the difference between them matters:
+
+- **By category.** Keep `correctness` and `security`, drop `pedantic`, `style` and `restriction`.
+  Mechanical, explicable in one sentence, and derivable from data the registry already carries.
+- **By what a project can act on today.** Keep everything whose findings a repository could
+  plausibly clear, drop the rules that fire in the hundreds on ordinary code.
+
+The second is more useful and much harder to defend, because "plausibly clear" is a judgement about
+someone else's codebase. The first is the one to build: a reader can predict what it contains, and
+`sgate rules list` already reports the category that decides it. A third level below that —
+errors-only — is worth considering for the first run on an existing repository, where the honest
+alternative today is `sgate baseline create` (§12.2), which is a better answer to that particular
+problem and already exists.
+
+Whatever ships, the level has to be one word in `extends`, and the levels have to compose with
+framework profiles by the same *floor, never a ceiling* rule as §23.2 — a profile may not quietly
+raise a project that asked for less.
 
 ---
 
@@ -992,6 +1100,58 @@ labelled row. Two criteria because either alone is blind where the other holds: 
 is 83% of the wall clock, which puts a 26 ms inventory walk under the share floor and would drop exactly
 the row a reader asked for; on a 140 ms warm run, 10 ms is 7% of everything. The column adds to the
 total either way, and `--format=json` carries every phase and every rule uncapped.
+
+### 12.5 Reaching the pull request
+
+**Not built**, and it is the largest gap against §1.3. Today's reporters are `pretty`, `json` and
+`agent`: a terminal, a document, and an agent's context. None of them puts a finding next to the line
+that caused it in a pull request, so the ticket-to-PR workflow §1.3 describes gets a red check and a
+log to scroll — which is the review burden this tool exists to remove, moved rather than removed.
+
+Three outputs, in this order:
+
+1. **SARIF.** One format, both platforms, and the only one that is somebody else's standard rather
+   than ours. GitHub ingests it through the code-scanning API and renders inline annotations and a
+   PR conversation; GitLab reads it for SAST. `Diagnostic` already carries everything SARIF's
+   `result` needs — rule id, message, `help`, `docsUrl`, file, byte range, line/column — so this is a
+   projection, not new analysis. Its `partialFingerprints` field takes our own fingerprint (§10.1)
+   directly, which is what lets a platform track one finding across pushes instead of re-reporting it
+   as new.
+2. **GitHub Actions annotations.** `::error file=…,line=…,col=…::message` on stdout, which annotates
+   the diff with no token, no permissions and no upload step. Strictly less capable than SARIF and
+   strictly easier to adopt; the reason to ship both is that code-scanning upload needs
+   `security-events: write`, which a fork PR does not get.
+3. **GitLab Code Quality.** A distinct JSON shape keyed on a fingerprint, which MRs render as
+   inline findings. Same projection, different envelope.
+
+Two things that must not be got wrong. **Severity has to map honestly**: a `warn` that arrives as a
+SARIF `error` turns our own "warnings do not fail a run" policy into a red pull request, and the
+mapping belongs in one table next to `LEVEL_TO_SEVERITY` rather than in three reporters. And
+**annotations are subject to platform caps** — GitHub renders at most 10 annotations per step of each
+level and truncates silently, which is the same silent-truncation failure §12.4 refuses for timings.
+A run that produced more than a platform will show has to say so in the output it *can* fully
+control.
+
+The `agent` reporter's determinism rule (§12.3) does not extend here: these formats exist to be read
+by a platform, and a fingerprint that changes between identical runs would break de-duplication, so
+they inherit the fingerprint's stability rather than the reporter's byte-identity.
+
+### 12.6 A thousand findings
+
+An existing repository's first run produces thousands, and both audiences break differently. A person
+scrolls past the third screen; an agent's context fills and it starts fixing whatever happened to
+land in the window, which is not the same as the most important thing.
+
+What exists: `sgate baseline` (§12.2) accepts today's findings so a repository can adopt the tool
+without fixing everything first — the correct answer to the first run, and the one to reach for.
+`agent` has a token budget and truncates against it deliberately, saying what it dropped. `pretty`
+groups by file and names the three most frequent concepts.
+
+What is missing is a way to *rank* rather than cap. Three most-frequent is a summary, not a
+prioritisation: a single `types.type-error` that will break at runtime sorts below sixty `eqeqeq`
+warnings. Ordering by severity then by concept frequency, and offering `--top <n>` over the ranked
+list, is the smallest honest improvement. Anything cleverer — clustering by root cause, guessing which
+finding is upstream of which — is a research problem and should not be pretended at.
 
 ---
 
