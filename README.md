@@ -50,6 +50,7 @@ Nine engines behind one interface, one config file and one diagnostic model:
 | **knip** | dead code: unused exports, types, dependencies and files |
 | **ast-grep** | the `slop.*` ruleset — patterns specific to machine-written code |
 | **biome-css** | CSS and SCSS |
+| **oxfmt** | formatting — TS, JS, JSON, YAML, CSS, Markdown. Opt-in, see below |
 | **actionlint** | GitHub Actions workflows |
 | **hadolint** | Dockerfiles |
 | **schema** | YAML and JSON against their schemas, incl. docker-compose |
@@ -185,7 +186,7 @@ catch:
 
 | Gap | What it means for you |
 |---|---|
-| **No formatter** | prettier or oxfmt is still needed; "one tool instead of all of them" is not true yet |
+| **The formatter is opt-in, not default** | oxfmt 0.62.0 has no style options, so on by default it would rewrite every project's quotes and semicolons with no way to configure it. Turn it on with `'formatting.unformatted': 'warn'` |
 | **No preset below `recommended`** | strictness can only be turned down rule by rule |
 | **No Nuxt or Tailwind profile** | two named frameworks are undetected |
 | **Not published** | install from a clone |

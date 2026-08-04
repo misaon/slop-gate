@@ -365,6 +365,18 @@ export const HAND_WRITTEN_CONCEPTS = [
       'the wrong one to be read from or written to.',
   },
   {
+    id: 'formatting.unformatted',
+    group: 'formatting',
+    title: 'File is not formatted',
+    description:
+      'The file differs from what the formatter would produce. One concept covers every kind of difference ' +
+      'deliberately, for the reason `types.type-error` covers every tsc code: there is nothing to introspect ' +
+      'and nothing a user would want to enable a part of, so setting this to `off` is what keeps a project on ' +
+      "its own formatter. Reported against the file rather than a line — reformatting rewrites the file, so " +
+      'there is no position at which it went wrong. Delegated to oxfmt entirely (spec 1.2); slop-gate has no ' +
+      'formatter of its own and will not grow one.',
+  },
+  {
     id: 'types.type-error',
     group: 'types',
     title: 'Type error',

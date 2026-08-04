@@ -33,6 +33,7 @@
     "@misaon/slop-gate-engine-deps-security": "workspace:*",
     "@misaon/slop-gate-engine-hadolint": "workspace:*",
     "@misaon/slop-gate-engine-knip": "workspace:*",
+    "@misaon/slop-gate-engine-oxfmt": "workspace:*",
     "@misaon/slop-gate-engine-oxlint": "workspace:*",
     "@misaon/slop-gate-engine-schema": "workspace:*",
     "@misaon/slop-gate-engine-tsc": "workspace:*",

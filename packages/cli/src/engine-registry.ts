@@ -7,6 +7,7 @@ import { createHadolintEngine } from '@misaon/slop-gate-engine-hadolint'
 import { createKnipEngine } from '@misaon/slop-gate-engine-knip'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { createSchemaEngine } from '@misaon/slop-gate-engine-schema'
+import { createOxfmtEngine } from '@misaon/slop-gate-engine-oxfmt'
 import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
 
 /**
@@ -33,6 +34,7 @@ import { createTscEngine } from '@misaon/slop-gate-engine-tsc'
 export function defaultEngines(rootDir: string, configFile?: string, ignore?: readonly string[]): Engine[] {
   return [
     createOxlintEngine(),
+    createOxfmtEngine(),
     createTscEngine({ rootDir }),
     createKnipEngine({
       ...(configFile === undefined ? {} : { configFile }),

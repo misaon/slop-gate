@@ -5,6 +5,7 @@ test('registers exactly the engines a real check run uses', () => {
   const engines = defaultEngines(process.cwd())
   expect(engines.map((engine) => engine.id)).toEqual([
     'oxlint',
+    'oxfmt',
     'tsc',
     'knip',
     'astgrep',
@@ -55,6 +56,7 @@ test('binds each engine to the given rootDir, not a fixed default', () => {
   const engines = defaultEngines('/some/other/project')
   expect(engines.map((engine) => engine.id)).toEqual([
     'oxlint',
+    'oxfmt',
     'tsc',
     'knip',
     'astgrep',

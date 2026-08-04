@@ -1681,6 +1681,40 @@ export const UNCATALOGUED_RULE_ENTRIES = [
   // the exact `EngineError: the materialised config is not selecting exactly the elected ruleset`
   // failure mode the same follow-up entry describes, just triggered by this change instead.
   {
+    engine: 'oxfmt',
+    engineRuleId: 'unformatted',
+    concepts: ['formatting.unformatted'],
+    tier: 1,
+    priority: 100,
+    // `warn` when enabled, and **deliberately not in `recommended`** — the one entry here that is off by
+    // default, on a measurement rather than caution.
+    //
+    // `oxfmt --init` on 0.62.0 emits exactly `{"ignorePatterns": []}`: the formatter has no style options at
+    // all. No quote style, no semicolons, no print width. Its output is prettier's defaults and nothing else,
+    // which for this repository meant 390 of 397 files rewritten — double quotes for single, semicolons added
+    // throughout — a 47,701/39,664 diff against a deliberate house style.
+    //
+    // On by default, that is what it would do to every project that installs slop-gate, and the only escape
+    // would be turning the concept off entirely. A formatter a project cannot configure to its own style is
+    // not one it can adopt, so this ships opt-in: `'formatting.unformatted': 'warn'` in a config, once a
+    // project has decided it wants oxfmt's opinion. Revisit when oxfmt grows style options; the engine, the
+    // concept and the tests are all here and only this line has to change.
+    severityDefault: 'warn',
+    // Deliberately `'none'` although oxfmt can fix every one of these. A formatting fix is a whole-file
+    // replacement, so entering it into the fix pipeline would overlap every other edit in that file and
+    // arbitration would reject one or the other — correctly, and to nobody's benefit. `sgate fix` runs
+    // `oxfmt --write` as a separate final pass after the edits, which is how every real toolchain sequences a
+    // formatter against a linter.
+    fixKind: 'none',
+    fixTouches: [],
+    requires: [],
+    // The eight verified by formatting one file of each on oxfmt 0.62.0 and diffing. oxfmt claims more (html,
+    // toml, vue, svelte, graphql); those stay out until measured, by the same rule every other entry follows.
+    languages: ['ts', 'tsx', 'js', 'jsx', 'json', 'yaml', 'css', 'markdown'],
+    docsUrl: 'https://oxc.rs/docs/guide/usage/formatter.html',
+    since: '0.1.0',
+  },
+  {
     engine: 'tsc',
     engineRuleId: 'type-error',
     concepts: ['types.type-error'],

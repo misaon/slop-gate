@@ -94,7 +94,7 @@ exists. As of 2026-08-04 the notable gaps against §1.3 are:
 
 | Gap | Consequence |
 |---|---|
-| No formatter adapter (§13's oxfmt entry) | "one tool instead of prettier + eslint + …" is not yet true; a project still needs a formatter |
+| The oxfmt adapter is built but off by default | oxfmt 0.62.0 exposes no style options (`--init` emits only `ignorePatterns`), so enabling it by default would impose prettier's quotes and semicolons on every project with no way to configure them — 390 of this repository's 397 files. Opt-in until oxfmt has style options; see the `oxfmt` entry in `registry/entries.uncatalogued.ts` |
 | No preset below `recommended` (§6.5) | strictness cannot be turned down except rule by rule |
 | No Nuxt or Tailwind profile (§23) | two of the four named frameworks are undetected |
 | No README, unpublished | it cannot be installed |
