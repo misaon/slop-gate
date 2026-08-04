@@ -3,6 +3,7 @@ import { defineCommand } from 'citty'
 import { baselinePathFor, readBaseline, writeBaseline } from '@misaon/slop-gate-core'
 import { EXIT_CODES } from '../../exit-codes.ts'
 import { baselineRun, warnGitignored, warnUnavailable, writeBreakdown } from './shared.ts'
+import { resolveRootDir } from '../../root-dir.ts'
 
 /**
  * The on-ramp: accept everything wrong here today so only new findings fail the build.
@@ -19,7 +20,7 @@ export const create = defineCommand({
     force: { type: 'boolean', default: false, description: 'Replace an existing baseline, accepting anything new in it' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
     const path = baselinePathFor(rootDir)
     const shown = relative(rootDir, path).replaceAll('\\', '/')
 

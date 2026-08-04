@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { defineCommand } from 'citty'
 import { buildWorkspaceGraph } from '@misaon/slop-gate-core'
 import { upsertAgentsSection } from '../agents-md.ts'
+import { resolveRootDir } from '../root-dir.ts'
 
 const CONFIG_TEMPLATE = `import { defineConfig } from '@misaon/slop-gate'
 
@@ -113,7 +114,7 @@ export const init = defineCommand({
     force: { type: 'boolean', default: false, description: 'Overwrite an existing config' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
     const { created, skipped } = await runInit({ rootDir, force: args.force })
     const workspaces = await buildWorkspaceGraph(rootDir)
 

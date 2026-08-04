@@ -6,6 +6,7 @@ import { validateFormat } from '../../format.ts'
 import { supportsColor, supportsUnicode } from '../../terminal.ts'
 import { readCliVersion } from '../../version.ts'
 import { prepareRulesRun } from './shared.ts'
+import { resolveRootDir } from '../../root-dir.ts'
 
 export const list = defineCommand({
   meta: { name: 'list', description: 'List the effective ruleset: concept, level, owner and why it is enabled' },
@@ -17,7 +18,7 @@ export const list = defineCommand({
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
     if (!validateFormat(args.format)) return
 
     if (args.engine !== undefined && !isOneOf(args.engine, ENGINE_PREFERENCE)) {

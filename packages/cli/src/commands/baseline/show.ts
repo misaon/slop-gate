@@ -2,6 +2,7 @@ import { relative } from 'node:path'
 import { defineCommand } from 'citty'
 import { baselinePathFor, compareStrings, readBaseline } from '@misaon/slop-gate-core'
 import { writeBreakdown } from './shared.ts'
+import { resolveRootDir } from '../../root-dir.ts'
 
 const MAX_LISTED_FILES = 10
 
@@ -17,7 +18,7 @@ export const show = defineCommand({
     cwd: { type: 'string', description: 'Directory to read (defaults to the current directory)' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
     const path = baselinePathFor(rootDir)
     const shown = relative(rootDir, path).replaceAll('\\', '/')
 

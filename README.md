@@ -90,6 +90,46 @@ Two consequences worth knowing:
 Every rule in `recommended` is there because of a count against a named corpus, recorded next to the
 rule. Not because it sounded sensible.
 
+## In CI
+
+Findings land in the pull request, not in a log somebody has to scroll.
+
+```yaml
+# .github/workflows/quality.yml
+name: quality
+on: pull_request
+jobs:
+  slop-gate:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, security-events: write }
+    steps:
+      - uses: actions/checkout@v5
+      - run: npm ci
+      # Annotates the diff directly. Needs no token, so it works on fork PRs.
+      - run: npx sgate check --format=github
+      # Richer: rule descriptions, docs links, and findings tracked across pushes.
+      - run: npx sgate check --format=sarif > slop-gate.sarif
+        if: always()
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with: { sarif_file: slop-gate.sarif }
+```
+
+Both, not either: SARIF is richer, but uploading it needs `security-events: write`, which a **fork
+pull request does not get** — and a contributor's first PR is exactly the run whose findings matter
+most. GitLab is one job:
+
+```yaml
+slop-gate:
+  script: npx sgate check --format=gitlab > gl-code-quality-report.json
+  artifacts: { reports: { codequality: gl-code-quality-report.json } }
+```
+
+A `warn` never arrives as a platform `error` — our warnings do not fail a run, and turning them red on
+a platform would make the distinction meaningless. Both platforms silently truncate long lists
+(GitHub shows 10 annotations per level per step), so each reporter says what it exceeded rather than
+letting a truncated report look like a clean one.
+
 ## For AI agents
 
 ```bash
@@ -146,7 +186,6 @@ catch:
 | Gap | What it means for you |
 |---|---|
 | **No formatter** | prettier or oxfmt is still needed; "one tool instead of all of them" is not true yet |
-| **No SARIF / GitHub / GitLab reporter** | findings do not reach a pull request — the agent workflow above is unserved |
 | **No preset below `recommended`** | strictness can only be turned down rule by rule |
 | **No Nuxt or Tailwind profile** | two named frameworks are undetected |
 | **Not published** | install from a clone |

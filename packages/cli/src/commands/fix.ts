@@ -3,6 +3,7 @@ import { runFix, type FixResult, type FixTier } from '@misaon/slop-gate-core'
 import { DEFAULT_CONFIG, loadCliConfig } from '../config.ts'
 import { defaultEngines } from '../engine-registry.ts'
 import { EXIT_CODES } from '../exit-codes.ts'
+import { resolveRootDir } from '../root-dir.ts'
 
 /**
  * `sgate fix` — spec §11. The only command in this CLI that writes to the user's source, which is why every rail
@@ -19,7 +20,7 @@ export const fix = defineCommand({
     cwd: { type: 'string', description: 'Directory to fix (defaults to the current directory)' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
     // `--unsafe` implies `--suggest`: the tiers are cumulative (`FIX_TIER_RANK`), so asking for the
     // highest and getting only the highest would be a surprising reading of "also apply unsafe".
     const tier: FixTier = args.unsafe ? 'unsafe' : args.suggest ? 'suggested' : 'safe'

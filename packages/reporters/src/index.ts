@@ -1,7 +1,10 @@
 import type { CheckEvent } from '@misaon/slop-gate-core'
 import { createAgentReporter } from './agent.ts'
+import { createGithubReporter } from './github.ts'
+import { createGitlabReporter } from './gitlab.ts'
 import { createJsonReporter } from './json.ts'
 import { createPrettyReporter } from './pretty.ts'
+import { createSarifReporter } from './sarif.ts'
 
 export type ReporterContext = {
   write(chunk: string): void
@@ -28,13 +31,21 @@ export type ReporterContext = {
 
 export type Reporter = { onEvent(event: CheckEvent): void }
 
-export const REPORTER_NAMES = ['pretty', 'json', 'agent'] as const
+/**
+ * `pretty` first because it is the default. The three platform formats come last because none of them is meant
+ * to be read by a person: they exist to be handed to GitHub or GitLab, which is why `--format=sarif > out.sarif`
+ * and an upload step is the documented shape rather than a terminal.
+ */
+export const REPORTER_NAMES = ['pretty', 'json', 'agent', 'sarif', 'github', 'gitlab'] as const
 
 export type ReporterName = (typeof REPORTER_NAMES)[number]
 
 export function createReporter(name: ReporterName, context: ReporterContext): Reporter {
   if (name === 'json') return createJsonReporter(context)
   if (name === 'agent') return createAgentReporter(context)
+  if (name === 'sarif') return createSarifReporter(context)
+  if (name === 'github') return createGithubReporter(context)
+  if (name === 'gitlab') return createGitlabReporter(context)
   return createPrettyReporter(context)
 }
 
@@ -46,7 +57,11 @@ export {
   type AgentGroupSummary,
   type AgentReporterOptions,
 } from './agent.ts'
+export { createGithubReporter } from './github.ts'
+export { createGitlabReporter, toCodeQualityViolation } from './gitlab.ts'
 export { JSON_REPORT_VERSION } from './json.ts'
+export { PLATFORM_LIMITS, PLATFORM_SEVERITY, escapeCommandData, escapeCommandProperty } from './platform.ts'
+export { SARIF_VERSION, buildSarifLog, createSarifReporter } from './sarif.ts'
 export { createPrettyReporter } from './pretty.ts'
 export {
   displayWidth,

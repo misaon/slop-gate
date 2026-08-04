@@ -9,6 +9,7 @@ import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
 import { validateFormat } from '../format.ts'
 import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
+import { resolveRootDir } from '../root-dir.ts'
 
 /** `'invalid'` rather than a thrown error or a silent `undefined` — see the call site. */
 export function parseMaxTokens(raw: string | undefined): number | undefined | 'invalid' {
@@ -51,7 +52,7 @@ export const check = defineCommand({
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
-    const rootDir = args.cwd ?? process.cwd()
+    const rootDir = resolveRootDir(args.cwd)
 
     if (!validateFormat(args.format)) return
 
