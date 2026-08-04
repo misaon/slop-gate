@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-engine-knip",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "knip adapter for slop-gate: dead code and dependency hygiene.",
   "keywords": [
     "slop-gate",

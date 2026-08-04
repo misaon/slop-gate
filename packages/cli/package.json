@@ -1,6 +1,6 @@
 {
   "name": "sgate",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "One code-quality gate for AI-assisted repositories: many analysers, one config, one diagnostic model.",
   "keywords": [
     "lint",
@@ -15,7 +15,7 @@
     "cli"
   ],
   "license": "MIT",
-  "author": "Ond\u0159ej Mis\u00e1k",
+  "author": "Ondřej Misák",
   "homepage": "https://github.com/misaon/slop-gate#readme",
   "repository": {
     "type": "git",

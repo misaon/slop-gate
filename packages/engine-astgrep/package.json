@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-engine-astgrep",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "ast-grep adapter for slop-gate: structural rules for the patterns AI writes.",
   "keywords": [
     "slop-gate",

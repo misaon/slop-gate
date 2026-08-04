@@ -1,5 +1,42 @@
 # @misaon/slop-gate
 
+## 0.2.0
+
+### Minor Changes
+
+- [#65](https://github.com/misaon/slop-gate/pull/65) [`f00b75a`](https://github.com/misaon/slop-gate/commit/f00b75a2233828c2cccb3c801a0f15dd77b71129) Thanks [@misaon](https://github.com/misaon)! - **The CLI is now published as `sgate`, not `@misaon/slop-gate`.**
+
+  The package name and the command are the same word, which is what `npx` resolves on — so
+  `npx sgate init` works with nothing installed. Under the old name it did not, because `npx`
+  looks for a _package_ called `sgate` and there was none.
+
+  ```bash
+  npm install -D sgate
+  npx sgate check
+  ```
+
+  The twelve engine packages keep their `@misaon/slop-gate-*` names. They are dependencies
+  nobody types.
+
+  If you installed `@misaon/slop-gate`, swap it for `sgate` — the API, the config and the
+  `sgate`/`slop-gate` binaries are unchanged. The old package is deprecated and points here.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @misaon/slop-gate-core@0.2.0
+  - @misaon/slop-gate-engine-actionlint@0.2.0
+  - @misaon/slop-gate-engine-astgrep@0.2.0
+  - @misaon/slop-gate-engine-biome-css@0.2.0
+  - @misaon/slop-gate-engine-deps-security@0.2.0
+  - @misaon/slop-gate-engine-hadolint@0.2.0
+  - @misaon/slop-gate-engine-knip@0.2.0
+  - @misaon/slop-gate-engine-oxfmt@0.2.0
+  - @misaon/slop-gate-engine-oxlint@0.2.0
+  - @misaon/slop-gate-engine-schema@0.2.0
+  - @misaon/slop-gate-engine-tsc@0.2.0
+  - @misaon/slop-gate-reporters@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes

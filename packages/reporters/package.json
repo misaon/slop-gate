@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-reporters",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Report formats for slop-gate: pretty, json, agent, sarif, github and gitlab.",
   "keywords": [
     "slop-gate",
