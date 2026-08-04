@@ -16,8 +16,10 @@ A quality gate for the era where most code is written fast and read slowly.
 [![license](https://img.shields.io/npm/l/@misaon/slop-gate?style=for-the-badge&labelColor=0b0b0f&color=64748b)](LICENSE)
 
 ```bash
-npx sgate init && npx sgate check
+npx @misaon/slop-gate check
 ```
+
+*No install, no config, no files written — it just tells you what it finds.*
 
 </div>
 
@@ -157,6 +159,11 @@ npx sgate check     # analyses everything
 npx sgate fix       # applies only what is safe
 ```
 
+The binary is `sgate` (and `slop-gate`), so `npx sgate …` works **once the package is
+installed** — that is what puts the binary in `node_modules/.bin`. Without installing first,
+name the package instead: `npx @misaon/slop-gate check`. `npx sgate` on its own would go
+looking for a package called `sgate`, which is not this one.
+
 Node 24+. Engines are bundled — no Docker, no Java, no `pip install`.
 
 ## What runs
@@ -177,6 +184,11 @@ Node 24+. Engines are bundled — no Docker, no Java, no `pip install`.
 ## In your pipeline
 
 Findings land **in the pull request**, not in a log somebody has to scroll.
+
+This assumes `@misaon/slop-gate` is in your `devDependencies`, which is what `npm ci` puts
+the `sgate` binary on the path. Pinning it there rather than fetching the latest on every run
+is the point: a CI job whose analyser can change under it is a job whose verdict you cannot
+reproduce.
 
 ```yaml
 name: quality
