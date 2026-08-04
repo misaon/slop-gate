@@ -99,7 +99,7 @@ test('names the package that is missing, and says to install it', async () => {
   // advice for a path alias and nonsense for a real package — and it never said *which* import
   // failed.
   //
-  // A stand-in package name rather than `@misaon/slop-gate`, which is the real case: vitest aliases
+  // A stand-in package name rather than `sgate`, which is the real case: vitest aliases
   // every workspace package to its `src` (see vitest.config.ts), so our own name resolves here and
   // the test would pass without testing anything. The message is generic on purpose, so any
   // uninstalled package exercises the same branch.

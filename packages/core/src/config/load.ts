@@ -231,7 +231,7 @@ function isModuleNotFound(error: unknown): boolean {
  * Node names the thing it could not find, and the two spellings mean opposite remedies. Captured
  * from Node 24 rather than assumed:
  *
- *     Cannot find package '@misaon/slop-gate' imported from …/slop-gate.config.ts
+ *     Cannot find package 'sgate' imported from …/slop-gate.config.ts
  *     Cannot find module '/abs/path/nope.js'  imported from …/slop-gate.config.ts
  */
 const UNRESOLVED = /Cannot find (package|module) '([^']+)'/

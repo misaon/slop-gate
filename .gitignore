@@ -21,3 +21,11 @@ main.broken-import.*.generated.ts
 # Copied into each package by scripts/prepack.mjs at publish time; never committed.
 packages/*/LICENSE
 packages/*/README.md
+
+# Source artwork. The sized, theme-split versions the README uses live in docs/assets/ and are
+# tracked; these originals are 3 MB a clone has no use for. Ignored rather than merely untracked,
+# because `git add -A` swept them into a rename PR once already.
+/logo.png
+/logo-wide-darkmode.png
+/logo-wide-lightmode.png
+/tf-logo.svg
