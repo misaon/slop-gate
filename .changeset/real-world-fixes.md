@@ -14,8 +14,10 @@ is built. Widened to the analysed root, which changes no diagnostic.
 use `next/image`. All 21 rules in the scope resolve to "import from `next/…` instead"; a project
 without Next.js cannot follow that.
 
-**Nuxt's `#app` and `#shared` aliases are understood.** On `nuxt/nuxt.com` these were 14
-unresolved-import findings at `error`; now zero, and errors on that repository drop 19 → 5.
+**Nuxt is understood properly.** Its `#app` and `#shared` aliases were 14 unresolved-import
+findings at `error` on `nuxt/nuxt.com`, and each Nuxt layer now becomes its own knip workspace
+rather than being invisible to it. On that repository: unused exports 65 → 15, unresolved imports
+14 → 2, errors 19 → 7.
 
 **Firebase Functions handlers are entry points**, not dead code — the platform loads them by path.
 
