@@ -14,6 +14,7 @@ export type ReporterContext = {
   version: string
   readSource(file: string | null): string | null
   maxTokens?: number
+  maxFindings?: number
 }
 
 export type Reporter = { onEvent(event: CheckEvent): void }
