@@ -38,6 +38,11 @@ const loadedConfig = async (): Promise<SlopGateConfig> => {
 
 type Command = typeof create | typeof update | typeof show
 
+// Every test here runs a real multi-engine analysis over a temp repository, so the 5s default is a
+// ceiling on I/O rather than on logic. Two of them crossed it on windows-latest/Node 26 while
+// passing everywhere else, twice in one day. A ceiling, not a delay: a fast run still finishes fast.
+const REAL_RUN = 60_000
+
 const run = async (command: Command, args: Record<string, unknown>): Promise<{ out: string; err: string }> => {
   let out = ''
   let err = ''
@@ -63,7 +68,7 @@ test('registers exactly the three subcommands spec §12.2 names, and no bare def
   expect(baseline.run).toBeUndefined()
 })
 
-test('create writes every current finding and exits clean, because they were accepted not missed', async () => {
+test('create writes every current finding and exits clean, because they were accepted not missed', { timeout: REAL_RUN }, async () => {
   const { out } = await run(create, { force: false })
 
   const written = await readBaseline(baselinePathFor(dir))
@@ -74,7 +79,7 @@ test('create writes every current finding and exits clean, because they were acc
   expect(process.exitCode ?? 0).toBe(EXIT_CODES.clean)
 })
 
-test('a check after create has nothing left to fail on, and says the baseline is why', async () => {
+test('a check after create has nothing left to fail on, and says the baseline is why', { timeout: REAL_RUN }, async () => {
   await run(create, { force: false })
 
   const loaded = await loadedConfig()
@@ -91,7 +96,7 @@ test('a check after create has nothing left to fail on, and says the baseline is
   expect(result.baseline?.stale).toEqual([])
 })
 
-test('a finding written after the baseline is new, and the baseline does not hide it', async () => {
+test('a finding written after the baseline is new, and the baseline does not hide it', { timeout: REAL_RUN }, async () => {
   await run(create, { force: false })
   await writeFile(join(dir, 'new.ts'), 'export function h() {\n  debugger\n}\n')
 
@@ -107,7 +112,7 @@ test('a finding written after the baseline is new, and the baseline does not hid
   expect(result.baseline?.accepted).toBe(1)
 })
 
-test('an unrelated edit above an accepted finding keeps it accepted', async () => {
+test('an unrelated edit above an accepted finding keeps it accepted', { timeout: REAL_RUN }, async () => {
   await run(create, { force: false })
   await writeFile(join(dir, 'dirty.ts'), '// a comment nobody asked for\n\nexport function f() {\n  debugger\n}\n')
 
@@ -123,7 +128,7 @@ test('an unrelated edit above an accepted finding keeps it accepted', async () =
   expect(result.baseline?.stale).toEqual([])
 })
 
-test('create refuses to replace an existing baseline without --force', async () => {
+test('create refuses to replace an existing baseline without --force', { timeout: REAL_RUN }, async () => {
   await run(create, { force: false })
   const { err } = await run(create, { force: false })
 
@@ -132,13 +137,13 @@ test('create refuses to replace an existing baseline without --force', async () 
   expect(process.exitCode).toBe(EXIT_CODES.config)
 })
 
-test('create --force states how many findings it newly accepted, so laundering debt is visible', async () => {
+test('create --force states how many findings it newly accepted, so laundering debt is visible', { timeout: REAL_RUN }, async () => {
   await writeBaseline(baselinePathFor(dir), [])
   const { out } = await run(create, { force: true })
   expect(out).toMatch(/\n {2}[1-9]\d* newly accepted, 0 no longer found\n/)
 })
 
-test('update drops an entry whose finding is fixed and keeps the rest', async () => {
+test('update drops an entry whose finding is fixed and keeps the rest', { timeout: REAL_RUN }, async () => {
   await writeFile(join(dir, 'other.ts'), 'export function g() {\n  debugger\n}\n')
   await run(create, { force: false })
   const before = await readBaseline(baselinePathFor(dir))
@@ -153,7 +158,7 @@ test('update drops an entry whose finding is fixed and keeps the rest', async ()
   expect(out).toContain('dropped 1 fixed finding(s)')
 })
 
-test('update never adds an entry, and names what still fails instead', async () => {
+test('update never adds an entry, and names what still fails instead', { timeout: REAL_RUN }, async () => {
   await run(create, { force: false })
   await writeFile(join(dir, 'new.ts'), 'export function h() {\n  debugger\n}\n')
 
@@ -166,7 +171,7 @@ test('update never adds an entry, and names what still fails instead', async () 
   expect(out).toContain('sgate baseline create --force')
 })
 
-test('update leaves the file untouched when nothing is fixed', async () => {
+test('update leaves the file untouched when nothing is fixed', { timeout: REAL_RUN }, async () => {
   await run(create, { force: false })
   const before = await readFile(baselinePathFor(dir), 'utf8')
 
@@ -176,13 +181,13 @@ test('update leaves the file untouched when nothing is fixed', async () => {
   expect(out).toContain('already current')
 })
 
-test('update on a repository with no baseline points at create rather than writing one', async () => {
+test('update on a repository with no baseline points at create rather than writing one', { timeout: REAL_RUN }, async () => {
   const { err } = await run(update, {})
   expect(err).toContain('sgate baseline create')
   expect(process.exitCode).toBe(EXIT_CODES.config)
 })
 
-test('show reads the file and spawns no engine, so it cannot report staleness', async () => {
+test('show reads the file and spawns no engine, so it cannot report staleness', { timeout: REAL_RUN }, async () => {
   await run(create, { force: false })
   await rm(join(dir, 'dirty.ts'))
   const { out } = await run(show, {})
@@ -192,20 +197,20 @@ test('show reads the file and spawns no engine, so it cannot report staleness', 
   expect(out).toContain('sgate baseline update')
 })
 
-test('show treats an absent baseline as the answer, not as an error', async () => {
+test('show treats an absent baseline as the answer, not as an error', { timeout: REAL_RUN }, async () => {
   const { out } = await run(show, {})
   expect(out).toContain('no baseline at')
   expect(process.exitCode ?? 0).toBe(EXIT_CODES.clean)
 })
 
-test('create warns when the gitignore `sgate init` writes would swallow the baseline', async () => {
+test('create warns when the gitignore `sgate init` writes would swallow the baseline', { timeout: REAL_RUN }, async () => {
   await mkdir(join(dir, '.slop-gate'), { recursive: true })
   await writeFile(join(dir, '.slop-gate', '.gitignore'), '*\n')
   const { err } = await run(create, { force: false })
   expect(err).toContain('!baseline.json')
 })
 
-test('create is silent about the gitignore once it exempts the baseline', async () => {
+test('create is silent about the gitignore once it exempts the baseline', { timeout: REAL_RUN }, async () => {
   await mkdir(join(dir, '.slop-gate'), { recursive: true })
   await writeBaseline(baselinePathFor(dir), [])
   await writeFile(join(dir, '.slop-gate', '.gitignore'), '*\n!.gitignore\n!baseline.json\n')
@@ -213,7 +218,7 @@ test('create is silent about the gitignore once it exempts the baseline', async 
   expect(err).not.toContain('!baseline.json')
 })
 
-test('a malformed baseline stops a run rather than being read as no baseline at all', async () => {
+test('a malformed baseline stops a run rather than being read as no baseline at all', { timeout: REAL_RUN }, async () => {
   await writeBaseline(baselinePathFor(dir), [])
   await writeFile(baselinePathFor(dir), '{ "version": 1 }\n')
   await expect(run(update, {})).rejects.toThrow(/accepted/)
