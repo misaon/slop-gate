@@ -249,7 +249,17 @@ export default defineConfig({
     'pedantic.eqeqeq': ['warn', 'smart'],   // options, not off
   },
   overrides: [
-    { files: ['**/*.test.ts'], rules: { 'dead-code.unused-export': 'off' } },
+    {
+      files: ['**/*.test.ts'],
+      rules: {
+        'dead-code.unused-export': 'off',
+        // Building a stand-in for a real type is what a test does. Measured across six public
+        // repositories: 1,605 of 1,794 `double-cast` findings are in test files, and reading them
+        // shows the rule is *right* about every one — they are deliberate. Correct and unwanted is
+        // your call to make, not ours, so this is an override rather than a default.
+        'slop.double-cast': 'off',
+      },
+    },
   ],
 })
 ```
