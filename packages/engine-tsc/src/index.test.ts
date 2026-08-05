@@ -334,3 +334,25 @@ test('still reports a real type error in a project that sets rootDir', async () 
   expect(found).toHaveLength(1)
   expect(found[0]?.message).toContain('TS2322')
 })
+
+test('reports an unresolvable `extends` as a coverage gap, not an engine failure', async () => {
+  // Nuxt's own tsconfig is `"extends": "./.nuxt/tsconfig.json"`, and `.nuxt/` only exists after
+  // `nuxt prepare`. On a fresh clone tsc raises `TS5083: Cannot read file …`, which arrived as an
+  // engine failure and exit 3 — reproduced on `nuxt/movies`. Nothing is wrong with the code; a
+  // generation step has not run, which is what a coverage gap is for.
+  await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ extends: './.generated/tsconfig.json' }))
+  await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
+
+  const availability = await createTscEngine({ rootDir: dir }).availability?.()
+
+  expect(availability?.available).toBe(false)
+  expect(availability).toMatchObject({ reason: expect.stringContaining('.generated/tsconfig.json') })
+})
+
+test('an `extends` that resolves is not a gap', async () => {
+  await writeFile(join(dir, 'base.json'), JSON.stringify({ compilerOptions: { strict: true } }))
+  await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ extends: './base.json', compilerOptions: { noEmit: true } }))
+  await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
+
+  expect(await createTscEngine({ rootDir: dir }).availability?.()).toEqual({ available: true })
+})

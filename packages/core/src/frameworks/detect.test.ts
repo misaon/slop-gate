@@ -695,3 +695,49 @@ test('leaves the Next.js scope on where Next.js is actually used', async () => {
 
   expect(resolver.forFile('app/page.tsx').rules.get('correctness.no-img-element' as RuleKey)?.level).not.toBe('off')
 })
+
+
+// --- nuxt -------------------------------------------------------------------------------------
+
+test('teaches knip Nuxt aliases, which its own plugin does not resolve', async () => {
+  // Measured on `nuxt/nuxt.com` with dependencies installed: 14 `deps.unresolved-import` at error,
+  // every one `#shared/...` or `#app`, plus 65 `dead-code.unused-export` — an import knip cannot
+  // resolve is an import it does not count, so the exports behind it look dead. knip 6.31.0's Nuxt
+  // plugin ignores `#build/`, `#components`, `#imports`, `#internal/` and `#spa-template`, and
+  // neither of these.
+  const detection = await detect({
+    'package.json': manifest({ nuxt: '^3.14.0' }, 'devDependencies'),
+    'nuxt.config.ts': 'export default defineNuxtConfig({})\n',
+    'shared/types.ts': 'export type A = 1\n',
+  })
+
+  expect(engineAdjustmentsFor('knip', detection).find((entry) => entry.key === 'ignoreUnresolved')?.values).toEqual(
+    expect.arrayContaining(['^#app', '^#shared']),
+  )
+})
+
+test('says nothing about a repository that does not use Nuxt', async () => {
+  const detection = await detect({ 'package.json': manifest({ vue: '^3.5.0' }) })
+  expect(applied(detection, 'nuxt')).toBeUndefined()
+})
+
+// --- firebase-functions -----------------------------------------------------------------------
+
+test('makes Firebase Functions handlers entry points', async () => {
+  // Measured on a real service: five `functions/src/handlers/*.ts` reported as an unused default
+  // export. The platform loads them by path, so no import graph reaches them — the same shape as
+  // MikroORM migrations. knip 6.31.0 ships no firebase plugin, so this is a plain `entry`
+  // contribution.
+  const detection = await detect(
+    {
+      'package.json': manifest({}),
+      'functions/package.json': manifest({ 'firebase-functions': '^6.0.0' }),
+      'functions/src/index.ts': 'export const a = 1\n',
+    },
+    { 'functions/package.json': 'functions' },
+  )
+
+  expect(engineAdjustmentsFor('knip', detection)).toContainEqual(
+    expect.objectContaining({ key: 'entry', workspace: 'functions' }),
+  )
+})

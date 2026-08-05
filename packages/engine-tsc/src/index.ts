@@ -1,5 +1,5 @@
-import { mkdir } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { access, mkdir, readFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import {
   EngineError,
   buildWorkspaceGraph,
@@ -103,6 +103,20 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
         }
       }
 
+      for (const project of found) {
+        const missing = await unresolvedExtends(project)
+        if (missing !== undefined) {
+          return {
+            available: false as const,
+            reason:
+              `${project} extends \`${missing}\`, which is not there. A generated tsconfig (Nuxt writes ` +
+              '`.nuxt/tsconfig.json`, and other frameworks do the same) exists only after that ' +
+              'framework’s prepare step has run, so nothing here was typechecked',
+            install: 'the project’s own prepare or codegen step — `nuxt prepare` for Nuxt',
+          }
+        }
+      }
+
       return { available: true as const }
     },
 
@@ -119,6 +133,30 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       for (const project of await projects()) yield* execute(invocation, project, cacheDir, context, signal)
     },
   }
+}
+
+// tsconfig is JSONC and may carry comments and trailing commas, so the target is matched rather than
+// parsed — enough to answer "does this file exist", which is the only question here.
+const EXTENDS = /"extends"\s*:\s*(?:"([^"]+)"|\[([^\]]*)\])/
+
+async function unresolvedExtends(project: string): Promise<string | undefined> {
+  const source = await readFile(project, 'utf8').catch(() => null)
+  if (source === null) return undefined
+
+  const match = EXTENDS.exec(source)
+  if (match === null) return undefined
+
+  const specifiers =
+    match[1] !== undefined ? [match[1]] : [...(match[2] ?? '').matchAll(/"([^"]+)"/g)].map((entry) => entry[1] as string)
+
+  for (const specifier of specifiers) {
+    // Only relative targets are answered. A bare one is a package, and whether it resolves depends on
+    // a module resolution this probe is not allowed to run.
+    if (!specifier.startsWith('.')) continue
+    const target = resolve(dirname(project), specifier.endsWith('.json') ? specifier : `${specifier}.json`)
+    if (!(await access(target).then(() => true, () => false))) return specifier
+  }
+  return undefined
 }
 
 async function* execute(
