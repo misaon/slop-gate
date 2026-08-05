@@ -13,7 +13,7 @@ const SPEC = 'docs/superpowers/specs/2026-07-30-slop-gate-design.md'
 
 // Dot-directories a comment may name that this repository does not track: the one `sgate` creates in
 // the repo it analyses, a git internal, and a temp tree a test builds.
-const FOREIGN_ROOTS = new Set(['.git', '.slop-gate', '.test-tmp'])
+const FOREIGN_ROOTS = new Set(['.git', '.nuxt', '.slop-gate', '.test-tmp'])
 
 type Pointer = { readonly at: string; readonly text: string }
 

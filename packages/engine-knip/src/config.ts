@@ -27,6 +27,12 @@ const KNIP_DEFAULT_ENTRY: readonly string[] = [
 const IGNORE_DEPENDENCIES = 'ignoreDependencies'
 const ENTRY = 'entry'
 const VITEPRESS_ENTRY = 'vitepress.entry'
+// knip resolves imports itself, so an alias its plugins do not know is an unresolved import — and
+// every export behind it then looks dead. `paths` teaches it the mapping; `ignoreUnresolved` covers
+// the aliases that point inside a framework's own installed package, where no repo-relative target
+// exists to map to. Values are `from\u0000to` pairs, since a setting carries a flat string list.
+const PATHS = 'paths'
+const IGNORE_UNRESOLVED = 'ignoreUnresolved'
 
 export type MaterializeKnipConfigOptions = {
   configFile?: string
@@ -58,11 +64,15 @@ export async function materializeKnipConfig(
   const included = new Set(include)
   const exclude = KNIP_ISSUE_TYPES.filter((type) => !included.has(type)).sort(compareStrings)
   const ignoreDependencies = settingValues(context.adjustments ?? [], IGNORE_DEPENDENCIES)
+  const paths = settingValues(context.adjustments ?? [], PATHS)
+  const ignoreUnresolved = settingValues(context.adjustments ?? [], IGNORE_UNRESOLVED)
   const config = {
     include,
     exclude,
     ignore: buildIgnore(options),
     ...(ignoreDependencies.length === 0 ? {} : { ignoreDependencies: [...ignoreDependencies] }),
+    ...(paths.length === 0 ? {} : { paths: Object.fromEntries(paths.map(splitPathMapping)) }),
+    ...(ignoreUnresolved.length === 0 ? {} : { ignoreUnresolved: [...ignoreUnresolved] }),
   }
 
   const rulesetHash = hashJson(config)
@@ -109,4 +119,10 @@ function buildWorkspaceConfig(dir: string, adjustments: EngineSettings): Record<
   if (vitepress.length > 0) config['vitepress'] = { entry: [...vitepress] }
 
   return config
+}
+
+/** `from\u0000to` — one setting value, because a setting carries strings rather than pairs. */
+function splitPathMapping(value: string): [string, string[]] {
+  const [from, to] = value.split('\u0000')
+  return [from ?? value, [to ?? value]]
 }
