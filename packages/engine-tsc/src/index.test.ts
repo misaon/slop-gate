@@ -299,3 +299,38 @@ test('typechecks every package of a workspace with no root project of its own', 
     await rm(repo, { recursive: true, force: true })
   }
 }, 180_000)
+
+test('typechecks a project whose tsconfig sets rootDir and whose tests live outside it', async () => {
+  // The NestJS scaffold: `rootDir: ./src`, tests in `test/`, and `nest build` using a separate
+  // `tsconfig.build.json` that excludes them. Reported from a real service — `tsc -p` raised
+  // TS6059 once per file outside `src`, which arrived as an engine failure, so the project got no
+  // type checking at all. `--noEmit` does not suppress it: the check runs while the program is
+  // built, even though `rootDir` only ever affects output paths.
+  await writeFile(
+    join(dir, 'tsconfig.json'),
+    JSON.stringify({ compilerOptions: { strict: true, noEmit: true, rootDir: './src', outDir: './dist' } }),
+  )
+  await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
+  await mkdir(join(dir, 'test'), { recursive: true })
+  await writeFile(join(dir, 'test/a.spec.ts'), "import { a } from '../src/a'\nexport const t = a\n")
+
+  const engine = createTscEngine({ rootDir: dir })
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
+  expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(60_000)))).toEqual([])
+})
+
+test('still reports a real type error in a project that sets rootDir', async () => {
+  // The other half: suppressing the layout complaint must not suppress the findings.
+  await writeFile(
+    join(dir, 'tsconfig.json'),
+    JSON.stringify({ compilerOptions: { strict: true, noEmit: true, rootDir: './src', outDir: './dist' } }),
+  )
+  await writeFile(join(dir, 'src/bad.ts'), 'export const bad: number = "nope"\n')
+
+  const engine = createTscEngine({ rootDir: dir })
+  const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
+  const found = await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(60_000)))
+
+  expect(found).toHaveLength(1)
+  expect(found[0]?.message).toContain('TS2322')
+})

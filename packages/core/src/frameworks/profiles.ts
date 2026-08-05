@@ -300,7 +300,11 @@ const nextjs = defineProfile<NextJsLayout>({
     const declaring = context.manifests.filter((manifest) =>
       manifest.dependencies.some((dependency) => dependency.name === 'next'),
     )
-    if (declaring.length === 0) return null
+    // No `next` anywhere: the whole scope goes off, with no evidence, the way `test-framework`
+    // does. Every rule in it resolves to "import from `next/…` instead", and a repository without
+    // Next.js cannot follow that. Measured on `remix-run/indie-stack`, a Remix app: three
+    // `no-img-element` findings telling it to use `next/image`.
+    if (declaring.length === 0) return { evidence: [], parameters: { appRoots: [], outside: ['**'] } }
 
     const dependency = dependencyEvidence(context, ['next'])!
     const configs = inventoryFilesMatching(context, (path) => NEXT_CONFIG.test(path))
@@ -346,8 +350,10 @@ const nextjs = defineProfile<NextJsLayout>({
             paths: layout.outside,
             reason:
               'Every rule in Vercel’s Next.js plugin resolves to “import from `next/…` instead”, and ' +
-              'these workspaces declare no `next` dependency, so the advice cannot be followed there. ' +
-              `Next.js applies the plugin to its own application (${describeRoots(layout.appRoots)}), not to sibling packages.`,
+              (layout.appRoots.length === 0
+                ? 'nothing in this repository declares a `next` dependency, so the advice cannot be followed anywhere in it.'
+                : 'these workspaces declare no `next` dependency, so the advice cannot be followed there. ' +
+                  `Next.js applies the plugin to its own application (${describeRoots(layout.appRoots)}), not to sibling packages.`),
           }),
         ),
 })

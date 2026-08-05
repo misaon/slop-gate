@@ -655,8 +655,43 @@ test('a `next` dependency with no config anywhere stands the profile down and sa
   expect(detection.inapplicable.find((entry) => entry.id === 'nextjs')?.blocked).toContain('next.config.*')
 })
 
-test('does not detect Next.js in a repository that never declares it', async () => {
+test('a repository that never declares Next.js gets the scope turned off, not left alone', async () => {
+  // This used to assert the profile stayed silent. Silence meant all 21 rules in the scope aimed at
+  // a codebase they cannot describe — see the Remix measurement above.
   const detection = await detect({ 'package.json': manifest({ react: '^19.0.0' }) })
-  expect(applied(detection, 'nextjs')).toBeUndefined()
+  const applied_ = applied(detection, 'nextjs')
+
+  expect(applied_?.evidence).toEqual([])
+  expect(applied_?.adjustments.every((adjustment) => adjustment.kind === 'disable-concept')).toBe(true)
   expect(detection.inapplicable.map((entry) => entry.id)).not.toContain('nextjs')
+})
+
+test('turns the whole Next.js scope off in a repository that has no Next.js at all', async () => {
+  // Reported from `remix-run/indie-stack`: three `correctness.no-img-element` findings whose help
+  // text says "Consider using `<Image />` from `next/image`" — in a Remix app with no `next`
+  // dependency anywhere. Every rule in the scope resolves to "import from `next/…` instead", which
+  // a project without Next.js cannot do. The profile already argues exactly this for sibling
+  // workspaces in a monorepo; the whole-repository case is the same argument with a simpler scope.
+  const detection = await detect({ 'package.json': manifest({ '@remix-run/node': '^2.0.0' }) })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+
+  expect(resolver.forFile('app/routes/_index.tsx').rules.get('correctness.no-img-element' as RuleKey)?.level).toBe('off')
+})
+
+test('leaves the Next.js scope on where Next.js is actually used', async () => {
+  const detection = await detect({
+    'package.json': manifest({ next: '^15.0.0' }),
+    'next.config.js': 'export default {}\n',
+  })
+  const resolver = createRuleSetResolver({
+    config: { extends: ['recommended'] },
+    frameworks: frameworkRuleLayers(detection),
+    frameworkOverrides: frameworkOverrideLayers(detection),
+  })
+
+  expect(resolver.forFile('app/page.tsx').rules.get('correctness.no-img-element' as RuleKey)?.level).not.toBe('off')
 })
