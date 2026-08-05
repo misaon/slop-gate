@@ -103,7 +103,25 @@ export async function mergeWorkspacesIntoConfig(
   adjustments: EngineSettings = [],
 ): Promise<{ include: string[] }> {
   const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
-  config['workspaces'] = Object.fromEntries(workspaces.map((dir) => [dir, buildWorkspaceConfig(dir, adjustments)]))
+  // A framework may name a workspace the inventory cannot: a Nuxt layer is a directory with its own
+  // `app/`, `server/` and `composables/` and no `package.json`, so `synthesizeKnipWorkspaces` never
+  // sees it. Measured on `nuxt/nuxt.com` — as a workspace of its own a layer's 77 unused-export
+  // findings go to 0, where the same globs on the root workspace left 23. The boundary is what lets
+  // an entry glob reach inside.
+  const declared = [
+    ...new Set([
+      ...workspaces,
+      ...adjustments
+        .filter((setting) => setting.key === ENTRY && setting.workspace !== '')
+        .map((setting) => setting.workspace),
+    ]),
+  ].sort(compareStrings)
+  config['workspaces'] = Object.fromEntries(
+    [ROOT_WORKSPACE, ...declared.filter((dir) => dir !== ROOT_WORKSPACE)].map((dir) => [
+      dir,
+      buildWorkspaceConfig(dir, adjustments),
+    ]),
+  )
   await writeFile(path, JSON.stringify(config, null, 2), 'utf8')
   return { include: (config['include'] as string[] | undefined) ?? [] }
 }

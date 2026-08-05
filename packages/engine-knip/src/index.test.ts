@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,7 +14,7 @@ import {
   type RawDiagnostic,
   type RunContext,
 } from '@misaon/slop-gate-core'
-import { createKnipEngine } from './index.ts'
+import { createKnipEngine, mergeWorkspacesIntoConfig, synthesizeKnipWorkspaces } from './index.ts'
 import { KNIP_ISSUE_TYPES, KNIP_SURFACED_ISSUE_TYPES } from './issue-types.ts'
 import { resolveKnipBinary } from './resolve-binary.ts'
 
@@ -439,4 +440,20 @@ test('is available in a repository that declares no dependencies at all', async 
   const engine = createKnipEngine({ rootDir: dir })
 
   expect(await engine.availability?.()).toEqual({ available: true })
+})
+
+
+test('a framework may declare a workspace that holds no package.json', async () => {
+  // A Nuxt layer is a directory with `app/`, `server/` and `composables/` and no manifest, so
+  // `synthesizeKnipWorkspaces` never names it. Measured on `nuxt/nuxt.com`: as a workspace of its
+  // own the layer's 77 unused-export findings go to 0, where the same globs on the *root* workspace
+  // left 23. The workspace boundary is what makes an entry glob reach inside it.
+  await write('package.json', JSON.stringify({ name: 'root' }))
+  const path = (await createKnipEngine().materializeConfig(everything(), context)).path
+  const adjustments: EngineSettings = [{ key: 'entry', workspace: 'layers/a', values: ['app/**/*.ts'] }]
+
+  await mergeWorkspacesIntoConfig(path, synthesizeKnipWorkspaces([file('package.json')]), adjustments)
+
+  const config = JSON.parse(await readFile(path, 'utf8')) as { workspaces: Record<string, unknown> }
+  expect(Object.keys(config.workspaces).sort()).toEqual(['.', 'layers/a'])
 })
