@@ -495,7 +495,7 @@ const nuxt = defineProfile<NuxtLayout>({
       parameters: { layers },
     }
   },
-  consequences: () => [
+  consequences: (layout) => [
     {
       kind: 'engine-setting',
       engine: 'knip',
@@ -508,6 +508,17 @@ const nuxt = defineProfile<NuxtLayout>({
         'real directory, but a `paths` mapping for it did not take effect through the synthesized ' +
         'workspace map, so both are ignored rather than one of them taught.',
     },
+    ...layout.layers.map(
+      (root): FrameworkAdjustment => ({
+        kind: 'engine-setting',
+        engine: 'knip',
+        key: 'entry',
+        workspace: root,
+        // Workspace-relative, and every directory Nuxt merges from a layer.
+        values: ['app/**/*.{vue,ts,tsx,js,jsx}', 'server/**/*.ts', 'shared/**/*.ts', 'modules/**/*.{ts,vue}', 'app.{vue,jsx,tsx}'],
+        reason: `Nuxt merges layer \`${root}\` into the application, so its own directories are entry points; knip resolves them against the srcDir and would reach none of them.`,
+      }),
+    ),
   ],
 })
 

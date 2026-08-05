@@ -741,3 +741,20 @@ test('makes Firebase Functions handlers entry points', async () => {
     expect.objectContaining({ key: 'entry', workspace: 'functions' }),
   )
 })
+
+
+test('makes each Nuxt layer its own knip workspace', async () => {
+  // The lever, and the one that took three attempts to find. Layer findings on `nuxt/nuxt.com` by
+  // configuration: 77 with no contribution, 23 with the same globs on the *root* workspace, 0 with
+  // the layer as a workspace of its own. A layer has no `package.json`, so the inventory cannot name
+  // it and this adjustment does.
+  const detection = await detect({
+    'package.json': manifest({ nuxt: '^3.14.0' }, 'devDependencies'),
+    'nuxt.config.ts': "export default defineNuxtConfig({ extends: ['./layers/nuxi'] })\n",
+    'layers/nuxi/app/composables/useThing.ts': 'export const useThing = () => 1\n',
+  })
+
+  const entry = engineAdjustmentsFor('knip', detection).find((adjustment) => adjustment.key === 'entry')
+  expect(entry?.workspace).toBe('layers/nuxi')
+  expect(entry?.values).toEqual(expect.arrayContaining(['app/**/*.{vue,ts,tsx,js,jsx}', 'server/**/*.ts']))
+})
