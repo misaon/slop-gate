@@ -30,6 +30,7 @@ export const check = defineCommand({
     format: { type: 'string', default: 'pretty', description: `Output format (${REPORTER_NAMES.join(', ')})` },
     'max-warnings': { type: 'string', description: 'Fail when warnings exceed this count' },
     'max-tokens': { type: 'string', description: 'Bound the `agent` report to this many estimated tokens' },
+    'max-findings': { type: 'string', description: 'Bound the `json` report to this many diagnostics' },
     cache: { type: 'boolean', default: true, negativeDescription: 'Ignore cached results' },
     baseline: { type: 'boolean', default: true, negativeDescription: 'Report every finding, including the accepted ones' },
     'require-engines': {
@@ -44,6 +45,13 @@ export const check = defineCommand({
     const rootDir = resolveRootDir(args.cwd)
 
     if (!validateFormat(args.format)) return
+
+    const maxFindings = parseMaxTokens(args['max-findings'])
+    if (maxFindings === 'invalid') {
+      process.stderr.write(`--max-findings must be a positive integer, got: ${args['max-findings']}\n`)
+      process.exitCode = EXIT_CODES.config
+      return
+    }
 
     const maxTokens = parseMaxTokens(args['max-tokens'])
     if (maxTokens === 'invalid') {
@@ -84,6 +92,7 @@ export const check = defineCommand({
       width: process.stdout.columns ?? 80,
       version: readCliVersion(),
       ...(maxTokens === undefined ? {} : { maxTokens }),
+      ...(maxFindings === undefined ? {} : { maxFindings }),
       readSource: (file) => {
         if (file === null) return null
         const held = sources.get(file)
