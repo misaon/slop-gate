@@ -92,3 +92,33 @@ jobs:
         with:
           sarif_file: sgate.sarif
           category: slop-gate
+
+  # The counters that gate a run's cost live in `pnpm test` and so run in the matrix above; those are
+  # exact and hardware-independent. This job is the other half: the per-call cost of the hot paths, which
+  # is a duration and therefore cannot be gated on a shared runner — a GitHub runner's wall clock varies
+  # by more than 30%. CodSpeed replaces the timing loop with CPU instrumentation, which brings that under
+  # 1% and is free for a public repository with an OSI licence.
+  #
+  # The macro KPIs — cold and warm `sgate check`, peak RSS — are deliberately not here. They are a wall
+  # clock too, and instrumenting them would mean instrumenting oxlint, tsc and biome, which are separate
+  # binaries in three other languages. `pnpm perf` measures those against a baseline recorded on one
+  # machine, and refuses to compare across hardware.
+  bench:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: CodSpeedHQ/action@0ca9cbbf4623b599a6c3ed4fc8a922942705d9f1 # v5.0.2
+        with:
+          run: pnpm bench
+          token: ${{ secrets.CODSPEED_TOKEN }}

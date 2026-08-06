@@ -1,0 +1,26 @@
+{
+  "machine": {
+    "platform": "linux",
+    "arch": "arm64",
+    "cores": 4,
+    "node": "v24.19.0"
+  },
+  "recordedAt": "2026-08-06T21:42:35.683Z",
+  "scenarios": {
+    "startup": {
+      "wallMs": 124,
+      "cpuMs": 151,
+      "peakRssMb": 66
+    },
+    "warm": {
+      "wallMs": 353,
+      "cpuMs": 437,
+      "peakRssMb": 88
+    },
+    "cold": {
+      "wallMs": 2049,
+      "cpuMs": 3215,
+      "peakRssMb": 231
+    }
+  }
+}

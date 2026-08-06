@@ -1,0 +1,21 @@
+{
+  "name": "@misaon/slop-gate-perf",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Internal: the performance corpus, the KPIs a change has to keep, and the harness that measures them.",
+  "license": "MIT",
+  "author": "Ondřej Misák",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "measure": "node --experimental-strip-types scripts/measure.ts"
+  },
+  "devDependencies": {
+    "@misaon/slop-gate": "workspace:*",
+    "@misaon/slop-gate-core": "workspace:*",
+    "@misaon/slop-gate-reporters": "workspace:*"
+  }
+}

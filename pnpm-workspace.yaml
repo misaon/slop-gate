@@ -31,6 +31,7 @@ catalog:
   '@types/node': ^24.0.0
   '@types/picomatch': ^4.0.3
   '@types/semver': ^7.7.1
+  '@codspeed/vitest-plugin': ^5.7.1
   tsdown: ^0.22.14
   turbo: ^2.10.8
   typescript: ^7.0.2
@@ -109,6 +110,9 @@ verifyDepsBeforeRun: error
 # Verified with the script refused: the binary is present and reports `ast-grep 0.45.0`.
 allowBuilds:
   '@ast-grep/cli': false
+  # Same shape: the postinstall only links a shim, and pnpm installed @esbuild/linux-* itself. Verified
+  # with the script refused — `vitest bench` runs and esbuild reports its version.
+  esbuild: false
 
 # `hoist` stays on, and this is the one strict setting that was tried and rejected. `nodeLinker` is
 # already `isolated`, so a package here can only import what it declares; hoisting affects what a

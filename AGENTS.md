@@ -25,6 +25,10 @@ first — the tokens are already defined in `packages/rules-explorer/src/styles.
 ## Commands
 
 - `pnpm check` — typecheck, test, and run the gate on ourselves. Run this before claiming anything works.
+- `pnpm perf` — measure the cost of a run against `packages/perf/baseline.json`. Read `docs/performance.md`
+  before changing a KPI or re-recording a baseline; it refuses a loaded machine rather than guess.
+- `pnpm bench` — the per-call cost of the hot paths. Gated in CI by CodSpeed, which instruments rather
+  than times, because a shared runner cannot measure a duration.
 - `pnpm build` — build all packages.
 - `pnpm test -- <pattern>` — run a subset of tests.
 - `pnpm dogfood` — build, then `sgate check --max-warnings 0` on this repository. The CI step is this
