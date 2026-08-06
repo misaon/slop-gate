@@ -139,7 +139,11 @@ type PnpmDocument = {
 function parsePnpmLockfile(source: string): ParsedLockfile {
   let document: PnpmDocument
   try {
-    document = parseYaml(source) as PnpmDocument
+    // `uniqueKeys` scans every key already in a map for each new one, which is quadratic and is more
+    // than half the parse: 1,107 ms of immich's 1 MB lockfile, 540 ms without it. A lockfile is
+    // generated, so a duplicate key is not a thing a reader could act on, and pnpm itself takes the
+    // last one — which is what the parser does when the check is off.
+    document = parseYaml(source, { uniqueKeys: false }) as PnpmDocument
   } catch (error) {
     throw new LockfileParseError(`pnpm-lock.yaml is not valid YAML: ${error instanceof Error ? error.message : String(error)}`)
   }
