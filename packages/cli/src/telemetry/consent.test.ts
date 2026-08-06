@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import { decideConsent, markSent, telemetryDisabled } from './consent.ts'
+import { DEFAULT_TELEMETRY_ENDPOINT, telemetryEndpoint } from './endpoint.ts'
 
 let dir: string
 const ON = { SLOP_GATE_TELEMETRY_URL: 'https://example.test/t' }
@@ -31,8 +32,20 @@ test('anything other than an explicit on turns our own switch off', () => {
   }
 })
 
-test('nothing is sent when no endpoint is configured, whatever the switches say', async () => {
-  expect(await decideConsent({ env: {}, stateDir: dir })).toEqual({ send: false, why: 'no-endpoint' })
+test('an empty endpoint means nowhere, whatever the switches say', async () => {
+  expect(await decideConsent({ env: { SLOP_GATE_TELEMETRY_URL: '' }, stateDir: dir })).toEqual({
+    send: false,
+    why: 'no-endpoint',
+  })
+})
+
+test('an unset endpoint falls back to the built-in one, so telemetry is opt-out rather than opt-in', async () => {
+  expect(telemetryEndpoint({})).toBe(DEFAULT_TELEMETRY_ENDPOINT)
+  expect(await decideConsent({ env: {}, stateDir: dir })).toMatchObject({ send: true })
+})
+
+test('a configured endpoint wins over the built-in one', () => {
+  expect(telemetryEndpoint({ SLOP_GATE_TELEMETRY_URL: 'https://elsewhere.test/t' })).toBe('https://elsewhere.test/t')
 })
 
 test('the first run is flagged, so the notice is printed once rather than every time', async () => {

@@ -104,3 +104,13 @@ DO_NOT_TRACK=1             # the cross-tool convention, checked first
 
 Either one in the environment, a shell profile, or CI settings. The first run prints a notice saying
 so; after that it says nothing.
+
+## Where it goes
+
+`https://slop-gate-telemetry.ondrejmisak.cz/api/telemetry`, built into the CLI. `SLOP_GATE_TELEMETRY_URL`
+points a run somewhere else — setting it to an empty string means nowhere at all, which is how a test
+or an air-gapped build keeps everything running with the send removed.
+
+A per-IP rate limit sits in front of the endpoint, and a role that can only `INSERT` sits behind it.
+Neither is visible to a sender: a report that is refused is a report you never hear about, because a
+quality gate must not fail over telemetry.
