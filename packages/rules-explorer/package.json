@@ -19,7 +19,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.0",
     "@misaon/slop-gate-core": "workspace:*",
-    "@tanstack/table-core": "^8.21.3",
+    "@tanstack/table-core": "^9.0.0",
     "hono": "^4.9.0",
     "lucide-preact": "^1.28.0",
     "motion": "^13.0.0",
