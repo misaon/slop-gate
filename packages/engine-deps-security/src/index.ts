@@ -182,7 +182,13 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
   try {
     parsed = parseLockfile(found.kind, source)
   } catch (error) {
-    if (error instanceof LockfileParseError) throw new EngineError('deps-security', `${found.file}: ${error.message}`, { cause: error })
+    // A lockfile this engine cannot read is the same situation as one written by a package manager it
+    // does not support: the check did not happen. That is a coverage gap, which says so and keeps the
+    // other engines' verdict intact — not an engine failure, which reads as "slop-gate broke".
+    if (error instanceof LockfileParseError) {
+      yield* unreadableLockfile(enabled, found.file, error.message)
+      return
+    }
     throw error
   }
   input.signal.throwIfAborted()
@@ -226,6 +232,22 @@ function* noLockfile(
     file: first?.file ?? manifests[0]?.file ?? 'package.json',
     range: { start: 0, end: 0 },
     help: `Only npm (\`${LOCKFILES.npm.join('`, `')}\`) and pnpm (\`${LOCKFILES.pnpm.join('`, `')}\`) lockfiles are read today.`,
+  }
+}
+
+function* unreadableLockfile(
+  enabled: ReadonlySet<DepsSecurityRuleId>,
+  file: string,
+  reason: string,
+): Generator<RawDiagnostic> {
+  if (!enabled.has('coverage-gap')) return
+  yield {
+    engineRuleId: 'coverage-gap',
+    message: `${file} could not be read, so no dependency was checked against the advisory database.`,
+    severity: 'warning',
+    file,
+    range: { start: 0, end: 0 },
+    help: reason,
   }
 }
 
