@@ -654,3 +654,33 @@ Parsing all of it to answer those cost 585 ms and 200 MB of heap, on every run o
 disk until a name matches. The index is read whole and never decoded to a string; the records file is
 read positionally. Its layout is documented at the top of that file, because a byte offset is the one
 thing the code reading it cannot show.
+
+
+## What a performance KPI can and cannot be measured against
+
+<a id="perf-kpi-noise"></a>
+
+Recorded because the numbers below decided the shape of `packages/perf`, and re-deriving them costs an
+hour. All on linux/arm64, 4 cores, against the generated corpus in `packages/perf/src/corpus.ts`.
+
+**A single run cannot gate anything; a median of ten can.** One warm `sgate check` varies 12–24% between
+the fastest and slowest of ten. The *median* of ten varies **2.1–2.4%** across independent batches, and
+peak RSS medians vary under 1%. The 5% KPI is set against the second number, which is why the harness
+never compares a single sample.
+
+**Load is the dominant error term, not the tool.** At load average 2.0 of 4 cores an unchanged tool read
+as +8.1% on startup and +8.2% on warm — both past the KPI — with spread up from 12% to 34%. Hence the
+load guard: a quarter of the core count, exit 2, neither pass nor fail.
+
+**Peak RSS of the tree is nine times the peak of the largest child.** `getrusage(RUSAGE_CHILDREN).ru_maxrss`
+reports 539–618 MB for a cold run of this repository; sampling `/proc/<pid>/status` across the process
+group reports 874–923 MB. The engines are concurrent subprocesses, so only the second number answers
+"will this fit". `bench.py` in the corpus directory reports the first.
+
+**Rebuilding before measuring costs 26 ms of startup.** `bin/sgate.js` calls
+`module.enableCompileCache()`, and a rewritten `dist/main.js` invalidates it. One warmup run left startup
+reading +10.5% against an unchanged tool; two left it at +3.2%.
+
+**A cold run is 5.8× a warm one** on the corpus (2049 ms against 353 ms), and 20× on this repository
+(7,132–7,353 ms against 363–381 ms). That ratio is why the cache-hit counter is a hard gate at zero
+tolerance while the durations are not.

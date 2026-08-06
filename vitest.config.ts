@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import codspeed from '@codspeed/vitest-plugin'
 import { defineConfig } from 'vitest/config'
 
 // Every workspace package aliased to its `src`. Without this a cross-package import resolves through
@@ -21,9 +22,14 @@ const workspaceAlias = Object.fromEntries(
 )
 
 export default defineConfig({
+  // A no-op unless the run is under `CodSpeedHQ/action`, which is what lets `pnpm bench` mean the same
+  // thing in a terminal and in CI. The plugin replaces the timing loop with CPU instrumentation there,
+  // because a shared runner's wall clock varies by more than 30% and cannot gate anything.
+  plugins: [codspeed()],
   resolve: { alias: workspaceAlias },
   test: {
     include: ['packages/*/src/**/*.test.ts'],
     environment: 'node',
+    benchmark: { include: ['packages/*/bench/**/*.bench.ts'] },
   },
 })

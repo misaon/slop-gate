@@ -18,7 +18,10 @@
     "check": "pnpm typecheck && pnpm test && pnpm dogfood",
     "changeset": "changeset",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
-    "changeset:publish": "pnpm build --output-logs=errors-only && changeset publish"
+    "changeset:publish": "pnpm build --output-logs=errors-only && changeset publish",
+    "perf": "pnpm build --output-logs=errors-only && pnpm --filter @misaon/slop-gate-perf measure",
+    "perf:record": "pnpm build --output-logs=errors-only && pnpm --filter @misaon/slop-gate-perf measure -- --record",
+    "bench": "vitest bench --run"
   },
   "devDependencies": {
     "@changesets/changelog-github": "catalog:",
@@ -31,6 +34,7 @@
     "tsdown": "catalog:",
     "turbo": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@codspeed/vitest-plugin": "catalog:"
   }
 }
