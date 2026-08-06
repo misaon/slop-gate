@@ -26,9 +26,9 @@
     "preact": "^10.27.0"
   },
   "devDependencies": {
-    "@preact/preset-vite": "^2.10.2",
+    "@preact/preset-vite": "^2.10.6",
     "@tailwindcss/vite": "^4.1.0",
     "tailwindcss": "^4.1.0",
-    "vite": "^7.1.0"
+    "vite": "^8.2.1"
   }
 }
