@@ -61,9 +61,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function validateTelemetryPayload(input: unknown): ValidationResult {
-  const reject = (reason: string): ValidationResult => ({ ok: false, reason })
+function reject(reason: string): ValidationResult {
+  return { ok: false, reason }
+}
 
+export function validateTelemetryPayload(input: unknown): ValidationResult {
   if (!isRecord(input)) return reject('not an object')
   // An unknown key is how someone smuggles a field past a validator that only checks the ones it knows.
   if (!onlyKnownKeys(input, TOP_LEVEL_KEYS)) return reject('unknown key')
@@ -118,5 +120,37 @@ export function validateTelemetryPayload(input: unknown): ValidationResult {
   }
   if (new Set(disabled).size !== disabled.length) return reject('duplicate concept')
 
-  return { ok: true, payload: input as unknown as TelemetryPayload }
+  // Rebuilt field by field rather than cast. The cast would carry whatever the sender put in the
+  // object; this carries only what was checked, so an unknown key cannot reach the database even if
+  // the key check above were ever loosened.
+  return {
+    ok: true,
+    payload: {
+      schema: TELEMETRY_SCHEMA_VERSION,
+      run: input['run'],
+      project: input['project'],
+      slopGate: input['slopGate'],
+      node: input['node'],
+      platform: input['platform'],
+      ci: input['ci'],
+      durationMs: input['durationMs'],
+      filesScanned: input['filesScanned'],
+      filesAnalysed: input['filesAnalysed'],
+      engines: engines.map((engine: Record<string, unknown>) => ({
+        id: String(engine['id']),
+        version: engine['version'] === null ? null : String(engine['version']),
+        ran: engine['ran'] === true,
+      })),
+      rules: rules.map((rule: Record<string, unknown>) => ({
+        rule: String(rule['rule']),
+        findings: Number(rule['findings']),
+        suppressed: Number(rule['suppressed']),
+        baselined: Number(rule['baselined']),
+        generated: Number(rule['generated']),
+      })),
+      disabledConcepts: disabled.map(String),
+      preset: preset,
+      baseline: input['baseline'],
+    },
+  }
 }
