@@ -5,6 +5,7 @@ type Sample = {
   readonly wallMs: number
   readonly cpuMs: number
   readonly peakRssMb: number
+  readonly rssSamples: number
 }
 
 export type Measurement = {
@@ -12,6 +13,12 @@ export type Measurement = {
   readonly wallMs: number
   readonly cpuMs: number
   readonly peakRssMb: number
+  /**
+   * How many times the resident set was read during the shortest run. A peak found in six samples is a
+   * different number from one found in a hundred, and only the measurement knows which it took — so it says,
+   * rather than leaving the comparison to assume.
+   */
+  readonly rssSamples: number
   readonly spreadPercent: number
 }
 
@@ -50,8 +57,13 @@ async function measureOnce(command: string, args: readonly string[], cwd: string
   child.stderr.on('data', (chunk: Buffer) => void (stderr += chunk.toString()))
 
   let peakKb = 0
+  let rssSamples = 0
   const poll = setInterval(() => {
-    void treeRssKb(child.pid ?? -1).then((kb) => void (peakKb = Math.max(peakKb, kb)))
+    void (async () => {
+      const kb = await treeRssKb(child.pid ?? -1)
+      rssSamples += 1
+      peakKb = Math.max(peakKb, kb)
+    })()
   }, RSS_POLL_MS)
 
   const code = await new Promise<number>((resolve) => child.on('close', resolve))
@@ -62,7 +74,7 @@ async function measureOnce(command: string, args: readonly string[], cwd: string
   const [wall, user, system] = reported.map(Number)
   if (wall === undefined || Number.isNaN(wall)) throw new Error(`could not read timings from: ${stderr.trim()}`)
 
-  return { wallMs: wall * 1000, cpuMs: ((user ?? 0) + (system ?? 0)) * 1000, peakRssMb: peakKb / 1024 }
+  return { wallMs: wall * 1000, cpuMs: ((user ?? 0) + (system ?? 0)) * 1000, peakRssMb: peakKb / 1024, rssSamples }
 }
 
 const median = (values: readonly number[]): number => {
@@ -104,6 +116,7 @@ export async function measure(
     wallMs: median(walls),
     cpuMs: median(samples.map((sample) => sample.cpuMs)),
     peakRssMb: median(samples.map((sample) => sample.peakRssMb)),
+    rssSamples: Math.min(...samples.map((sample) => sample.rssSamples)),
     spreadPercent: (Math.max(...walls) - Math.min(...walls)) / Math.min(...walls) * 100,
   }
 }
