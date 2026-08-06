@@ -7,7 +7,7 @@ import { CORPUS_PROJECTS, prevalenceOf, type Prevalence } from '../registry/prev
 import { reliabilityOf, reliabilityPercent, type Reliability } from '../registry/reliability.ts'
 import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
-import { NOT_RECOMMENDED_GENERATED, NOT_RECOMMENDED_UNCATALOGUED } from '../registry/not-recommended.ts'
+import { NOT_RECOMMENDED_GENERATED, NOT_RECOMMENDED_UNCATALOGUED, type NotRecommended } from '../registry/not-recommended.ts'
 import { RULE_OVERRIDES } from '../registry/overrides.ts'
 import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
 
@@ -37,6 +37,8 @@ export type CatalogueEntry = {
   readonly level: Exclude<RuleLevel, 'off'> | null
   /** Stated reason it is withheld, verbatim from the registry. */
   readonly withheldReason: string | null
+  /** Anchor in docs/measurements.md holding the figures behind that reason, when there are any. */
+  readonly withheldEvidence: string | null
   /** What a finding costs if it is real, 1–3. See `registry/impact.ts`. */
   readonly impact: Impact
   /** Measured precision, or null where nobody has measured it. Never assumed. */
@@ -46,6 +48,7 @@ export type CatalogueEntry = {
   readonly optionSetting: unknown
   /** The reason for that setting, with the measurement behind it. */
   readonly optionReason: string | null
+  readonly optionEvidence: string | null
   /** How often the rule fires over the corpus, or null when it fired on none of it. */
   readonly prevalence: (Prevalence & { readonly percent: number }) | null
   readonly severityDefault: string
@@ -77,9 +80,9 @@ function levelOf(concepts: readonly string[]): Exclude<RuleLevel, 'off'> | null 
   return null
 }
 
-function withheldReasonFor(entry: RuleEntry): string | null {
+function withheldFor(entry: RuleEntry): NotRecommended | null {
   const key = entry.engine === 'oxlint' ? entry.engineRuleId : ruleRefKey(entry)
-  return NOT_RECOMMENDED_UNCATALOGUED[key]?.reason ?? NOT_RECOMMENDED_GENERATED[key]?.reason ?? null
+  return NOT_RECOMMENDED_UNCATALOGUED[key] ?? NOT_RECOMMENDED_GENERATED[key] ?? null
 }
 
 /**
@@ -94,7 +97,7 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
   const entries = all.map((entry): CatalogueEntry => {
     const concept = entry.concepts[0]
     const level = levelOf(entry.concepts)
-    const withheldReason = withheldReasonFor(entry)
+    const withheld = withheldFor(entry)
     const described = describe(concept)
     const measured = reliabilityOf(ruleRefKey(entry))
     const tuned = entry.concepts.map((id) => OPTIONED_RECOMMENDED_RULES[id]).find((rule) => rule !== undefined)
@@ -111,14 +114,16 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
       description: described.description,
       languages: [...entry.languages],
       docsUrl: entry.docsUrl,
-      status: level !== null ? 'recommended' : withheldReason !== null ? 'withheld' : 'unlisted',
+      status: level !== null ? 'recommended' : withheld !== null ? 'withheld' : 'unlisted',
       level,
-      withheldReason,
+      withheldReason: withheld?.reason ?? null,
+      withheldEvidence: withheld?.evidence ?? null,
       impact: impactOf(concept, described.group as ConceptGroup),
       reliability: measured === null ? null : { ...measured, percent: reliabilityPercent(measured) },
       options: tuned !== undefined ? 'tuned' : entry.hasOptions === true ? 'default' : 'none',
       optionSetting: tuned?.setting ?? null,
       optionReason: tuned?.reason ?? null,
+      optionEvidence: tuned?.evidence ?? null,
       prevalence: seen === null ? null : { ...seen, percent: Math.round((seen.seenIn / CORPUS_PROJECTS) * 100) },
       severityDefault: entry.severityDefault,
       fixKind: entry.fixKind,
