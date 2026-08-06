@@ -4,6 +4,7 @@ import { STANDARD_CORPUS, writeCorpus } from '../src/corpus.ts'
 import {
   CEILINGS,
   TOLERANCE_PERCENT,
+  MIN_RSS_SAMPLES,
   judge,
   loadIsAcceptable,
   machine,
@@ -64,13 +65,16 @@ if (record) {
 const baseline = record ? null : ((JSON.parse(await readFile(BASELINE, 'utf8')) as Baseline) ?? null)
 const comparable = baseline !== null && sameMachine(baseline.machine, machine())
 
+const rssSamples = { startup: scenarios.startup.rssSamples, warm: scenarios.warm.rssSamples, cold: scenarios.cold.rssSamples }
+
 process.stdout.write(`| scenario | runs | wall | cpu | peak RSS | spread |\n| --- | --- | --- | --- | --- | --- |\n`)
 for (const name of ['startup', 'warm', 'cold'] as const) {
   const here = measured[name]
   const was = baseline?.scenarios[name]
   const delta = comparable && was !== undefined ? ` (${((here.wallMs - was.wallMs) / was.wallMs * 100).toFixed(1)}%)` : ''
+  const rss = rssSamples[name] < MIN_RSS_SAMPLES ? `${here.peakRssMb} MB (${rssSamples[name]} reads, not compared)` : `${here.peakRssMb} MB`
   process.stdout.write(
-    `| ${name} | ${RUNS[name]} | ${here.wallMs} ms${delta} | ${here.cpuMs} ms | ${here.peakRssMb} MB | ` +
+    `| ${name} | ${RUNS[name]} | ${here.wallMs} ms${delta} | ${here.cpuMs} ms | ${rss} | ` +
       `${scenarios[name].spreadPercent.toFixed(1)}% |\n`,
   )
 }
@@ -85,7 +89,7 @@ if (!comparable) {
   )
 }
 
-const failures = judge(measured, baseline)
+const failures = judge(measured, baseline, rssSamples)
 if (failures.length === 0) {
   process.stdout.write(`\nWithin every KPI${comparable ? ` (ceilings, and ${TOLERANCE_PERCENT}% against the baseline)` : ''}.\n`)
   process.exit(0)

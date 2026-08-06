@@ -37,6 +37,17 @@ export const CEILINGS: Readonly<Record<ScenarioName, Ceilings>> = {
 
 export const TOLERANCE_PERCENT = 5
 
+/**
+ * Below this many reads of the resident set, the peak is where the sampler happened to look rather than where
+ * the process actually went. Measured: `--version` lives about 124 ms and is polled every 20 ms, so six reads,
+ * and an unchanged tool reported 60 to 68 MB across runs — 13%, past the KPI. The ceiling still applies; only
+ * the percentage is withheld, and the report says so rather than passing quietly.
+ *
+ * Sampling faster is not the fix and was tried: at 5 ms the `/proc` scan perturbs the process it measures —
+ * wall times rose 17% and the peak read as zero.
+ */
+export const MIN_RSS_SAMPLES = 12
+
 export type Machine = {
   readonly platform: string
   readonly arch: string
@@ -76,6 +87,7 @@ export function sameMachine(a: Machine, b: Machine): boolean {
 export function judge(
   measured: Readonly<Record<ScenarioName, Pick<Measurement, 'wallMs' | 'cpuMs' | 'peakRssMb'>>>,
   baseline: Baseline | null,
+  rssSamples: Readonly<Record<ScenarioName, number>>,
 ): readonly Verdict[] {
   const failures: Verdict[] = []
   const comparable = baseline !== null && sameMachine(baseline.machine, machine())
@@ -94,6 +106,7 @@ export function judge(
 
     const was = baseline.scenarios[scenario]
     for (const metric of ['wallMs', 'peakRssMb'] as const) {
+      if (metric === 'peakRssMb' && (rssSamples[scenario] ?? 0) < MIN_RSS_SAMPLES) continue
       if (changePercent(here[metric], was[metric]) <= TOLERANCE_PERCENT) continue
       failures.push({
         scenario,
