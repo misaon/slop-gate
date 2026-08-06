@@ -6,6 +6,7 @@ import {
   hashContent,
   runEngineTool,
   toolVersion,
+  type ScriptBinInvocation,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -16,11 +17,11 @@ import {
 import { materializeTscConfig } from './config.ts'
 import { parseTscOutput } from './parse.ts'
 import { discoverTscProjects } from './projects.ts'
-import { resolveTscAcrossWorkspaces, type TscInvocation, type TscResolution } from './resolve-binary.ts'
+import { resolveTscAcrossWorkspaces, type TscResolution } from './resolve-binary.ts'
 
 export { TYPE_ERROR_RULE_ID, parseTscOutput } from './parse.ts'
 export { discoverTscProjects } from './projects.ts'
-export { resolveTscAcrossWorkspaces, resolveTscBinary, type TscInvocation, type TscResolution } from './resolve-binary.ts'
+export { resolveTscAcrossWorkspaces, resolveTscBinary, type TscResolution } from './resolve-binary.ts'
 
 const MAX_FINDINGS_EXIT_CODE = 2
 
@@ -66,7 +67,7 @@ export function createTscEngine(options: CreateTscEngineOptions): Engine {
       return discoverTscProjects({ rootDir: options.rootDir, tsconfigPath, workspaceDirs })
     })())
 
-  const required = async (): Promise<TscInvocation> => {
+  const required = async (): Promise<ScriptBinInvocation> => {
     const resolved = await resolution()
     if (resolved.kind !== 'resolved') throw new EngineError('tsc', unavailableReason(resolved))
     return resolved.invocation
@@ -160,7 +161,7 @@ async function unresolvedExtends(project: string): Promise<string | undefined> {
 }
 
 async function* execute(
-  invocation: TscInvocation,
+  invocation: ScriptBinInvocation,
   project: string,
   cacheDir: string,
   context: RunContext,

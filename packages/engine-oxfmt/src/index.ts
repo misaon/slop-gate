@@ -3,6 +3,7 @@ import {
   hashJson,
   runEngineTool,
   toolVersion,
+  type ScriptBinInvocation,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -11,10 +12,10 @@ import {
   type RunContext,
 } from '@misaon/slop-gate-core'
 import { UNFORMATTED_RULE_ID, parseUnformattedFiles } from './parse.ts'
-import { resolveOxfmtBinary, type OxfmtInvocation } from './resolve-binary.ts'
+import { resolveOxfmtBinary } from './resolve-binary.ts'
 
 export { UNFORMATTED_RULE_ID, parseUnformattedFiles } from './parse.ts'
-export { resolveOxfmtBinary, type OxfmtInvocation } from './resolve-binary.ts'
+export { resolveOxfmtBinary } from './resolve-binary.ts'
 
 const MAX_FINDINGS_EXIT_CODE = 1
 
@@ -26,10 +27,10 @@ export type CreateOxfmtEngineOptions = {
 }
 
 export function createOxfmtEngine(options: CreateOxfmtEngineOptions = {}): Engine {
-  const invocation: OxfmtInvocation | undefined =
+  const invocation: ScriptBinInvocation | undefined =
     options.binaryPath === undefined ? resolveOxfmtBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  const required = (): OxfmtInvocation => {
+  const required = (): ScriptBinInvocation => {
     if (invocation === undefined) throw new EngineError('oxfmt', UNAVAILABLE_REASON)
     return invocation
   }

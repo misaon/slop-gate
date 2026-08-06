@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
-import { resolveTscAcrossWorkspaces, resolveTscBinary, type TscInvocation } from './resolve-binary.ts'
+import type { ScriptBinInvocation } from '@misaon/slop-gate-core'
+import { resolveTscAcrossWorkspaces, resolveTscBinary } from './resolve-binary.ts'
 
 const PLATFORMS = ['win32', 'darwin', 'linux', 'freebsd'] as const satisfies readonly NodeJS.Platform[]
 
@@ -71,7 +72,7 @@ test('resolves the analysed project’s own typescript install, not wherever thi
   )
 })
 
-const invocationIn = (packageDir: string): TscInvocation => ({
+const invocationIn = (packageDir: string): ScriptBinInvocation => ({
   command: process.execPath,
   prefixArgs: [join(packageDir, 'node_modules', 'typescript', 'bin', 'tsc')],
 })

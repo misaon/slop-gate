@@ -18,7 +18,10 @@ const CORPUS = join(import.meta.dirname, '../.corpus/macro')
 const BASELINE = join(import.meta.dirname, '../baseline.json')
 const CLI = join(REPO_ROOT, 'packages/cli/bin/sgate.js')
 
-const RUNS: Readonly<Record<ScenarioName, number>> = { startup: 10, warm: 10, cold: 5 }
+// Thirty for startup, ten for warm, five for cold. Not taste: startup is the shortest scenario and so the
+// noisiest relative to itself — at ten runs its median moved 124-138 ms between batches, which is 11% and
+// past the KPI on an unchanged tool. Runs are the only free way to tighten a median, and these cost 124 ms.
+const RUNS: Readonly<Record<ScenarioName, number>> = { startup: 30, warm: 10, cold: 5 }
 
 const record = process.argv.includes('--record')
 const force = process.argv.includes('--force')

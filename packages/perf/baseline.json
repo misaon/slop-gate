@@ -5,21 +5,21 @@
     "cores": 4,
     "node": "v24.19.0"
   },
-  "recordedAt": "2026-08-06T21:42:35.683Z",
+  "recordedAt": "2026-08-06T22:30:50.103Z",
   "scenarios": {
     "startup": {
-      "wallMs": 124,
-      "cpuMs": 151,
-      "peakRssMb": 66
+      "wallMs": 130,
+      "cpuMs": 154,
+      "peakRssMb": 64
     },
     "warm": {
       "wallMs": 353,
-      "cpuMs": 437,
+      "cpuMs": 448,
       "peakRssMb": 88
     },
     "cold": {
-      "wallMs": 2049,
-      "cpuMs": 3215,
+      "wallMs": 2044,
+      "cpuMs": 3251,
       "peakRssMb": 231
     }
   }

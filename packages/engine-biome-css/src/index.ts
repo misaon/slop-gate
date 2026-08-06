@@ -6,6 +6,7 @@ import {
   EngineError,
   isExecFileFailure,
   toolVersion,
+  type ScriptBinInvocation,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -17,7 +18,7 @@ import {
 import { materializeBiomeCssConfig, type BiomeCssConfigHandle } from './config.ts'
 import { parseBiomeOutput } from './parse.ts'
 import { BIOME_CSS_RULES, FOREIGN_SUPPRESSION_RULE_ID } from './rules.ts'
-import { resolveBiomeBinary, type BiomeInvocation } from './resolve-binary.ts'
+import { resolveBiomeBinary } from './resolve-binary.ts'
 import { findForeignSuppressions } from './suppressions.ts'
 
 export { materializeBiomeCssConfig, type BiomeCssConfigHandle } from './config.ts'
@@ -33,7 +34,7 @@ export {
   type BiomeCssRule,
   type ExcludedRule,
 } from './rules.ts'
-export { resolveBiomeBinary, type BiomeInvocation } from './resolve-binary.ts'
+export { resolveBiomeBinary } from './resolve-binary.ts'
 export { findForeignSuppressions } from './suppressions.ts'
 
 const run = promisify(execFile)
@@ -44,10 +45,10 @@ const MISSING_BIOME =
   'entries were measured against it. Reinstall slop-gate.'
 
 export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Engine {
-  const invocation: BiomeInvocation | undefined =
+  const invocation: ScriptBinInvocation | undefined =
     options.binaryPath === undefined ? resolveBiomeBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  const required = (): BiomeInvocation => {
+  const required = (): ScriptBinInvocation => {
     if (invocation === undefined) throw new EngineError('biome-css', MISSING_BIOME)
     return invocation
   }
@@ -77,7 +78,7 @@ export function createBiomeCssEngine(options: { binaryPath?: string } = {}): Eng
 }
 
 async function* execute(
-  invocation: BiomeInvocation,
+  invocation: ScriptBinInvocation,
   batch: FileBatch,
   handle: EngineConfigHandle,
   context: RunContext,
