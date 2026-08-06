@@ -9,9 +9,15 @@ import type { Measurement } from './measure.ts'
  */
 const MAX_LOAD_PER_CORE = 0.25
 
+/**
+ * The one- and five-minute averages, not just the first. A machine that has only just finished a test run
+ * reads 0.96 over one minute and 1.30 over five, passes a one-minute check, and then measures 4–5% high
+ * across every scenario — which is a baseline that fails against itself.
+ */
 export function loadIsAcceptable(): { readonly ok: boolean; readonly load: number; readonly limit: number } {
   const limit = availableParallelism() * MAX_LOAD_PER_CORE
-  const load = loadavg()[0] ?? 0
+  const [oneMinute = 0, fiveMinute = 0] = loadavg()
+  const load = Math.max(oneMinute, fiveMinute)
   return { ok: load <= limit, load, limit }
 }
 

@@ -9,17 +9,18 @@ import {
   type InventoryFile,
   type RawDiagnostic,
   type RunContext,
+  type ScriptBinInvocation,
 } from '@misaon/slop-gate-core'
 import { materializeAstGrepConfig } from './config.ts'
 import { parseAstGrepOutput } from './parse.ts'
 import { readScanSummary, type AstGrepScanSummary } from './summary.ts'
-import { resolveAstGrepBinary, type AstGrepInvocation } from './resolve-binary.ts'
+import { resolveAstGrepBinary } from './resolve-binary.ts'
 
 export { ASTGREP_RULES, LANGUAGE_COVERAGE, astGrepRuleById, type AstGrepLanguage, type AstGrepRule } from './rules.ts'
 export { buildAstGrepConfig, materializeAstGrepConfig, type AstGrepRuleFile } from './config.ts'
 export { parseAstGrepOutput } from './parse.ts'
 export { readScanSummary, type AstGrepScanSummary } from './summary.ts'
-export { resolveAstGrepBinary, type AstGrepInvocation, type ResolveAstGrepBinaryOptions } from './resolve-binary.ts'
+export { resolveAstGrepBinary, type ResolveAstGrepBinaryOptions } from './resolve-binary.ts'
 
 const MAX_FINDINGS_EXIT_CODE = 1
 
@@ -32,10 +33,10 @@ const MISSING_AST_GREP =
   '`PATH` ast-grep is used deliberately and this error cannot occur.)'
 
 export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engine {
-  const invocation: AstGrepInvocation | undefined =
+  const invocation: ScriptBinInvocation | undefined =
     options.binaryPath === undefined ? resolveAstGrepBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  const required = (): AstGrepInvocation => {
+  const required = (): ScriptBinInvocation => {
     if (invocation === undefined) throw new EngineError('astgrep', MISSING_AST_GREP)
     return invocation
   }
@@ -65,7 +66,7 @@ export function createAstGrepEngine(options: { binaryPath?: string } = {}): Engi
 }
 
 async function* execute(
-  invocation: AstGrepInvocation,
+  invocation: ScriptBinInvocation,
   batch: FileBatch,
   handle: EngineConfigHandle,
   context: RunContext,

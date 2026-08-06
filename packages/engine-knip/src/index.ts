@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import {
   EngineError,
   isExecFileFailure,
+  type ScriptBinInvocation,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -14,7 +15,7 @@ import {
 } from '@misaon/slop-gate-core'
 import { materializeKnipConfig, mergeWorkspacesIntoConfig, synthesizeKnipWorkspaces } from './config.ts'
 import { parseKnipOutput } from './parse.ts'
-import { resolveKnipBinary, resolveKnipPackageJson, type KnipInvocation } from './resolve-binary.ts'
+import { resolveKnipBinary, resolveKnipPackageJson } from './resolve-binary.ts'
 
 export {
   KNIP_EXCLUDED_ISSUE_TYPES,
@@ -26,7 +27,7 @@ export {
 } from './issue-types.ts'
 export { materializeKnipConfig, mergeWorkspacesIntoConfig, synthesizeKnipWorkspaces } from './config.ts'
 export { parseKnipOutput } from './parse.ts'
-export { resolveKnipBinary, resolveKnipPackageJson, type KnipInvocation } from './resolve-binary.ts'
+export { resolveKnipBinary, resolveKnipPackageJson } from './resolve-binary.ts'
 
 const run = promisify(execFile)
 
@@ -54,10 +55,10 @@ const MISSING_KNIP =
   'repository being checked. Reinstall slop-gate.'
 
 export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine {
-  const invocation: KnipInvocation | undefined =
+  const invocation: ScriptBinInvocation | undefined =
     options.binaryPath === undefined ? resolveKnipBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  const required = (): KnipInvocation => {
+  const required = (): ScriptBinInvocation => {
     if (invocation === undefined) throw new EngineError('knip', MISSING_KNIP)
     return invocation
   }
@@ -132,7 +133,7 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
 }
 
 async function* execute(
-  invocation: KnipInvocation,
+  invocation: ScriptBinInvocation,
   batch: FileBatch,
   handle: EngineConfigHandle,
   context: RunContext,

@@ -3,6 +3,7 @@ import {
   SCRIPT_LANGUAGES,
   runEngineTool,
   toolVersion,
+  type ScriptBinInvocation,
   type Engine,
   type EngineConfigHandle,
   type EngineRuleSelection,
@@ -13,11 +14,11 @@ import {
 import { materializeOxlintConfig } from './config.ts'
 import { deriveOxlintFixes } from './derive-fixes.ts'
 import { parseOxlintOutput } from './parse.ts'
-import { resolveOxlintBinary, type OxlintInvocation } from './resolve-binary.ts'
+import { resolveOxlintBinary } from './resolve-binary.ts'
 
 export { deriveOxlintFixes, loadFixCatalogue, type DeriveOxlintFixesOptions } from './derive-fixes.ts'
 export { PARSE_ERROR_RULE_ID, parseOxlintOutput, toEngineRuleId } from './parse.ts'
-export { resolveOxlintBinary, resolveOxlintSchemaPath, type OxlintInvocation } from './resolve-binary.ts'
+export { resolveOxlintBinary, resolveOxlintSchemaPath } from './resolve-binary.ts'
 
 const MAX_FINDINGS_EXIT_CODE = 1
 
@@ -27,10 +28,10 @@ const MISSING_OXLINT =
   'specific oxlint version, and a different one reports different rules. Reinstall slop-gate.'
 
 export function createOxlintEngine(options: { binaryPath?: string } = {}): Engine {
-  const invocation: OxlintInvocation | undefined =
+  const invocation: ScriptBinInvocation | undefined =
     options.binaryPath === undefined ? resolveOxlintBinary() : { command: options.binaryPath, prefixArgs: [] }
 
-  const required = (): OxlintInvocation => {
+  const required = (): ScriptBinInvocation => {
     if (invocation === undefined) throw new EngineError('oxlint', MISSING_OXLINT)
     return invocation
   }
@@ -64,7 +65,7 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
 }
 
 async function* execute(
-  invocation: OxlintInvocation,
+  invocation: ScriptBinInvocation,
   batch: FileBatch,
   handle: EngineConfigHandle,
   context: RunContext,

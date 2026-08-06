@@ -3,8 +3,6 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import type { ScriptBinInvocation } from '@misaon/slop-gate-core'
 
-export type AstGrepInvocation = ScriptBinInvocation
-
 const PLATFORM_PACKAGES: Readonly<Record<string, string>> = {
   'darwin arm64': '@ast-grep/cli-darwin-arm64',
   'darwin x64': '@ast-grep/cli-darwin-x64',
@@ -24,14 +22,14 @@ export type ResolveAstGrepBinaryOptions = {
   fileExists?: (path: string) => boolean
 }
 
-export function resolveAstGrepBinary(options: ResolveAstGrepBinaryOptions = {}): AstGrepInvocation | undefined {
+export function resolveAstGrepBinary(options: ResolveAstGrepBinaryOptions = {}): ScriptBinInvocation | undefined {
   const platform = options.platform ?? process.platform
   const arch = options.arch ?? process.arch
   const isGlibc = options.isGlibc ?? defaultIsGlibc
   const fileExists = options.fileExists ?? existsSync
   const resolveCliPackageJson = options.resolveCliPackageJson ?? defaultResolveCliPackageJson
   const resolveFromCli = options.resolveFromCli ?? defaultResolveFromCli
-  const unpublished: AstGrepInvocation = { command: 'ast-grep', prefixArgs: [] }
+  const unpublished: ScriptBinInvocation = { command: 'ast-grep', prefixArgs: [] }
 
   if (platform === 'linux' && !isGlibc()) return unpublished
 

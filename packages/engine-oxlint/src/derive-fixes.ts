@@ -9,9 +9,9 @@ import {
   type EngineRuleSelection,
   type FixTarget,
   type RunContext,
+  type ScriptBinInvocation,
 } from '@misaon/slop-gate-core'
 import { materializeOxlintConfig } from './config.ts'
-import type { OxlintInvocation } from './resolve-binary.ts'
 
 const exec = promisify(execFile)
 
@@ -25,7 +25,7 @@ function flagFor(catalogueFix: string): string | null {
 
 type CatalogueRule = { scope?: string; value?: string; fix?: string }
 
-export async function loadFixCatalogue(invocation: OxlintInvocation): Promise<Map<string, string>> {
+export async function loadFixCatalogue(invocation: ScriptBinInvocation): Promise<Map<string, string>> {
   const { stdout } = await exec(invocation.command, [...invocation.prefixArgs, '--rules', '--format', 'json'], {
     encoding: 'utf8',
     maxBuffer: 1024 * 1024 * 32,
@@ -40,7 +40,7 @@ export async function loadFixCatalogue(invocation: OxlintInvocation): Promise<Ma
 }
 
 export type DeriveOxlintFixesOptions = {
-  invocation: OxlintInvocation
+  invocation: ScriptBinInvocation
   targets: readonly FixTarget[]
   selection: EngineRuleSelection
   context: RunContext
