@@ -37,3 +37,4 @@ packages/rules-explorer/dist/
 .env
 .env.*
 !.env.example
+.vercel
