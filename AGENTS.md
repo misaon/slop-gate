@@ -11,6 +11,10 @@ architectural decision and why it was made. Do not redesign a subsystem before r
 `docs/measurements.md` holds the figures behind decisions the source states only as a conclusion — the
 benchmark, the corpus and the method. Read it before re-tuning a constant or removing a bound.
 
+`docs/impact-and-reliability.md` is the vocabulary the product uses for findings: an **impact** of 1–3
+shown as a bar, and a **reliability** percentage that is absent rather than assumed. `error`/`warning`
+stay in the plumbing for SARIF and the exit code, and are not what the tool says to a reader.
+
 `docs/brand.md` is the palette, sampled from the logo rather than chosen, with the contrast figure for
 every token and which ones are not allowed to carry text. Anything with a user interface reads it
 first — the tokens are already defined in `packages/rules-explorer/src/styles.css`.

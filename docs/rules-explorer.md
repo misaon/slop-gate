@@ -27,6 +27,15 @@ scale under it, and three semantic colours that only ever appear as rule state. 
 `logo-wide-darkmode-360.webp`, which is the README's logo at web size: 13 kB against the PNG's 169 kB
 for the same pixels.
 
+## Columns
+
+**Impact** and **Reliability** are the two axes in
+[impact-and-reliability.md](impact-and-reliability.md) — what a finding costs, and how often the rule
+is right. Reliability is an em dash for the 920 rules nobody has measured, which is the honest value.
+
+**Options** separates "the rule takes no options" from "it takes options and we use the default" from
+"we tune it" — the last one opens the recorded reason and its measurement.
+
 ## Where the data comes from
 
 - **The catalogue** is `buildRuleCatalogue()` in core — static registry data, no run required.

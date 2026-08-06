@@ -58,6 +58,8 @@ export type RuleEntry = {
   readonly languages: readonly LanguageId[]
   readonly docsUrl: string
   readonly since: string
+  /** The engine accepts options for this rule, so taking its default is a choice rather than the only shape. */
+  readonly hasOptions?: boolean
   readonly deprecated?: { readonly since: string; readonly replacedBy?: string }
 }
 

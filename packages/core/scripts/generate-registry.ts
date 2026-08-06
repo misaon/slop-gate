@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
-import { resolveOxlintBinary } from '@misaon/slop-gate-engine-oxlint'
+import { resolveOxlintBinary, resolveOxlintSchemaPath } from '@misaon/slop-gate-engine-oxlint'
 import type { ConceptDefinition, ConceptGroup, ConceptId } from '../src/concepts/catalogue.ts'
 import { CURATED_CONCEPTS, HAND_WRITTEN_CONCEPTS } from '../src/concepts/catalogue.ts'
 import { compareStrings } from '../src/ordering.ts'
@@ -122,8 +122,33 @@ type GeneratedEntry = {
   readonly recommendedEligible: boolean
 }
 
+/**
+ * Which rules accept options, read from the schema oxlint ships rather than guessed. A rule whose
+ * only shape is a severity cannot be tuned, so `sgate rules` can say "this one is upstream's default
+ * because there is nothing to change" separately from "we chose the default".
+ */
+function readOptionedRules(): ReadonlySet<string> {
+  const schemaPath = resolveOxlintSchemaPath()
+  if (schemaPath === undefined) throw new Error('oxlint could not be resolved, so its option schema cannot be read')
+  const schema = JSON.parse(readFileSync(schemaPath, 'utf8')) as {
+    definitions?: { DummyRuleMap?: { properties?: Record<string, { anyOf?: { type?: string; items?: unknown }[] }> } }
+  }
+  const properties = schema.definitions?.DummyRuleMap?.properties
+  if (properties === undefined) throw new Error(`${schemaPath} has no DummyRuleMap.properties to read options from`)
+
+  const optioned = new Set<string>()
+  for (const [name, spec] of Object.entries(properties)) {
+    // The array form is [severity] with no options, and [severity, config] with them.
+    const asArray = spec.anyOf?.find((branch) => branch.type === 'array')
+    if (Array.isArray(asArray?.items) && asArray.items.length > 1) optioned.add(name)
+  }
+  if (optioned.size === 0) throw new Error(`${schemaPath} declared no rule as taking options, which cannot be right`)
+  return optioned
+}
+
 function buildEntries(catalogue: readonly CatalogueRule[]): readonly GeneratedEntry[] {
   const mechanicalId = disambiguate(catalogue)
+  const optioned = readOptionedRules()
   const RECOMMENDED_CATEGORIES = new Set<OxlintCategory>(['correctness', 'suspicious'])
 
   return catalogue.map((rule) => {
@@ -149,6 +174,7 @@ function buildEntries(catalogue: readonly CatalogueRule[]): readonly GeneratedEn
       languages: languagesFor(rule.scope),
       docsUrl: rule.docs_url,
       since: GENERATED_SINCE,
+      ...(optioned.has(engineRuleId) ? { hasOptions: true as const } : {}),
     }
 
     return {
@@ -221,6 +247,7 @@ function formatRuleEntry(entry: RuleEntry): string {
   lines.push(`    languages: ${formatStringArray(entry.languages)},`)
   lines.push(`    docsUrl: ${quote(entry.docsUrl)},`)
   lines.push(`    since: ${quote(entry.since)},`)
+  if (entry.hasOptions === true) lines.push('    hasOptions: true,')
   lines.push('  },')
   return lines.join('\n')
 }

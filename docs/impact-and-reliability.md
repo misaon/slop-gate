@@ -1,0 +1,90 @@
+# Impact and reliability
+
+slop-gate reports **issues**, and every issue is something to fix. It does not present a finding as
+a "warning" — a category whose only content is that the tool is hedging.
+
+What differs between issues is two things, and they are separate axes because they answer different
+questions and have different answers:
+
+- **Impact 1–3** — what it costs if the finding is real. Shown everywhere, as a bar.
+- **Reliability** — how often the rule is right, measured. Shown as a percentage, or nothing.
+
+`error` / `warning` / `info` still exist in the plumbing, because SARIF, GitHub annotations and
+GitLab code quality all take that enum and the exit code is derived from it. They are not the
+vocabulary of the product.
+
+## Impact
+
+`packages/core/src/registry/impact.ts`
+
+Each level has a test a reader can apply without asking anyone.
+
+| | Label | The test |
+|---|---|---|
+| **▮▮▮ 3** | broken or unsafe | It does not work, or it is a security or data-loss risk, **now**. Does not compile, does not resolve, hands someone your credentials. |
+| **▮▮ 2** | will bite | A real defect with a plausible path to failing — wrong behaviour under some input, a test that cannot fail, a dependency with a published advisory. |
+| **▮ 1** | untidy | No path to failure. A reader or an agent should still fix it, and nothing breaks if they do not. |
+
+Three levels, not five: more buckets means more arguing and less agreement.
+
+Impact starts from the concept's **group**, which is right for most of the 923 rules. Concepts whose
+group is a poor predictor are listed individually with a one-line reason, and an exception without a
+reason does not belong in that list. Current distribution: **621 at 1, 294 at 2, 8 at 3**.
+
+### The gap this exposed
+
+Two concepts are impact 3 and are reported at `warn`, so a bare `sgate check` exits 0 on them:
+
+    security.vulnerable-dependency          a published advisory in your lockfile
+    security.workflow-hardcoded-credential  a credential in a CI workflow
+
+That is not an oversight left in — it is the measurement that justifies the next change. Today's
+`error`/`warn` split is inherited from oxlint's categories (212 of 218 errors are the `correctness`
+group), not designed, which is how a CVE ends up quieter than a redundant backslash in a regex.
+Aligning what gates a build to impact is a breaking change and gets its own release; a test pins the
+list so it cannot grow unnoticed.
+
+## Reliability
+
+`packages/core/src/registry/reliability.ts`
+
+How often the rule is right, from **reading its findings**, never from counting them.
+
+This table is deliberately sparse — 3 rules of 923. **A rule with no entry is unknown, not 100%.**
+Claiming a precision nobody measured is exactly the kind of number this tool exists to distrust, so
+the column shows an em dash and the tooltip says why.
+
+Every entry carries its sample size, where the sample came from, and the engine version it was taken
+against, because a rule's precision moves when the engine does.
+
+| Rule | Measured | From |
+|---|---|---|
+| `oxlint/vitest/valid-title` | **6%** of 174 | Every finding across five corpus repositories, read at its byte range |
+| `oxlint/import/no-unassigned-import` | **0%** of 5 | Both repositories the generated registry was validated against |
+| `actionlint/action` | **10%** of 10 | All findings over a 403-file corpus |
+
+### Why this is not impact
+
+A rule that is wrong most of the time is not "low impact" — it is unreliable, and the answer is to
+fix it or withhold it, not to report it more quietly.
+
+`vitest/valid-title` is that mistake, caught after the fact: it was moved from `error` to `warn`
+because it is right 6% of the time, which encoded *confidence* on the *severity* axis. Under this
+model the 6% is stated where it belongs, and whether the rule belongs in `recommended` at all is a
+separate argument with a number attached to it.
+
+### Where the numbers will come from
+
+Three measurements is a start, not a system. The intent is that a developer can report a finding as
+a false positive and the figure moves on real data, so an unreliable rule becomes visible in the
+table rather than being discovered by whoever next reads 174 findings by hand.
+
+## Options
+
+`hasOptions` on each rule comes from the JSON Schema oxlint ships, so the table can separate two
+things that look identical from outside:
+
+- **`tuned`** — slop-gate sets options, and the reason is recorded with the measurement behind it.
+  4 concepts today.
+- **`default`** — the rule accepts options and slop-gate takes the engine's default. 326 rules.
+- **`—`** — the rule takes no options; the default is the only shape there is. 593 rules.

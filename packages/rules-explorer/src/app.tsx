@@ -1,4 +1,4 @@
-import type { CatalogueStatus } from '@misaon/slop-gate-core'
+import type { CatalogueStatus, Impact } from '@misaon/slop-gate-core'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import logo from '../../../docs/assets/logo-wide-darkmode-360.webp'
 import { Tile, Toggle } from './components/chrome.tsx'
@@ -7,6 +7,7 @@ import { fetchRules, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } fr
 import { useTable } from './use-table.ts'
 
 const STATUSES: readonly CatalogueStatus[] = ['recommended', 'withheld', 'unlisted']
+const IMPACT_LEVELS: readonly Impact[] = [3, 2, 1]
 
 function toggled<T>(set: ReadonlySet<T>, value: T): ReadonlySet<T> {
   const next = new Set(set)
@@ -20,6 +21,7 @@ export function App() {
   const [query, setQuery] = useState('')
   const [engines, setEngines] = useState<ReadonlySet<string>>(new Set())
   const [statuses, setStatuses] = useState<ReadonlySet<CatalogueStatus>>(new Set())
+  const [impacts, setImpacts] = useState<ReadonlySet<Impact>>(new Set())
 
   useEffect(() => {
     fetchRules().then(setState, (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
@@ -31,6 +33,7 @@ export function App() {
     return (rows ?? []).filter((row) => {
       if (engines.size > 0 && !engines.has(row.engine)) return false
       if (statuses.size > 0 && !statuses.has(row.status)) return false
+      if (impacts.size > 0 && !impacts.has(row.impact)) return false
       if (needle === '') return true
       return (
         row.engineRuleId.toLowerCase().includes(needle) ||
@@ -38,7 +41,7 @@ export function App() {
         row.title.toLowerCase().includes(needle)
       )
     })
-  }, [rows, query, engines, statuses])
+  }, [rows, query, engines, statuses, impacts])
 
   const table = useTable(filtered, columns)
 
@@ -49,7 +52,7 @@ export function App() {
     return <main class="mx-auto max-w-2xl p-10 text-ink-500">Loading the catalogue…</main>
   }
 
-  const { summary, history } = state.payload
+  const { summary, history, impacts: definitions } = state.payload
 
   return (
     <main class="mx-auto max-w-[1400px] px-6 py-8">
@@ -78,7 +81,11 @@ export function App() {
         <Tile label="Rules known" value={summary.total} />
         <Tile label="On in recommended" value={summary.byStatus.recommended} tone="text-state-on" />
         <Tile label="Withheld, with a reason" value={summary.byStatus.withheld} tone="text-state-withheld" />
-        <Tile label="Available, not preset" value={summary.byStatus.unlisted} tone="text-ink-300" />
+        <Tile
+          label="Reliability measured"
+          value={`${summary.measured} of ${summary.total}`}
+          tone="text-ink-300"
+        />
       </section>
 
       <section class="mb-4 space-y-3">
@@ -102,6 +109,18 @@ export function App() {
           ))}
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          {IMPACT_LEVELS.map((impact) => (
+            <span key={impact} title={definitions[impact].test}>
+              <Toggle
+                active={impacts.has(impact)}
+                count={summary.byImpact[impact]}
+                onClick={() => setImpacts(toggled(impacts, impact))}
+              >
+                {impact} · {definitions[impact].label}
+              </Toggle>
+            </span>
+          ))}
+          <span class="mx-1 h-5 w-px bg-ink-800" />
           {STATUSES.map((status) => (
             <span key={status} title={STATUS_HELP[status]}>
               <Toggle
