@@ -142,3 +142,12 @@ test('matches the token inside a string literal — a documented cost, not a bug
   const [directive] = parseSuppressions(`const s = "${NEXT_LINE} a.one -- reason"\n`)
   expect(directive?.targets).toEqual(['a.one'])
 })
+
+test('the fast-path guard admits every directive the pattern accepts', () => {
+  // parseSuppressions bails on a source without `sgate-disable`. If a directive spelling ever stops
+  // starting with that, the guard silently stops finding it — so pin the two together.
+  for (const kind of ['disable-next-line', 'disable-line', 'disable-file']) {
+    expect(parseSuppressions(`// sgate-${kind} slop.as-any-cast -- why\n`)).toHaveLength(1)
+  }
+  expect(parseSuppressions('const x = 1\n')).toEqual([])
+})
