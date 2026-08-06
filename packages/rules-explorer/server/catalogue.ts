@@ -16,21 +16,12 @@ export type Payload = {
   readonly history: RuleHistory
 }
 
-/**
- * Polled rather than watched. `fs.watch` saw the first edit and then went deaf: an editor that writes
- * through a temp file and renames — `sed -i` does, and so do most editors — replaces the inode the
- * inotify watch was attached to. A scan of core's 79 source files costs 8 ms, so once a second is
- * free and cannot be detached by a rename.
- */
+// Polled, not watched: an editor that writes through a temp file and renames replaces the inode the
+// inotify watch was attached to, so `fs.watch` sees one edit and then goes deaf.
 const POLL_MS = 1000
 
-/**
- * The catalogue as it is in core's **source**, re-read when that source changes.
- *
- * Reading the build would mean a rule edit shows up only after `pnpm build` and a restart, which for
- * a page whose whole job is to report the current state of the registry is a way of being quietly
- * wrong.
- */
+// Core's source, not its build: a page reporting the registry's current state must not need a rebuild
+// to stop being wrong.
 export function openCatalogue(repoRoot: string) {
   const coreSrc = join(repoRoot, 'packages', 'core', 'src')
   const builder = join(import.meta.dirname, 'build-payload.ts')

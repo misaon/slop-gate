@@ -4,16 +4,9 @@ import type { CheckResult } from '../run/check.ts'
 export const TELEMETRY_SCHEMA_VERSION = 1
 
 /**
- * What a run reports, and nothing else.
- *
- * **Every field here is a count, an enum or a version string.** No path, no message, no source, no
- * package name, no repository, no configuration. That is not a promise in a document — `payload.test.ts`
- * builds this from a run whose findings carry planted secrets and fails if any of them appears in the
- * serialised output, and a new field that is not a number or a known-shaped string fails with it.
- *
- * `project` is a random UUID the CLI writes to `.slop-gate/`. It is not derived from anything: hashing
- * the git remote was considered and rejected, because a repository URL has so little entropy that the
- * hash is reversible by enumeration, which would make the whole table deanonymisable if it ever leaked.
+ * Every field is a count, an enum or a version string — `payload.test.ts` plants secrets in a run and
+ * fails if any reaches the serialised output, so a new field of any other shape fails with it.
+ * What `project` is and is deliberately not derived from: docs/telemetry.md#anonymity.
  */
 export type TelemetryPayload = {
   readonly schema: number

@@ -1,14 +1,7 @@
 export type NotRecommended = {
-  /**
-   * Why the rule is not in `recommended`, in the two or three sentences that stop someone making the
-   * decision again: the headline figure, the conclusion, and any trap in undoing it.
-   */
+  /** The figure, the conclusion, and any trap in undoing it. Length-capped by `not-recommended.test.ts`. */
   readonly reason: string
-  /**
-   * Anchor in `docs/measurements.md` holding the method and the figures — the corpus, the per-repository
-   * breakdown, the verification. Following the convention in AGENTS.md: the source keeps the conclusion,
-   * `measurements.md` keeps the working.
-   */
+  /** Anchor in `docs/measurements.md` holding the method behind `reason`. */
   readonly evidence?: string
 }
 

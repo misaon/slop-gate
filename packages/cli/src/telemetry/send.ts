@@ -1,12 +1,7 @@
 import type { TelemetryPayload } from '@misaon/slop-gate-core'
 
-/**
- * Fire and forget, with a short deadline.
- *
- * A quality gate that got slower, hung, or failed because a telemetry endpoint was down would be a
- * worse tool than one that collects nothing. So: no retry, a hard timeout, every error swallowed, and
- * the caller never waits on the result — the process is allowed to exit with this in flight.
- */
+// No retry, a hard timeout, every error swallowed: a gate that hung because telemetry was down would be
+// a worse tool than one that collects nothing.
 const TIMEOUT_MS = 2000
 const MAX_BYTES = 64 * 1024
 

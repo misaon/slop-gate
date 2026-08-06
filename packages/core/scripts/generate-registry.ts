@@ -288,17 +288,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
 ${body}
 ]
 
-/**
- * \`concept -> level\` for every generated entry whose source rule is \`correctness\` or \`suspicious\`
- * category, not type-aware, and not in \`registry/not-recommended.ts\` — the policy
- * \`packages/core/src/config/presets.ts\` reads to build \`recommended\`. Committed and diffable like
- * everything else this script produces, per decision 5: a rule that starts, stops, or changes
- * category on an oxlint upgrade is a reviewable diff here, not a silent behaviour change.
- *
- * Typed against \`ConceptId\`, not a plain string index, so a key here that is not a real concept —
- * impossible today since every key comes straight off a generated entry's own \`concepts\`, but not
- * impossible for a hand-edit — is a compile error instead of a preset that silently enables nothing.
- */
+/** Keyed by \`ConceptId\` rather than \`string\`, so a hand-edited typo is a compile error and not a preset that enables nothing. */
 export const GENERATED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, 'error' | 'warn'>>> = {
 ${recommendedBody}
 }
@@ -311,20 +301,12 @@ function renderConceptsFile(concepts: readonly ConceptDefinition[]): string {
 import type { ConceptDefinition } from './catalogue.ts'
 
 /**
- * One entry per mechanically-named concept a generated rule entry invents — i.e. every concept
- * \`registry/overrides.ts\` did not already redirect onto an existing hand-written concept.
- * \`title\`/\`description\` are plain factual passthroughs of the source rule (scope, value,
- * category), not curated prose: nobody has read all ${concepts.length} of these, and pretending
- * otherwise would be worse than an honest "this is generated" label.
+ * One entry per mechanically-named concept a generated rule entry invents; \`title\` and
+ * \`description\` are factual passthroughs of the source rule, not curated prose.
  *
- * \`as const satisfies\`, not a plain \`readonly ConceptDefinition[]\` annotation, deliberately — see
- * \`entries.ts\`'s comment on \`RULE_ENTRIES\` for the general reason, and note the sharper one here:
- * \`catalogue.ts\`'s \`ConceptId\` is \`(typeof CONCEPTS)[number]['id']\`, a closed union of every
- * concept's *literal* id string. A plain type annotation would widen every id below to \`string\`
- * before it ever reached \`CONCEPTS\`, collapsing \`ConceptId\` itself to \`string\` and silently
- * erasing concept-id type-checking everywhere it is used — \`registry/overrides.ts\`'s \`concepts?:
- * readonly ConceptId[]\` included, which is the one place a typo here is supposed to be a compile
- * error rather than a rule that silently never joins the concept it was meant to.
+ * \`as const satisfies\` and never a type annotation: \`ConceptId\` is \`(typeof CONCEPTS)[number]['id']\`,
+ * so an annotation widens every id to \`string\` and collapses the union, erasing concept-id checking
+ * everywhere it is used.
  */
 export const GENERATED_CONCEPTS = [
 ${body}

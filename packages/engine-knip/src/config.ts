@@ -27,10 +27,9 @@ const KNIP_DEFAULT_ENTRY: readonly string[] = [
 const IGNORE_DEPENDENCIES = 'ignoreDependencies'
 const ENTRY = 'entry'
 const VITEPRESS_ENTRY = 'vitepress.entry'
-// knip resolves imports itself, so an alias its plugins do not know is an unresolved import — and
-// every export behind it then looks dead. `paths` teaches it the mapping; `ignoreUnresolved` covers
-// the aliases that point inside a framework's own installed package, where no repo-relative target
-// exists to map to. Values are `from\u0000to` pairs, since a setting carries a flat string list.
+// An alias knip's plugins do not know is an unresolved import, and every export behind it then looks
+// dead. `ignoreUnresolved` is for aliases resolving inside a framework's installed package, where
+// there is no repo-relative target. `paths` values are `from\u0000to`, the setting being a flat list.
 const PATHS = 'paths'
 const IGNORE_UNRESOLVED = 'ignoreUnresolved'
 
@@ -103,11 +102,9 @@ export async function mergeWorkspacesIntoConfig(
   adjustments: EngineSettings = [],
 ): Promise<{ include: string[] }> {
   const config = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
-  // A framework may name a workspace the inventory cannot: a Nuxt layer is a directory with its own
-  // `app/`, `server/` and `composables/` and no `package.json`, so `synthesizeKnipWorkspaces` never
-  // sees it. Measured on `nuxt/nuxt.com` — as a workspace of its own a layer's 77 unused-export
-  // findings go to 0, where the same globs on the root workspace left 23. The boundary is what lets
-  // an entry glob reach inside.
+  // A framework may name a workspace the inventory cannot: a Nuxt layer has its own `app/` and
+  // `server/` but no `package.json`, so workspace synthesis never sees it. The boundary, not the
+  // globs, is what lets an entry glob reach inside — docs/measurements.md#framework-profile-gaps.
   const declared = [
     ...new Set([
       ...workspaces,

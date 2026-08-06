@@ -64,11 +64,8 @@ export type CheckResult = {
     enginesRun: number
     durationMs: number
   }
-  /**
-   * Findings that were produced and then dropped, by rule and by who dropped them. An inline
-   * `sgate-disable` and a baseline acceptance are both a human saying "not this one", which is the
-   * only false-positive signal a run can observe without asking.
-   */
+  /** Produced and then dropped, by rule and by who dropped it — the only false-positive signal a run
+   * can observe without asking. */
   dropped: {
     inline: Readonly<Record<string, number>>
     baseline: Readonly<Record<string, number>>
@@ -101,11 +98,8 @@ type AssignmentOutcome = {
   failure?: string
 }
 
-/**
- * Engines are mostly subprocesses that thread internally — oxlint and biome saturate the machine on
- * their own — so this bounds how many compete, it does not try to fill the cores. Half of them, at
- * least two so a slow project-granularity engine (tsc, knip) never blocks the per-file ones.
- */
+// Engines are subprocesses that thread internally, so this bounds contention rather than filling
+// cores. At least two, so a project-granularity engine (tsc, knip) never blocks the per-file ones.
 function engineConcurrency(assignments: number): number {
   const cores = availableParallelism()
   return Math.max(2, Math.min(assignments, Math.floor(cores / 2)))
@@ -222,16 +216,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     }),
   ))
 
-  /**
-   * Engines are independent — different tools, different files, their own caches — but ran one after
-   * another, so a four-core machine sat at 1.3–2.0x CPU:wall. Measured cold: the engine phases sum to
-   * 5,051 ms of immich's 6,993 ms run behind a 1,907 ms longest engine, and 7,780 ms of solid-start's
-   * 8,596 ms behind 3,570 ms.
-   *
-   * Each assignment collects into its own buffer and the buffers are emitted in plan order, so what a
-   * reporter sees is byte-identical to the sequential run. `collected` already held every diagnostic,
-   * so buffering costs no memory that was not already spent.
-   */
+  // Each assignment buffers, and the buffers are emitted in plan order: concurrency must not change a
+  // byte of what a reporter sees.
   const runAssignment = async (assignment: (typeof plan)[number]): Promise<AssignmentOutcome> => {
     const outcome: AssignmentOutcome = { diagnostics: [], cacheHits: [], ran: false }
     const resolved = planned.get(assignment.engineId)

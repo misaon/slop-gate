@@ -2,16 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { neon } from '@neondatabase/serverless'
 
-/**
- * Applies the SQL in `migrations/` with the owner role, once, in order.
- *
- * The owner connection is read from the environment and used *only* here. Runtime uses
- * `TELEMETRY_INGEST_URL`, which can insert into two tables and nothing else.
- *
- * ```
- * pnpm --filter @misaon/slop-gate-telemetry-ingest migrate
- * ```
- */
+// The owner connection is used only here; runtime holds TELEMETRY_INGEST_URL, which can only insert.
 const here = import.meta.dirname
 
 function statementsOf(source: string): string[] {

@@ -14,10 +14,7 @@ const WHY: Readonly<Record<string, string>> = {
   'no-endpoint': 'off — `SLOP_GATE_TELEMETRY_URL` is set to an empty value, which means nowhere',
 }
 
-/**
- * Prints the exact document a run would send. A tool whose argument is that its output can be trusted
- * without checking cannot ask to be trusted about this either — so it shows, rather than describes.
- */
+// Prints the document itself: a tool arguing its output can be trusted must not ask to be believed here.
 export const telemetry = defineCommand({
   meta: { name: 'telemetry', description: 'Show exactly what a run would report, and whether it would' },
   args: {

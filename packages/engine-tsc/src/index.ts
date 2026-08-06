@@ -174,11 +174,8 @@ async function* execute(
     '-p',
     project,
     '--noEmit',
-    // `rootDir` is an *emit* setting, and nothing here emits — but tsc still enforces it while
-    // building the program, so a project that keeps tests outside `rootDir` (the NestJS scaffold:
-    // `rootDir: ./src`, tests in `test/`, `nest build` on a separate tsconfig) failed with one
-    // TS6059 per file and got no type checking at all. Widened to the analysed root, which changes
-    // no diagnostic: a real type error still reports.
+    // `rootDir` is an emit setting and nothing here emits, but tsc enforces it while building the
+    // program: a project with tests outside `rootDir` got one TS6059 per file and no type checking.
     '--rootDir',
     context.rootDir,
     '--pretty',

@@ -3,10 +3,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { telemetryEndpoint } from './endpoint.ts'
 
-/**
- * `DO_NOT_TRACK` is the cross-tool convention and is honoured first, so someone who has already
- * expressed the preference once does not have to learn ours.
- */
+// `DO_NOT_TRACK` is the cross-tool convention and wins, so the preference need only be stated once.
 const OFF_VALUES = new Set(['0', 'false', 'off', 'no'])
 const ON_VALUES = new Set(['1', 'true', 'on', 'yes'])
 
@@ -33,11 +30,7 @@ export function telemetryDisabled(env: Readonly<Record<string, string | undefine
   return null
 }
 
-/**
- * The project id is a random UUID written next to the cache. It is deliberately not derived from the
- * repository: a git remote has so little entropy that a hash of it is reversible by enumeration, and
- * a table keyed on that would be deanonymisable if it ever leaked.
- */
+// A random UUID, never derived from the repository: docs/telemetry.md#anonymity.
 async function projectId(stateDir: string): Promise<string | null> {
   const path = join(stateDir, 'project-id')
   const existing = await readFile(path, 'utf8').catch(() => null)

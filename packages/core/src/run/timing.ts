@@ -13,11 +13,8 @@ export type TimingReport = {
   startupMs: number
   phases: readonly MeasuredPhase[]
   unattributedMs: number
-  /**
-   * Wall clock with at least one phase in flight. Engines run concurrently, so the phases overlap
-   * and their durations sum above this — `startupMs + busyMs + unattributedMs` is the run, the sum
-   * of the phases is not.
-   */
+  /** Wall clock with a phase in flight. Engines overlap, so the run is `startupMs + busyMs +
+   * unattributedMs` and never the sum of the phases. */
   busyMs: number
   rules: readonly RuleFindings[]
 }

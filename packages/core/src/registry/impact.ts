@@ -1,13 +1,7 @@
 import type { ConceptGroup } from '../concepts/catalogue.ts'
 
-/**
- * How much a finding costs if it is real. Not how confident we are that it is — that is
- * `reliability.ts`, and conflating the two is how a rule that is wrong 94% of the time ends up
- * merely "less severe" instead of switched off.
- *
- * Three levels, because more means more arguing and less agreement. Each has a test a reader can
- * apply without asking anyone: does it break now, will it break later, or is it just untidy?
- */
+// What a finding costs if real, never how likely it is to be real — that is `reliability.ts`, and
+// conflating them is how a rule that is wrong 94% of the time becomes "less severe" instead of off.
 export type Impact = 1 | 2 | 3
 
 export type ImpactDefinition = {
@@ -30,10 +24,7 @@ export const IMPACTS: Readonly<Record<Impact, ImpactDefinition>> = {
   },
 }
 
-/**
- * The starting point for a group. Most rules never need more than this; the exceptions below are
- * where the group is a poor predictor and someone had to decide.
- */
+// The default for a group; the exceptions below are where the group predicts badly.
 const GROUP_IMPACT: Readonly<Record<ConceptGroup, Impact>> = {
   security: 3,
   types: 3,
@@ -55,11 +46,7 @@ const GROUP_IMPACT: Readonly<Record<ConceptGroup, Impact>> = {
   nursery: 1,
 }
 
-/**
- * Concepts whose group is wrong about them, and only those. Each is a claim someone can argue with:
- * the group default is the rule, this is the exception, and an exception with no reason should not
- * be here.
- */
+// Only concepts their group is wrong about. An exception with no stated reason does not belong here.
 const CONCEPT_IMPACT: Readonly<Record<string, Impact>> = {
   // The file did not parse, so nothing else about it was checked.
   'correctness.parse-error': 3,

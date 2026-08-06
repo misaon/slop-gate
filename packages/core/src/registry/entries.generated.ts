@@ -12198,17 +12198,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   },
 ]
 
-/**
- * `concept -> level` for every generated entry whose source rule is `correctness` or `suspicious`
- * category, not type-aware, and not in `registry/not-recommended.ts` — the policy
- * `packages/core/src/config/presets.ts` reads to build `recommended`. Committed and diffable like
- * everything else this script produces, per decision 5: a rule that starts, stops, or changes
- * category on an oxlint upgrade is a reviewable diff here, not a silent behaviour change.
- *
- * Typed against `ConceptId`, not a plain string index, so a key here that is not a real concept —
- * impossible today since every key comes straight off a generated entry's own `concepts`, but not
- * impossible for a hand-edit — is a compile error instead of a preset that silently enables nothing.
- */
+/** Keyed by `ConceptId` rather than `string`, so a hand-edited typo is a compile error and not a preset that enables nothing. */
 export const GENERATED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, 'error' | 'warn'>>> = {
   'correctness.alt-text': 'error',
   'correctness.ambiguous-line-break': 'warn',

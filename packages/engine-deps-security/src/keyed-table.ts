@@ -2,11 +2,9 @@ import { open } from 'node:fs/promises'
 import type { AdvisoryRecord, AdvisoryTable } from './advisory.ts'
 
 /**
- * The malware table is 218,718 packages and 42 MB, and a run looks up a few thousand names in it.
- * Parsing all of it to answer those cost 585 ms and 200 MB of heap on every run of every repository.
- * This is the same table sorted by name, with the records left on disk until a name matches.
+ * The on-disk layout — see docs/measurements.md#keyed-table for why it exists.
  *
- * `.idx` is read whole and never decoded to a string:
+ * `.idx`, read whole and never decoded to a string:
  *
  *     u32          magic
  *     u32          count
@@ -14,7 +12,7 @@ import type { AdvisoryRecord, AdvisoryTable } from './advisory.ts'
  *     u32[count+1] recordStart, into the `.rec` file; the extra entry is that file's length
  *     bytes        every name concatenated in sort order, no separators — the offsets delimit them
  *
- * `.rec` is the records of each name as JSON, concatenated in the same order, read positionally.
+ * `.rec`, read positionally: each name's records as JSON, concatenated in the same order.
  */
 const KEYED_TABLE_MAGIC = 0x53474d49
 

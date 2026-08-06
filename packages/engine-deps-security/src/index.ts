@@ -216,10 +216,7 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
   })
 }
 
-/**
- * Only the installed names are resolved out of the malware table. Reading all 218,718 of them cost
- * 585 ms and 200 MB of heap on every run of every repository, to answer a few thousand lookups.
- */
+// Only the installed names are resolved out of the table: docs/measurements.md#keyed-table.
 async function maliciousFor(directory: string, parsed: ParsedLockfile): Promise<AdvisoryTable> {
   const indexPath = join(directory, MALICIOUS_INDEX_FILE)
   const index = await readFile(indexPath).catch((error: unknown) => {

@@ -1,17 +1,9 @@
 import { join, resolve } from 'node:path'
 import { buildRuleHistory, type RuleHistory } from '../scripts/history.ts'
 
-/**
- * Builds the payload and writes it to stdout as JSON.
- *
- * A separate process on purpose. ESM has no cache eviction and busting the entry's specifier does not
- * re-evaluate its imports, so an in-process reload returns the registry as it was at boot — measured:
- * the generation counter moved and the value did not. A fresh process is the only way to be sure the
- * answer is the source on disk right now.
- *
- * It also contains the failure. Source being edited does not always parse, and a child that exits
- * non-zero leaves the server serving the last good payload instead of dying mid-keystroke.
- */
+// A separate process because ESM has no cache eviction: busting the entry specifier does not
+// re-evaluate its imports, so an in-process reload returns the registry as it was at boot. It also
+// contains a parse failure mid-keystroke, leaving the server on the last good payload.
 const repoRoot = resolve(import.meta.dirname, '../../..')
 
 const core = (await import(join(repoRoot, 'packages', 'core', 'src', 'index.ts'))) as typeof import('@misaon/slop-gate-core')

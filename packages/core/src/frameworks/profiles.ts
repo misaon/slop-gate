@@ -323,10 +323,8 @@ const nextjs = defineProfile<NextJsLayout>({
     const declaring = context.manifests.filter((manifest) =>
       manifest.dependencies.some((dependency) => dependency.name === 'next'),
     )
-    // No `next` anywhere: the whole scope goes off, with no evidence, the way `test-framework`
-    // does. Every rule in it resolves to "import from `next/…` instead", and a repository without
-    // Next.js cannot follow that. Measured on `remix-run/indie-stack`, a Remix app: three
-    // `no-img-element` findings telling it to use `next/image`.
+    // No `next` anywhere turns the scope off: every rule in it says "import from `next/…` instead",
+    // which a repository without Next.js cannot do.
     if (declaring.length === 0) return { evidence: [], parameters: { appRoots: [], outside: ['**'] } }
 
     const dependency = dependencyEvidence(context, ['next'])!
@@ -479,22 +477,7 @@ const NUXT_CONFIG = /(^|\/)nuxt\.config\.[cm]?[jt]s$/
 // Nuxt's own directory conventions, per layer. knip's plugin applies them to the srcDir only.
 type NuxtLayout = { readonly layers: readonly string[] }
 
-/**
- * knip ships a real Nuxt plugin and it handles the standard layout — auto-imports included. Two
- * things it does not reach, both measured on `nuxt/nuxt.com` with dependencies installed:
- *
- * - **`#shared/*` and `#app`.** 14 `deps.unresolved-import` at `error`, every one of them one of
- *   these. The plugin ignores `#build/`, `#components`, `#imports`, `#internal/` and
- *   `#spa-template` and no others (6.31.0). `#shared` maps to a real directory, so it is taught as
- *   a path; `#app` resolves inside Nuxt's installed package, so there is nothing repo-relative to
- *   map it to and it is ignored instead.
- * **Layers are detected and deliberately not acted on.** `extends: ['./layers/nuxi']` gives each
- * layer its own `composables/`, `pages/` and `server/`, and the plugin resolves those against the
- * srcDir — 63 of the repository's 67 `dead-code.unused-export` findings were inside `layers/`. An
- * `entry` contribution naming those directories was tried and measured: **61 of 63 remained**, so it
- * is not shipped. Whatever reaches that case is not a root-workspace entry glob, and a contribution
- * that changes nothing but carries a confident reason is worse than none.
- */
+// Layers are detected and deliberately not acted on: docs/measurements.md#framework-profile-gaps.
 const nuxt = defineProfile<NuxtLayout>({
   id: 'nuxt',
   summary: 'Nuxt — the aliases and layer directories knip’s own plugin does not resolve',
@@ -545,12 +528,6 @@ const nuxt = defineProfile<NuxtLayout>({
   ],
 })
 
-/**
- * Firebase Functions are loaded by the platform from a path, so no import graph reaches them —
- * measured on a real service as five `functions/src/handlers/*.ts` reported as an unused default
- * export. knip 6.31.0 ships no firebase plugin (checked against its plugin list), so this is a
- * plain `entry` contribution, scoped to the workspace that declares the dependency.
- */
 const firebaseFunctions = defineProfile<readonly string[]>({
   id: 'firebase-functions',
   summary: 'Firebase Functions — handlers the platform loads by path, imported by nothing',

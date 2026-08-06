@@ -27,11 +27,7 @@ app.get('/api/rules', async (context) => context.json(await catalogue.get()))
 
 app.get('/api/health', (context) => context.json({ ok: true, generation: catalogue.generation() }))
 
-/**
- * The page subscribes here and refetches when the registry source changes, so an edit to a rule is
- * on screen without anyone reloading. A heartbeat keeps the connection through the idle timeouts
- * proxies and browsers apply to a stream that says nothing for minutes.
- */
+// The heartbeat is not decoration: proxies and browsers drop a stream that says nothing for minutes.
 app.get('/api/changes', (context) =>
   streamSSE(context, async (stream) => {
     const unsubscribe = catalogue.onChange((generation) => {
