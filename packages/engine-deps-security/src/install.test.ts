@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AdvisoryInstallError, installAdvisorySnapshot, writeAdvisorySnapshot } from './install.ts'
 import {
@@ -17,7 +16,7 @@ import {
 import { openKeyedTable } from './keyed-table.ts'
 import type { AdvisoryTable } from './advisory.ts'
 
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const fixtures = join(import.meta.dirname, 'fixtures')
 
 const sample = new Uint8Array(readFileSync(join(fixtures, 'osv-sample.zip')))
 const maliciousOnly = new Uint8Array(readFileSync(join(fixtures, 'osv-malicious-only.zip')))

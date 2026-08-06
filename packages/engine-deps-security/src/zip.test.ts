@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ZipFormatError, readZipEntries } from './zip.ts'
 
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const fixtures = join(import.meta.dirname, 'fixtures')
 const load = (name: string) => new Uint8Array(readFileSync(join(fixtures, name)))
 const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
 

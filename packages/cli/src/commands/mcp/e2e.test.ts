@@ -1,12 +1,11 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 
-const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'bin', 'sgate.js')
+const CLI = join(import.meta.dirname, '..', '..', '..', 'bin', 'sgate.js')
 
 const REVISION = '2026-07-28'
 

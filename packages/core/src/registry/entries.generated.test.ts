@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { CURATED_CONCEPTS, HAND_WRITTEN_CONCEPTS, isConceptId } from '../concepts/catalogue.ts'
 import { LANGUAGES } from '../languages.ts'
@@ -119,7 +118,7 @@ test('every generated-recommended concept is actually claimed by some generated 
   }
 })
 
-const CORE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const CORE_ROOT = join(import.meta.dirname, '../..')
 
 test('regenerating from the live oxlint catalogue produces no drift (the CI freshness check)', () => {
   const output = execFileSync('node', ['scripts/generate-registry.ts', '--check'], {

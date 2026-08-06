@@ -1,12 +1,11 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { detectLanguage, type InventoryFile, type RawDiagnostic, type RunContext } from '@misaon/slop-gate-core'
 import { SCHEMA_RULE_IDS, createSchemaEngine } from './index.ts'
 
-const FIXTURES = dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures')
+const FIXTURES = import.meta.dirname.replace(/src$/, 'fixtures')
 const MARKER = 'SGATE_HIT'
 
 const CASES: readonly { engineRuleId: string; file: string; polarity: 'positive' | 'negative' }[] = [

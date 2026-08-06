@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { access, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, parse as parsePath } from 'node:path'
+import { setImmediate as yieldToPending } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 import { ConfigError } from '../errors.ts'
 import { nearestName } from '../nearest-name.ts'
@@ -160,9 +161,7 @@ export async function suppressModuleTypelessPackageJsonWarning<T>(fn: () => Prom
   try {
     return await fn()
   } finally {
-    await new Promise<void>((resolve) => {
-      setImmediate(resolve)
-    })
+    await yieldToPending()
     suppressionDepth--
     if (suppressionDepth === 0) {
       process.removeAllListeners('warning')

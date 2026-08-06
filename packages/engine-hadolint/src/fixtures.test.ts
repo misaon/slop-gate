@@ -1,12 +1,11 @@
 import { cp, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import type { EngineRuleSelection, InventoryFile, RawDiagnostic, RunContext } from '@misaon/slop-gate-core'
 import { HADOLINT_RULE_IDS, createHadolintEngine, resolveHadolintBinary } from './index.ts'
 
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures'), 'tree')
+const FIXTURES = join(import.meta.dirname.replace(/src$/, 'fixtures'), 'tree')
 const installed = resolveHadolintBinary()
 const noBinary = installed === undefined
 

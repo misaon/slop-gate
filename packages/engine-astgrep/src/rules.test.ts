@@ -1,11 +1,10 @@
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { RULE_ENTRIES, conceptById, isConceptId, PRESETS } from '@misaon/slop-gate-core'
 import { ASTGREP_RULES, LANGUAGE_COVERAGE, astGrepRuleById } from './rules.ts'
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..')
 const ASTGREP_ENTRIES = RULE_ENTRIES.filter((entry) => entry.engine === 'astgrep')
 
 test('the registry and this package describe the same set of rules', () => {

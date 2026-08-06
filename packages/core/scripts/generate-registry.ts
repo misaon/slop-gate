@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolveOxlintBinary, resolveOxlintSchemaPath } from '@misaon/slop-gate-engine-oxlint'
 import type { ConceptDefinition, ConceptGroup, ConceptId } from '../src/concepts/catalogue.ts'
@@ -13,7 +12,7 @@ import type { FixDomain, RuleEntry } from '../src/registry/types.ts'
 import { capToUpstream } from '../src/registry/upstream-severity.ts'
 import type { LanguageId } from '../src/languages.ts'
 
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
+const SCRIPT_DIR = import.meta.dirname
 const ENTRIES_OUT = join(SCRIPT_DIR, '../src/registry/entries.generated.ts')
 const CONCEPTS_OUT = join(SCRIPT_DIR, '../src/concepts/concepts.generated.ts')
 

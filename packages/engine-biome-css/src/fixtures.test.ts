@@ -1,12 +1,11 @@
 import { cp, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import type { InventoryFile, RawDiagnostic, RunContext } from '@misaon/slop-gate-core'
 import { BIOME_CSS_RULES, CSS_PARSE_ERROR_RULE_ID, FOREIGN_SUPPRESSION_RULE_ID, createBiomeCssEngine } from './index.ts'
 
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures'), 'tree')
+const FIXTURES = join(import.meta.dirname.replace(/src$/, 'fixtures'), 'tree')
 const MARKER = '/* HIT */'
 
 const EXCLUDED_FROM_RECOMMENDED = new Set([

@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { EngineError, type Engine, type EngineRuleSetting, type RawDiagnostic, type RunContext } from '@misaon/slop-gate-core'
 import type { AdvisoryTable } from './advisory.ts'
@@ -11,7 +10,7 @@ import { writeAdvisorySnapshot } from './install.ts'
 import { DEPS_SECURITY_RULES, type DepsSecurityRuleId } from './rules.ts'
 import { INSTALL_COMMAND, SNAPSHOT_FORMAT_VERSION } from './snapshot.ts'
 
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const fixtures = join(import.meta.dirname, 'fixtures')
 const vulnerable = JSON.parse(readFileSync(join(fixtures, 'advisories.vulnerable.json'), 'utf8')) as AdvisoryTable
 const malicious = JSON.parse(readFileSync(join(fixtures, 'advisories.malicious.json'), 'utf8')) as AdvisoryTable
 
