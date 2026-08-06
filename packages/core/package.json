@@ -44,12 +44,12 @@
     "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
-    "ignore": "^7.0.6",
-    "oxc-transform": "^0.142.0",
-    "picomatch": "^4.0.5",
-    "yaml": "^2.9.0"
+    "ignore": "catalog:",
+    "oxc-transform": "catalog:",
+    "picomatch": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
-    "@types/picomatch": "^4.0.3"
+    "@types/picomatch": "catalog:"
   }
 }

@@ -4,21 +4,142 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@ast-grep/cli':
+      specifier: 0.45.0
+      version: 0.45.0
+    '@biomejs/biome':
+      specifier: 2.5.6
+      version: 2.5.6
+    '@changesets/changelog-github':
+      specifier: 0.7.0
+      version: 0.7.0
+    '@changesets/cli':
+      specifier: 2.31.1
+      version: 2.31.1
+    '@commitlint/cli':
+      specifier: 21.2.1
+      version: 21.2.1
+    '@commitlint/config-conventional':
+      specifier: 21.2.0
+      version: 21.2.0
+    '@hono/node-server':
+      specifier: ^2.1.0
+      version: 2.1.0
+    '@modelcontextprotocol/client':
+      specifier: ^2.0.0
+      version: 2.0.0
+    '@modelcontextprotocol/server':
+      specifier: ^2.0.0
+      version: 2.0.0
+    '@neondatabase/serverless':
+      specifier: ^1.0.2
+      version: 1.1.0
+    '@preact/preset-vite':
+      specifier: ^2.10.6
+      version: 2.10.6
+    '@tailwindcss/vite':
+      specifier: ^4.1.0
+      version: 4.3.3
+    '@tanstack/table-core':
+      specifier: ^9.0.0
+      version: 9.0.0
+    '@types/node':
+      specifier: ^24.0.0
+      version: 24.13.3
+    '@types/picomatch':
+      specifier: ^4.0.3
+      version: 4.0.3
+    '@types/semver':
+      specifier: ^7.7.1
+      version: 7.8.0
+    ajv:
+      specifier: ^8.20.0
+      version: 8.20.0
+    ajv-formats:
+      specifier: ^3.0.1
+      version: 3.0.1
+    citty:
+      specifier: ^0.2.0
+      version: 0.2.2
+    hono:
+      specifier: ^4.9.0
+      version: 4.13.0
+    ignore:
+      specifier: ^7.0.6
+      version: 7.0.6
+    knip:
+      specifier: 6.31.0
+      version: 6.31.0
+    lucide-preact:
+      specifier: ^1.28.0
+      version: 1.28.0
+    motion:
+      specifier: ^13.0.0
+      version: 13.0.0
+    oxc-transform:
+      specifier: ^0.142.0
+      version: 0.142.0
+    oxfmt:
+      specifier: 0.62.0
+      version: 0.62.0
+    oxlint:
+      specifier: 1.76.0
+      version: 1.76.0
+    picomatch:
+      specifier: ^4.0.5
+      version: 4.0.5
+    preact:
+      specifier: ^10.27.0
+      version: 10.29.8
+    semver:
+      specifier: ^7.8.5
+      version: 7.8.5
+    tailwindcss:
+      specifier: ^4.1.0
+      version: 4.3.3
+    tsdown:
+      specifier: ^0.22.14
+      version: 0.22.14
+    turbo:
+      specifier: ^2.10.8
+      version: 2.10.8
+    typescript:
+      specifier: ^7.0.2
+      version: 7.0.2
+    vite:
+      specifier: ^8.2.0
+      version: 8.2.0
+    vitest:
+      specifier: ^4.1.10
+      version: 4.1.10
+    yaml:
+      specifier: ^2.9.0
+      version: 2.9.0
+    zod:
+      specifier: ^4.4.3
+      version: 4.4.3
+  typescript5:
+    typescript:
+      specifier: 5.9.3
+      version: 5.9.3
+
 importers:
 
   .:
     devDependencies:
       '@changesets/changelog-github':
-        specifier: 0.7.0
+        specifier: 'catalog:'
         version: 0.7.0
       '@changesets/cli':
-        specifier: 2.31.1
+        specifier: 'catalog:'
         version: 2.31.1(@types/node@24.13.3)
       '@commitlint/cli':
-        specifier: 21.2.1
+        specifier: 'catalog:'
         version: 21.2.1(@types/node@24.13.3)(conventional-commits-parser@7.1.2)(typescript@7.0.2)
       '@commitlint/config-conventional':
-        specifier: 21.2.0
+        specifier: 'catalog:'
         version: 21.2.0
       '@misaon/slop-gate':
         specifier: workspace:*
@@ -27,19 +148,19 @@ importers:
         specifier: workspace:*
         version: link:packages/engine-oxlint
       '@types/node':
-        specifier: ^24.0.0
+        specifier: 'catalog:'
         version: 24.13.3
       tsdown:
-        specifier: ^0.22.14
+        specifier: 'catalog:'
         version: 0.22.14(oxc-resolver@11.24.2)(typescript@7.0.2)
       turbo:
-        specifier: ^2.10.8
+        specifier: 'catalog:'
         version: 2.10.8
       typescript:
-        specifier: ^7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
       vitest:
-        specifier: ^4.1.10
+        specifier: 'catalog:'
         version: 4.1.10(@types/node@24.13.3)(vite@8.2.0(@types/node@24.13.3)(jiti@2.7.0)(yaml@2.9.0))
 
   apps/telemetry-ingest:
@@ -48,11 +169,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       '@neondatabase/serverless':
-        specifier: ^1.0.2
+        specifier: 'catalog:'
         version: 1.1.0
     devDependencies:
       typescript:
-        specifier: 5.9.3
+        specifier: catalog:typescript5
         version: 5.9.3
 
   packages/cli:
@@ -94,36 +215,36 @@ importers:
         specifier: workspace:*
         version: link:../reporters
       '@modelcontextprotocol/server':
-        specifier: ^2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
       citty:
-        specifier: ^0.2.0
+        specifier: 'catalog:'
         version: 0.2.2
       zod:
-        specifier: ^4.4.3
+        specifier: 'catalog:'
         version: 4.4.3
     devDependencies:
       '@modelcontextprotocol/client':
-        specifier: ^2.0.0
+        specifier: 'catalog:'
         version: 2.0.0
 
   packages/core:
     dependencies:
       ignore:
-        specifier: ^7.0.6
+        specifier: 'catalog:'
         version: 7.0.6
       oxc-transform:
-        specifier: ^0.142.0
+        specifier: 'catalog:'
         version: 0.142.0
       picomatch:
-        specifier: ^4.0.5
+        specifier: 'catalog:'
         version: 4.0.5
       yaml:
-        specifier: ^2.9.0
+        specifier: 'catalog:'
         version: 2.9.0
     devDependencies:
       '@types/picomatch':
-        specifier: ^4.0.3
+        specifier: 'catalog:'
         version: 4.0.3
 
   packages/engine-actionlint:
@@ -135,7 +256,7 @@ importers:
   packages/engine-astgrep:
     dependencies:
       '@ast-grep/cli':
-        specifier: 0.45.0
+        specifier: 'catalog:'
         version: 0.45.0
       '@misaon/slop-gate-core':
         specifier: workspace:*
@@ -144,7 +265,7 @@ importers:
   packages/engine-biome-css:
     dependencies:
       '@biomejs/biome':
-        specifier: 2.5.6
+        specifier: 'catalog:'
         version: 2.5.6
       '@misaon/slop-gate-core':
         specifier: workspace:*
@@ -156,14 +277,14 @@ importers:
         specifier: workspace:*
         version: link:../core
       semver:
-        specifier: ^7.8.5
+        specifier: 'catalog:'
         version: 7.8.5
       yaml:
-        specifier: ^2.9.0
+        specifier: 'catalog:'
         version: 2.9.0
     devDependencies:
       '@types/semver':
-        specifier: ^7.7.1
+        specifier: 'catalog:'
         version: 7.8.0
 
   packages/engine-hadolint:
@@ -178,7 +299,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       knip:
-        specifier: 6.31.0
+        specifier: 'catalog:'
         version: 6.31.0
 
   packages/engine-oxfmt:
@@ -187,7 +308,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       oxfmt:
-        specifier: 0.62.0
+        specifier: 'catalog:'
         version: 0.62.0
 
   packages/engine-oxlint:
@@ -196,7 +317,7 @@ importers:
         specifier: workspace:*
         version: link:../core
       oxlint:
-        specifier: 1.76.0
+        specifier: 'catalog:'
         version: 1.76.0
 
   packages/engine-schema:
@@ -205,13 +326,13 @@ importers:
         specifier: workspace:*
         version: link:../core
       ajv:
-        specifier: ^8.20.0
+        specifier: 'catalog:'
         version: 8.20.0
       ajv-formats:
-        specifier: ^3.0.1
+        specifier: 'catalog:'
         version: 3.0.1(ajv@8.20.0)
       yaml:
-        specifier: ^2.9.0
+        specifier: 'catalog:'
         version: 2.9.0
 
   packages/engine-tsc:
@@ -221,7 +342,7 @@ importers:
         version: link:../core
     devDependencies:
       typescript:
-        specifier: ^7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
 
   packages/reporters:
@@ -233,38 +354,38 @@ importers:
   packages/rules-explorer:
     dependencies:
       '@hono/node-server':
-        specifier: ^2.1.0
+        specifier: 'catalog:'
         version: 2.1.0(hono@4.13.0)
       '@misaon/slop-gate-core':
         specifier: workspace:*
         version: link:../core
       '@tanstack/table-core':
-        specifier: ^9.0.0
+        specifier: 'catalog:'
         version: 9.0.0
       hono:
-        specifier: ^4.9.0
+        specifier: 'catalog:'
         version: 4.13.0
       lucide-preact:
-        specifier: ^1.28.0
+        specifier: 'catalog:'
         version: 1.28.0(preact@10.29.8)
       motion:
-        specifier: ^13.0.0
+        specifier: 'catalog:'
         version: 13.0.0
       preact:
-        specifier: ^10.27.0
+        specifier: 'catalog:'
         version: 10.29.8
     devDependencies:
       '@preact/preset-vite':
-        specifier: ^2.10.6
+        specifier: 'catalog:'
         version: 2.10.6(@babel/core@7.29.7)(preact@10.29.8)(vite@8.2.0(@types/node@24.13.3)(jiti@2.7.0)(yaml@2.9.0))
       '@tailwindcss/vite':
-        specifier: ^4.1.0
+        specifier: 'catalog:'
         version: 4.3.3(vite@8.2.0(@types/node@24.13.3)(jiti@2.7.0)(yaml@2.9.0))
       tailwindcss:
-        specifier: ^4.1.0
+        specifier: 'catalog:'
         version: 4.3.3
       vite:
-        specifier: ^8.2.0
+        specifier: 'catalog:'
         version: 8.2.0(@types/node@24.13.3)(jiti@2.7.0)(yaml@2.9.0)
 
 packages:

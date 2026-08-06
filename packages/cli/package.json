@@ -65,11 +65,11 @@
     "@misaon/slop-gate-engine-schema": "workspace:*",
     "@misaon/slop-gate-engine-tsc": "workspace:*",
     "@misaon/slop-gate-reporters": "workspace:*",
-    "@modelcontextprotocol/server": "^2.0.0",
-    "citty": "^0.2.0",
-    "zod": "^4.4.3"
+    "@modelcontextprotocol/server": "catalog:",
+    "citty": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.0.0"
+    "@modelcontextprotocol/client": "catalog:"
   }
 }

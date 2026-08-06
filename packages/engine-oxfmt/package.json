@@ -43,6 +43,6 @@
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
-    "oxfmt": "0.62.0"
+    "oxfmt": "catalog:"
   }
 }

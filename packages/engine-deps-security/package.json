@@ -43,10 +43,10 @@
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
-    "semver": "^7.8.5",
-    "yaml": "^2.9.0"
+    "semver": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
-    "@types/semver": "^7.7.1"
+    "@types/semver": "catalog:"
   }
 }

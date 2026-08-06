@@ -45,8 +45,8 @@
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
-    "yaml": "^2.9.0"
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
+    "yaml": "catalog:"
   }
 }
