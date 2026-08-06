@@ -2,9 +2,9 @@ import type { ComponentChildren } from 'preact'
 import type { CatalogueStatus } from '@misaon/slop-gate-core'
 
 const STATUS_CLASS: Readonly<Record<CatalogueStatus, string>> = {
-  recommended: 'bg-on/12 text-on ring-on/25',
-  withheld: 'bg-withheld/12 text-withheld ring-withheld/25',
-  unlisted: 'bg-ink-800 text-ink-300 ring-ink-700',
+  recommended: 'bg-state-on/12 text-state-on ring-state-on/25',
+  withheld: 'bg-state-withheld/12 text-state-withheld ring-state-withheld/25',
+  unlisted: 'bg-ink-850 text-ink-300 ring-ink-800',
 }
 
 export function StatusPill({ status, label }: { status: CatalogueStatus; label: string }) {
@@ -40,7 +40,9 @@ export function Toggle({
       type="button"
       onClick={onClick}
       class={`rounded-lg px-2.5 py-1 text-sm ring-1 transition-colors ${
-        active ? 'bg-brand/15 text-ink-100 ring-brand/40' : 'bg-ink-900 text-ink-300 ring-ink-800 hover:bg-ink-850'
+        active
+          ? 'bg-brand/15 text-brand ring-brand/40'
+          : 'bg-ink-900 text-ink-300 ring-ink-800 hover:bg-ink-850 hover:text-ink-100'
       }`}
     >
       {children}

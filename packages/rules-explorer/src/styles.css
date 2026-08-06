@@ -1,30 +1,36 @@
 @import 'tailwindcss';
 
+/* Sampled from docs/assets/logo.png. The palette, its contrast figures and the rules for using it
+   are in docs/brand.md — change them there first. */
 @theme {
-  --color-ink-950: oklch(0.16 0.012 275);
-  --color-ink-900: oklch(0.2 0.014 275);
-  --color-ink-850: oklch(0.24 0.015 275);
-  --color-ink-800: oklch(0.29 0.016 275);
-  --color-ink-700: oklch(0.38 0.018 275);
-  --color-ink-500: oklch(0.6 0.02 275);
-  --color-ink-300: oklch(0.78 0.015 275);
-  --color-ink-100: oklch(0.94 0.008 275);
+  --color-brand: oklch(0.77 0.171 65.8);
+  --color-brand-deep: oklch(0.682 0.201 42.8);
+  --color-cream: oklch(0.991 0.003 84.6);
 
-  --color-brand: oklch(0.68 0.19 285);
-  --color-on: oklch(0.72 0.16 155);
-  --color-withheld: oklch(0.76 0.15 75);
-  --color-off: oklch(0.62 0.02 275);
+  --color-ink-950: oklch(0.155 0.006 70);
+  --color-ink-900: oklch(0.2 0.007 70);
+  --color-ink-850: oklch(0.24 0.008 70);
+  --color-ink-800: oklch(0.29 0.009 70);
+  --color-ink-700: oklch(0.4 0.01 70);
+  --color-ink-500: oklch(0.62 0.012 70);
+  --color-ink-300: oklch(0.8 0.01 70);
+  --color-ink-100: oklch(0.955 0.005 84.6);
+
+  --color-state-on: oklch(0.76 0.15 155);
+  --color-state-withheld: var(--color-brand-deep);
+  --color-severity-error: oklch(0.7 0.17 25);
+  --color-severity-warn: var(--color-brand);
 }
 
 html {
   color-scheme: dark;
-  scrollbar-color: var(--color-ink-700) transparent;
+  scrollbar-color: var(--color-ink-800) transparent;
 }
 
 body {
   margin: 0;
   background: var(--color-ink-950);
-  color: var(--color-ink-100);
+  color: var(--color-ink-300);
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-feature-settings: 'cv05', 'ss01';
 }
@@ -32,6 +38,11 @@ body {
 code,
 .mono {
   font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+}
+
+/* The one place the two brand stops appear together, echoing the hexagon's gradient. */
+.brand-rule {
+  background: linear-gradient(90deg, var(--color-brand) 0%, var(--color-brand-deep) 38%, transparent 100%);
 }
 
 /* The table is wide and long; keep its head visible without a fixed layout. */

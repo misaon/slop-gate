@@ -1,5 +1,6 @@
 import type { CatalogueStatus } from '@misaon/slop-gate-core'
 import { useEffect, useMemo, useState } from 'preact/hooks'
+import logo from '../../../docs/assets/logo-wide-darkmode-360.webp'
 import { Tile, Toggle } from './components/chrome.tsx'
 import { columns, RulesTable } from './components/rules-table.tsx'
 import { fetchRules, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
@@ -42,7 +43,7 @@ export function App() {
   const table = useTable(filtered, columns)
 
   if (error !== null) {
-    return <main class="mx-auto max-w-2xl p-10 text-red-400">Could not load the catalogue: {error}</main>
+    return <main class="mx-auto max-w-2xl p-10 text-severity-error">Could not load the catalogue: {error}</main>
   }
   if (state === null) {
     return <main class="mx-auto max-w-2xl p-10 text-ink-500">Loading the catalogue…</main>
@@ -52,27 +53,31 @@ export function App() {
 
   return (
     <main class="mx-auto max-w-[1400px] px-6 py-8">
-      <header class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-tight">
-            slop-gate <span class="text-ink-500">rules</span>
-          </h1>
-          <p class="mt-1 text-sm text-ink-500">
-            Every rule the registry knows about, whether a preset turns it on, and why not when it does not.
-          </p>
+      <header class="mb-6">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div class="flex items-center gap-5">
+            <img src={logo} alt="slop-gate" width={200} height={57} class="shrink-0" />
+            <div class="border-l border-ink-800 pl-5">
+              <h1 class="text-xl font-semibold tracking-tight text-ink-100">rules</h1>
+              <p class="mt-1 text-sm text-ink-500">
+                Every rule the registry knows about, whether a preset turns it on, and why not when it does not.
+              </p>
+            </div>
+          </div>
+          <div class="text-xs text-ink-500">
+            {history.removed.length > 0 ? (
+              <span class="mr-3 text-state-withheld">{history.removed.length} removed since first commit</span>
+            ) : null}
+            generated {new Date(state.payload.generatedAt).toLocaleString()}
+          </div>
         </div>
-        <div class="text-xs text-ink-700">
-          {history.removed.length > 0 ? (
-            <span class="mr-3 text-withheld">{history.removed.length} removed since first commit</span>
-          ) : null}
-          generated {new Date(state.payload.generatedAt).toLocaleString()}
-        </div>
+        <div class="brand-rule mt-4 h-px w-full" />
       </header>
 
       <section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile label="Rules known" value={summary.total} />
-        <Tile label="On in recommended" value={summary.byStatus.recommended} tone="text-on" />
-        <Tile label="Withheld, with a reason" value={summary.byStatus.withheld} tone="text-withheld" />
+        <Tile label="On in recommended" value={summary.byStatus.recommended} tone="text-state-on" />
+        <Tile label="Withheld, with a reason" value={summary.byStatus.withheld} tone="text-state-withheld" />
         <Tile label="Available, not preset" value={summary.byStatus.unlisted} tone="text-ink-300" />
       </section>
 
@@ -82,7 +87,7 @@ export function App() {
           value={query}
           onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
           placeholder="Filter by rule, concept or title…"
-          class="w-full rounded-lg bg-ink-900 px-3 py-2 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-700 focus:ring-brand/50"
+          class="w-full rounded-lg bg-ink-900 px-3 py-2 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-500 focus:ring-brand/60"
         />
         <div class="flex flex-wrap gap-2">
           {summary.byEngine.map((entry) => (
@@ -116,7 +121,7 @@ export function App() {
 
       <RulesTable table={table} />
 
-      <footer class="mt-6 text-xs text-ink-700">
+      <footer class="mt-6 text-xs text-ink-500">
         Click a row for the concept, its languages, the commit that introduced it and — where one exists — the recorded
         reason it is not in <code>recommended</code>.
       </footer>
