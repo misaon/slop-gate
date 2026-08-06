@@ -20,6 +20,13 @@ pnpm --filter @misaon/slop-gate-rules-explorer dev     # vite, with the API prox
 This shows all 923, which is what you want when an engine upgrade lands: sort by **Added** and the
 new rules are at the top, with the commit that introduced them.
 
+## Design
+
+Dark only, on the palette in [brand.md](brand.md) — amber for anything interactive, a warm neutral
+scale under it, and three semantic colours that only ever appear as rule state. The header carries
+`logo-wide-darkmode-360.webp`, which is the README's logo at web size: 13 kB against the PNG's 169 kB
+for the same pixels.
+
 ## Where the data comes from
 
 - **The catalogue** is `buildRuleCatalogue()` in core — static registry data, no run required.

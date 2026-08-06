@@ -11,6 +11,10 @@ architectural decision and why it was made. Do not redesign a subsystem before r
 `docs/measurements.md` holds the figures behind decisions the source states only as a conclusion — the
 benchmark, the corpus and the method. Read it before re-tuning a constant or removing a bound.
 
+`docs/brand.md` is the palette, sampled from the logo rather than chosen, with the contrast figure for
+every token and which ones are not allowed to carry text. Anything with a user interface reads it
+first — the tokens are already defined in `packages/rules-explorer/src/styles.css`.
+
 ## Commands
 
 - `pnpm check` — typecheck, test, and run the gate on ourselves. Run this before claiming anything works.
