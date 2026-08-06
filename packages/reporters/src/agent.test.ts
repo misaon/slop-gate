@@ -630,6 +630,7 @@ test('a timing report reaches this reporter and changes nothing, which is the po
           startupMs: 61.2,
           phases: [{ name: 'run:oxlint', durationMs: 12.3, count: 1 }],
           unattributedMs: 9.8,
+          busyMs: 12.3,
           rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 1 }],
         },
       }),

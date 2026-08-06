@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import type { Diagnostic } from '../diagnostics/types.ts'
-import { buildTimingReport, createTiming, NO_TIMING } from './timing.ts'
+import { unionMs, buildTimingReport, createTiming, NO_TIMING } from './timing.ts'
 
 const diagnostic = (ruleRefKey: string): Diagnostic => ({
   concept: 'correctness.no-debugger',
@@ -49,6 +49,7 @@ test('a phase is measured even when the work throws, so a failed engine still ac
 
 test('startup, the phases and the residual account for the whole of the reported duration', () => {
   const report = buildTimingReport({
+    busyMs: 0,
     phases: [
       { name: 'run:oxlint', durationMs: 40, count: 1 },
       { name: 'discover', durationMs: 10, count: 1 },
@@ -66,6 +67,7 @@ test('startup, the phases and the residual account for the whole of the reported
 
 test('measured phases are ordered longest first', () => {
   const report = buildTimingReport({
+    busyMs: 0,
     phases: [
       { name: 'discover', durationMs: 10, count: 1 },
       { name: 'run:oxlint', durationMs: 40, count: 1 },
@@ -81,6 +83,7 @@ test('measured phases are ordered longest first', () => {
 
 test('a caller that did not claim its process start reports no startup at all', () => {
   const report = buildTimingReport({
+    busyMs: 0,
     phases: [{ name: 'discover', durationMs: 10, count: 1 }],
     startupMs: 0,
     insideMs: 12,
@@ -93,6 +96,7 @@ test('a caller that did not claim its process start reports no startup at all', 
 
 test('per rule the report carries a finding count, which is what an engine boundary can honestly give', () => {
   const report = buildTimingReport({
+    busyMs: 0,
     phases: [],
     startupMs: 1,
     insideMs: 1,
@@ -109,4 +113,46 @@ test('per rule the report carries a finding count, which is what an engine bound
     { ruleRefKey: 'astgrep/stub-implementation', findings: 1 },
     { ruleRefKey: 'tsc/2345', findings: 1 },
   ])
+})
+
+test('overlapping phases do not report a run that spent less time than it did', () => {
+  // Two engines, 40 ms each, running inside the same 45 ms window. Summing them says 80 ms was
+  // attributed out of a 50 ms run, and the old subtraction reported -30 ms unattributed.
+  const report = buildTimingReport({
+    busyMs: 45,
+    phases: [
+      { name: 'run:tsc', durationMs: 40, count: 1 },
+      { name: 'run:knip', durationMs: 40, count: 1 },
+    ],
+    startupMs: 10,
+    insideMs: 50,
+    diagnostics: [],
+  })
+
+  expect(report.unattributedMs).toBe(5)
+  expect(report.busyMs).toBe(45)
+})
+
+test('sequential phases report the wall clock they occupied', () => {
+  const report = buildTimingReport({
+    busyMs: 50,
+    phases: [
+      { name: 'run:tsc', durationMs: 30, count: 1 },
+      { name: 'run:knip', durationMs: 20, count: 1 },
+    ],
+    startupMs: 10,
+    insideMs: 55,
+    diagnostics: [],
+  })
+
+  expect(report.unattributedMs).toBe(5)
+  expect(report.busyMs).toBe(50)
+})
+
+test('unionMs counts overlap once', () => {
+  expect(unionMs([])).toBe(0)
+  expect(unionMs([{ start: 0, end: 10 }])).toBe(10)
+  expect(unionMs([{ start: 0, end: 10 }, { start: 20, end: 30 }])).toBe(20)
+  expect(unionMs([{ start: 0, end: 10 }, { start: 5, end: 15 }])).toBe(15)
+  expect(unionMs([{ start: 0, end: 30 }, { start: 5, end: 10 }])).toBe(30)
 })

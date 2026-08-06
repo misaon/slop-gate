@@ -665,6 +665,7 @@ const timings = (over: Partial<TimingReport> = {}): TimingReport => ({
     { name: 'normalize:oxlint', durationMs: 6.2, count: 307 },
   ],
   unattributedMs: 9.8,
+  busyMs: 12.3,
   rules: [
     { ruleRefKey: 'oxlint/no-debugger', findings: 23 },
     { ruleRefKey: 'tsc/2345', findings: 4 },
@@ -774,4 +775,15 @@ test('the timing block never widens the output past the frame', () => {
   const output = capture([timed({ rules: [{ ruleRefKey: `oxlint/${'x'.repeat(120)}`, findings: 1 }] })])
 
   for (const line of output.split('\n')) expect(displayWidth(line)).toBeLessThanOrEqual(82)
+})
+
+test('says the phases overlap when they do, rather than letting the shares sum past 100% unexplained', () => {
+  const output = capture([timed({ busyMs: 30, phases: [{ name: 'run:tsc', durationMs: 40, count: 1 }, { name: 'run:knip', durationMs: 20, count: 1 }] })])
+  expect(output).toContain('engines run concurrently')
+  expect(output).toContain('30.0 ms of wall clock between them')
+})
+
+test('stays quiet about overlap on a run where nothing overlapped', () => {
+  const output = capture([timed({ busyMs: 60, phases: [{ name: 'run:tsc', durationMs: 40, count: 1 }, { name: 'run:knip', durationMs: 20, count: 1 }] })])
+  expect(output).not.toContain('engines run concurrently')
 })

@@ -154,6 +154,7 @@ test('carries the timing breakdown verbatim, phases and per-rule counts both', (
       startupMs: 61.2,
       phases: [{ name: 'normalize:oxlint', durationMs: 6.2, count: 307 }],
       unattributedMs: 9.8,
+      busyMs: 12.3,
       rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 23 }],
     },
   })
@@ -162,6 +163,7 @@ test('carries the timing breakdown verbatim, phases and per-rule counts both', (
     startupMs: 61.2,
     phases: [{ name: 'normalize:oxlint', durationMs: 6.2, count: 307 }],
     unattributedMs: 9.8,
+    busyMs: 12.3,
     rules: [{ ruleRefKey: 'oxlint/no-debugger', findings: 23 }],
   })
   expect(parsed['version']).toBe(5)
