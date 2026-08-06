@@ -45,9 +45,9 @@
     "@misaon/slop-gate-core": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "typescript": "catalog:"
   },
   "peerDependencies": {
-    "typescript": ">=5.0.0"
+    "typescript": "catalog:typescript-peer"
   }
 }

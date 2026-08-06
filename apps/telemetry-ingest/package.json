@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
-    "@neondatabase/serverless": "^1.0.2"
+    "@neondatabase/serverless": "catalog:"
   },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "typescript": "catalog:typescript5"
   }
 }

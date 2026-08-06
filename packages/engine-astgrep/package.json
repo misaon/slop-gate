@@ -43,6 +43,6 @@
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
-    "@ast-grep/cli": "0.45.0"
+    "@ast-grep/cli": "catalog:"
   }
 }

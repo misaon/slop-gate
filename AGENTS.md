@@ -61,6 +61,9 @@ scheduled job, where a failed fetch is triage rather than a blocked pull request
 ## Conventions
 
 - ESM only. Node >= 24. No CommonJS.
+- **Dependency versions live in `pnpm-workspace.yaml`, never in a manifest.** A `package.json` says
+  `catalog:` for anything external and `workspace:*` for anything internal. `typescript` is the one
+  dependency with more than one version, and its two named catalogs say why.
 - Byte offsets are the internal truth for positions; line and column are always recomputed by `core`.
 - Public data structures use repo-relative POSIX paths.
 - **A comment states a constraint the code cannot show, on one line.** Not what the next line does,

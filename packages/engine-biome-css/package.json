@@ -42,7 +42,7 @@
     "prepack": "node ../../scripts/prepack.mjs"
   },
   "dependencies": {
-    "@biomejs/biome": "2.5.6",
+    "@biomejs/biome": "catalog:",
     "@misaon/slop-gate-core": "workspace:*"
   }
 }

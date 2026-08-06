@@ -2,6 +2,107 @@ packages:
   - packages/*
   - apps/*
 
+# Every external version in the repository lives here, and every manifest says `catalog:`. Fourteen
+# packages sharing `yaml`, `typescript` and `@types/node` cannot drift a minor apart by accident, and an
+# upgrade is one line rather than a search.
+catalog:
+  # The analysers are the product: which version runs decides what the tool reports, so these are exact
+  # and each moves in its own reviewable pull request. See .github/dependabot.yml.
+  '@ast-grep/cli': 0.45.0
+  '@biomejs/biome': 2.5.6
+  knip: 6.31.0
+  oxfmt: 0.62.0
+  oxlint: 1.76.0
+
+  # What core and the CLI ship to a user.
+  '@modelcontextprotocol/client': ^2.0.0
+  '@modelcontextprotocol/server': ^2.0.0
+  ajv: ^8.20.0
+  ajv-formats: ^3.0.1
+  citty: ^0.2.0
+  ignore: ^7.0.6
+  oxc-transform: ^0.142.0
+  picomatch: ^4.0.5
+  semver: ^7.8.5
+  yaml: ^2.9.0
+  zod: ^4.4.3
+
+  # Build, typecheck and test.
+  '@types/node': ^24.0.0
+  '@types/picomatch': ^4.0.3
+  '@types/semver': ^7.7.1
+  tsdown: ^0.22.14
+  turbo: ^2.10.8
+  typescript: ^7.0.2
+  vitest: ^4.1.10
+
+  # Release.
+  '@changesets/changelog-github': 0.7.0
+  '@changesets/cli': 2.31.1
+  '@commitlint/cli': 21.2.1
+  '@commitlint/config-conventional': 21.2.0
+
+  # rules-explorer, the one package that runs in a browser.
+  '@hono/node-server': ^2.1.0
+  '@preact/preset-vite': ^2.10.6
+  '@tailwindcss/vite': ^4.1.0
+  '@tanstack/table-core': ^9.0.0
+  hono: ^4.9.0
+  lucide-preact: ^1.28.0
+  motion: ^13.0.0
+  preact: ^10.27.0
+  tailwindcss: ^4.1.0
+  vite: ^8.2.0
+
+  # telemetry-ingest.
+  '@neondatabase/serverless': ^1.0.2
+
+# `typescript` is the one dependency with three deliberate versions rather than one, so it gets the two
+# named catalogs and the default keeps the version the tree builds with.
+catalogs:
+  # apps/telemetry-ingest only. Vercel compiles a `.ts` function with whatever TypeScript it finds in the
+  # project, and calling into 7's Go API returns `undefined` mid-build (see c3b8dbf).
+  typescript5:
+    typescript: 5.9.3
+  # What engine-tsc accepts from a consumer, which is not what it builds against.
+  typescript-peer:
+    typescript: '>=5.0.0'
+
+# pnpm downloads the version `packageManager` names instead of using whatever is on PATH. Without this
+# the field is a comment: pnpm 11 wants a node_modules layout pnpm 10 does not produce, so the two
+# would purge and rebuild the tree past each other on every switch.
+managePackageManagerVersions: true
+
+# `minimumReleaseAge` is deliberately left at pnpm's default of 1440 minutes rather than raised to match
+# `.github/dependabot.yml`'s five-day cooldown. A day already refuses the case that gets past a human —
+# knip 6.32.0 and vite 8.2.1 were pinned here by hand hours after publication, and this is what caught
+# them. Three days would also reject motion 13.0.0, hono 4.13.0 and verkit 0.3.2, which this lockfile
+# already carries, and forcing those down is a separate decision from the cooldown.
+
+# `engines.node` is `>=24` and this makes it a fact rather than a note: an install on 22 fails here
+# instead of failing later inside a Node 24 API.
+engineStrict: true
+
+# A peer range that does not match is an error, not a warning. `@preact/preset-vite` 2.10.2 peers to
+# Vite 7 and would have installed against Vite 8 with a warning nobody reads.
+strictPeerDependencies: true
+
+# `packages/core` must not depend on an engine package (AGENTS.md), and a cycle is how that stops being
+# true without anyone deciding it.
+disallowWorkspaceCycles: true
+
+# A `--filter` naming nothing is a typo, and CI has several. Without this it exits 0 having run nothing.
+failIfNoMatch: true
+
+# `pnpm add` writes the version it resolved and nothing wider. The range belongs in the catalog above,
+# where it can be argued about, not in whatever a shorthand happened to expand to.
+savePrefix: ''
+
+# A stale `node_modules` stops a script rather than quietly reinstalling under it. CI installs with
+# `--frozen-lockfile` first, so this only ever fires locally, which is where a surprise install during a
+# test run costs the most.
+verifyDepsBeforeRun: error
+
 # pnpm 11 requires every install script to be named before it runs. ast-grep's is not needed: its
 # postinstall only links a bin, and `engine-astgrep/src/resolve-binary.ts` resolves the platform
 # package (`@ast-grep/cli-linux-arm64-gnu` and its six siblings) and runs the binary inside it directly.
@@ -9,15 +110,11 @@ packages:
 allowBuilds:
   '@ast-grep/cli': false
 
-# pnpm downloads the version `packageManager` names instead of using whatever is on PATH. Without this
-# the field is a comment: pnpm 11 wants a node_modules layout pnpm 10 does not produce, so the two
-# would purge and rebuild the tree past each other on every switch.
-managePackageManagerVersions: true
-
-# `minimumReleaseAge` is deliberately left at pnpm's default rather than raised to match
-# `.github/dependabot.yml`'s five-day cooldown. The default already refuses a release published within
-# the day, which is the case that gets past a human — knip 6.32.0 and vite 8.2.1 were pinned here by
-# hand hours after publication, and this is what caught them. Raising it to three days would also
-# reject motion 13.0.0, hono 4.13.0 and verkit 0.3.2, which this lockfile already carries, and forcing
-# those down is a separate decision from the cooldown itself. Dependabot keeps the per-update-type
-# policy; this floor is what applies to everyone else.
+# `hoist` stays on, and this is the one strict setting that was tried and rejected. `nodeLinker` is
+# already `isolated`, so a package here can only import what it declares; hoisting affects what a
+# *dependency* can resolve. Turning it off breaks the rules explorer: framer-motion, which arrives under
+# `motion`, imports `react/jsx-runtime`, and the vite alias pointing react at preact/compat needs a
+# hoisted directory to resolve a package framer-motion never declared. That indirection is the point of
+# the alias, not sloppiness to fix, and the alternative — an absolute path in vite.config.ts — writes the
+# node_modules layout into the build config. Measured: 0 alias warnings and a clean build with hoisting
+# on, UNLOADABLE_DEPENDENCY with it off.
