@@ -11,6 +11,9 @@ architectural decision and why it was made. Do not redesign a subsystem before r
 `docs/measurements.md` holds the figures behind decisions the source states only as a conclusion — the
 benchmark, the corpus and the method. Read it before re-tuning a constant or removing a bound.
 
+That split is enforced, not merely intended: `not-recommended.test.ts` fails a reason over 900
+characters and a dangling `evidence` anchor. The tables were 36 kB of prose before it.
+
 `docs/impact-and-reliability.md` is the vocabulary the product uses for findings: an **impact** of 1–3
 shown as a bar, and a **reliability** percentage that is absent rather than assumed. `error`/`warning`
 stay in the plumbing for SARIF and the exit code, and are not what the tool says to a reader.

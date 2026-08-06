@@ -74,6 +74,24 @@ function SortArrow({ direction }: { direction: false | 'asc' | 'desc' }) {
   return <Arrow {...ICON_SMALL} class="motion-safe:unfurl ml-1 inline text-brand" />
 }
 
+const MEASUREMENTS = 'https://github.com/misaon/slop-gate/blob/main/docs/measurements.md'
+
+/** The conclusion lives in the registry; the corpus and the per-repository split live in the docs. */
+function Evidence({ anchor }: { anchor: string }) {
+  return (
+    <a
+      class="mt-2 inline-flex items-center gap-1.5 text-xs text-brand hover:underline"
+      href={`${MEASUREMENTS}#${anchor}`}
+      target="_blank"
+      rel="noreferrer noopener"
+      onClick={(event) => event.stopPropagation()}
+    >
+      The figures behind this
+      <ExternalLinkAnimated size={12} />
+    </a>
+  )
+}
+
 function Section({ icon: Icon, label }: { icon: typeof Wrench; label: string }) {
   return (
     <span class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
@@ -174,6 +192,7 @@ function Detail({ row }: { row: Row }) {
             <div class="mt-1 text-ink-300">
               <Prose text={row.optionReason} />
             </div>
+            {row.optionEvidence === null ? null : <Evidence anchor={row.optionEvidence} />}
           </div>
         )}
         {row.withheldReason === null ? null : (
@@ -185,6 +204,7 @@ function Detail({ row }: { row: Row }) {
             <div class="mt-1 text-ink-300">
               <Prose text={row.withheldReason} />
             </div>
+            {row.withheldEvidence === null ? null : <Evidence anchor={row.withheldEvidence} />}
           </div>
         )}
       </td>
