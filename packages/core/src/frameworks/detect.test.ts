@@ -339,6 +339,48 @@ test('keeps treating a deferred transform as no evidence when jsxImportSource na
   expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
 })
 
+test('disables the rule when the classic transform names a factory that is not React’s', async () => {
+  const detection = await detect({
+    'jsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react', jsxFactory: 'createElement' } }),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')?.evidence).toEqual([
+    { kind: 'config-literal', file: 'jsconfig.json', property: 'compilerOptions.jsxFactory', value: 'createElement' },
+  ])
+  expect(applied(detection, 'react-jsx-transform')?.adjustments).toEqual([
+    expect.objectContaining({ kind: 'disable-concept', concept: 'suspicious.react-in-jsx-scope' }),
+  ])
+})
+
+test('keeps the rule on when the classic factory is React’s own', async () => {
+  const detection = await detect({
+    'tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react', jsxFactory: 'React.createElement' } }),
+  })
+  expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
+})
+
+test('does not let a classic project with its own factory block a sibling on the automatic runtime', async () => {
+  const detection = await detect({
+    'apps/preact/tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react', jsxFactory: 'h' } }),
+    'apps/web/tsconfig.json': tsconfig('react-jsx'),
+  })
+
+  const adjustment = applied(detection, 'react-jsx-transform')?.adjustments[0]
+  expect(adjustment).toEqual(expect.objectContaining({ kind: 'disable-concept' }))
+  expect(adjustment).not.toHaveProperty('paths')
+})
+
+test('inherits a factory through extends the way the transform itself is inherited', async () => {
+  const detection = await detect({
+    'jsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react', jsxFactory: 'createElement' } }),
+    'jsconfig-lint.json': JSON.stringify({ extends: './jsconfig.json', include: ['src/**/*'] }),
+  })
+
+  expect(applied(detection, 'react-jsx-transform')?.adjustments).toEqual([
+    expect.objectContaining({ kind: 'disable-concept', concept: 'suspicious.react-in-jsx-scope' }),
+  ])
+})
+
 test('says nothing when no tsconfig configures jsx at all', async () => {
   const detection = await detect({ 'tsconfig.json': tsconfig(null), 'package.json': manifest({ react: '^19.0.0' }) })
   expect(applied(detection, 'react-jsx-transform')).toBeUndefined()
