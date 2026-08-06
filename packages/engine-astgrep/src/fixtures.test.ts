@@ -1,13 +1,12 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { detectLanguage, type InventoryFile, type RawDiagnostic, type RunContext } from '@misaon/slop-gate-core'
 import { createAstGrepEngine } from './index.ts'
 import { ASTGREP_RULES } from './rules.ts'
 
-const FIXTURES = dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures')
+const FIXTURES = import.meta.dirname.replace(/src$/, 'fixtures')
 const MARKER = 'SLOP_HIT'
 
 const CASES: readonly { engineRuleId: string; file: string; polarity: 'positive' | 'negative' }[] = [

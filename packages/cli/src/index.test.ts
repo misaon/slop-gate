@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { expect, test } from 'vitest'
 
 test('the library entry exposes defineConfig and has no side effects', async () => {
@@ -23,7 +22,7 @@ test('the library entry exposes defineConfig and has no side effects', async () 
 })
 
 test('the package "exports" field points at the library entry, not the CLI script', async () => {
-  const packageDir = dirname(fileURLToPath(import.meta.url))
+  const packageDir = import.meta.dirname
   const pkg = JSON.parse(await readFile(join(packageDir, '..', 'package.json'), 'utf8')) as {
     exports: { '.': { import: string; types: string } }
   }
@@ -33,7 +32,7 @@ test('the package "exports" field points at the library entry, not the CLI scrip
 })
 
 test('every package exposes types to classic node resolution, not only through exports', async () => {
-  const root = join(dirname(fileURLToPath(import.meta.url)), '../../..')
+  const root = join(import.meta.dirname, '../../..')
 
   for (const pkg of ['core', 'engine-oxlint', 'reporters', 'cli']) {
     const manifest = JSON.parse(await readFile(join(root, 'packages', pkg, 'package.json'), 'utf8')) as {

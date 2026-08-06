@@ -1,9 +1,8 @@
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 export function readCliVersion(): string {
-  const startDir = dirname(fileURLToPath(import.meta.url))
+  const startDir = import.meta.dirname
   for (const candidate of [join(startDir, '../package.json'), join(startDir, '../../package.json')]) {
     try {
       const pkg = JSON.parse(readFileSync(candidate, 'utf8')) as { name?: string; version?: string }

@@ -1,13 +1,12 @@
 import { execFile } from 'node:child_process'
 import { readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { expect, test } from 'vitest'
 import { EXIT_CODES } from './exit-codes.ts'
 
 const run = promisify(execFile)
-const srcDir = dirname(fileURLToPath(import.meta.url))
+const srcDir = import.meta.dirname
 
 const mainPath = join(srcDir, 'main.ts')
 

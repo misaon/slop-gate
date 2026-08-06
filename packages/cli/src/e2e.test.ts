@@ -1,14 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { cp, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, relative } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import { baselinePathFor, entriesOf, loadConfig, runCheck, toPosix, writeBaseline, type CheckResult } from '@misaon/slop-gate-core'
 import { createOxlintEngine } from '@misaon/slop-gate-engine-oxlint'
 import { createReporter } from '@misaon/slop-gate-reporters'
 
-const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '../../../fixtures/basic')
+const FIXTURE = join(import.meta.dirname, '../../../fixtures/basic')
 let dir: string
 
 const suppressedFileConcepts = (result: { diagnostics: readonly { file: string | null; concept: string }[] }): string[] =>

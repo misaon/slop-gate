@@ -1,3 +1,4 @@
+import { setImmediate as yieldToPending } from 'node:timers/promises'
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { defineCommand } from 'citty'
 import { readCliVersion } from '../../version.ts'
@@ -28,7 +29,7 @@ export const mcp = defineCommand({
       process.stdin.once('close', resolve)
     })
     await inFlight.idle()
-    await new Promise<void>((resolve) => void setImmediate(resolve))
+    await yieldToPending()
     await handle.close()
   },
 })

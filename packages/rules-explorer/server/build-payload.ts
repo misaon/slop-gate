@@ -1,5 +1,4 @@
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, resolve } from 'node:path'
 import { buildRuleHistory, type RuleHistory } from '../scripts/history.ts'
 
 /**
@@ -13,7 +12,7 @@ import { buildRuleHistory, type RuleHistory } from '../scripts/history.ts'
  * It also contains the failure. Source being edited does not always parse, and a child that exits
  * non-zero leaves the server serving the last good payload instead of dying mid-keystroke.
  */
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const repoRoot = resolve(import.meta.dirname, '../../..')
 
 const core = (await import(join(repoRoot, 'packages', 'core', 'src', 'index.ts'))) as typeof import('@misaon/slop-gate-core')
 

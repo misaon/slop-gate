@@ -1,7 +1,6 @@
 import { access, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import type { RawDiagnostic } from '@misaon/slop-gate-core'
 import { createTscEngine } from './index.ts'
@@ -19,7 +18,7 @@ const TSCONFIG = JSON.stringify({
   compilerOptions: { strict: true, noEmit: true, module: 'nodenext', moduleResolution: 'nodenext', target: 'es2022' },
 })
 
-const fixturesRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '.test-tmp')
+const fixturesRoot = join(import.meta.dirname, '..', '.test-tmp')
 
 beforeEach(async () => {
   await mkdir(fixturesRoot, { recursive: true })

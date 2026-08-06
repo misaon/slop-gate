@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { AdvisoryTable } from './advisory.ts'
 import { parseLockfile } from './lockfile.ts'
@@ -8,7 +7,7 @@ import { scanDependencies, type ScanInput } from './scan.ts'
 import type { DepsSecurityRuleId } from './rules.ts'
 import { SNAPSHOT_FORMAT_VERSION, type SnapshotManifest } from './snapshot.ts'
 
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const fixtures = join(import.meta.dirname, 'fixtures')
 
 const vulnerable = JSON.parse(readFileSync(join(fixtures, 'advisories.vulnerable.json'), 'utf8')) as AdvisoryTable
 const malicious = JSON.parse(readFileSync(join(fixtures, 'advisories.malicious.json'), 'utf8')) as AdvisoryTable

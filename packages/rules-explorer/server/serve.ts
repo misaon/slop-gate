@@ -1,13 +1,12 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, resolve } from 'node:path'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { openCatalogue } from './catalogue.ts'
 
-const here = dirname(fileURLToPath(import.meta.url))
+const here = import.meta.dirname
 const repoRoot = resolve(here, '../../..')
 const clientDir = join(here, '..', 'dist', 'client')
 

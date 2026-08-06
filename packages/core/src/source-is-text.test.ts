@@ -1,10 +1,9 @@
 import { globSync, readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import { expect, test } from 'vitest'
 import { compareStrings } from './ordering.ts'
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const repoRoot = resolve(import.meta.dirname, '../../..')
 
 test('no source file contains a byte that makes tooling treat it as binary', () => {
   const offenders = globSync('packages/*/src/**/*.ts', { cwd: repoRoot })

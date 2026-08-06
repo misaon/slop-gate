@@ -1,14 +1,13 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, globSync, readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import { expect, test } from 'vitest'
 import { compareStrings } from './ordering.ts'
 
 // A stale cross-reference compiles, passes every other test, and is only found by the reader who
 // followed it. Nothing else checks these.
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const repoRoot = resolve(import.meta.dirname, '../../..')
 const SPEC = 'docs/superpowers/specs/2026-07-30-slop-gate-design.md'
 
 // Dot-directories a comment may name that this repository does not track: the one `sgate` creates in

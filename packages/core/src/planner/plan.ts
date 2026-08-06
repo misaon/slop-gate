@@ -24,7 +24,9 @@ export function buildPlan(input: PlanInput): EngineAssignment[] {
   for (const [concept, ownership] of input.election.owners) {
     for (const { owner } of ownership) {
       const key = ruleRefKey(owner)
-      conceptsByRule.set(key, [...(conceptsByRule.get(key) ?? []), concept])
+      const concepts = conceptsByRule.get(key)
+      if (concepts === undefined) conceptsByRule.set(key, [concept])
+      else concepts.push(concept)
     }
   }
 

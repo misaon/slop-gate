@@ -1,14 +1,13 @@
 import { cp, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import type { InventoryFile, RawDiagnostic, RunContext } from '@misaon/slop-gate-core'
 import { ACTIONLINT_RULES, createActionlintEngine, resolveActionlintBinary } from './index.ts'
 
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)).replace(/src$/, 'fixtures'), 'tree')
+const FIXTURES = join(import.meta.dirname.replace(/src$/, 'fixtures'), 'tree')
 const MARKER = '# HIT'
 const run = promisify(execFile)
 const installed = resolveActionlintBinary()

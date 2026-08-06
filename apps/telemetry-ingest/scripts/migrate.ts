@@ -1,6 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { neon } from '@neondatabase/serverless'
 
 /**
@@ -13,7 +12,7 @@ import { neon } from '@neondatabase/serverless'
  * pnpm --filter @misaon/slop-gate-telemetry-ingest migrate
  * ```
  */
-const here = dirname(fileURLToPath(import.meta.url))
+const here = import.meta.dirname
 
 function statementsOf(source: string): string[] {
   return source

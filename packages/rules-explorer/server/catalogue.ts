@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process'
 import { readdir, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { CatalogueEntry, CatalogueSummary, IMPACTS } from '@misaon/slop-gate-core'
 import type { RuleHistory } from '../scripts/history.ts'
@@ -34,7 +33,7 @@ const POLL_MS = 1000
  */
 export function openCatalogue(repoRoot: string) {
   const coreSrc = join(repoRoot, 'packages', 'core', 'src')
-  const builder = join(dirname(fileURLToPath(import.meta.url)), 'build-payload.ts')
+  const builder = join(import.meta.dirname, 'build-payload.ts')
 
   let generation = 0
   let pending: Promise<Payload> | null = null
