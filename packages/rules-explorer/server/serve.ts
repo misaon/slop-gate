@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
-import { buildRuleCatalogue, IMPACTS, summariseCatalogue, type CatalogueEntry } from '@misaon/slop-gate-core'
 import { Hono } from 'hono'
-import { buildRuleHistory, type RuleHistory } from '../scripts/history.ts'
+import { streamSSE } from 'hono/streaming'
+import { openCatalogue } from './catalogue.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../../..')
@@ -16,45 +16,37 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
   '.json': 'application/json; charset=utf-8',
 }
 
-type Payload = {
-  readonly generatedAt: string
-  readonly rules: readonly CatalogueEntry[]
-  readonly summary: ReturnType<typeof summariseCatalogue>
-  readonly impacts: typeof IMPACTS
-  readonly history: RuleHistory
-}
-
-/**
- * The catalogue is static data compiled into core, and the history is a walk of a handful of
- * commits. Both are the same for the life of the process, so they are built once and held.
- */
-let payload: Promise<Payload> | null = null
-
-function load(): Promise<Payload> {
-  payload ??= (async () => {
-    const rules = buildRuleCatalogue()
-    const history = await buildRuleHistory(repoRoot).catch(
-      (): RuleHistory => ({ origins: {}, removed: [] }),
-    )
-    return {
-      generatedAt: new Date().toISOString(),
-      rules,
-      summary: summariseCatalogue(rules),
-      impacts: IMPACTS,
-      history,
-    }
-  })()
-  return payload
-}
+const catalogue = openCatalogue(repoRoot)
 
 const app = new Hono()
 
-app.get('/api/rules', async (context) => context.json(await load()))
+app.get('/api/rules', async (context) => context.json(await catalogue.get()))
 
-app.get('/api/health', (context) => context.json({ ok: true }))
+app.get('/api/health', (context) => context.json({ ok: true, generation: catalogue.generation() }))
+
+/**
+ * The page subscribes here and refetches when the registry source changes, so an edit to a rule is
+ * on screen without anyone reloading. A heartbeat keeps the connection through the idle timeouts
+ * proxies and browsers apply to a stream that says nothing for minutes.
+ */
+app.get('/api/changes', (context) =>
+  streamSSE(context, async (stream) => {
+    const unsubscribe = catalogue.onChange((generation) => {
+      void stream.writeSSE({ event: 'changed', data: String(generation) })
+    })
+    stream.onAbort(unsubscribe)
+
+    await stream.writeSSE({ event: 'hello', data: String(catalogue.generation()) })
+    while (!stream.closed) {
+      await stream.sleep(25_000)
+      await stream.writeSSE({ event: 'ping', data: '' })
+    }
+  }),
+)
 
 app.get('/*', async (context) => {
   const requested = new URL(context.req.url).pathname
@@ -77,5 +69,5 @@ const port = Number(process.env['PORT'] ?? 4173)
 const hostname = process.env['HOST'] ?? '0.0.0.0'
 
 serve({ fetch: app.fetch, port, hostname }, (info) => {
-  process.stdout.write(`rules explorer on http://${hostname}:${info.port}\n`)
+  process.stdout.write(`rules explorer on http://${hostname}:${info.port}, watching packages/core/src\n`)
 })

@@ -3,6 +3,7 @@ import { PRESETS } from '../config/presets.ts'
 import { OPTIONED_RECOMMENDED_RULES } from '../config/rule-options.ts'
 import type { RuleLevel } from '../config/types.ts'
 import { impactOf, type Impact } from '../registry/impact.ts'
+import { CORPUS_PROJECTS, prevalenceOf, type Prevalence } from '../registry/prevalence.ts'
 import { reliabilityOf, reliabilityPercent, type Reliability } from '../registry/reliability.ts'
 import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
@@ -41,8 +42,12 @@ export type CatalogueEntry = {
   /** Measured precision, or null where nobody has measured it. Never assumed. */
   readonly reliability: (Reliability & { readonly percent: number }) | null
   readonly options: OptionState
-  /** The setting and the reason, when slop-gate tunes the rule. */
+  /** The setting slop-gate applies, as it appears in a config, when it tunes the rule. */
+  readonly optionSetting: unknown
+  /** The reason for that setting, with the measurement behind it. */
   readonly optionReason: string | null
+  /** How often the rule fires over the corpus, or null when it fired on none of it. */
+  readonly prevalence: (Prevalence & { readonly percent: number }) | null
   readonly severityDefault: string
   readonly fixKind: string
   readonly fixTouches: readonly string[]
@@ -93,6 +98,7 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
     const described = describe(concept)
     const measured = reliabilityOf(ruleRefKey(entry))
     const tuned = entry.concepts.map((id) => OPTIONED_RECOMMENDED_RULES[id]).find((rule) => rule !== undefined)
+    const seen = prevalenceOf(ruleRefKey(entry))
 
     return {
       ruleRefKey: ruleRefKey(entry),
@@ -111,7 +117,9 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
       impact: impactOf(concept, described.group as ConceptGroup),
       reliability: measured === null ? null : { ...measured, percent: reliabilityPercent(measured) },
       options: tuned !== undefined ? 'tuned' : entry.hasOptions === true ? 'default' : 'none',
+      optionSetting: tuned?.setting ?? null,
       optionReason: tuned?.reason ?? null,
+      prevalence: seen === null ? null : { ...seen, percent: Math.round((seen.seenIn / CORPUS_PROJECTS) * 100) },
       severityDefault: entry.severityDefault,
       fixKind: entry.fixKind,
       fixTouches: [...entry.fixTouches],
@@ -129,6 +137,9 @@ export type CatalogueSummary = {
   readonly byStatus: Readonly<Record<CatalogueStatus, number>>
   readonly byImpact: Readonly<Record<Impact, number>>
   readonly measured: number
+  /** Rules that fired at least once over the corpus, and how many projects it holds. */
+  readonly seenAtAll: number
+  readonly corpusProjects: number
   readonly byEngine: readonly { readonly engine: string; readonly total: number; readonly recommended: number }[]
 }
 
@@ -136,12 +147,14 @@ export function summariseCatalogue(entries: readonly CatalogueEntry[]): Catalogu
   const byStatus: Record<CatalogueStatus, number> = { recommended: 0, withheld: 0, unlisted: 0 }
   const byImpact: Record<Impact, number> = { 1: 0, 2: 0, 3: 0 }
   let measured = 0
+  let seenAtAll = 0
   const byEngine = new Map<string, { total: number; recommended: number }>()
 
   for (const entry of entries) {
     byStatus[entry.status] += 1
     byImpact[entry.impact] += 1
     if (entry.reliability !== null) measured += 1
+    if (entry.prevalence !== null) seenAtAll += 1
     const bucket = byEngine.get(entry.engine) ?? { total: 0, recommended: 0 }
     bucket.total += 1
     if (entry.status === 'recommended') bucket.recommended += 1
@@ -153,6 +166,8 @@ export function summariseCatalogue(entries: readonly CatalogueEntry[]): Catalogu
     byStatus,
     byImpact,
     measured,
+    seenAtAll,
+    corpusProjects: CORPUS_PROJECTS,
     byEngine: [...byEngine]
       .map(([engine, counts]) => ({ engine, ...counts }))
       .sort((a, b) => b.total - a.total || compareStrings(a.engine, b.engine)),

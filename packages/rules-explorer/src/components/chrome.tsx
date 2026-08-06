@@ -37,12 +37,14 @@ export function Tile({
 }) {
   return (
     <HoverGroup class="motion-safe:rise rounded-xl bg-ink-900 px-4 py-3 ring-1 ring-ink-800 transition-colors hover:ring-ink-700">
-      <div style={{ animationDelay: `${delay}ms` }}>
-        <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
-          <Icon size={16} class={tone ?? 'text-ink-500'} />
-          {label}
+      <div class="flex items-center gap-4" style={{ animationDelay: `${delay}ms` }}>
+        <span class={`shrink-0 rounded-lg bg-ink-850 p-2.5 ring-1 ring-ink-800 ${tone ?? 'text-ink-300'}`}>
+          <Icon size={26} />
+        </span>
+        <div class="min-w-0">
+          <div class="truncate text-xs uppercase tracking-wide text-ink-500">{label}</div>
+          <div class={`mt-0.5 text-2xl font-semibold tabular-nums ${tone ?? 'text-ink-100'}`}>{value}</div>
         </div>
-        <div class={`mt-1 text-2xl font-semibold tabular-nums ${tone ?? 'text-ink-100'}`}>{value}</div>
       </div>
     </HoverGroup>
   )

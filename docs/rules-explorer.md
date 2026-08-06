@@ -33,6 +33,10 @@ for the same pixels.
 [impact-and-reliability.md](impact-and-reliability.md) — what a finding costs, and how often the rule
 is right. Reliability is an em dash for the 920 rules nobody has measured, which is the honest value.
 
+**Seen on** is how many of the 20 corpus projects the rule fired on, with the raw finding count
+beside it. Prevalence rather than volume is the primary number, because one repository contributing
+4,000 findings says less about a rule than 17 repositories contributing one each.
+
 **Options** separates "the rule takes no options" from "it takes options and we use the default" from
 "we tune it" — the last one opens the recorded reason and its measurement.
 
@@ -71,6 +75,27 @@ Interaction-driven only. Nothing animates on mount except the four tiles — a p
 start 923 animations at once. The chevron rotates 90° because that rotation *is* the expand state,
 the sort arrow slides in, the detail row unfurls. All `transform` or `opacity`, and all inside
 `motion-safe`, so `prefers-reduced-motion: reduce` removes it rather than shortening it.
+
+## It is live
+
+The page reads core's **source**, not its build, and re-reads it when that source changes — an edit
+to a rule is on screen within a second or two without anyone reloading or rebuilding. Reading `dist`
+would mean the page reports the registry as of the last `pnpm build`, which for a page whose whole
+job is to say what the registry currently is would be a way of being quietly wrong.
+
+Two things had to be true for that, and neither was obvious:
+
+**The payload is built in a child process.** ESM has no cache eviction, and busting the entry
+module's specifier does not re-evaluate its imports — measured: the generation counter moved and the
+value did not. A fresh process is the only way to be sure the answer is the source on disk. It also
+contains the failure: source being edited does not always parse, and a child that exits non-zero
+leaves the server serving the last good catalogue rather than dying mid-keystroke.
+
+**Changes are polled, not watched.** `fs.watch` saw the first edit and then went deaf, because an
+editor that writes through a temp file and renames replaces the inode the inotify watch was attached
+to. A scan of core's 79 source files costs 8 ms, so once a second is free and cannot be detached.
+
+The browser subscribes to `/api/changes` (server-sent events) and refetches on a new generation.
 
 ## Where the data comes from
 
