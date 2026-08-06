@@ -15,6 +15,14 @@ updates:
       # minimum supported major deliberately; raise it when `engines.node` rises.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+    # A compromised npm release is usually yanked within days of publication, and this repository
+    # has no reason to be among the first to install one. Security updates are a separate mechanism
+    # and are not delayed by this, so nothing here slows down a fix for a known vulnerability.
+    cooldown:
+      default-days: 5
+      semver-major-days: 7
+      semver-minor-days: 5
+      semver-patch-days: 3
     commit-message:
       prefix: 'chore(deps)'
       prefix-development: 'chore(deps-dev)'
@@ -31,9 +39,13 @@ updates:
           - 'typescript'
         update-types: [minor, patch]
 
+  # Actions are pinned by commit SHA in the workflows; Dependabot rewrites the pin and the version
+  # comment together, which is the only reason pinning is maintainable at all.
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly, day: monday }
+    cooldown:
+      default-days: 5
     commit-message:
       prefix: 'ci'
     groups:

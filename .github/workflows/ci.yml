@@ -6,6 +6,13 @@ on:
 permissions:
   contents: read
 
+# A push to a pull request makes every run before it irrelevant, so they are cancelled rather than
+# left to finish. Pushes to `main` are not cancelled: each commit's result is the record of whether
+# that commit was green, and a superseded run would leave a gap in it.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Every commit, not the pull request title, because this repository merges by rebase only:
   # each commit lands on `main` verbatim and has to stand on its own. Its own job rather than a
@@ -14,11 +21,15 @@ jobs:
   commitlint:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: wagoid/commitlint-github-action@v6
+          # Nothing here pushes. Left on, the token sits in `.git/config` for every later step and
+          # anything they run to read.
+          persist-credentials: false
+      - uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6.2.1
 
   check:
     strategy:
@@ -30,10 +41,15 @@ jobs:
         # Re-add it when 26 is a version contributors actually run.
         node: ['24']
     runs-on: ${{ matrix.os }}
+    # Generous against a cold cache on Windows, and far below the six-hour default that let a stuck
+    # job hold a runner all afternoon.
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
