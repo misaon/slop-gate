@@ -13,10 +13,6 @@ design has an arbitration position for but no package implements — `tsgolint`,
 and the error listed all of them, sending a reader after a run that cannot happen.
 
 The analysers are pinned exactly, as `@biomejs/biome` and `oxfmt` already were: which version runs
-decides what the tool reports, so a caret bump changed findings without a pull request.
-
-Two generated concept ids were renamed by oxlint 1.77 moving `eslint/prefer-promise-reject-errors`
-from `style` to `pedantic`, which made both plugin variants collide and take a plugin prefix:
-`style.prefer-promise-reject-errors` is now `pedantic.eslint-prefer-promise-reject-errors`, and
-`pedantic.prefer-promise-reject-errors` is now `pedantic.typescript-prefer-promise-reject-errors`.
-Neither appears in a preset; a config naming one directly needs updating.
+decides what the tool reports, so a caret bump changed findings without a pull request. The pins hold
+the versions already in use rather than the newest available, because `.github/dependabot.yml`'s
+cooldown exists for exactly this and a hand-written pin is not exempt from it.

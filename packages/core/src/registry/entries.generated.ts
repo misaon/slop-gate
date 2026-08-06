@@ -5442,7 +5442,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'prefer-promise-reject-errors',
-    concepts: ['pedantic.eslint-prefer-promise-reject-errors'],
+    concepts: ['style.prefer-promise-reject-errors'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -8144,7 +8144,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'typescript/prefer-promise-reject-errors',
-    concepts: ['pedantic.typescript-prefer-promise-reject-errors'],
+    concepts: ['pedantic.prefer-promise-reject-errors'],
     tier: 1,
     priority: 50,
     severityDefault: 'warn',

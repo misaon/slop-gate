@@ -430,12 +430,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/no-negated-condition` rule (category: pedantic). No Negated Condition.',
   },
   {
-    id: 'pedantic.eslint-prefer-promise-reject-errors',
-    group: 'pedantic',
-    title: 'prefer-promise-reject-errors',
-    description: 'Generated from oxlint\'s `eslint/prefer-promise-reject-errors` rule (category: pedantic). Prefer Promise Reject Errors.',
-  },
-  {
     id: 'pedantic.eslint-require-await',
     group: 'pedantic',
     title: 'require-await',
@@ -892,6 +886,12 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `unicorn/prefer-number-coercion` rule (category: pedantic). Prefer Number Coercion.',
   },
   {
+    id: 'pedantic.prefer-promise-reject-errors',
+    group: 'pedantic',
+    title: 'typescript/prefer-promise-reject-errors',
+    description: 'Generated from oxlint\'s `typescript/prefer-promise-reject-errors` rule (category: pedantic). Prefer Promise Reject Errors.',
+  },
+  {
     id: 'pedantic.prefer-prototype-methods',
     group: 'pedantic',
     title: 'unicorn/prefer-prototype-methods',
@@ -1070,12 +1070,6 @@ export const GENERATED_CONCEPTS = [
     group: 'pedantic',
     title: 'symbol-description',
     description: 'Generated from oxlint\'s `eslint/symbol-description` rule (category: pedantic). Symbol Description.',
-  },
-  {
-    id: 'pedantic.typescript-prefer-promise-reject-errors',
-    group: 'pedantic',
-    title: 'typescript/prefer-promise-reject-errors',
-    description: 'Generated from oxlint\'s `typescript/prefer-promise-reject-errors` rule (category: pedantic). Prefer Promise Reject Errors.',
   },
   {
     id: 'pedantic.typescript-require-await',
@@ -2948,6 +2942,12 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'unicorn/prefer-optional-catch-binding',
     description: 'Generated from oxlint\'s `unicorn/prefer-optional-catch-binding` rule (category: style). Prefer Optional Catch Binding.',
+  },
+  {
+    id: 'style.prefer-promise-reject-errors',
+    group: 'style',
+    title: 'prefer-promise-reject-errors',
+    description: 'Generated from oxlint\'s `eslint/prefer-promise-reject-errors` rule (category: style). Prefer Promise Reject Errors.',
   },
   {
     id: 'style.prefer-readonly',

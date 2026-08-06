@@ -43,6 +43,6 @@
   },
   "dependencies": {
     "@misaon/slop-gate-core": "workspace:*",
-    "knip": "6.32.0"
+    "knip": "6.31.0"
   }
 }

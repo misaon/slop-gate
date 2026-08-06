@@ -1,3 +1,23 @@
 packages:
   - packages/*
   - apps/*
+
+# pnpm 11 requires every install script to be named before it runs. ast-grep's is not needed: its
+# postinstall only links a bin, and `engine-astgrep/src/resolve-binary.ts` resolves the platform
+# package (`@ast-grep/cli-linux-arm64-gnu` and its six siblings) and runs the binary inside it directly.
+# Verified with the script refused: the binary is present and reports `ast-grep 0.45.0`.
+allowBuilds:
+  '@ast-grep/cli': false
+
+# pnpm downloads the version `packageManager` names instead of using whatever is on PATH. Without this
+# the field is a comment: pnpm 11 wants a node_modules layout pnpm 10 does not produce, so the two
+# would purge and rebuild the tree past each other on every switch.
+managePackageManagerVersions: true
+
+# `minimumReleaseAge` is deliberately left at pnpm's default rather than raised to match
+# `.github/dependabot.yml`'s five-day cooldown. The default already refuses a release published within
+# the day, which is the case that gets past a human — knip 6.32.0 and vite 8.2.1 were pinned here by
+# hand hours after publication, and this is what caught them. Raising it to three days would also
+# reject motion 13.0.0, hono 4.13.0 and verkit 0.3.2, which this lockfile already carries, and forcing
+# those down is a separate decision from the cooldown itself. Dependabot keeps the per-update-type
+# policy; this floor is what applies to everyone else.
