@@ -33,6 +33,10 @@ packages/*/README.md
 # rules-explorer client build
 packages/rules-explorer/dist/
 
+# Reports the CI dogfood step writes for the annotations, the SARIF upload and the job summary.
+/sgate.sarif
+/sgate.json
+
 # Credentials pulled from Vercel. Never committed — the repository is public and these are live.
 .env
 .env.*

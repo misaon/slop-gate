@@ -2,11 +2,12 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineCommand } from 'citty'
 import { streamCheck, type CheckResult } from '@misaon/slop-gate-core'
-import { REPORTER_NAMES, createReporter } from '@misaon/slop-gate-reporters'
+import { REPORTER_NAMES, createReporter, type ReporterContext } from '@misaon/slop-gate-reporters'
 import { DEFAULT_CONFIG, loadCliConfig } from '../config.ts'
 import { defaultEngines } from '../engine-registry.ts'
 import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
 import { validateFormat } from '../format.ts'
+import { createReportSink, parseReportSpecs } from '../reports.ts'
 import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
 import { resolveRootDir } from '../root-dir.ts'
@@ -32,6 +33,10 @@ export const check = defineCommand({
     'max-warnings': { type: 'string', description: 'Fail when warnings exceed this count' },
     'max-tokens': { type: 'string', description: 'Bound the `agent` report to this many estimated tokens' },
     'max-findings': { type: 'string', description: 'Bound the `json` report to this many diagnostics' },
+    report: {
+      type: 'string',
+      description: 'Additional reports from the same run, as `name[:path]` — e.g. `github,sarif:sgate.sarif`',
+    },
     cache: { type: 'boolean', default: true, negativeDescription: 'Ignore cached results' },
     baseline: { type: 'boolean', default: true, negativeDescription: 'Report every finding, including the accepted ones' },
     'require-engines': {
@@ -68,6 +73,13 @@ export const check = defineCommand({
       return
     }
 
+    const reportSpecs = parseReportSpecs(args.report, args.format)
+    if ('error' in reportSpecs) {
+      process.stderr.write(`${reportSpecs.error}\n`)
+      process.exitCode = EXIT_CODES.config
+      return
+    }
+
     const timing = args.timing === true && args.format !== 'agent'
     if (args.timing === true && !timing) {
       process.stderr.write('--timing is ignored by `--format=agent`: that report is byte-identical between runs by design.\n')
@@ -86,8 +98,7 @@ export const check = defineCommand({
 
     const sources = new Map<string, string>()
 
-    const reporter = createReporter(args.format, {
-      write: (chunk) => process.stdout.write(chunk),
+    const reporterContext: Omit<ReporterContext, 'write'> = {
       color: supportsColor(),
       unicode: supportsUnicode(),
       width: process.stdout.columns ?? 80,
@@ -106,7 +117,12 @@ export const check = defineCommand({
           return null
         }
       },
-    })
+    }
+
+    const sinks = [
+      { reporter: createReporter(args.format, { ...reporterContext, write: (chunk: string) => process.stdout.write(chunk) }), flush: () => {} },
+      ...reportSpecs.map((spec) => createReportSink(spec, reporterContext)),
+    ]
 
     let result: CheckResult | undefined
     try {
@@ -122,12 +138,13 @@ export const check = defineCommand({
         timing,
         signal: controller.signal,
       })) {
-        reporter.onEvent(event)
+        for (const sink of sinks) sink.reporter.onEvent(event)
         if (event.type === 'done') result = event.result
       }
     } finally {
       process.off('SIGINT', onInterrupt)
       process.off('SIGTERM', onInterrupt)
+      for (const sink of sinks) sink.flush()
     }
 
     if (result !== undefined) await reportTelemetry(rootDir, loaded, result)

@@ -41,6 +41,11 @@ jobs:
         # Re-add it when 26 is a version contributors actually run.
         node: ['24']
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      # Uploading the SARIF report. Scoped to this job rather than the workflow, so `commitlint` —
+      # which runs a third-party action against pull request text — cannot reach the Security tab.
+      security-events: write
     # Generous against a cold cache on Windows, and far below the six-hour default that let a stuck
     # job hold a runner all afternoon.
     timeout-minutes: 20
@@ -63,8 +68,27 @@ jobs:
         if: always()
       # `pnpm dogfood`, not an inlined `sgate check`, so this step and the script a contributor runs
       # locally cannot drift apart: there is only one definition of the invocation, in package.json.
+      # The extra reports are appended as arguments rather than given their own script, for the same
+      # reason — the flags differ, the invocation does not. One run feeds all four consumers: the human
+      # log, the inline annotations, the SARIF upload and the summary. Three runs would each send their
+      # own telemetry event and triple the count this project uses to tune rules.
+      #
       # The script's own `pnpm build` is a turbo cache hit here, the `pnpm build` step above having
       # already produced every `dist` — the dogfood runs the built CLI on purpose, because that is the
       # artefact a user installs and the one thing `pnpm test`'s source alias cannot cover.
-      - run: pnpm dogfood
+      - run: pnpm dogfood --report github,sarif:sgate.sarif,json:sgate.json
         if: always()
+
+      # Reached whatever the gate said, because a red gate is exactly when the findings are worth
+      # reading. Only from the Linux job: three matrix entries uploading the same findings would
+      # triple every alert in the Security tab.
+      - name: Summarise findings
+        if: always() && matrix.os == 'ubuntu-latest'
+        run: node scripts/ci-summary.mjs sgate.json
+
+      - name: Upload SARIF
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        with:
+          sarif_file: sgate.sarif
+          category: slop-gate
