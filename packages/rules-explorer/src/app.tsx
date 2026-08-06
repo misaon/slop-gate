@@ -12,7 +12,7 @@ import {
 } from './components/animated/icons.tsx'
 import { ICON, Spinner, X } from './components/icons.tsx'
 import { columns, RulesTable } from './components/rules-table.tsx'
-import { fetchRules, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
+import { fetchRules, onCatalogueChange, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
 import { useTable } from './use-table.ts'
 
 const STATUSES: readonly CatalogueStatus[] = ['recommended', 'withheld', 'unlisted']
@@ -33,7 +33,10 @@ export function App() {
   const [impacts, setImpacts] = useState<ReadonlySet<Impact>>(new Set())
 
   useEffect(() => {
-    fetchRules().then(setState, (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+    const load = () =>
+      fetchRules().then(setState, (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+    void load()
+    return onCatalogueChange(() => void load())
   }, [])
 
   const rows = state?.rows

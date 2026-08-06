@@ -79,6 +79,24 @@ Three measurements is a start, not a system. The intent is that a developer can 
 a false positive and the figure moves on real data, so an unreliable rule becomes visible in the
 table rather than being discovered by whoever next reads 174 findings by hand.
 
+## Prevalence
+
+`packages/core/src/registry/prevalence.ts`, generated from the corpus run rather than written.
+
+How often a rule actually fires: `seenIn` of 20 projects, and the raw finding total. **Prevalence is
+the primary number** — one repository contributing 4,000 findings says less about how widely a rule
+applies than 17 repositories contributing one each.
+
+162 of 923 rules fired on anything. A rule absent from the table fired on none of the 20, which is
+not "never fires": the corpus is JavaScript and TypeScript, so a Dockerfile or workflow rule can be
+absent because nothing there exercised it.
+
+    17/20 projects   2,823 findings   oxlint/no-shadow
+    17/20            2,699            oxlint/typescript/no-explicit-any
+    16/20            1,418            oxlint/unicorn/consistent-function-scoping
+    15/20            2,374            oxlint/no-unused-vars
+    13/20              526            deps-security/vulnerability
+
 ## Options
 
 `hasOptions` on each rule comes from the JSON Schema oxlint ships, so the table can separate two

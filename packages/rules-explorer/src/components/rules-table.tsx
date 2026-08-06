@@ -1,3 +1,4 @@
+import type { CatalogueStatus } from '@misaon/slop-gate-core'
 import type { ColumnDef, Row as CoreRow, Table } from '@tanstack/table-core'
 import { useState } from 'preact/hooks'
 import { STATUS_LABEL, type Row } from '../data.ts'
@@ -30,6 +31,8 @@ export const columns: ColumnDef<Row, unknown>[] = [
   // Unmeasured sorts below 0%, so ordering by this column surfaces what is known first.
   { id: 'reliability', accessorFn: (row) => row.reliability?.percent ?? -1, header: 'Reliability' },
   { id: 'options', accessorFn: (row) => row.options, header: 'Options' },
+  // Never-fired sorts below 0%, so ordering by this column puts the rules that do fire first.
+  { id: 'seen', accessorFn: (row) => row.prevalence?.percent ?? -1, header: 'Seen on' },
   { id: 'added', accessorFn: (row) => row.origin?.date ?? '', header: 'Added' },
 ]
 
@@ -47,7 +50,18 @@ const COLUMN_WIDTH: Readonly<Record<string, string>> = {
   impact: '5.5rem',
   reliability: '8rem',
   options: '6rem',
+  seen: '8rem',
   added: '7rem',
+}
+
+/**
+ * A wash rather than a colour: the row still has to read as a row of a long table, and the state is
+ * already spelled out in its own column. This is for scanning down the page, not for identifying.
+ */
+const ROW_TINT: Readonly<Record<CatalogueStatus, string>> = {
+  recommended: 'bg-state-on/[0.035] hover:bg-state-on/[0.07]',
+  withheld: 'bg-state-withheld/[0.05] hover:bg-state-withheld/[0.09]',
+  unlisted: 'hover:bg-ink-900',
 }
 
 const HEAD_CLASS = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500 select-none'
@@ -122,6 +136,23 @@ function Detail({ row }: { row: Row }) {
             </HoverGroup>
           </div>
         </div>
+        {row.optionSetting === null ? null : (
+          <div class="mt-4 rounded-lg bg-ink-950/60 p-3 ring-1 ring-ink-800">
+            <div class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-500">
+              <SlidersHorizontal {...ICON_SMALL} />
+              The setting slop-gate applies
+            </div>
+            <pre class="mono mt-2 overflow-x-auto text-xs leading-relaxed text-ink-300">
+              {JSON.stringify({ [row.concept]: row.optionSetting }, null, 2)}
+            </pre>
+          </div>
+        )}
+        {row.prevalence === null ? null : (
+          <div class="mt-4 text-ink-500">
+            Fired on <span class="text-ink-300">{row.prevalence.seenIn} of 20</span> corpus projects,{' '}
+            <span class="text-ink-300">{row.prevalence.findings}</span> findings in total.
+          </div>
+        )}
         {row.reliability === null ? null : (
           <div class="mt-4 rounded-lg bg-ink-950/50 p-3 ring-1 ring-ink-800">
             <div class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-500">
@@ -198,6 +229,20 @@ function Cell({ id, row }: { id: string; row: Row }) {
           —
         </span>
       )
+    case 'seen':
+      return row.prevalence === null ? (
+        <span class="text-ink-700" title="Fired on none of the 20 corpus projects">
+          —
+        </span>
+      ) : (
+        <span
+          class="inline-flex items-baseline gap-1.5"
+          title={`Fired on ${row.prevalence.seenIn} of 20 corpus projects, ${row.prevalence.findings} findings in total`}
+        >
+          <span class="tabular-nums text-ink-300">{row.prevalence.percent}%</span>
+          <span class="text-xs tabular-nums text-ink-700">{row.prevalence.findings}×</span>
+        </span>
+      )
     case 'added':
       return <span class="mono text-ink-500">{row.origin?.date ?? '—'}</span>
     default:
@@ -243,7 +288,9 @@ export function RulesTable({ table }: { table: Table<Row> }) {
               <>
                 <tr
                   key={row.ruleRefKey}
-                  class={`cursor-pointer border-t border-ink-850 transition-colors hover:bg-ink-900 ${open ? 'bg-ink-900' : ''}`}
+                  class={`cursor-pointer border-t border-ink-850 transition-colors ${
+                    open ? 'bg-ink-900' : ROW_TINT[row.status]
+                  }`}
                   onClick={() => setExpanded(open ? null : row.ruleRefKey)}
                 >
                   <td class="px-3 py-2">

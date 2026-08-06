@@ -9,6 +9,7 @@ import type {
 type RuleOrigin = { readonly commit: string; readonly date: string; readonly subject: string }
 
 export type RulesPayload = {
+  readonly generation: number
   readonly generatedAt: string
   readonly rules: readonly CatalogueEntry[]
   readonly summary: CatalogueSummary
@@ -56,4 +57,15 @@ export const STATUS_HELP: Readonly<Record<CatalogueStatus, string>> = {
   recommended: '`recommended` turns this on. The level column says how loudly.',
   withheld: 'Deliberately kept out of `recommended`, with a reason recorded in the registry.',
   unlisted: 'Known to slop-gate but not in any preset. Name its concept in your config to enable it.',
+}
+
+/**
+ * The server watches core's source and pushes a generation number when it changes; the page refetches
+ * rather than asking the reader to reload. Falls back to nothing if the stream cannot open — the page
+ * still works, it just stops being live.
+ */
+export function onCatalogueChange(refetch: () => void): () => void {
+  const source = new EventSource('/api/changes')
+  source.addEventListener('changed', refetch)
+  return () => source.close()
 }

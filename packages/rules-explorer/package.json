@@ -4,7 +4,7 @@
   "private": true,
   "description": "Internal: a visual index of every rule slop-gate knows about, its state and why.",
   "license": "MIT",
-  "author": "Ondřej Misák",
+  "author": "Ond\u0159ej Mis\u00e1k",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -13,7 +13,8 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite",
-    "serve": "node --experimental-strip-types server/serve.ts"
+    "serve": "node --experimental-strip-types server/serve.ts",
+    "payload": "node --experimental-strip-types server/build-payload.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.0",
