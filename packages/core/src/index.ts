@@ -110,3 +110,10 @@ export { IMPACTS, impactOf, type Impact, type ImpactDefinition } from './registr
 export { reliabilityOf, reliabilityPercent, type Reliability } from './registry/reliability.ts'
 export { CORPUS_PROJECTS, prevalenceOf, type Prevalence } from './registry/prevalence.ts'
 export { buildRulesConflicts, type RulesConflicts } from './queries/conflicts.ts'
+export {
+  buildTelemetryPayload,
+  TELEMETRY_SCHEMA_VERSION,
+  type RuleReport,
+  type TelemetryContext,
+  type TelemetryPayload,
+} from './telemetry/payload.ts'

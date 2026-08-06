@@ -10,6 +10,7 @@ import { validateFormat } from '../format.ts'
 import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
 import { resolveRootDir } from '../root-dir.ts'
+import { reportTelemetry } from '../telemetry/report.ts'
 
 export function parseMaxTokens(raw: string | undefined): number | undefined | 'invalid' {
   if (raw === undefined) return undefined
@@ -128,6 +129,8 @@ export const check = defineCommand({
       process.off('SIGINT', onInterrupt)
       process.off('SIGTERM', onInterrupt)
     }
+
+    if (result !== undefined) await reportTelemetry(rootDir, loaded, result)
 
     const unavailableEngines = result?.unavailableEngines ?? []
     if (args['require-engines'] === true) {

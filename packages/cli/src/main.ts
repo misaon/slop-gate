@@ -13,6 +13,7 @@ const subCommands = {
   init: () => import('./commands/init.ts').then((module) => module.init),
   mcp: () => import('./commands/mcp/index.ts').then((module) => module.mcp),
   rules: () => import('./commands/rules/index.ts').then((module) => module.rules),
+  telemetry: () => import('./commands/telemetry.ts').then((module) => module.telemetry),
 }
 
 const main = defineCommand({
