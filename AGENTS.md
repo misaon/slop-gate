@@ -62,6 +62,16 @@ place a finding ever appears, and `actionlint`'s installer has no Windows path a
 then. Exercising the download path and the advisory data against the live network belongs in a
 scheduled job, where a failed fetch is triage rather than a blocked pull request.
 
+## The ruleset requires one check, and it is `ci`
+
+`ci` in `.github/workflows/ci.yml` exists only to aggregate `commitlint` and `check`, and it is the single
+required status check. Do not require the matrix jobs directly: their names embed the operating system and
+the Node version, so dropping a Node version removes a required check, and every pull request then waits
+forever on a status nothing will ever report — with no error in any log. That is not hypothetical; it cost a
+hand-edited ruleset on 6 August 2026.
+
+Adding a job that should block a merge means adding it to `ci`’s `needs`, never to the ruleset.
+
 ## Conventions
 
 - ESM only. Node >= 24. No CommonJS.

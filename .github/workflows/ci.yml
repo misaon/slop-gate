@@ -122,3 +122,38 @@ jobs:
         with:
           run: pnpm bench
           token: ${{ secrets.CODSPEED_TOKEN }}
+
+  # The one check the ruleset requires, and the only job here whose name does not embed a matrix value.
+  # Requiring `check (ubuntu-latest, 24)` directly means dropping a Node version silently removes a
+  # required check, and every pull request then waits forever on a status nothing will ever report, with
+  # no error in any log. That happened on 6 August: the matrix lost Node 26 at 19:10 and the ruleset had
+  # to be hand-edited at 19:32.
+  #
+  # `bench` is deliberately not a dependency. CodSpeed posts its own check and has never run here, so
+  # making it required would block every pull request on an unproven job. Add it to the ruleset once it
+  # has passed once.
+  ci:
+    needs: [commitlint, check]
+    # Without `always()` this job is skipped when a dependency fails, and a skipped required check is a
+    # pull request that waits forever rather than one that reports red.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to have succeeded or been skipped
+        env:
+          # `commitlint` is skipped on a push to main, which is not a failure. Read through the
+          # environment rather than interpolated into the script: a `run:` block that expands an
+          # expression directly is the shape of a script injection, even when the value is an enum.
+          COMMITLINT: ${{ needs.commitlint.result }}
+          CHECK: ${{ needs.check.result }}
+        run: |
+          status=0
+          for job in COMMITLINT CHECK; do
+            result="${!job}"
+            case "$result" in
+              success|skipped) printf '%s: %s\n' "$job" "$result" ;;
+              *) printf '::error::%s reported %s\n' "$job" "$result"; status=1 ;;
+            esac
+          done
+          exit $status
