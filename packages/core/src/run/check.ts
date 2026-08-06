@@ -64,6 +64,16 @@ export type CheckResult = {
     enginesRun: number
     durationMs: number
   }
+  /**
+   * Findings that were produced and then dropped, by rule and by who dropped them. An inline
+   * `sgate-disable` and a baseline acceptance are both a human saying "not this one", which is the
+   * only false-positive signal a run can observe without asking.
+   */
+  dropped: {
+    inline: Readonly<Record<string, number>>
+    baseline: Readonly<Record<string, number>>
+    generated: Readonly<Record<string, number>>
+  }
   timings?: TimingReport
   ruleset: {
     enabledConcepts: number
@@ -79,6 +89,10 @@ export type CheckEvent =
   | { type: 'done'; result: CheckResult }
 
 const DEFAULT_BATCH_SIZE = 500
+
+function recordDrop(into: Map<string, number>, diagnostic: Diagnostic): void {
+  into.set(diagnostic.ruleRefKey, (into.get(diagnostic.ruleRefKey) ?? 0) + 1)
+}
 
 type AssignmentOutcome = {
   readonly diagnostics: Diagnostic[]
@@ -96,8 +110,6 @@ function engineConcurrency(assignments: number): number {
   const cores = availableParallelism()
   return Math.max(2, Math.min(assignments, Math.floor(cores / 2)))
 }
-
-const isVisible = (diagnostic: Diagnostic): boolean => diagnostic.suppressed === undefined
 
 async function removeIfEmpty(...dirs: readonly string[]): Promise<void> {
   for (const dir of dirs) await rmdir(dir).catch(() => undefined)
@@ -155,6 +167,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   }
 
   const collected: Diagnostic[] = []
+  const dropped = {
+    inline: new Map<string, number>(),
+    baseline: new Map<string, number>(),
+    generated: new Map<string, number>(),
+  }
   const engineFailures: Array<{ engine: string; message: string }> = []
   let enginesRun = 0
 
@@ -168,7 +185,10 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
   }
 
   for (const diagnostic of configDiagnostics({ resolver, election, configFile })) {
-    if (baseline?.accepts(diagnostic) === true) continue
+    if (baseline?.accepts(diagnostic) === true) {
+      recordDrop(dropped.baseline, diagnostic)
+      continue
+    }
     collected.push(diagnostic)
     yield { type: 'diagnostic', diagnostic }
   }
@@ -219,7 +239,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     const engine = resolved.engine
 
     const take = (diagnostic: Diagnostic): void => {
-      if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) return
+      const by = diagnostic.suppressed?.by
+      if (by === 'inline' || by === 'config') return recordDrop(dropped.inline, diagnostic)
+      if (by === 'generated') return recordDrop(dropped.generated, diagnostic)
+      if (isDuplicateSynthetic(diagnostic)) return
+      if (baseline?.accepts(diagnostic) === true) return recordDrop(dropped.baseline, diagnostic)
       outcome.diagnostics.push(diagnostic)
     }
 
@@ -417,6 +441,11 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
             }),
           }
         : {}),
+      dropped: {
+        inline: Object.fromEntries(dropped.inline),
+        baseline: Object.fromEntries(dropped.baseline),
+        generated: Object.fromEntries(dropped.generated),
+      },
       ruleset: {
         enabledConcepts: resolver.anyEnabledConcepts.size,
         overlaps: election.overlaps.length,
