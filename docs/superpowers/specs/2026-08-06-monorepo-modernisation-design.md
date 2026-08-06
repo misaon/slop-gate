@@ -117,3 +117,37 @@ commit `c3b8dbf` says it did in July.
 
 **P4, comments.** About forty sites reduced to one line or removed, measurements moved to
 `docs/measurements.md`, and `AGENTS.md` rewritten to describe the convention that then holds.
+
+## What the implementation refuted
+
+Four things this document asserted turned out to be wrong when checked against the code rather than
+against a grep count. They are recorded here because the reasoning above reads as settled and is not.
+
+**`tsgolint` and `zizmor` are not dead.** The audit called them phantom identifiers on the strength of
+a search that excluded test files. `tsgolint` is a fixture in `registry/elect.test.ts` and
+`run/check.test.ts`, exercising type-aware election today, and `concepts/catalogue.ts` names it as the
+owner of the `types.*` concepts; the design's arbitration order includes both deliberately. They stay.
+The real defect was narrower — `rules list --engine` offered them as a choice — and that is what was
+fixed.
+
+**The ES2025 floor does not pay.** TypeScript 7 accepts `es2025`, but what the higher lib adds here is
+`Set` methods and `RegExp.escape`, and only two sites in `elect.ts` are genuine set algebra. Raising
+the floor also requires splitting `tsconfig.base.json` into a rules layer and a language layer and
+repointing thirteen `extends`, because `apps/telemetry-ingest` is pinned to TypeScript 5.9.3 for the
+Vercel builder and 5.9 rejects an `es2025` value in an inherited config even when the package overrides
+it. `docs/measurements.md#es2025-floor` has the figures, along with the four modernisations
+(`Promise.withResolvers`, `Map.groupBy`, `Array.fromAsync`, `Error.isError`) that were counted from grep
+and refuted by reading the sites.
+
+**Newest is not the same as current.** This document said "every patch and minor", and following it put
+knip 6.32.0 and vite 8.2.1 into the lockfile hours after publication — past the three-to-five day
+cooldown `.github/dependabot.yml` argues for and binds only Dependabot to. pnpm 11 refused to install
+and was right. The analysers pin the versions already in use; `minimumReleaseAge` stays at pnpm's
+default, because raising it to Dependabot's five days would also reject motion, hono and verkit, which
+this lockfile already carries.
+
+**`@tanstack/table-core` 9 was deferred and then not.** Deferring was the recommendation — an internal
+page, a major two days old, a 404 for its migration guide. The user chose to migrate, and the API came
+from the `skills/` directory the package ships. Migrating paid for itself in a way neither option
+predicted: v9 requires features to be declared, which exposed that the binding had registered filtered
+and faceted row models nothing ever asked for. The client bundle fell 213.50 kB to 196.82 kB.
