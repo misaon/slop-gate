@@ -6,11 +6,12 @@ import type { AdvisoryTable } from './advisory.ts'
 export const SNAPSHOT_PATH_ENV = 'SLOP_GATE_ADVISORIES_PATH'
 export const CACHE_DIR_ENV = 'SLOP_GATE_CACHE_DIR'
 
-export const SNAPSHOT_FORMAT_VERSION = 1
+export const SNAPSHOT_FORMAT_VERSION = 2
 
 export const SNAPSHOT_MANIFEST_FILENAME = 'snapshot.json'
 export const VULNERABLE_FILE = 'vulnerable.json'
-export const MALICIOUS_FILE = 'malicious.json'
+export const MALICIOUS_INDEX_FILE = 'malicious.idx'
+export const MALICIOUS_RECORDS_FILE = 'malicious.rec'
 
 export const INSTALL_COMMAND = 'sgate engines install advisories'
 

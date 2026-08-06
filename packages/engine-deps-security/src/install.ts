@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto'
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { buildAdvisoryTables, distillAdvisory, type AdvisoryTable, type DistilledAffected } from './advisory.ts'
+import { buildKeyedTable } from './keyed-table.ts'
 import {
-  MALICIOUS_FILE,
+  MALICIOUS_INDEX_FILE,
+  MALICIOUS_RECORDS_FILE,
   SNAPSHOT_MANIFEST_FILENAME,
   SNAPSHOT_FORMAT_VERSION,
   VULNERABLE_FILE,
@@ -114,7 +116,9 @@ export async function writeAdvisorySnapshot(
     await rm(staging, { recursive: true, force: true })
     await mkdir(staging, { recursive: true })
     await writeFile(join(staging, VULNERABLE_FILE), JSON.stringify(tables.vulnerable), 'utf8')
-    await writeFile(join(staging, MALICIOUS_FILE), JSON.stringify(tables.malicious), 'utf8')
+    const keyed = buildKeyedTable(tables.malicious)
+    await writeFile(join(staging, MALICIOUS_INDEX_FILE), keyed.index)
+    await writeFile(join(staging, MALICIOUS_RECORDS_FILE), keyed.records)
     await writeFile(join(staging, SNAPSHOT_MANIFEST_FILENAME), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
 
     await mkdir(join(directory, '..'), { recursive: true })

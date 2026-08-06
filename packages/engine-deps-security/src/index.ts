@@ -13,7 +13,8 @@ import {
   type RawDiagnostic,
   type RunContext,
 } from '@misaon/slop-gate-core'
-import type { AdvisoryTable } from './advisory.ts'
+import type { AdvisoryRecord, AdvisoryTable } from './advisory.ts'
+import { openKeyedTable } from './keyed-table.ts'
 import {
   LOCKFILES,
   LockfileParseError,
@@ -21,12 +22,14 @@ import {
   manifestDependencies,
   parseLockfile,
   type LockfileKind,
+  type ParsedLockfile,
 } from './lockfile.ts'
 import type { PackageManifest } from './scan.ts'
 import { DEPS_SECURITY_RULES, type DepsSecurityRuleId } from './rules.ts'
 import {
   INSTALL_COMMAND,
-  MALICIOUS_FILE,
+  MALICIOUS_INDEX_FILE,
+  MALICIOUS_RECORDS_FILE,
   VULNERABLE_FILE,
   advisorySnapshotDir,
   readSnapshotManifest,
@@ -77,7 +80,8 @@ export {
 export {
   CACHE_DIR_ENV,
   INSTALL_COMMAND,
-  MALICIOUS_FILE,
+  MALICIOUS_INDEX_FILE,
+  MALICIOUS_RECORDS_FILE,
   SNAPSHOT_FORMAT_VERSION,
   SNAPSHOT_MANIFEST_FILENAME,
   SNAPSHOT_PATH_ENV,
@@ -195,7 +199,7 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
 
   const [vulnerable, malicious] = await Promise.all([
     readTable(input.directory, VULNERABLE_FILE),
-    enabled.has('malware') ? readTable(input.directory, MALICIOUS_FILE) : Promise.resolve({}),
+    enabled.has('malware') ? maliciousFor(input.directory, parsed) : Promise.resolve({}),
   ])
 
   const { scanDependencies } = await import('./scan.ts')
@@ -210,6 +214,37 @@ async function* execute(input: ExecuteInput): AsyncIterable<RawDiagnostic> {
     unsupportedLockfiles: findUnsupportedLockfiles(input.context.rootDir),
     ...(input.now === undefined ? {} : { now: input.now }),
   })
+}
+
+/**
+ * Only the installed names are resolved out of the malware table. Reading all 218,718 of them cost
+ * 585 ms and 200 MB of heap on every run of every repository, to answer a few thousand lookups.
+ */
+async function maliciousFor(directory: string, parsed: ParsedLockfile): Promise<AdvisoryTable> {
+  const indexPath = join(directory, MALICIOUS_INDEX_FILE)
+  const index = await readFile(indexPath).catch((error: unknown) => {
+    throw new EngineError('deps-security', `could not read ${indexPath}: ${message(error)}`, { cause: error })
+  })
+
+  const table: Record<string, readonly AdvisoryRecord[]> = {}
+  try {
+    const keyed = await openKeyedTable(index, join(directory, MALICIOUS_RECORDS_FILE))
+    try {
+      for (const name of new Set(parsed.packages.map((entry) => entry.name))) {
+        const records = await keyed.lookup(name)
+        if (records.length > 0) table[name] = records
+      }
+    } finally {
+      await keyed.close()
+    }
+  } catch (error) {
+    throw new EngineError('deps-security', `could not read the malware table in ${directory}: ${message(error)}`, { cause: error })
+  }
+  return table
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function* noLockfile(
