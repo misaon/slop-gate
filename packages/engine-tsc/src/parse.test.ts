@@ -180,3 +180,18 @@ test('drops TS2307 for a Svelte or Astro component that exists', async () => {
 
   expect(await collect(parseTscOutput(stdout, dir))).toEqual([])
 })
+
+test('drops a diagnostic reported inside node_modules', async () => {
+  await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
+  const stdout =
+    `node_modules/.pnpm/srvx@0.12.4/node_modules/srvx/dist/_chunks/types.d.mts(9,13): error TS2320: Interface 'A' cannot simultaneously extend types 'B' and 'C'.\n` +
+    `src/a.ts(1,14): error TS2322: Type 'string' is not assignable to type 'number'.\n`
+
+  const found = await collect(parseTscOutput(stdout, dir))
+  expect(found.map((entry) => entry.file)).toEqual(['src/a.ts'])
+})
+
+test('drops a diagnostic reported inside a build output directory', async () => {
+  const stdout = `dist/index.d.ts(1,1): error TS2304: Cannot find name 'Foo'.\n`
+  expect(await collect(parseTscOutput(stdout, dir))).toEqual([])
+})

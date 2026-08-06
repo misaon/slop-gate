@@ -4,7 +4,13 @@ import ignore from 'ignore'
 import type { LanguageId } from '../languages.ts'
 import { compareStrings } from '../ordering.ts'
 import { detectLanguage } from './language.ts'
-import { ALWAYS_SKIPPED, createGitFileSource, createWalkFileSource, selectFileSource, type FileSource } from './sources.ts'
+import {
+  createGitFileSource,
+  createWalkFileSource,
+  isAlwaysSkippedPath,
+  selectFileSource,
+  type FileSource,
+} from './sources.ts'
 import type { FileInventory, InventoryFile } from './types.ts'
 import { buildWorkspaceGraph } from './workspaces.ts'
 
@@ -15,10 +21,6 @@ export type BuildInventoryOptions = {
   ignore?: readonly string[]
   source?: FileSource
   signal?: AbortSignal
-}
-
-function isAlwaysSkipped(path: string): boolean {
-  return path.split('/').some((segment) => ALWAYS_SKIPPED.has(segment))
 }
 
 async function readSlopIgnore(rootDir: string): Promise<string[]> {
@@ -43,7 +45,7 @@ export async function buildInventory(options: BuildInventoryOptions): Promise<Fi
 
   await Promise.all(
     paths.map(async (path) => {
-      if (isAlwaysSkipped(path) || isIgnored(path)) return
+      if (isAlwaysSkippedPath(path) || isIgnored(path)) return
       signal.throwIfAborted()
 
       const stats = await stat(join(options.rootDir, path)).catch((error: NodeJS.ErrnoException) => {

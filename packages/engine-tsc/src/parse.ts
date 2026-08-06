@@ -1,6 +1,14 @@
 import { readFile, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { createLineIndex, EngineError, toRepoRelative, type LineIndex, type RawDiagnostic, type RawSeverity } from '@misaon/slop-gate-core'
+import {
+  createLineIndex,
+  EngineError,
+  isAlwaysSkippedPath,
+  toRepoRelative,
+  type LineIndex,
+  type RawDiagnostic,
+  type RawSeverity,
+} from '@misaon/slop-gate-core'
 
 export const TYPE_ERROR_RULE_ID = 'type-error'
 
@@ -106,6 +114,10 @@ export async function* parseTscOutput(stdout: string, rootDir: string): AsyncGen
   }
 
   for (const diagnostic of located) {
+    // tsc reports on every file in the program, which includes the `.d.ts` of every dependency a
+    // project without `skipLibCheck` pulls in. Those are not the user's to fix and the inventory
+    // never offered them, so a finding there is noise no reader can act on.
+    if (isAlwaysSkippedPath(diagnostic.file)) continue
     if (await isPresentComponentImport(diagnostic, rootDir)) continue
     const index = await indexFor(diagnostic.file)
     const start = index.offsetAt({ line: diagnostic.line, column: diagnostic.column })

@@ -12,7 +12,11 @@ export type FileSource = {
   list(rootDir: string, signal: AbortSignal): Promise<string[]>
 }
 
-export const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
+const ALWAYS_SKIPPED = new Set(['.git', 'node_modules', '.turbo', 'dist', '.slop-gate'])
+
+export function isAlwaysSkippedPath(path: string): boolean {
+  return path.split('/').some((segment) => ALWAYS_SKIPPED.has(segment))
+}
 
 export function createGitFileSource(): FileSource {
   return {
