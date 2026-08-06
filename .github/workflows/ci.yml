@@ -25,7 +25,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        node: ['24', '26']
+        # One Node version, matching `engines`. The matrix carried '26' as well and both of those
+        # jobs hit the 15-minute timeout rather than failing a test — so it was buying no coverage
+        # and costing every pull request a quarter of an hour. Worth re-adding deliberately, with
+        # that hang understood first, when 26 is a version anyone runs.
+        node: ['24']
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
