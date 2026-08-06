@@ -6,7 +6,15 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AdvisoryInstallError, installAdvisorySnapshot, writeAdvisorySnapshot } from './install.ts'
-import { MALICIOUS_FILE, SNAPSHOT_MANIFEST_FILENAME, SNAPSHOT_FORMAT_VERSION, VULNERABLE_FILE, readSnapshotManifest } from './snapshot.ts'
+import {
+  MALICIOUS_INDEX_FILE,
+  MALICIOUS_RECORDS_FILE,
+  SNAPSHOT_MANIFEST_FILENAME,
+  SNAPSHOT_FORMAT_VERSION,
+  VULNERABLE_FILE,
+  readSnapshotManifest,
+} from './snapshot.ts'
+import { openKeyedTable } from './keyed-table.ts'
 import type { AdvisoryTable } from './advisory.ts'
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
@@ -40,11 +48,16 @@ describe('installAdvisorySnapshot', () => {
     expect(manifest?.maliciousAdvisories).toBe(2)
 
     const vulnerable = JSON.parse(await readFile(join(result.directory, VULNERABLE_FILE), 'utf8')) as AdvisoryTable
-    const malicious = JSON.parse(await readFile(join(result.directory, MALICIOUS_FILE), 'utf8')) as AdvisoryTable
-
     expect(Object.keys(vulnerable)).toEqual(['lodash', 'lodash-amd', 'lodash-es', 'lodash.defaultsdeep', 'minimist'])
-    expect(Object.keys(malicious).sort()).toEqual(['chalk', 'debug'])
-    expect(malicious['chalk']?.[0]?.versions).toEqual(['5.6.1'])
+
+    const malicious = await openKeyedTable(
+      await readFile(join(result.directory, MALICIOUS_INDEX_FILE)),
+      join(result.directory, MALICIOUS_RECORDS_FILE),
+    )
+    expect((await malicious.lookup('chalk'))[0]?.versions).toEqual(['5.6.1'])
+    expect(await malicious.lookup('debug')).toHaveLength(1)
+    expect(await malicious.lookup('lodash')).toEqual([])
+    await malicious.close()
   })
 
   it('records the digest of the bytes it actually fetched', async () => {
@@ -129,6 +142,6 @@ describe('writeAdvisorySnapshot', () => {
     )
 
     expect(readSnapshotManifest(directory)?.source).toBe('file:///build/all.zip')
-    expect(await readFile(join(directory, SNAPSHOT_MANIFEST_FILENAME), 'utf8')).toContain('"formatVersion": 1')
+    expect(await readFile(join(directory, SNAPSHOT_MANIFEST_FILENAME), 'utf8')).toContain(`"formatVersion": ${SNAPSHOT_FORMAT_VERSION}`)
   })
 })
