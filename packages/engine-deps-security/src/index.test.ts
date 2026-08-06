@@ -216,12 +216,29 @@ describe('run', () => {
     expect(await runEngine(engineFor())).toEqual([])
   })
 
-  it('turns an unreadable lockfile into an engine error rather than an empty result', async () => {
+  it('turns an unreadable lockfile into a coverage gap rather than an empty result', async () => {
     await installSnapshot()
     await writeFile(join(root, 'package.json'), JSON.stringify({ dependencies: { axios: '0.21.0' } }))
     await writeFile(join(root, 'package-lock.json'), '{ not json')
 
-    await expect(runEngine(engineFor())).rejects.toThrow(EngineError)
+    const found = await runEngine(engineFor())
+    expect(found).toHaveLength(1)
+    expect(found[0]?.engineRuleId).toBe('coverage-gap')
+    expect(found[0]?.file).toBe('package-lock.json')
+  })
+
+  it('states the remedy when the lockfile is too old to carry a packages map', async () => {
+    await installSnapshot()
+    await writeFile(join(root, 'package.json'), JSON.stringify({ dependencies: { axios: '0.21.0' } }))
+    await writeFile(
+      join(root, 'package-lock.json'),
+      JSON.stringify({ lockfileVersion: 1, dependencies: { axios: { version: '0.21.0' } } }),
+    )
+
+    const found = await runEngine(engineFor())
+    expect(found).toHaveLength(1)
+    expect(found[0]?.engineRuleId).toBe('coverage-gap')
+    expect(found[0]?.help).toContain('lockfileVersion 1')
   })
 
   it('fails loudly if the snapshot disappears between the availability probe and the run', async () => {
