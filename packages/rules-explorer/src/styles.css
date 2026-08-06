@@ -1,0 +1,44 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink-950: oklch(0.16 0.012 275);
+  --color-ink-900: oklch(0.2 0.014 275);
+  --color-ink-850: oklch(0.24 0.015 275);
+  --color-ink-800: oklch(0.29 0.016 275);
+  --color-ink-700: oklch(0.38 0.018 275);
+  --color-ink-500: oklch(0.6 0.02 275);
+  --color-ink-300: oklch(0.78 0.015 275);
+  --color-ink-100: oklch(0.94 0.008 275);
+
+  --color-brand: oklch(0.68 0.19 285);
+  --color-on: oklch(0.72 0.16 155);
+  --color-withheld: oklch(0.76 0.15 75);
+  --color-off: oklch(0.62 0.02 275);
+}
+
+html {
+  color-scheme: dark;
+  scrollbar-color: var(--color-ink-700) transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv05', 'ss01';
+}
+
+code,
+.mono {
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+}
+
+/* The table is wide and long; keep its head visible without a fixed layout. */
+.sticky-head th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in oklab, var(--color-ink-900) 92%, transparent);
+  backdrop-filter: blur(8px);
+}

@@ -98,4 +98,11 @@ export { editsFromRewrite } from './fix/derive.ts'
 export { wasEnabledBeforeBeingDisabled, type ConceptEnablement, type OverrideMention } from './queries/enablement.ts'
 export { explainConcept, type ConceptWhy } from './queries/why.ts'
 export { buildRulesList, type RulesListEntry, type RulesListOptions } from './queries/list.ts'
+export {
+  buildRuleCatalogue,
+  summariseCatalogue,
+  type CatalogueEntry,
+  type CatalogueStatus,
+  type CatalogueSummary,
+} from './queries/catalogue.ts'
 export { buildRulesConflicts, type RulesConflicts } from './queries/conflicts.ts'

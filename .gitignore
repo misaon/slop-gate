@@ -29,3 +29,6 @@ packages/*/README.md
 /logo-wide-darkmode.png
 /logo-wide-lightmode.png
 /tf-logo.svg
+
+# rules-explorer client build
+packages/rules-explorer/dist/

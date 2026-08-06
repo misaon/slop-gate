@@ -1,0 +1,31 @@
+{
+  "name": "@misaon/slop-gate-rules-explorer",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Internal: a visual index of every rule slop-gate knows about, its state and why.",
+  "license": "MIT",
+  "author": "Ond\u0159ej Mis\u00e1k",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev": "vite",
+    "serve": "node --experimental-strip-types server/serve.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.0",
+    "@misaon/slop-gate-core": "workspace:*",
+    "@tanstack/table-core": "^8.21.3",
+    "hono": "^4.9.0",
+    "preact": "^10.27.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.2",
+    "@tailwindcss/vite": "^4.1.0",
+    "tailwindcss": "^4.1.0",
+    "vite": "^7.1.0"
+  }
+}

@@ -1,0 +1,125 @@
+import type { CatalogueStatus } from '@misaon/slop-gate-core'
+import { useEffect, useMemo, useState } from 'preact/hooks'
+import { Tile, Toggle } from './components/chrome.tsx'
+import { columns, RulesTable } from './components/rules-table.tsx'
+import { fetchRules, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
+import { useTable } from './use-table.ts'
+
+const STATUSES: readonly CatalogueStatus[] = ['recommended', 'withheld', 'unlisted']
+
+function toggled<T>(set: ReadonlySet<T>, value: T): ReadonlySet<T> {
+  const next = new Set(set)
+  if (!next.delete(value)) next.add(value)
+  return next
+}
+
+export function App() {
+  const [state, setState] = useState<{ rows: Row[]; payload: RulesPayload } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const [engines, setEngines] = useState<ReadonlySet<string>>(new Set())
+  const [statuses, setStatuses] = useState<ReadonlySet<CatalogueStatus>>(new Set())
+
+  useEffect(() => {
+    fetchRules().then(setState, (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+  }, [])
+
+  const rows = state?.rows
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return (rows ?? []).filter((row) => {
+      if (engines.size > 0 && !engines.has(row.engine)) return false
+      if (statuses.size > 0 && !statuses.has(row.status)) return false
+      if (needle === '') return true
+      return (
+        row.engineRuleId.toLowerCase().includes(needle) ||
+        row.concept.toLowerCase().includes(needle) ||
+        row.title.toLowerCase().includes(needle)
+      )
+    })
+  }, [rows, query, engines, statuses])
+
+  const table = useTable(filtered, columns)
+
+  if (error !== null) {
+    return <main class="mx-auto max-w-2xl p-10 text-red-400">Could not load the catalogue: {error}</main>
+  }
+  if (state === null) {
+    return <main class="mx-auto max-w-2xl p-10 text-ink-500">Loading the catalogue…</main>
+  }
+
+  const { summary, history } = state.payload
+
+  return (
+    <main class="mx-auto max-w-[1400px] px-6 py-8">
+      <header class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight">
+            slop-gate <span class="text-ink-500">rules</span>
+          </h1>
+          <p class="mt-1 text-sm text-ink-500">
+            Every rule the registry knows about, whether a preset turns it on, and why not when it does not.
+          </p>
+        </div>
+        <div class="text-xs text-ink-700">
+          {history.removed.length > 0 ? (
+            <span class="mr-3 text-withheld">{history.removed.length} removed since first commit</span>
+          ) : null}
+          generated {new Date(state.payload.generatedAt).toLocaleString()}
+        </div>
+      </header>
+
+      <section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Tile label="Rules known" value={summary.total} />
+        <Tile label="On in recommended" value={summary.byStatus.recommended} tone="text-on" />
+        <Tile label="Withheld, with a reason" value={summary.byStatus.withheld} tone="text-withheld" />
+        <Tile label="Available, not preset" value={summary.byStatus.unlisted} tone="text-ink-300" />
+      </section>
+
+      <section class="mb-4 space-y-3">
+        <input
+          type="search"
+          value={query}
+          onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
+          placeholder="Filter by rule, concept or title…"
+          class="w-full rounded-lg bg-ink-900 px-3 py-2 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-700 focus:ring-brand/50"
+        />
+        <div class="flex flex-wrap gap-2">
+          {summary.byEngine.map((entry) => (
+            <Toggle
+              key={entry.engine}
+              active={engines.has(entry.engine)}
+              count={entry.total}
+              onClick={() => setEngines(toggled(engines, entry.engine))}
+            >
+              {entry.engine}
+            </Toggle>
+          ))}
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          {STATUSES.map((status) => (
+            <span key={status} title={STATUS_HELP[status]}>
+              <Toggle
+                active={statuses.has(status)}
+                count={summary.byStatus[status]}
+                onClick={() => setStatuses(toggled(statuses, status))}
+              >
+                {STATUS_LABEL[status]}
+              </Toggle>
+            </span>
+          ))}
+          <span class="ml-auto text-sm tabular-nums text-ink-500">
+            {filtered.length === state.rows.length ? `${state.rows.length} rules` : `${filtered.length} of ${state.rows.length} rules`}
+          </span>
+        </div>
+      </section>
+
+      <RulesTable table={table} />
+
+      <footer class="mt-6 text-xs text-ink-700">
+        Click a row for the concept, its languages, the commit that introduced it and — where one exists — the recorded
+        reason it is not in <code>recommended</code>.
+      </footer>
+    </main>
+  )
+}
