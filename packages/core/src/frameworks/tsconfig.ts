@@ -52,6 +52,10 @@ export async function resolveJsxImportSource(file: string, readText: ReadText): 
   return resolveOption(file, ['compilerOptions', 'jsxImportSource'], readText, new Set())
 }
 
+export async function resolveJsxFactory(file: string, readText: ReadText): Promise<EffectiveOption> {
+  return resolveOption(file, ['compilerOptions', 'jsxFactory'], readText, new Set())
+}
+
 export type EffectiveOption =
   | { readonly kind: 'set'; readonly value: string; readonly declaredIn: string }
   | { readonly kind: 'none' }

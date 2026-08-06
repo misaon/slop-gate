@@ -4,7 +4,7 @@ import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { defineProfile, dependencyEvidence, inventoryFilesMatching, relativeToWorkspace } from './detect.ts'
 import { extractStringLiteral } from './literal.ts'
-import { resolveIncludeScope, resolveJsx, resolveJsxImportSource, TSCONFIG } from './tsconfig.ts'
+import { resolveIncludeScope, resolveJsx, resolveJsxFactory, resolveJsxImportSource, TSCONFIG } from './tsconfig.ts'
 import type { AnyFrameworkProfile, FrameworkAdjustment, FrameworkEvidence } from './types.ts'
 
 const byFile = (a: readonly [string, unknown], b: readonly [string, unknown]): number => compareStrings(a[0], b[0])
@@ -191,34 +191,56 @@ function overlaps(a: string, b: string): boolean {
   return a === '' || b === '' || a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
 }
 
+type ResolvedJsxConfig = {
+  readonly file: string
+  readonly jsx: Awaited<ReturnType<typeof resolveJsx>>
+  readonly importSource: Awaited<ReturnType<typeof resolveJsxImportSource>>
+  readonly factory: Awaited<ReturnType<typeof resolveJsxFactory>>
+  readonly scope: readonly string[]
+}
+
+// `jsxFactory: "React.createElement"` still needs React in scope; `"h"` or `"createElement"` does not.
+const factoryIsReact = (value: string): boolean => value.split('.')[0] === 'React'
+
+function needsReactInScope(entry: ResolvedJsxConfig): boolean {
+  if (entry.jsx.kind !== 'set') return false
+  if (entry.jsx.transform !== 'classic') return false
+  return entry.factory.kind !== 'set' || factoryIsReact(entry.factory.value)
+}
+
+function runtimeIsNotReact(entry: ResolvedJsxConfig): boolean {
+  if (entry.jsx.kind !== 'set') return false
+  if (entry.jsx.transform === 'automatic') return true
+  if (entry.jsx.transform === 'deferred') {
+    return entry.importSource.kind === 'set' && entry.importSource.value !== 'react'
+  }
+  return entry.factory.kind === 'set' && !factoryIsReact(entry.factory.value)
+}
+
 const reactJsxTransform = defineProfile<JsxRuntimeScope>({
   id: 'react-jsx-transform',
   summary: 'React — TypeScript is configured for a JSX runtime that is not React’s classic one',
   async detect(context) {
     const configs = inventoryFilesMatching(context, (path) => TSCONFIG.test(path))
-    const resolved = await Promise.all(
+    const resolved: ResolvedJsxConfig[] = await Promise.all(
       configs.map(async (file) => ({
         file: file.path,
         jsx: await resolveJsx(file.path, context.readText),
         importSource: await resolveJsxImportSource(file.path, context.readText),
+        factory: await resolveJsxFactory(file.path, context.readText),
         scope: await resolveIncludeScope(file.path, context.readText),
       })),
     )
 
-    const notReact = resolved.filter(
-      (entry) =>
-        (entry.jsx.kind === 'set' && entry.jsx.transform === 'automatic') ||
-        (entry.jsx.kind === 'set' &&
-          entry.jsx.transform === 'deferred' &&
-          entry.importSource.kind === 'set' &&
-          entry.importSource.value !== 'react'),
-    )
+    const notReact = resolved.filter(runtimeIsNotReact)
     if (notReact.length === 0) return null
 
     const declaring = new Map<string, { property: string; value: string }>()
     for (const entry of notReact) {
       if (entry.jsx.kind === 'set' && entry.jsx.transform === 'automatic') {
         declaring.set(entry.jsx.declaredIn, { property: 'compilerOptions.jsx', value: entry.jsx.value })
+      } else if (entry.jsx.kind === 'set' && entry.jsx.transform === 'classic' && entry.factory.kind === 'set') {
+        declaring.set(entry.factory.declaredIn, { property: 'compilerOptions.jsxFactory', value: entry.factory.value })
       } else if (entry.importSource.kind === 'set') {
         declaring.set(entry.importSource.declaredIn, {
           property: 'compilerOptions.jsxImportSource',
@@ -231,7 +253,7 @@ const reactJsxTransform = defineProfile<JsxRuntimeScope>({
       .map(([file, found]) => ({ kind: 'config-literal' as const, file, property: found.property, value: found.value }))
 
     const dissenting = resolved
-      .filter((entry) => (entry.jsx.kind === 'set' && entry.jsx.transform === 'classic') || entry.jsx.kind === 'unknown')
+      .filter((entry) => needsReactInScope(entry) || entry.jsx.kind === 'unknown')
       .sort((a, b) => compareStrings(a.file, b.file))
     if (dissenting.length === 0) return { evidence, parameters: { paths: null } }
 
@@ -268,8 +290,9 @@ const reactJsxTransform = defineProfile<JsxRuntimeScope>({
       concept: 'suspicious.react-in-jsx-scope' as ConceptId,
       ...(scope.paths === null ? {} : { paths: scope.paths }),
       reason:
-        "React 17's automatic JSX transform compiles JSX to `react/jsx-runtime` calls, and a `jsxImportSource` " +
-        'naming another runtime compiles it to that one, so importing React is unnecessary and its absence is correct.' +
+        "React 17's automatic JSX transform compiles JSX to `react/jsx-runtime` calls, a `jsxImportSource` " +
+        'naming another runtime compiles it to that one, and a `jsxFactory` naming another function compiles ' +
+        'the classic transform to that call, so importing React is unnecessary and its absence is correct.' +
         (scope.paths === null
           ? ''
           : ' Scoped to the projects whose own config says so, because another project here is on the classic transform.'),
