@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { telemetryEndpoint } from './endpoint.ts'
 
 /**
  * `DO_NOT_TRACK` is the cross-tool convention and is honoured first, so someone who has already
@@ -64,7 +65,7 @@ export async function markSent(stateDir: string): Promise<void> {
 export async function decideConsent(options: ConsentOptions): Promise<ConsentDecision> {
   const off = telemetryDisabled(options.env)
   if (off !== null) return { send: false, why: off }
-  if ((options.env['SLOP_GATE_TELEMETRY_URL'] ?? '') === '') return { send: false, why: 'no-endpoint' }
+  if (telemetryEndpoint(options.env) === null) return { send: false, why: 'no-endpoint' }
 
   const now = options.now ?? Date.now()
   const previous = await lastSentAt(options.stateDir)

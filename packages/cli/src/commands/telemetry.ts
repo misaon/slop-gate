@@ -11,7 +11,7 @@ const WHY: Readonly<Record<string, string>> = {
   disabled: 'off — `SLOP_GATE_TELEMETRY` is set to a falsey value',
   'do-not-track': 'off — `DO_NOT_TRACK` is set',
   'too-soon': 'on — nothing would be sent right now; at most one report an hour per checkout',
-  'no-endpoint': 'off — no `SLOP_GATE_TELEMETRY_URL` is configured in this build',
+  'no-endpoint': 'off — `SLOP_GATE_TELEMETRY_URL` is set to an empty value, which means nowhere',
 }
 
 /**

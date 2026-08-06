@@ -3,10 +3,23 @@
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm --filter @misaon/slop-gate-core build",
   "outputDirectory": "public",
+  "regions": ["fra1"],
   "functions": {
     "api/*.ts": {
       "maxDuration": 10,
       "memory": 1024
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "x-content-type-options", "value": "nosniff" },
+        { "key": "x-frame-options", "value": "DENY" },
+        { "key": "referrer-policy", "value": "no-referrer" },
+        { "key": "content-security-policy", "value": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'" },
+        { "key": "permissions-policy", "value": "geolocation=(), microphone=(), camera=()" }
+      ]
+    }
+  ]
 }

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { buildTelemetryPayload, type CheckResult, type SlopGateConfig } from '@misaon/slop-gate-core'
 import { readCliVersion } from '../version.ts'
 import { decideConsent, FIRST_RUN_NOTICE, markSent } from './consent.ts'
+import { telemetryEndpoint } from './endpoint.ts'
 import { sendTelemetry } from './send.ts'
 
 type LoadedConfig = { readonly config: SlopGateConfig }
@@ -29,8 +30,8 @@ export async function reportTelemetry(rootDir: string, loaded: LoadedConfig, res
 
     if (decision.firstRun) process.stderr.write(`\n${FIRST_RUN_NOTICE}\n\n`)
 
-    const endpoint = process.env['SLOP_GATE_TELEMETRY_URL']
-    if (endpoint === undefined || endpoint === '') return
+    const endpoint = telemetryEndpoint(process.env)
+    if (endpoint === null) return
 
     const payload = buildTelemetryPayload(result, {
       run: randomUUID(),
