@@ -1,5 +1,3 @@
-export const CORE_VERSION = '0.0.0'
-
 export type { ByteRange, Diagnostic, FixKind, Position, Severity } from './diagnostics/types.ts'
 export { createLineIndex, type LineIndex } from './diagnostics/position.ts'
 

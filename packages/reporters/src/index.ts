@@ -58,6 +58,7 @@ export { wrapText } from './wrap-text.ts'
 
 export {
   ASCII_BOX,
+  brandHeader,
   createFrameKit,
   MAX_FRAME_WIDTH,
   MIN_FRAME_WIDTH,

@@ -1,7 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  // Turbo's global hash holds one file by default, and it is `.gitattributes`. Every package's
+  // `tsconfig.json` extends `tsconfig.base.json`, so without naming it here an unrecognised compiler
+  // option added to that file left `pnpm typecheck` reporting 27/27 cached, FULL TURBO in 18 ms.
+  "globalDependencies": ["tsconfig.base.json", "pnpm-workspace.yaml"],
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
-    "typecheck": { "dependsOn": ["^build"] }
+    // `CHANGELOG.md` is excluded from the default input set because changesets rewrites it on every
+    // release, and neither the build nor the typecheck can read it.
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"], "inputs": ["$TURBO_DEFAULT$", "!CHANGELOG.md"] },
+    "typecheck": { "dependsOn": ["^build"], "inputs": ["$TURBO_DEFAULT$", "!CHANGELOG.md"] }
   }
 }

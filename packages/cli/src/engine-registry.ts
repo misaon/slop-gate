@@ -1,4 +1,4 @@
-import type { Engine } from '@misaon/slop-gate-core'
+import { ENGINE_PREFERENCE, type Engine, type EngineId } from '@misaon/slop-gate-core'
 import { createActionlintEngine } from '@misaon/slop-gate-engine-actionlint'
 import { createAstGrepEngine } from '@misaon/slop-gate-engine-astgrep'
 import { createBiomeCssEngine } from '@misaon/slop-gate-engine-biome-css'
@@ -27,4 +27,12 @@ export function defaultEngines(rootDir: string, configFile?: string, ignore?: re
     createDepsSecurityEngine(),
     createHadolintEngine(),
   ]
+}
+
+// `EngineId` and `ENGINE_PREFERENCE` also carry engines the design has an arbitration position for but
+// no package implements yet (`tsgolint`, `zizmor`, `eslint`). Offering those as a `--engine` value sends
+// a reader after a run that cannot happen, so the choice is narrowed to what `defaultEngines` returns.
+export function runnableEngineIds(rootDir: string): readonly EngineId[] {
+  const implemented = new Set(defaultEngines(rootDir).map((engine) => engine.id))
+  return ENGINE_PREFERENCE.filter((id) => implemented.has(id))
 }

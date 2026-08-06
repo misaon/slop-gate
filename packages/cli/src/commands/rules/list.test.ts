@@ -80,6 +80,28 @@ test('rejects an unknown --engine value as a config error, before touching the f
   expect(process.exitCode).toBe(2)
 })
 
+test('offers only engines a run can actually use, not every member of EngineId', async () => {
+  let stderr = ''
+  const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    stderr += chunk
+    return true
+  })
+  try {
+    await list.run!({ args: { format: 'json', cwd: dir, engine: 'tsgolint', _: [] }, rawArgs: [], cmd: list } as never)
+  } finally {
+    spy.mockRestore()
+  }
+
+  expect(stderr).toContain('unknown engine: tsgolint')
+
+  const offered = stderr.slice(stderr.indexOf('Expected one of'))
+  expect(offered).toContain('oxlint')
+  expect(offered).not.toContain('tsgolint')
+  expect(offered).not.toContain('zizmor')
+  expect(offered).not.toContain('eslint')
+  expect(process.exitCode).toBe(2)
+})
+
 test('rejects an unknown --format the same way check does', async () => {
   let stderr = ''
   const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {

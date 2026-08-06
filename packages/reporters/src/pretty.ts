@@ -1,6 +1,6 @@
 import { compareStrings, type CheckEvent, type CheckResult, type Diagnostic, type MeasuredPhase, type Position, type Severity } from '@misaon/slop-gate-core'
 import { displayWidth, padEndDisplay, padStartDisplay, truncateStart } from './display-width.ts'
-import { createFrameKit, plural } from './box.ts'
+import { brandHeader, createFrameKit, plural } from './box.ts'
 import { SEVERITY_GLYPH, SEVERITY_GLYPH_ASCII, SEVERITY_NOUN, SEVERITY_ORDER, SEVERITY_STYLE } from './severity.ts'
 import { wrapText } from './wrap-text.ts'
 import type { Reporter, ReporterContext } from './index.ts'
@@ -14,10 +14,10 @@ const TIMING_PHASE_MIN_MS = 10
 
 export function createPrettyReporter(context: ReporterContext): Reporter {
   const unicode = context.unicode
-  const { width, inner, paint, frameTop, frameRow, frameBottom, writeUnit } = createFrameKit(context)
+  const kit = createFrameKit(context)
+  const { width, paint, frameTop, frameRow, frameBottom, writeUnit } = kit
   const glyph = unicode ? SEVERITY_GLYPH : SEVERITY_GLYPH_ASCII
   const fileMark = unicode ? '▌' : '>'
-  const logoMark = unicode ? '◆' : '*'
   const checkMark = unicode ? '✓' : 'OK'
   const gapMark = unicode ? '▲' : '!'
   const codeFrameBar = unicode ? '│' : '|'
@@ -32,12 +32,7 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
 
   const messageWidth = Math.max(1, width - detailIndent)
 
-  {
-    const left = `  ${logoMark}  slop-gate`
-    const right = `v${context.version} `
-    const gap = Math.max(1, inner - displayWidth(left) - displayWidth(right))
-    writeUnit([frameTop(), frameRow(paint('bold', left) + ' '.repeat(gap) + right), frameBottom()])
-  }
+  writeUnit(brandHeader(kit, context.version))
 
   let pendingFile: string | null | undefined
   let pending: Diagnostic[] = []
