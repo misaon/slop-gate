@@ -38,14 +38,39 @@ is right. Reliability is an em dash for the 920 rules nobody has measured, which
 
 ## Icons and motion
 
-[lucide-preact](https://lucide.dev), named once in `src/components/icons.tsx` so the page's whole
-icon vocabulary is readable in one place and Lucide tree-shakes to only what is used — 17 icons for
-6.5 kB.
+Two sets, and the split is deliberate.
 
-Motion is **interaction-driven only**. 923 rows are on screen at once, so nothing animates on mount
-except the four summary tiles; an entrance animation per row would start 923 of them at a time.
-Everything is `transform` or `opacity` so it stays off the main thread, and everything sits inside
-`motion-safe`, so `prefers-reduced-motion: reduce` removes it rather than merely shortening it.
+**[lucide-animated](https://lucide-animated.com) (pqoqubbw/icons, MIT)** in `components/animated/` —
+a real animated icon pack, where each glyph carries its own keyframes: the shield draws its tick, the
+ban draws its circle and slash, the gauge needle sweeps, the search lens hops, the external-link
+arrow lifts. Adapted from upstream in two ways: the wrapper `div`, mouse handlers and
+`useAnimation()` controller are dropped, and a parent `HoverGroup` drives the variants instead. That
+is one hook fewer per icon, and hovering the whole tile animates the glyph rather than needing the
+pointer on a 16 px target.
+
+**[lucide-preact](https://lucide.dev)** static, in `components/icons.tsx`, everywhere else.
+
+### Why not animated everywhere
+
+Every animated icon is a motion component with its own animation state. The table renders **923
+rows**; at three icons a row that is ~2,800 animation controllers for glyphs nobody hovers. So the
+animated set is used only where there is a single instance and the motion is noticed — the four
+tiles, the search field, the docs link — and table cells keep the static set.
+
+Motion costs **+42 kB gzipped, fixed**, whether one icon uses it or fifty: 27 kB → 69 kB for the
+page. That is fine for an internal dashboard served over the LAN and would not be for the CLI, which
+is where this repository's bundle discipline actually applies.
+
+Motion also needs `react` aliased to `preact/compat`, in `vite.config.ts` and in `tsconfig.json`
+both. That is the cost `@tanstack/table-core` was chosen to avoid; here there is no framework-agnostic
+core to choose instead.
+
+### The rest of the motion
+
+Interaction-driven only. Nothing animates on mount except the four tiles — a per-row entrance would
+start 923 animations at once. The chevron rotates 90° because that rotation *is* the expand state,
+the sort arrow slides in, the detail row unfurls. All `transform` or `opacity`, and all inside
+`motion-safe`, so `prefers-reduced-motion: reduce` removes it rather than shortening it.
 
 ## Where the data comes from
 

@@ -7,7 +7,6 @@ import {
   ArrowUp,
   ChevronRight,
   ChevronsUpDown,
-  ExternalLink,
   Gauge,
   GitCommitHorizontal,
   ICON,
@@ -18,6 +17,7 @@ import {
   TriangleAlert,
   Wrench,
 } from './icons.tsx'
+import { ExternalLinkAnimated, HoverGroup } from './animated/icons.tsx'
 import { ImpactBar, ReliabilityCell } from './impact.tsx'
 import { Prose } from './prose.tsx'
 
@@ -109,18 +109,17 @@ function Detail({ row }: { row: Row }) {
                 </div>
               </div>
             )}
-            <a
-              class="group inline-flex items-center gap-1.5 text-brand hover:underline"
-              href={row.docsUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              Rule documentation
-              <ExternalLink
-                {...ICON}
-                class="transition-transform motion-safe:group-hover:-translate-y-px motion-safe:group-hover:translate-x-px"
-              />
-            </a>
+            <HoverGroup class="inline-block">
+              <a
+                class="inline-flex items-center gap-1.5 text-brand hover:underline"
+                href={row.docsUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Rule documentation
+                <ExternalLinkAnimated />
+              </a>
+            </HoverGroup>
           </div>
         </div>
         {row.reliability === null ? null : (

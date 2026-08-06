@@ -1,7 +1,8 @@
 import type { ComponentChildren } from 'preact'
 import type { CatalogueStatus } from '@misaon/slop-gate-core'
-import { ICON_SMALL, ICON_TILE, STATUS_ICON } from './icons.tsx'
-import type { LucideIcon } from 'lucide-preact'
+import type { ComponentType } from 'preact'
+import { HoverGroup } from './animated/icons.tsx'
+import { ICON_SMALL, STATUS_ICON } from './icons.tsx'
 
 const STATUS_CLASS: Readonly<Record<CatalogueStatus, string>> = {
   recommended: 'bg-state-on/12 text-state-on ring-state-on/25',
@@ -31,20 +32,19 @@ export function Tile({
   label: string
   value: number | string
   tone?: string
-  icon: LucideIcon
+  icon: ComponentType<{ size?: number; class?: string }>
   delay?: number
 }) {
   return (
-    <div
-      class="motion-safe:rise rounded-xl bg-ink-900 px-4 py-3 ring-1 ring-ink-800 transition-colors hover:ring-ink-700"
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
-        <Icon {...ICON_TILE} class={tone ?? 'text-ink-500'} />
-        {label}
+    <HoverGroup class="motion-safe:rise rounded-xl bg-ink-900 px-4 py-3 ring-1 ring-ink-800 transition-colors hover:ring-ink-700">
+      <div style={{ animationDelay: `${delay}ms` }}>
+        <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
+          <Icon size={16} class={tone ?? 'text-ink-500'} />
+          {label}
+        </div>
+        <div class={`mt-1 text-2xl font-semibold tabular-nums ${tone ?? 'text-ink-100'}`}>{value}</div>
       </div>
-      <div class={`mt-1 text-2xl font-semibold tabular-nums ${tone ?? 'text-ink-100'}`}>{value}</div>
-    </div>
+    </HoverGroup>
   )
 }
 

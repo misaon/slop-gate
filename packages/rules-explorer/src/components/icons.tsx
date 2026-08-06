@@ -7,14 +7,10 @@ import {
   CircleCheck,
   CircleOff,
   ChevronsUpDown,
-  ExternalLink,
   Gauge,
   GitCommitHorizontal,
   Languages,
-  Library,
   LoaderCircle,
-  Search,
-  ShieldCheck,
   SlidersHorizontal,
   Target,
   TriangleAlert,
@@ -32,14 +28,9 @@ export {
   ArrowUp,
   ChevronRight,
   ChevronsUpDown,
-  CircleOff,
-  ExternalLink,
   Gauge,
   GitCommitHorizontal,
   Languages,
-  Library,
-  Search,
-  ShieldCheck,
   SlidersHorizontal,
   Target,
   TriangleAlert,
@@ -56,7 +47,6 @@ export const STATUS_ICON: Readonly<Record<CatalogueStatus, LucideIcon>> = {
 /** Lucide's default 24px stroke is heavy beside 13px table text. */
 export const ICON = { size: 14, strokeWidth: 2 } as const
 export const ICON_SMALL = { size: 12, strokeWidth: 2 } as const
-export const ICON_TILE = { size: 16, strokeWidth: 2 } as const
 
 export function Spinner({ label }: { label: string }) {
   return (

@@ -21,6 +21,7 @@
     "@tanstack/table-core": "^8.21.3",
     "hono": "^4.9.0",
     "lucide-preact": "^1.29.0",
+    "motion": "^13.0.0",
     "preact": "^10.27.0"
   },
   "devDependencies": {
