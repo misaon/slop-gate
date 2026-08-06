@@ -103,7 +103,7 @@ export function electOwners(input: ElectionInput): ElectionResult {
     compareStrings(a.engineRuleId, b.engineRuleId)
 
   for (const concept of [...input.enabledConcepts].sort(compareStrings)) {
-    const candidates = input.entries.filter((e) => e.concepts.includes(concept as never))
+    const candidates = input.entries.filter((e) => (e.concepts as readonly string[]).includes(concept))
     const ranked = candidates.filter(isApplicable).sort(compare)
 
     for (const candidate of candidates) {

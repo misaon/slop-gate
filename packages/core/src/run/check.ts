@@ -10,7 +10,7 @@ import { openStatIndex, type StatIndex } from '../cache/stat-index.ts'
 import { openToolVersionCache } from '../cache/tool-versions.ts'
 import { mapWithLimit, PROBE_CONCURRENCY } from '../concurrency.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
-import type { GeneratedPolicy, SlopGateConfig } from '../config/types.ts'
+import type { GeneratedPolicy, RuleKey, SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Severity } from '../diagnostics/types.ts'
 import type { FixTier } from '../fix/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
@@ -334,7 +334,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
                 entries,
                 owners: election.owners,
                 sourceOf: () => source,
-                levelOf: (concept) => resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
+                levelOf: (concept) => resolver.forFile(path).rules.get(concept as RuleKey)?.level ?? 'off',
                 suppressionScanFiles: [path],
                 generated: generatedPolicy,
               }))
@@ -519,7 +519,7 @@ async function* runProjectAssignment(
         entries: ctx.entries,
         owners: ctx.election.owners,
         sourceOf: () => source,
-        levelOf: (concept) => ctx.resolver.forFile(path).rules.get(concept as never)?.level ?? 'off',
+        levelOf: (concept) => ctx.resolver.forFile(path).rules.get(concept as RuleKey)?.level ?? 'off',
         suppressionScanFiles: [path],
         generated: ctx.generated,
       })),
@@ -538,7 +538,7 @@ type ConfigDiagnosticInput = {
 
 function configDiagnostics(input: ConfigDiagnosticInput): Diagnostic[] {
   const emit = (concept: string, message: string): Diagnostic | null => {
-    const level = input.resolver.base.rules.get(concept as never)?.level
+    const level = input.resolver.base.rules.get(concept as RuleKey)?.level
     if (level === undefined || level === 'off') return null
     return {
       concept,

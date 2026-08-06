@@ -4,12 +4,14 @@ import {
   splitRuleSetting,
   wasEnabledBeforeBeingDisabled,
   type ConceptEnablement,
+  type ConceptId,
   type ConceptOwnership,
   type ConceptWhy,
   type FrameworkEvidence,
   type IneligibleCandidate,
   type OverrideMention,
   type ProvenanceLayer,
+  type RuleLevel,
   type RuleSetting,
 } from '@misaon/slop-gate-core'
 import { displayWidth } from '../display-width.ts'
@@ -165,7 +167,7 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     return
   }
 
-  const definition = conceptById(explanation.concept as never)
+  const definition = conceptById(explanation.concept as ConceptId)
   writeUnit([`  ${paint('bold', explanation.concept)}`, `  ${paint('dim', definition.title)}`])
 
   if (explanation.servicedBySlopGate) {
@@ -251,7 +253,7 @@ export function renderRulesWhyPretty(explanation: ConceptWhy, context: RulesRepo
     const candidateIndex = indexCandidates(explanation.candidates)
 
     if (explanation.ownership.length > 0) {
-      const glyph = levelGlyph(explanation.enablement.level as never, context, paint)
+      const glyph = levelGlyph(explanation.enablement.level as Exclude<RuleLevel, 'off'>, context, paint)
       const label = explanation.ownership.length === 1 ? 'Owner' : 'Owners'
       const lines = [`  ${glyph}  ${label}:`]
       for (const { owner, languages } of explanation.ownership) {
