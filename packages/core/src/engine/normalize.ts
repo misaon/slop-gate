@@ -2,7 +2,7 @@ import type { GeneratedPolicy, RuleLevel } from '../config/types.ts'
 import { fingerprint, normalizedWindow } from '../diagnostics/fingerprint.ts'
 import { createLineIndex, type LineIndex } from '../diagnostics/position.ts'
 import type { Diagnostic, Fix, Severity } from '../diagnostics/types.ts'
-import { isGeneratedPath } from '../discovery/detect-generated.ts'
+import { isGeneratedPath, isGeneratedSource } from '../discovery/detect-generated.ts'
 import { detectLanguage } from '../discovery/language.ts'
 import { isOwned, owningEngines, type OwnerMap } from '../registry/ownership.ts'
 import { parseRuleRefKey, ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
@@ -38,12 +38,15 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
   const occurrences = new Map<string, number>()
   const diagnostics: Diagnostic[] = []
 
+  const generated = new Map<string, boolean>()
+
   const ensureSource = (file: string): string => {
     let source = sources.get(file)
     if (source === undefined) {
       source = input.sourceOf(file)
       sources.set(file, source)
       lineIndexes.set(file, createLineIndex(source))
+      generated.set(file, isGeneratedPath(file) || isGeneratedSource(source))
     }
     return source
   }
@@ -89,7 +92,7 @@ export function normalizeDiagnostics(input: NormalizeInput): Diagnostic[] {
       ...fixOf(entry, raw),
       docsUrl: raw.docsUrl ?? entry.docsUrl,
       fingerprint: fingerprint({ concept, file: raw.file, window, occurrenceIndex }),
-      ...(skipGenerated && isGeneratedPath(raw.file)
+      ...(skipGenerated && generated.get(raw.file) === true
         ? { suppressed: { by: 'generated' as const, reason: 'the file is generated, so the fix would not survive' } }
         : {}),
     })
