@@ -1,6 +1,7 @@
-import { buildRulesList, ENGINE_PREFERENCE, isOneOf, type RulesListOptions } from '@misaon/slop-gate-core'
+import { buildRulesList, isOneOf, type RulesListOptions } from '@misaon/slop-gate-core'
 import { renderRulesListJson, renderRulesListPretty, REPORTER_NAMES } from '@misaon/slop-gate-reporters'
 import { defineCommand } from 'citty'
+import { runnableEngineIds } from '../../engine-registry.ts'
 import { EXIT_CODES } from '../../exit-codes.ts'
 import { validateFormat } from '../../format.ts'
 import { supportsColor, supportsUnicode } from '../../terminal.ts'
@@ -21,8 +22,9 @@ export const list = defineCommand({
     const rootDir = resolveRootDir(args.cwd)
     if (!validateFormat(args.format)) return
 
-    if (args.engine !== undefined && !isOneOf(args.engine, ENGINE_PREFERENCE)) {
-      process.stderr.write(`unknown engine: ${args.engine}. Expected one of ${ENGINE_PREFERENCE.join(', ')}.\n`)
+    const runnable = runnableEngineIds(rootDir)
+    if (args.engine !== undefined && !isOneOf(args.engine, runnable)) {
+      process.stderr.write(`unknown engine: ${args.engine}. Expected one of ${runnable.join(', ')}.\n`)
       process.exitCode = EXIT_CODES.config
       return
     }

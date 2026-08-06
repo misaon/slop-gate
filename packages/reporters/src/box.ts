@@ -1,5 +1,5 @@
 import { styleText } from 'node:util'
-import { padEndDisplay, truncateEnd } from './display-width.ts'
+import { displayWidth, padEndDisplay, truncateEnd } from './display-width.ts'
 
 export type Box = { tl: string; tr: string; bl: string; br: string; h: string; v: string }
 
@@ -20,6 +20,7 @@ export type FrameContext = {
 
 export type FrameKit = {
   box: Box
+  unicode: boolean
   width: number
   inner: number
   paint: (style: Parameters<typeof styleText>[0], text: string) => string
@@ -39,6 +40,7 @@ export function createFrameKit(context: FrameContext): FrameKit {
 
   return {
     box,
+    unicode: context.unicode,
     width,
     inner,
     paint,
@@ -47,4 +49,13 @@ export function createFrameKit(context: FrameContext): FrameKit {
     frameBottom: () => `  ${box.bl}${box.h.repeat(inner)}${box.br}`,
     writeUnit: (lines: readonly string[]) => context.write(`\n${lines.join('\n')}\n`),
   }
+}
+
+// The framed name-and-version banner. Shared so that `sgate --help` and every `sgate check` cannot
+// drift apart in glyph, width or spacing — main.ts carried a second copy of all three.
+export function brandHeader(kit: FrameKit, version: string): readonly string[] {
+  const left = `  ${kit.unicode ? '◆' : '*'}  slop-gate`
+  const right = `v${version} `
+  const gap = Math.max(1, kit.inner - displayWidth(left) - displayWidth(right))
+  return [kit.frameTop(), kit.frameRow(kit.paint('bold', left) + ' '.repeat(gap) + right), kit.frameBottom()]
 }

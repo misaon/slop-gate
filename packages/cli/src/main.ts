@@ -1,6 +1,7 @@
 import { defineCommand, renderUsage, runCommand, type CommandDef } from 'citty'
-import { displayWidth, padEndDisplay } from '@misaon/slop-gate-reporters'
+import { brandHeader, createFrameKit } from '@misaon/slop-gate-reporters'
 import { EXIT_CODES } from './exit-codes.ts'
+import { supportsColor, supportsUnicode } from './terminal.ts'
 import { readCliVersion } from './version.ts'
 
 const version = readCliVersion()
@@ -56,20 +57,11 @@ async function resolveHelpTarget(args: readonly string[]): Promise<{ cmd: Comman
 }
 
 function printHeader(): void {
-  const unicode = process.env['TERM'] !== 'dumb'
-  const box = unicode
-    ? { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│' }
-    : { tl: '+', tr: '+', bl: '+', br: '+', h: '-', v: '|' }
-  const logoMark = unicode ? '◆' : '*'
-
-  const width = Math.max(60, Math.min(process.stdout.columns ?? 80, 100))
-  const inner = width - 2
-  const left = `  ${logoMark}  slop-gate`
-  const right = `v${version} `
-  const gap = Math.max(1, inner - displayWidth(left) - displayWidth(right))
-  const content = padEndDisplay(left + ' '.repeat(gap) + right, inner)
-
-  console.log(`\n  ${box.tl}${box.h.repeat(inner)}${box.tr}`)
-  console.log(`  ${box.v}${content}${box.v}`)
-  console.log(`  ${box.bl}${box.h.repeat(inner)}${box.br}`)
+  const kit = createFrameKit({
+    unicode: supportsUnicode(),
+    color: supportsColor(),
+    width: process.stdout.columns ?? 80,
+    write: (chunk) => process.stdout.write(chunk),
+  })
+  kit.writeUnit(brandHeader(kit, version))
 }
