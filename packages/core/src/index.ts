@@ -117,3 +117,4 @@ export {
   type TelemetryContext,
   type TelemetryPayload,
 } from './telemetry/payload.ts'
+export { validateTelemetryPayload, type ValidationResult } from './telemetry/validate.ts'
