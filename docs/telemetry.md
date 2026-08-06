@@ -81,7 +81,9 @@ Two consequences, stated because they are the honest cost of that choice:
   the id for a team that wants stable CI attribution — an explicit choice, never inferred.
 
 **IP addresses are not stored.** The ingest endpoint sees one, as any HTTP server does, and writes
-none to the database. Under GDPR an IP is personal data; nothing else collected here is.
+none to the database. The rate limiter in front of it counts requests per IP inside a ten-minute
+window and keeps nothing after it; that counter lives in Vercel's edge, never in our schema. Under
+GDPR an IP is personal data; nothing else collected here is.
 
 ## When it is sent
 
