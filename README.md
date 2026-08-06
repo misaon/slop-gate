@@ -200,19 +200,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: npm ci
-      # Annotates the diff. Needs no token, so it works on fork PRs.
-      - run: npx sgate check --format=github
-      # Richer: rule descriptions, docs links, findings tracked across pushes.
-      - run: npx sgate check --format=sarif > slop-gate.sarif
-        if: always()
-      - uses: github/codeql-action/upload-sarif@v3
+      # One run, three consumers: the readable log on stdout, annotations on the diff, and SARIF on
+      # disk. `--report` takes `name[:path]`; without a path the report shares stdout, which only
+      # `github` may do.
+      - run: npx sgate check --report github,sarif:slop-gate.sarif
+      - uses: github/codeql-action/upload-sarif@v4
         if: always()
         with: { sarif_file: slop-gate.sarif }
 ```
 
-Both, not either — SARIF is richer, but uploading it needs `security-events: write`, which a **fork
-pull request does not get**, and a contributor's first PR is exactly the run whose findings matter
-most. GitLab is one job:
+Both annotations and SARIF, not either — SARIF is richer, but uploading it needs
+`security-events: write`, which a **fork pull request does not get**, and a contributor's first PR is
+exactly the run whose findings matter most. One run rather than one per format, because each run
+sends its own telemetry event and analyses the tree again. GitLab is one job:
 
 ```yaml
 slop-gate:
