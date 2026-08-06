@@ -1,4 +1,8 @@
 {
   "extends": "./tsconfig.base.json",
-  "include": ["packages/*/src", "packages/*/scripts", "*.ts"]
+  // `rules-explorer` is excluded because it is the one package that is not Node: it compiles JSX
+  // against preact and runs in a browser, so it carries its own project. Left in, its sources are
+  // checked with this project's options and every `.tsx` fails with `--jsx is not set`.
+  "include": ["packages/*/src", "packages/*/scripts", "*.ts"],
+  "exclude": ["packages/rules-explorer"]
 }
