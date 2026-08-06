@@ -1,5 +1,6 @@
 import type { CatalogueStatus } from '@misaon/slop-gate-core'
 import type { ColumnDef, Row as CoreRow, Table } from '@tanstack/table-core'
+import type { RulesFeatures } from '../use-table.ts'
 import { useState } from 'preact/hooks'
 import { STATUS_LABEL, type Row } from '../data.ts'
 import { StatusPill } from './chrome.tsx'
@@ -22,7 +23,7 @@ import { ExternalLinkAnimated, HoverGroup } from './animated/icons.tsx'
 import { ImpactBar, ReliabilityCell } from './impact.tsx'
 import { Prose } from './prose.tsx'
 
-export const columns: ColumnDef<Row, unknown>[] = [
+export const columns: ColumnDef<RulesFeatures, Row, unknown>[] = [
   { id: 'rule', accessorFn: (row) => row.engineRuleId, header: 'Rule' },
   { id: 'engine', accessorFn: (row) => row.engine, header: 'Engine' },
   { id: 'concept', accessorFn: (row) => row.concept, header: 'Concept' },
@@ -270,9 +271,9 @@ function Cell({ id, row }: { id: string; row: Row }) {
   }
 }
 
-export function RulesTable({ table }: { table: Table<Row> }) {
+export function RulesTable({ table }: { table: Table<RulesFeatures, Row> }) {
   const [expanded, setExpanded] = useState<string | null>(null)
-  const rows: CoreRow<Row>[] = table.getRowModel().rows
+  const rows: CoreRow<RulesFeatures, Row>[] = table.getRowModel().rows
 
   return (
     <div class="overflow-x-auto rounded-xl ring-1 ring-ink-800">
