@@ -1,0 +1,20 @@
+{
+  "name": "@misaon/slop-gate-telemetry-ingest",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Internal: receives anonymous telemetry from the slop-gate CLI.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "migrate": "node --experimental-strip-types scripts/migrate.ts",
+    "verify-roles": "node --experimental-strip-types scripts/verify-roles.ts"
+  },
+  "dependencies": {
+    "@misaon/slop-gate-core": "workspace:*",
+    "@neondatabase/serverless": "^1.0.2"
+  }
+}
