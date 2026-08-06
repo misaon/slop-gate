@@ -77,6 +77,37 @@ describe('distillAdvisory', () => {
     expect(advisoryAffects('0.8.0', record)).toBe(false)
   })
 
+  it('compares against a two-part bound instead of throwing on it', () => {
+    const { record } = only({
+      id: 'GHSA-3h52-269p-cp9r',
+      affected: [
+        {
+          package: npmPackage('next'),
+          ranges: [{ type: 'SEMVER', events: [{ introduced: '13.0' }, { fixed: '14.2.15' }] }],
+        },
+      ],
+    })
+
+    expect(advisoryAffects('14.0.0', record)).toBe(true)
+    expect(advisoryAffects('14.2.15', record)).toBe(false)
+    expect(advisoryAffects('12.9.9', record)).toBe(false)
+  })
+
+  it('compares against a two-part upper bound', () => {
+    const { record } = only({
+      id: 'GHSA-two-part-bound',
+      affected: [
+        {
+          package: npmPackage('qooxdoo'),
+          ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { last_affected: '1.3' }] }],
+        },
+      ],
+    })
+
+    expect(advisoryAffects('1.3.0', record)).toBe(true)
+    expect(advisoryAffects('1.3.1', record)).toBe(false)
+  })
+
   it('unions an enumeration with the ranges beside it', () => {
     const { record } = only({
       id: 'MAL-both',

@@ -9,9 +9,16 @@ export function advisoryAffects(version: string, advisory: AdvisoryRecord): bool
   if (normalized === undefined) return false
 
   return advisory.ranges.some((range) => {
-    if (range.introduced !== '0' && !gte(normalized, range.introduced)) return false
+    // OSV bounds are publisher-supplied and not all of them are semver: `next`'s GHSA-3h52-269p-cp9r
+    // says `introduced: "13.0"`. Comparing against one raw throws and takes the whole engine down.
+    const introduced = range.introduced === '0' ? '0' : normalizeVersion(range.introduced)
+    if (introduced === undefined) return false
+    if (introduced !== '0' && !gte(normalized, introduced)) return false
     if (range.bound === null) return true
-    return range.kind === 'lte' ? lte(normalized, range.bound) : lt(normalized, range.bound)
+
+    const bound = normalizeVersion(range.bound)
+    if (bound === undefined) return false
+    return range.kind === 'lte' ? lte(normalized, bound) : lt(normalized, bound)
   })
 }
 
