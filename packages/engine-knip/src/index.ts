@@ -66,11 +66,10 @@ export function createKnipEngine(options: CreateKnipEngineOptions = {}): Engine 
     id: 'knip',
 
     capabilities: {
-      // Not "knip lints these". A project engine's cache key folds in the files the plan assigned
-      // it, so a language knip *analyses* but does not claim can change without invalidating the
-      // cached result — a stale "clean". `yaml` is deliberately absent: this adapter overrides
-      // knip's workspace discovery, so `pnpm-workspace.yaml` no longer affects the outcome.
-      // `markdown` too, which leaves `.mdx` uncovered: it shares an id with every README.
+      // Every language that can change the result, not the ones knip lints: a project engine's cache
+      // key folds in its assigned files, so an unlisted language that affects analysis yields a stale
+      // "clean". `yaml` is out because this adapter replaces knip's workspace discovery; `markdown`
+      // is out because it shares an id with every README, which leaves `.mdx` uncovered.
       languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro', 'json', 'jsonc'],
       granularity: 'project',
       provides: [],

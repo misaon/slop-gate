@@ -616,3 +616,41 @@ Three further candidates were counted from grep and then refuted by reading the 
 What did apply: `import.meta.dirname` replaced `dirname(fileURLToPath(import.meta.url))` in 26 files,
 and `setImmediate` from `node:timers/promises` replaced two hand-rolled promise wrappers around the
 callback form.
+
+
+## Framework profiles — what knip's own plugins do not reach
+
+<a id="framework-profile-gaps"></a>
+
+Each contribution below exists because a plugin gap was measured, not assumed. Figures are against
+knip 6.31.0.
+
+**Nuxt `#shared/*` and `#app`** — 14 `deps.unresolved-import` findings at `error` on `nuxt/nuxt.com`
+with dependencies installed, every one of them one of these two specifiers. knip's Nuxt plugin ignores
+`#build/`, `#components`, `#imports`, `#internal/` and `#spa-template`, and no others. `#shared` maps
+to a real directory, so the profile teaches it as a path; `#app` resolves inside Nuxt's installed
+package, so there is nothing repo-relative to map it to and it is ignored instead.
+
+**Nuxt layers are detected and deliberately not acted on.** `extends: ['./layers/nuxi']` gives each
+layer its own `composables/`, `pages/` and `server/`, and the plugin resolves those against the srcDir
+only — 63 of `nuxt.com`'s 67 `dead-code.unused-export` findings were inside `layers/`. An `entry`
+contribution naming those directories was tried and measured: **61 of the 63 remained**. It is not
+shipped. A contribution that changes nothing while carrying a confident reason is worse than none.
+
+**Firebase Functions** — the platform loads handlers from a path, so no import graph reaches them.
+Measured on a real service as five `functions/src/handlers/*.ts` reported as an unused default export.
+knip ships no firebase plugin, so this is a plain `entry` contribution, scoped to the workspace that
+declares the dependency.
+
+
+## Why the malware table is a keyed file and not JSON
+
+<a id="keyed-table"></a>
+
+**The malware table is 218,718 packages and 42 MB, and a run looks up a few thousand names in it.
+Parsing all of it to answer those cost 585 ms and 200 MB of heap, on every run of every repository.**
+
+`engine-deps-security/src/keyed-table.ts` is the same table sorted by name, with the records left on
+disk until a name matches. The index is read whole and never decoded to a string; the records file is
+read positionally. Its layout is documented at the top of that file, because a byte offset is the one
+thing the code reading it cannot show.

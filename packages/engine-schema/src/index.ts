@@ -78,12 +78,8 @@ export function createSchemaEngine(): Engine {
 
 const LOCKFILE = /(^|\/)[^/]*[.-]lock\.ya?ml$/
 
-/**
- * A lockfile is the largest YAML in most repositories and the one with least to say: immich's is
- * 1 MB and 1,016 ms of a 1,689 ms engine, for zero findings. It binds to no published schema, and a
- * duplicate key in a file a package manager generated is not something its reader could act on —
- * `deps-security` already reports a lockfile it cannot parse as a coverage gap.
- */
+// Skipped: no published schema to bind to, and a duplicate key a package manager generated is not
+// actionable. It is also the largest YAML present — 1,016 ms of immich's 1,689 ms engine, no findings.
 function isLockfile(path: string): boolean {
   return LOCKFILE.test(path)
 }

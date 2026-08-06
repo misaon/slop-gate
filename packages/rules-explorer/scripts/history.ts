@@ -3,11 +3,8 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-/**
- * `RuleEntry.since` is the version the registry was generated at — the same string on all 923 rules,
- * so it cannot answer "what did upgrading oxlint add". Git can: the registry files are generated, so
- * the commit that first contains a rule is the commit that introduced it.
- */
+// `RuleEntry.since` is the generation version, identical on every rule, so it cannot say what an
+// upgrade added. These files are generated, so the commit that first contains a rule introduced it.
 const REGISTRY_FILES = [
   'packages/core/src/registry/entries.generated.ts',
   'packages/core/src/registry/entries.uncatalogued.ts',

@@ -10,15 +10,9 @@ const isCode = (segment: string): boolean => segment.startsWith('`') && segment.
 const BOLD = '**'
 
 /**
- * The withheld reasons are prose written in commit-message markdown. Only two spellings appear —
- * `` `code` `` and `**bold**` — so this reads those and leaves everything else alone.
- *
- * **Code binds tighter than bold**, as in CommonMark, and it has to: the reasons quote glob patterns
- * like `` `**\/*.css` ``, and a bold-first pass reads that leading `**` as an emphasis marker and
- * bolds the rest of the paragraph. Bold still spans a code span, because that also occurs.
- *
- * A paragraph whose `**` do not pair up is rendered literally rather than half-bolded — an unbalanced
- * marker is a typo in the source, and guessing where it closes is worse than showing it.
+ * Code binds tighter than bold, and must: the reasons quote globs like `` `**\/*.css` ``, whose leading
+ * `**` a bold-first pass reads as emphasis and bolds the rest of the paragraph. Unpaired `**` renders
+ * literally — an unbalanced marker is a typo, and guessing where it closes is worse than showing it.
  */
 export function tokenise(paragraph: string): Token[] {
   const segments = paragraph.split(CODE_SPAN).filter((segment) => segment !== '')

@@ -14,14 +14,8 @@ function disabledConcepts(config: SlopGateConfig): string[] {
     .map(([concept]) => concept)
 }
 
-/**
- * Never throws and never changes the exit code. A gate that failed because a telemetry endpoint was
- * down would be a worse tool than one that collects nothing, so every path here ends in a shrug.
- *
- * The send is awaited rather than detached, because a detached `fetch` keeps the event loop alive
- * anyway and awaiting is the version where the 2 s bound is visible in the code. In practice it is
- * one request of a few hundred bytes.
- */
+// Never throws and never changes the exit code. Awaited rather than detached because a detached
+// `fetch` keeps the event loop alive anyway, and this way the 2 s bound is visible.
 export async function reportTelemetry(rootDir: string, loaded: LoadedConfig, result: CheckResult): Promise<void> {
   try {
     const stateDir = join(rootDir, '.slop-gate')

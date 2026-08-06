@@ -22,11 +22,8 @@ export type RulesPayload = {
 
 export type Row = CatalogueEntry & {
   readonly origin: RuleOrigin | null
-  /**
-   * Copied onto the row rather than imported. `IMPACTS` is a runtime value in core, and importing it
-   * here pulls core's node builtins into the browser bundle; the payload already carries everything
-   * else the client renders.
-   */
+  // From the payload, not imported: `IMPACTS` is a runtime value in core, and importing it drags
+  // core's node builtins into the browser bundle.
   readonly impactLabel: string
   readonly impactTest: string
 }
@@ -59,11 +56,7 @@ export const STATUS_HELP: Readonly<Record<CatalogueStatus, string>> = {
   unlisted: 'Known to slop-gate but not in any preset. Name its concept in your config to enable it.',
 }
 
-/**
- * The server watches core's source and pushes a generation number when it changes; the page refetches
- * rather than asking the reader to reload. Falls back to nothing if the stream cannot open — the page
- * still works, it just stops being live.
- */
+// If the stream cannot open the page stops being live rather than breaking.
 export function onCatalogueChange(refetch: () => void): () => void {
   const source = new EventSource('/api/changes')
   source.addEventListener('changed', refetch)

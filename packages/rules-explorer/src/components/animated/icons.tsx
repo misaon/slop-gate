@@ -1,17 +1,11 @@
 import { motion, type Variants } from 'motion/react'
 
 /**
- * Animated icons from lucide-animated (pqoqubbw/icons), MIT, adapted.
+ * Adapted from lucide-animated (pqoqubbw/icons), MIT. Variants only — a parent `motion` element with
+ * `whileHover="animate"` drives them, so hovering the tile animates the glyph.
  *
- * Two changes from upstream, both to make them affordable here. Upstream each icon owns a wrapper
- * `div`, its own mouse handlers and a `useAnimation()` controller; these declare variants only and
- * let a parent `motion` element with `whileHover="animate"` drive them. That is one hook fewer per
- * icon, and it means hovering the whole tile animates the glyph rather than needing the pointer on
- * a 16px target.
- *
- * **Only for places with one instance on the page.** Every one of these is a motion component with
- * its own animation state; the table renders 923 rows, so its cells keep the static set in
- * `../icons.tsx`. The split is the reason the bundle carries motion at all.
+ * Only for places with one instance on the page: each carries its own animation state, and the table
+ * renders 923 rows, so its cells use the static set in `../icons.tsx`.
  */
 
 type IconProps = { size?: number; class?: string }

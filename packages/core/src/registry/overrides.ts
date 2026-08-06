@@ -18,10 +18,8 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'vitest/require-mock-type-parameters': {
     severityDefault: 'warn',
   },
-  // "Title must be a string" fires on any title that is not a literal, and a table-driven test names
-  // its cases from a variable. 163 of 174 findings across five public repositories are that pattern —
-  // `it(name, …)`, even `test(JSON.stringify(t[1]), …)` — so at `error` it fails builds over a rule
-  // that is right 6% of the time. See docs/measurements.md.
+  // Fires on any non-literal title, so a table-driven test trips it: right 6% of the time across five
+  // public repositories. See docs/measurements.md.
   'vitest/valid-title': {
     severityDefault: 'warn',
   },

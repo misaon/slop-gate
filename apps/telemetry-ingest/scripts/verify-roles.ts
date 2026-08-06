@@ -1,15 +1,8 @@
 import { neon } from '@neondatabase/serverless'
 
-/**
- * Proves the two roles can do what they should and nothing else.
- *
- * The whole security argument for a public ingest endpoint is that the credential it holds is worth
- * almost nothing if stolen. That is a claim about `GRANT`s, and a claim about `GRANT`s should be
- * tested rather than read. Run it after any migration that adds a table.
- *
- * Reads connection details from the environment; never prints one, because an error carrying a
- * connection string is how a password reaches a log.
- */
+// The security argument for a public endpoint is a claim about `GRANT`s, so it is tested rather than
+// read. Run after any migration that adds a table. Never print a connection string: that is how a
+// password reaches a log.
 type Probe = { readonly label: string; readonly sql: string; readonly expect: 'allowed' | 'denied' }
 
 const OWNER = process.env['DATABASE_URL_UNPOOLED'] ?? process.env['DATABASE_URL']

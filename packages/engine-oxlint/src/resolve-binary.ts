@@ -17,10 +17,7 @@ export function resolveOxlintBinary(
   })
 }
 
-/**
- * oxlint ships a JSON Schema for its config, and it is the only local statement of which rules take
- * options. This package owns the dependency, so it is the one that can find the file.
- */
+// oxlint's config schema is the only local statement of which rules take options.
 export function resolveOxlintSchemaPath(
   resolvePackageJson: (specifier: string) => string = createRequire(import.meta.url).resolve,
 ): string | undefined {

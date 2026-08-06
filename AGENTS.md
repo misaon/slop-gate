@@ -63,5 +63,10 @@ scheduled job, where a failed fetch is triage rather than a blocked pull request
 - ESM only. Node >= 24. No CommonJS.
 - Byte offsets are the internal truth for positions; line and column are always recomputed by `core`.
 - Public data structures use repo-relative POSIX paths.
-- No comment that restates the code beneath it.
+- **A comment states a constraint the code cannot show, on one line.** Not what the next line does,
+  not the signature in words, not why a change was made — that belongs in the commit message. An
+  external spec, a library bug being worked around, an ordering something outside the file depends on,
+  a bound that was measured: those earn a line. If the code needs prose to be followed, rename or split
+  it instead. Anything longer than a line goes to `docs/measurements.md` (figures and method) or the
+  relevant `docs/` page, and the code keeps a pointer.
 - `packages/core` must not depend on any engine package.

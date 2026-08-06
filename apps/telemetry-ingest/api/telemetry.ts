@@ -1,36 +1,12 @@
 import { validateTelemetryPayload } from '@misaon/slop-gate-core'
 import { neon } from '@neondatabase/serverless'
 
-/**
- * Receives one anonymous report.
- *
- * The endpoint is public because anonymous senders cannot be authenticated and a secret shipped in an
- * npm package is a published secret. So the defences here are the ones that survive that:
- *
- * - a hard body cap, before anything is parsed;
- * - `validateTelemetryPayload`, which refuses anything a real run could not have produced — including
- *   any rule or concept id not in slop-gate's own registry;
- * - a role that can `INSERT` into two tables and do nothing else, so a total compromise of this
- *   function reads nothing and destroys nothing;
- * - per-IP rate limiting, which lives in the Vercel firewall rather than here, because a limiter that
- *   runs after the function has already been invoked has not saved anything;
- * - no CORS, plus a required `content-type`. Together those keep browsers out. The sender is a CLI,
- *   for which CORS is meaningless, so allowing an origin buys nothing — and would let any page turn
- *   its visitors into senders, spreading a flood across as many addresses as it has readers, which is
- *   exactly the shape the per-IP limit cannot see. Demanding `application/json` is the other half:
- *   without it a page can still post a JSON body as `text/plain` with no preflight to fail.
- *
- * Responses are deliberately terse. A validator that explains precisely why it refused is one that
- * teaches an attacker how to pass.
- */
+// The endpoint is public and every defence here follows from that: docs/telemetry.md#endpoint-defences.
 const MAX_BYTES = 64 * 1024
 
 let cached: ReturnType<typeof neon> | null = null
 
-/**
- * Resolved on first use rather than at module scope: a missing variable should fail one request, not
- * every request by breaking the import.
- */
+// Resolved on first use, not at module scope: a missing variable should fail one request, not the import.
 function connection() {
   if (cached !== null) return cached
   const url = process.env['TELEMETRY_INGEST_URL']
@@ -94,8 +70,7 @@ export async function POST(request: Request): Promise<Response> {
       `,
     ])
   } catch {
-    // The sender swallows every error by design, so nothing here reaches a user. Say as little as
-    // possible: whether the database is reachable is not the caller's business.
+    // Whether the database is reachable is not the caller's business.
     return new Response('unavailable', { status: 503 })
   }
 

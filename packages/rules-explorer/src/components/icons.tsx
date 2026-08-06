@@ -19,10 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-preact'
 
-/**
- * One import site for the icon set. Lucide tree-shakes per icon, so naming them here costs only what
- * is used, and a reader can see the whole vocabulary of the page without grepping for `<Icon`.
- */
+// One import site for the set; lucide tree-shakes per icon, so naming them here costs only what is used.
 export {
   ArrowDown,
   ArrowUp,

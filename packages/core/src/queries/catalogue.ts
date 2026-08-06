@@ -11,11 +11,7 @@ import { NOT_RECOMMENDED_GENERATED, NOT_RECOMMENDED_UNCATALOGUED, type NotRecomm
 import { RULE_OVERRIDES } from '../registry/overrides.ts'
 import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
 
-/**
- * Why a rule is not in `recommended`. `withheld` is a decision someone made and wrote down;
- * `uncatalogued` is a rule whose concept the preset simply does not name, which is the default for
- * anything the policy did not promote.
- */
+// `withheld` is a written-down decision; `unlisted` is merely a concept no preset names.
 export type CatalogueStatus = 'recommended' | 'withheld' | 'unlisted'
 
 /** Whether the rule can be tuned, and whether slop-gate tunes it. */
@@ -85,10 +81,8 @@ function withheldFor(entry: RuleEntry): NotRecommended | null {
   return NOT_RECOMMENDED_UNCATALOGUED[key] ?? NOT_RECOMMENDED_GENERATED[key] ?? null
 }
 
-/**
- * Every rule slop-gate knows about, whether or not `recommended` turns it on — which is the part
- * `sgate rules list` cannot show, because it walks the concepts a run enabled.
- */
+// Every rule known, enabled or not — what `sgate rules list` cannot show, since it walks a run's
+// enabled concepts.
 export function buildRuleCatalogue(): CatalogueEntry[] {
   // `RULE_ENTRIES` is `as const`, so its element type is a union of literals where optional fields
   // exist only on the members that set them. Widening once keeps the body reading one shape.

@@ -5,17 +5,9 @@ import { ruleRefKey } from '../registry/types.ts'
 import { TELEMETRY_SCHEMA_VERSION, type TelemetryPayload } from './payload.ts'
 
 /**
- * The ingest endpoint is public and cannot be otherwise: anonymous senders cannot be authenticated,
- * and any secret shipped in an npm package is a published secret. So the defence is not "who sent
- * this" but "could a real run have produced this", and this is that question in code.
- *
- * The strong check is that **every rule and concept id must exist in our own registry**. Fabricating
- * plausible traffic then means using our vocabulary and our ratios, which is a far higher bar than
- * posting arbitrary JSON, and it makes the junk that does get through look like the real thing —
- * bounded, and removable by ingest window.
- *
- * Rejections are deliberately coarse to the caller. A validator that explains precisely why is a
- * validator that teaches an attacker how to pass.
+ * "Could a real run have produced this", the only question a public endpoint can ask —
+ * docs/telemetry.md#endpoint-defences. `reason` is coarse on purpose: a precise refusal teaches an
+ * attacker how to pass.
  */
 export type ValidationResult =
   | { readonly ok: true; readonly payload: TelemetryPayload }

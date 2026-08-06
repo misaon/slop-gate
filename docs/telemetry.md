@@ -114,3 +114,26 @@ or an air-gapped build keeps everything running with the send removed.
 A per-IP rate limit sits in front of the endpoint, and a role that can only `INSERT` sits behind it.
 Neither is visible to a sender: a report that is refused is a report you never hear about, because a
 quality gate must not fail over telemetry.
+
+## What defends the endpoint
+
+<a id="endpoint-defences"></a>
+
+The endpoint is public, because anonymous senders cannot be authenticated and a secret shipped in an
+npm package is a published secret. So the defences are the ones that survive being public:
+
+- **A hard body cap of 64 kB**, applied before anything is parsed.
+- **`validateTelemetryPayload`**, which refuses anything a real run could not have produced —
+  including any rule or concept id absent from slop-gate's own registry.
+- **A role that can `INSERT` into two tables and nothing else**, so a total compromise of the
+  function reads nothing and destroys nothing. `scripts/verify-roles.ts` proves the narrowness.
+- **Per-IP rate limiting in the Vercel firewall, not in the function.** A limiter that runs after the
+  function has been invoked has not saved anything.
+- **No CORS, and a required `content-type`.** Together these keep browsers out. The sender is a CLI,
+  for which CORS is meaningless, so allowing an origin buys nothing — and would let any page turn its
+  visitors into senders, spreading a flood across as many addresses as it has readers, which is
+  exactly the shape a per-IP limit cannot see. Demanding `application/json` is the other half:
+  without it a page can post a JSON body as `text/plain` with no preflight to fail.
+
+Responses are terse on purpose. A validator that explains precisely why it refused is one that
+teaches an attacker how to pass.

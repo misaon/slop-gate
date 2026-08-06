@@ -1,16 +1,8 @@
 /**
- * How often a rule actually fires, over the 20-repository alpha corpus in `docs/measurements.md`.
+ * How often a rule fires across the 20-repository corpus, generated from its run.
  *
- * Two numbers, because they answer different questions. `seenIn` is how many of the 20 projects the
- * rule fired on at all — the honest measure of how widely a rule applies, and not swayed by one
- * repository contributing thousands of findings. `findings` is the raw total, which says how loud it
- * is when it does apply.
- *
- * A rule absent from this table fired on none of the 20, which is not the same as "never fires": the
- * corpus is JavaScript and TypeScript projects, so a Dockerfile or workflow rule can be absent simply
- * because nothing there exercised it.
- *
- * Generated from the corpus run rather than written by hand.
+ * Absent means it fired on none of the 20, which is not "never fires": the corpus is JavaScript and
+ * TypeScript, so a Dockerfile or workflow rule can be absent because nothing exercised it.
  */
 export type Prevalence = {
   /** Projects of `CORPUS_PROJECTS` where the rule produced at least one finding. */

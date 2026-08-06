@@ -1,13 +1,6 @@
 /**
- * How often a rule is right, measured by reading its findings rather than counting them.
- *
- * This is deliberately sparse. A rule with no entry is **unknown**, not 100% — claiming a precision
- * nobody measured is the kind of number this tool exists to distrust. Every entry names where its
- * sample came from so the figure can be re-taken when the rule or the engine changes.
- *
- * It is a separate axis from `impact.ts` on purpose. A rule that is wrong most of the time is not
- * "low impact", it is unreliable, and the answer to unreliable is to fix it or withhold it — not to
- * report it more quietly. `vitest/valid-title` below is exactly that mistake, caught after the fact.
+ * How often a rule is right, from reading findings rather than counting them. A rule with no entry is
+ * unknown, never 100%. Why it is a separate axis from impact: docs/impact-and-reliability.md.
  */
 export type Reliability = {
   /** Findings read individually. */
