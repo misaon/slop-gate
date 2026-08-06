@@ -17,7 +17,7 @@ import { resolveOxlintBinary, type OxlintInvocation } from './resolve-binary.ts'
 
 export { deriveOxlintFixes, loadFixCatalogue, type DeriveOxlintFixesOptions } from './derive-fixes.ts'
 export { PARSE_ERROR_RULE_ID, parseOxlintOutput, toEngineRuleId } from './parse.ts'
-export { resolveOxlintBinary, type OxlintInvocation } from './resolve-binary.ts'
+export { resolveOxlintBinary, resolveOxlintSchemaPath, type OxlintInvocation } from './resolve-binary.ts'
 
 const MAX_FINDINGS_EXIT_CODE = 1
 

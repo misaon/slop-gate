@@ -1,6 +1,9 @@
-import { conceptById, isConceptId, type ConceptDefinition } from '../concepts/catalogue.ts'
+import { conceptById, isConceptId, type ConceptDefinition, type ConceptGroup } from '../concepts/catalogue.ts'
 import { PRESETS } from '../config/presets.ts'
+import { OPTIONED_RECOMMENDED_RULES } from '../config/rule-options.ts'
 import type { RuleLevel } from '../config/types.ts'
+import { impactOf, type Impact } from '../registry/impact.ts'
+import { reliabilityOf, reliabilityPercent, type Reliability } from '../registry/reliability.ts'
 import { compareStrings } from '../ordering.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { NOT_RECOMMENDED_GENERATED, NOT_RECOMMENDED_UNCATALOGUED } from '../registry/not-recommended.ts'
@@ -13,6 +16,9 @@ import { ruleRefKey, type EngineId, type RuleEntry } from '../registry/types.ts'
  * anything the policy did not promote.
  */
 export type CatalogueStatus = 'recommended' | 'withheld' | 'unlisted'
+
+/** Whether the rule can be tuned, and whether slop-gate tunes it. */
+export type OptionState = 'tuned' | 'default' | 'none'
 
 export type CatalogueEntry = {
   readonly ruleRefKey: string
@@ -30,6 +36,13 @@ export type CatalogueEntry = {
   readonly level: Exclude<RuleLevel, 'off'> | null
   /** Stated reason it is withheld, verbatim from the registry. */
   readonly withheldReason: string | null
+  /** What a finding costs if it is real, 1–3. See `registry/impact.ts`. */
+  readonly impact: Impact
+  /** Measured precision, or null where nobody has measured it. Never assumed. */
+  readonly reliability: (Reliability & { readonly percent: number }) | null
+  readonly options: OptionState
+  /** The setting and the reason, when slop-gate tunes the rule. */
+  readonly optionReason: string | null
   readonly severityDefault: string
   readonly fixKind: string
   readonly fixTouches: readonly string[]
@@ -78,6 +91,8 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
     const level = levelOf(entry.concepts)
     const withheldReason = withheldReasonFor(entry)
     const described = describe(concept)
+    const measured = reliabilityOf(ruleRefKey(entry))
+    const tuned = entry.concepts.map((id) => OPTIONED_RECOMMENDED_RULES[id]).find((rule) => rule !== undefined)
 
     return {
       ruleRefKey: ruleRefKey(entry),
@@ -93,6 +108,10 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
       status: level !== null ? 'recommended' : withheldReason !== null ? 'withheld' : 'unlisted',
       level,
       withheldReason,
+      impact: impactOf(concept, described.group as ConceptGroup),
+      reliability: measured === null ? null : { ...measured, percent: reliabilityPercent(measured) },
+      options: tuned !== undefined ? 'tuned' : entry.hasOptions === true ? 'default' : 'none',
+      optionReason: tuned?.reason ?? null,
       severityDefault: entry.severityDefault,
       fixKind: entry.fixKind,
       fixTouches: [...entry.fixTouches],
@@ -108,15 +127,21 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
 export type CatalogueSummary = {
   readonly total: number
   readonly byStatus: Readonly<Record<CatalogueStatus, number>>
+  readonly byImpact: Readonly<Record<Impact, number>>
+  readonly measured: number
   readonly byEngine: readonly { readonly engine: string; readonly total: number; readonly recommended: number }[]
 }
 
 export function summariseCatalogue(entries: readonly CatalogueEntry[]): CatalogueSummary {
   const byStatus: Record<CatalogueStatus, number> = { recommended: 0, withheld: 0, unlisted: 0 }
+  const byImpact: Record<Impact, number> = { 1: 0, 2: 0, 3: 0 }
+  let measured = 0
   const byEngine = new Map<string, { total: number; recommended: number }>()
 
   for (const entry of entries) {
     byStatus[entry.status] += 1
+    byImpact[entry.impact] += 1
+    if (entry.reliability !== null) measured += 1
     const bucket = byEngine.get(entry.engine) ?? { total: 0, recommended: 0 }
     bucket.total += 1
     if (entry.status === 'recommended') bucket.recommended += 1
@@ -126,6 +151,8 @@ export function summariseCatalogue(entries: readonly CatalogueEntry[]): Catalogu
   return {
     total: entries.length,
     byStatus,
+    byImpact,
+    measured,
     byEngine: [...byEngine]
       .map(([engine, counts]) => ({ engine, ...counts }))
       .sort((a, b) => b.total - a.total || compareStrings(a.engine, b.engine)),

@@ -104,5 +104,8 @@ export {
   type CatalogueEntry,
   type CatalogueStatus,
   type CatalogueSummary,
+  type OptionState,
 } from './queries/catalogue.ts'
+export { IMPACTS, impactOf, type Impact, type ImpactDefinition } from './registry/impact.ts'
+export { reliabilityOf, reliabilityPercent, type Reliability } from './registry/reliability.ts'
 export { buildRulesConflicts, type RulesConflicts } from './queries/conflicts.ts'

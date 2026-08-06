@@ -56,6 +56,17 @@ A warm neutral at hue 70, so the greys sit under the amber instead of fighting i
 Every foreground above clears WCAG AA on `ink-950` and on `ink-900`; `ink-700` does not, which is
 why it is a border colour and the table says so.
 
+### Impact bar
+
+The 1–3 bar in [impact-and-reliability.md](impact-and-reliability.md) escalates through the palette
+rather than introducing colours of its own.
+
+| Level | Token | Reads as |
+|---|---|---|
+| 1 · untidy | `--color-ink-500` | present but quiet |
+| 2 · will bite | `--color-brand` | the tool's own colour — this is the ordinary case |
+| 3 · broken or unsafe | `--color-severity-error` | the only red on the page |
+
 ## Rules
 
 **The brand amber doubles as the `warn` severity, on purpose.** In a linter, `warn` is the most

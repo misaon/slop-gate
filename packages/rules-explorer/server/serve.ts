@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
-import { buildRuleCatalogue, summariseCatalogue, type CatalogueEntry } from '@misaon/slop-gate-core'
+import { buildRuleCatalogue, IMPACTS, summariseCatalogue, type CatalogueEntry } from '@misaon/slop-gate-core'
 import { Hono } from 'hono'
 import { buildRuleHistory, type RuleHistory } from '../scripts/history.ts'
 
@@ -23,6 +23,7 @@ type Payload = {
   readonly generatedAt: string
   readonly rules: readonly CatalogueEntry[]
   readonly summary: ReturnType<typeof summariseCatalogue>
+  readonly impacts: typeof IMPACTS
   readonly history: RuleHistory
 }
 
@@ -38,7 +39,13 @@ function load(): Promise<Payload> {
     const history = await buildRuleHistory(repoRoot).catch(
       (): RuleHistory => ({ origins: {}, removed: [] }),
     )
-    return { generatedAt: new Date().toISOString(), rules, summary: summariseCatalogue(rules), history }
+    return {
+      generatedAt: new Date().toISOString(),
+      rules,
+      summary: summariseCatalogue(rules),
+      impacts: IMPACTS,
+      history,
+    }
   })()
   return payload
 }

@@ -20,6 +20,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/accessor-pairs.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -34,6 +35,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/array-callback-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -48,6 +50,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/arrow-body-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -76,6 +79,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/capitalized-comments.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -90,6 +94,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/class-methods-use-this.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -104,6 +109,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/complexity.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -132,6 +138,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/curly.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -146,6 +153,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/default-case.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -188,6 +196,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/eqeqeq.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -230,6 +239,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/func-names.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -244,6 +254,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/func-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -258,6 +269,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/getter-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -272,6 +284,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/grouped-accessor-pairs.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -300,6 +313,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/id-denylist.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -314,6 +328,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/id-length.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -328,6 +343,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/id-match.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -342,6 +358,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/consistent-type-specifier-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -412,6 +429,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/first.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -440,6 +458,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/max-dependencies.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -468,6 +487,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/namespace.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -482,6 +502,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/newline-after-import.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -496,6 +517,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-absolute-path.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -524,6 +546,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-anonymous-default-export.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -538,6 +561,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-commonjs.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -552,6 +576,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-cycle.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -580,6 +605,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-duplicates.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -594,6 +620,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-dynamic-require.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -692,6 +719,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-namespace.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -706,6 +734,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-nodejs-modules.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -748,6 +777,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/no-unassigned-import.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -776,6 +806,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/import/prefer-default-export.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -804,6 +835,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/init-declarations.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -818,6 +850,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/consistent-test-it.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -832,6 +865,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/expect-expect.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -846,6 +880,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/max-expects.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -860,6 +895,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/max-nested-describe.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -944,6 +980,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/no-deprecated-functions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1028,6 +1065,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/no-hooks.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1084,6 +1122,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/no-large-snapshots.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1112,6 +1151,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/no-restricted-jest-methods.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1126,6 +1166,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/no-restricted-matchers.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1140,6 +1181,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/no-standalone-expect.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1280,6 +1322,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/prefer-ending-with-an-expect.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1308,6 +1351,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/prefer-expect-assertions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1364,6 +1408,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/prefer-importing-jest-globals.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1392,6 +1437,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/prefer-lowercase-title.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1434,6 +1480,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/prefer-snapshot-hint.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1560,6 +1607,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/require-hook.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1588,6 +1636,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/require-top-level-describe.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1616,6 +1665,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jest/valid-expect.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1686,6 +1736,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/check-tag-names.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1700,6 +1751,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/empty-tags.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1728,6 +1780,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/no-defaults.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1742,6 +1795,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/require-param.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1756,6 +1810,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/require-param-description.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1784,6 +1839,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/require-param-type.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1854,6 +1910,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/require-returns.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1924,6 +1981,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsdoc/require-yields.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1966,6 +2024,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/alt-text.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -1980,6 +2039,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/anchor-ambiguous-text.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2008,6 +2068,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/anchor-is-valid.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2064,6 +2125,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/aria-role.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2092,6 +2154,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/autocomplete-valid.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2120,6 +2183,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/control-has-associated-label.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2134,6 +2198,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/heading-has-content.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2176,6 +2241,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/img-redundant-alt.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2190,6 +2256,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/interactive-supports-focus.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2204,6 +2271,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/label-has-associated-control.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2232,6 +2300,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/media-has-caption.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2246,6 +2315,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/mouse-events-have-key-events.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2288,6 +2358,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-autofocus.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2302,6 +2373,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-distracting-elements.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2316,6 +2388,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-interactive-element-to-noninteractive-role.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2330,6 +2403,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-noninteractive-element-interactions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2344,6 +2418,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-noninteractive-element-to-interactive-role.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2358,6 +2433,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-noninteractive-tabindex.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2372,6 +2448,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-redundant-roles.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2386,6 +2463,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/jsx_a11y/no-static-element-interactions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2470,6 +2548,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/logical-assignment-operators.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2484,6 +2563,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/max-classes-per-file.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2498,6 +2578,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/max-depth.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2512,6 +2593,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/max-lines.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2526,6 +2608,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/max-lines-per-function.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2540,6 +2623,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/max-nested-callbacks.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2554,6 +2638,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/max-params.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2568,6 +2653,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/max-statements.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2582,6 +2668,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/new-cap.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -2946,6 +3033,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-bitwise.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3016,6 +3104,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-cond-assign.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3030,6 +3119,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-console.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3058,6 +3148,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-constant-binary-expression.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3072,6 +3163,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-constant-condition.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3226,6 +3318,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-duplicate-imports.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3240,6 +3333,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-else-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3254,6 +3348,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-empty.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3282,6 +3377,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-empty-function.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3296,6 +3392,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-empty-pattern.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3338,6 +3435,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-eval.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3366,6 +3464,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-extend-native.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3394,6 +3493,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-extra-boolean-cast.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3422,6 +3522,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-fallthrough.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3450,6 +3551,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-global-assign.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3464,6 +3566,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-implicit-coercion.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3478,6 +3581,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-implicit-globals.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3520,6 +3624,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-inline-comments.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3534,6 +3639,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-inner-declarations.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3548,6 +3654,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-invalid-regexp.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3562,6 +3669,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-irregular-whitespace.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3604,6 +3712,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-labels.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3674,6 +3783,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-magic-numbers.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3688,6 +3798,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-misleading-character-class.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3702,6 +3813,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-multi-assign.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3856,6 +3968,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-param-reassign.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3870,6 +3983,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-plusplus.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3884,6 +3998,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-promise-executor-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3926,6 +4041,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-redeclare.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -3954,6 +4070,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-restricted-exports.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4010,6 +4127,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-return-assign.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4038,6 +4156,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-self-assign.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4066,6 +4185,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-sequences.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4094,6 +4214,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-shadow.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4108,6 +4229,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-shadow-restricted-names.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4206,6 +4328,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-undef.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4234,6 +4357,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-underscore-dangle.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4276,6 +4400,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-unneeded-ternary.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4304,6 +4429,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-unreachable-loop.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4332,6 +4458,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-unsafe-negation.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4346,6 +4473,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-unsafe-optional-chaining.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4360,6 +4488,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-unused-expressions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4403,6 +4532,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-unused-vars.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4417,6 +4547,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-use-before-define.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4487,6 +4618,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-useless-computed-key.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4529,6 +4661,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-useless-escape.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4543,6 +4676,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-useless-rename.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4585,6 +4719,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-void.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4599,6 +4734,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/no-warning-comments.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4627,6 +4763,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/node/callback-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4641,6 +4778,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/node/exports-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4669,6 +4807,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/node/handle-callback-err.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4697,6 +4836,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/node/no-mixed-requires.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4739,6 +4879,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/node/no-process-env.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4753,6 +4894,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/node/no-sync.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4767,6 +4909,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/node/no-top-level-await.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4781,6 +4924,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/object-shorthand.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -4795,6 +4939,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/operator-assignment.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5047,6 +5192,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/oxc/no-async-endpoint-handlers.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5061,6 +5207,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/oxc/no-barrel-file.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5089,6 +5236,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/oxc/no-map-spread.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5103,6 +5251,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/oxc/no-optional-chaining.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5117,6 +5266,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/oxc/no-rest-spread-properties.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5187,6 +5337,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/prefer-arrow-callback.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5201,6 +5352,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/prefer-const.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5215,6 +5367,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/prefer-destructuring.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5299,6 +5452,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/prefer-promise-reject-errors.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5313,6 +5467,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/prefer-regex-literals.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5369,6 +5524,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/preserve-caught-error.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5383,6 +5539,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/always-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5411,6 +5568,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/catch-or-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5425,6 +5583,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/no-callback-in-promise.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5481,6 +5640,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/no-promise-in-callback.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5509,6 +5669,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/no-return-wrap.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5523,6 +5684,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/param-names.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5551,6 +5713,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/prefer-await-to-then.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5579,6 +5742,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/promise/spec-only.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5607,6 +5771,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/radix.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5621,6 +5786,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react_perf/jsx-no-jsx-as-prop.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5635,6 +5801,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react_perf/jsx-no-new-array-as-prop.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5649,6 +5816,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react_perf/jsx-no-new-function-as-prop.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5663,6 +5831,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react_perf/jsx-no-new-object-as-prop.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5677,6 +5846,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/button-has-type.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5691,6 +5861,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/checked-requires-onchange-or-readonly.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5705,6 +5876,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/display-name.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5719,6 +5891,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/exhaustive-deps.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5733,6 +5906,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/forbid-component-props.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5747,6 +5921,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/forbid-dom-props.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5761,6 +5936,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/forbid-elements.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5789,6 +5965,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/function-component-definition.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5803,6 +5980,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/hook-use-state.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5831,6 +6009,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-boolean-value.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5845,6 +6024,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-curly-brace-presence.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5859,6 +6039,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-filename-extension.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5873,6 +6054,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-fragments.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5887,6 +6069,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-handler-names.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5901,6 +6084,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-key.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5915,6 +6099,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-max-depth.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5971,6 +6156,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-no-literals.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -5999,6 +6185,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-no-target-blank.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6027,6 +6214,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-no-useless-fragment.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6041,6 +6229,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-pascal-case.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6069,6 +6258,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/jsx-props-no-spreading.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6153,6 +6343,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-did-mount-set-state.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6167,6 +6358,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-did-update-set-state.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6223,6 +6415,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-multi-comp.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6321,6 +6514,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-string-refs.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6363,6 +6557,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-unknown-property.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6377,6 +6572,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-unsafe.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6391,6 +6587,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-unstable-nested-components.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6405,6 +6602,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/no-will-update-set-state.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6419,6 +6617,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/only-export-components.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6433,6 +6632,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/prefer-es6-class.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6447,6 +6647,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/prefer-function-component.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6461,6 +6662,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/react-compiler.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6517,6 +6719,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/self-closing-comp.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6531,6 +6734,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/state-in-constructor.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6545,6 +6749,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['jsx', 'tsx'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/react/style-prop-object.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6587,6 +6792,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/require-unicode-regexp.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6615,6 +6821,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/sort-imports.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6629,6 +6836,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/sort-keys.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6643,6 +6851,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/sort-vars.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6685,6 +6894,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/array-type.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6713,6 +6923,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/ban-ts-comment.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6755,6 +6966,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/class-literal-property-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6769,6 +6981,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/consistent-generic-constructors.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6783,6 +6996,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/consistent-indexed-object-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6797,6 +7011,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/consistent-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6811,6 +7026,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/consistent-type-assertions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6825,6 +7041,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/consistent-type-definitions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6839,6 +7056,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/consistent-type-exports.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6853,6 +7071,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/consistent-type-imports.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6867,6 +7086,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/dot-notation.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6881,6 +7101,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/explicit-function-return-type.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6895,6 +7116,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/explicit-member-accessibility.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6909,6 +7131,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/explicit-module-boundary-types.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6923,6 +7146,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/method-signature-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6951,6 +7175,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-base-to-string.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6979,6 +7204,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-confusing-void-expression.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -6993,6 +7219,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-deprecated.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7021,6 +7248,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-duplicate-type-constituents.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7049,6 +7277,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-empty-interface.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7063,6 +7292,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-empty-object-type.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7077,6 +7307,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-explicit-any.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7105,6 +7336,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-extraneous-class.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7119,6 +7351,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-floating-promises.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7175,6 +7408,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-inferrable-types.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7189,6 +7423,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-invalid-void-type.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7203,6 +7438,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-meaningless-void-operator.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7231,6 +7467,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-misused-promises.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7245,6 +7482,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-misused-spread.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7273,6 +7511,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-namespace.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7343,6 +7582,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-require-imports.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7357,6 +7597,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-restricted-types.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7371,6 +7612,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-this-alias.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7385,6 +7627,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-unnecessary-boolean-literal-compare.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7399,6 +7642,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-unnecessary-condition.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7469,6 +7713,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-unnecessary-type-assertion.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7609,6 +7854,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/no-unsafe-member-access.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7735,6 +7981,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/only-throw-error.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7749,6 +7996,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/parameter-properties.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7847,6 +8095,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/prefer-literal-enum-member.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7875,6 +8124,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/prefer-nullish-coalescing.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7889,6 +8139,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/prefer-optional-chain.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7903,6 +8154,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/prefer-promise-reject-errors.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7917,6 +8169,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/prefer-readonly.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7931,6 +8184,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/prefer-readonly-parameter-types.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -7987,6 +8241,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/prefer-string-starts-ends-with.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8015,6 +8270,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/promise-function-async.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8043,6 +8299,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/require-array-sort-compare.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8071,6 +8328,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/restrict-plus-operands.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8085,6 +8343,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/restrict-template-expressions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8099,6 +8358,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/return-await.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8113,6 +8373,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/strict-boolean-expressions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8127,6 +8388,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/strict-void-return.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8141,6 +8403,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/switch-exhaustiveness-check.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8155,6 +8418,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/triple-slash-reference.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8169,6 +8433,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/unbound-method.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8183,6 +8448,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/typescript/unified-signatures.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8211,6 +8477,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/unicode-bom.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8225,6 +8492,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/catch-error-name.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8295,6 +8563,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/consistent-function-scoping.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8379,6 +8648,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/explicit-length-check.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8393,6 +8663,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/explicit-timer-delay.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8421,6 +8692,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/import-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8435,6 +8707,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/max-nested-calls.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8561,6 +8834,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-array-reduce.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8575,6 +8849,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-array-reverse.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8589,6 +8864,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-array-sort.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8729,6 +9005,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-instanceof-builtins.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8883,6 +9160,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-null.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -8981,6 +9259,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-typeof-undefined.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9149,6 +9428,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-useless-promise-resolve-reject.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9191,6 +9471,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/no-useless-undefined.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9233,6 +9514,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/numeric-separators-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9331,6 +9613,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/prefer-at.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9513,6 +9796,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/prefer-export-from.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9723,6 +10007,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/prefer-number-properties.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9737,6 +10022,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/prefer-object-from-entries.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9863,6 +10149,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/prefer-single-call.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9961,6 +10248,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/prefer-structured-clone.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -9975,6 +10263,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/prefer-ternary.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10017,6 +10306,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/relative-url-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10101,6 +10391,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/switch-case-braces.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10129,6 +10420,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/unicorn/text-encoding-identifier-case.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10157,6 +10449,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/use-isnan.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10171,6 +10464,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/valid-typeof.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10199,6 +10493,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/consistent-each-for.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10213,6 +10508,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/consistent-test-filename.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10227,6 +10523,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/consistent-test-it.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10241,6 +10538,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/consistent-vitest-vi.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10255,6 +10553,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/expect-expect.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10283,6 +10582,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/max-expects.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10297,6 +10597,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/max-nested-describe.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10423,6 +10724,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/no-hooks.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10493,6 +10795,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/no-large-snapshots.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10521,6 +10824,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/no-restricted-matchers.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10535,6 +10839,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/no-restricted-vi-methods.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10549,6 +10854,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/no-standalone-expect.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10745,6 +11051,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/prefer-expect-assertions.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10815,6 +11122,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/prefer-import-in-mock.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10843,6 +11151,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/prefer-lowercase-title.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -10885,6 +11194,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/prefer-snapshot-hint.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11067,6 +11377,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/require-hook.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11095,6 +11406,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/require-mock-type-parameters.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11137,6 +11449,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/require-top-level-describe.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11165,6 +11478,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vitest/valid-expect.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11221,6 +11535,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/component-definition-name-casing.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11235,6 +11550,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/define-emits-declaration.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11249,6 +11565,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/define-props-declaration.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11263,6 +11580,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/define-props-destructuring.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11277,6 +11595,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/max-props.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11291,6 +11610,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/next-tick-style.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11319,6 +11639,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/no-async-in-computed-properties.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11403,6 +11724,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/no-deprecated-model-definition.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11445,6 +11767,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/no-dupe-keys.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11543,6 +11866,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/no-reserved-component-names.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11557,6 +11881,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/no-reserved-keys.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11571,6 +11896,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/no-reserved-props.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11655,6 +11981,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/prop-name-casing.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11697,6 +12024,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/require-direct-export.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11781,6 +12109,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['vue'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/vue/return-in-computed-property.html',
     since: '0.2.0',
+    hasOptions: true,
   },
   {
     engine: 'oxlint',
@@ -11865,6 +12194,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
     languages: ['ts', 'tsx', 'js', 'jsx', 'vue', 'svelte', 'astro'],
     docsUrl: 'https://oxc.rs/docs/guide/usage/linter/rules/eslint/yoda.html',
     since: '0.2.0',
+    hasOptions: true,
   },
 ]
 

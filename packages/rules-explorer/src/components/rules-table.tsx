@@ -2,6 +2,7 @@ import type { ColumnDef, Row as CoreRow, Table } from '@tanstack/table-core'
 import { useState } from 'preact/hooks'
 import { STATUS_LABEL, type Row } from '../data.ts'
 import { StatusPill } from './chrome.tsx'
+import { ImpactBar, ReliabilityCell } from './impact.tsx'
 import { Prose } from './prose.tsx'
 
 export const columns: ColumnDef<Row, unknown>[] = [
@@ -9,8 +10,10 @@ export const columns: ColumnDef<Row, unknown>[] = [
   { id: 'engine', accessorFn: (row) => row.engine, header: 'Engine' },
   { id: 'concept', accessorFn: (row) => row.concept, header: 'Concept' },
   { id: 'status', accessorFn: (row) => row.status, header: 'State' },
-  { id: 'level', accessorFn: (row) => row.level ?? '', header: 'Level' },
-  { id: 'fix', accessorFn: (row) => row.fixKind, header: 'Fix' },
+  { id: 'impact', accessorFn: (row) => row.impact, header: 'Impact' },
+  // Unmeasured sorts below 0%, so ordering by this column surfaces what is known first.
+  { id: 'reliability', accessorFn: (row) => row.reliability?.percent ?? -1, header: 'Reliability' },
+  { id: 'options', accessorFn: (row) => row.options, header: 'Options' },
   { id: 'added', accessorFn: (row) => row.origin?.date ?? '', header: 'Added' },
 ]
 
@@ -21,12 +24,13 @@ export const columns: ColumnDef<Row, unknown>[] = [
  * the detail row, and in `title` for a hover.
  */
 const COLUMN_WIDTH: Readonly<Record<string, string>> = {
-  rule: '26%',
-  engine: '8rem',
-  concept: '30%',
-  status: '7rem',
-  level: '5rem',
-  fix: '6rem',
+  rule: '22%',
+  engine: '7.5rem',
+  concept: '26%',
+  status: '6.5rem',
+  impact: '5.5rem',
+  reliability: '8rem',
+  options: '6rem',
   added: '7rem',
 }
 
@@ -54,6 +58,17 @@ function Detail({ row }: { row: Row }) {
           </div>
           <div class="space-y-2">
             <div>
+              <span class="text-xs uppercase tracking-wide text-ink-500">Impact</span>
+              <div class="mt-1">
+                <ImpactBar impact={row.impact} label={row.impactLabel} test={row.impactTest} withLabel />
+              </div>
+              <p class="mt-1 text-ink-500">{row.impactTest}</p>
+            </div>
+            <div>
+              <span class="text-xs uppercase tracking-wide text-ink-500">Fix</span>
+              <div class="mt-1 text-ink-300">{row.fixKind === 'none' ? 'none declared' : row.fixKind}</div>
+            </div>
+            <div>
               <span class="text-xs uppercase tracking-wide text-ink-500">Languages</span>
               <div class="mono mt-1 text-ink-300">{row.languages.length === 0 ? '—' : row.languages.join(' · ')}</div>
             </div>
@@ -76,6 +91,25 @@ function Detail({ row }: { row: Row }) {
             </a>
           </div>
         </div>
+        {row.reliability === null ? null : (
+          <div class="mt-4 rounded-lg bg-ink-950/50 p-3 ring-1 ring-ink-800">
+            <div class="text-xs font-medium uppercase tracking-wide text-ink-500">
+              Reliability · {row.reliability.percent}% of {row.reliability.sampled} findings read, against{' '}
+              {row.reliability.measuredAgainst}
+            </div>
+            <div class="mt-1 text-ink-300">
+              <Prose text={row.reliability.source} />
+            </div>
+          </div>
+        )}
+        {row.optionReason === null ? null : (
+          <div class="mt-4 rounded-lg bg-brand/8 p-3 ring-1 ring-brand/25">
+            <div class="text-xs font-medium uppercase tracking-wide text-brand">Why the options are tuned</div>
+            <div class="mt-1 text-ink-300">
+              <Prose text={row.optionReason} />
+            </div>
+          </div>
+        )}
         {row.withheldReason === null ? null : (
           <div class="mt-4 rounded-lg bg-state-withheld/8 p-3 ring-1 ring-state-withheld/25">
             <div class="text-xs font-medium uppercase tracking-wide text-state-withheld">Why it is withheld</div>
@@ -108,22 +142,24 @@ function Cell({ id, row }: { id: string; row: Row }) {
       )
     case 'status':
       return <StatusPill status={row.status} label={STATUS_LABEL[row.status]} />
-    case 'level':
-      return (
-        <span
-          class={
-            row.level === 'error'
-              ? 'text-severity-error'
-              : row.level === 'warn'
-                ? 'text-severity-warn'
-                : 'text-ink-500'
-          }
-        >
-          {row.level ?? '—'}
+    case 'impact':
+      return <ImpactBar impact={row.impact} label={row.impactLabel} test={row.impactTest} />
+    case 'reliability':
+      return <ReliabilityCell percent={row.reliability?.percent ?? null} sampled={row.reliability?.sampled ?? null} />
+    case 'options':
+      return row.options === 'tuned' ? (
+        <span class="text-brand" title="slop-gate sets options for this rule rather than taking the default">
+          tuned
+        </span>
+      ) : row.options === 'default' ? (
+        <span class="text-ink-500" title="The rule accepts options; slop-gate takes the engine's default">
+          default
+        </span>
+      ) : (
+        <span class="text-ink-700" title="The rule takes no options">
+          —
         </span>
       )
-    case 'fix':
-      return <span class="text-ink-500">{row.fixKind === 'none' ? '—' : row.fixKind}</span>
     case 'added':
       return <span class="mono text-ink-500">{row.origin?.date ?? '—'}</span>
     default:
