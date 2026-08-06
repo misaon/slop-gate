@@ -1,4 +1,5 @@
 import { readFile, rmdir } from 'node:fs/promises'
+import { availableParallelism } from 'node:os'
 import { join, relative } from 'node:path'
 import { createBaselineMatcher, type BaselineMatcher } from '../baseline/apply.ts'
 import { baselinePathFor, readBaseline } from '../baseline/file.ts'
@@ -78,6 +79,23 @@ export type CheckEvent =
   | { type: 'done'; result: CheckResult }
 
 const DEFAULT_BATCH_SIZE = 500
+
+type AssignmentOutcome = {
+  readonly diagnostics: Diagnostic[]
+  readonly cacheHits: string[]
+  ran: boolean
+  failure?: string
+}
+
+/**
+ * Engines are mostly subprocesses that thread internally — oxlint and biome saturate the machine on
+ * their own — so this bounds how many compete, it does not try to fill the cores. Half of them, at
+ * least two so a slow project-granularity engine (tsc, knip) never blocks the per-file ones.
+ */
+function engineConcurrency(assignments: number): number {
+  const cores = availableParallelism()
+  return Math.max(2, Math.min(assignments, Math.floor(cores / 2)))
+}
 
 const isVisible = (diagnostic: Diagnostic): boolean => diagnostic.suppressed === undefined
 
@@ -184,11 +202,26 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     }),
   ))
 
-  try {
-    for (const assignment of plan) {
-      const resolved = planned.get(assignment.engineId)
-      if (resolved === undefined) continue
-      const engine = resolved.engine
+  /**
+   * Engines are independent — different tools, different files, their own caches — but ran one after
+   * another, so a four-core machine sat at 1.3–2.0x CPU:wall. Measured cold: the engine phases sum to
+   * 5,051 ms of immich's 6,993 ms run behind a 1,907 ms longest engine, and 7,780 ms of solid-start's
+   * 8,596 ms behind 3,570 ms.
+   *
+   * Each assignment collects into its own buffer and the buffers are emitted in plan order, so what a
+   * reporter sees is byte-identical to the sequential run. `collected` already held every diagnostic,
+   * so buffering costs no memory that was not already spent.
+   */
+  const runAssignment = async (assignment: (typeof plan)[number]): Promise<AssignmentOutcome> => {
+    const outcome: AssignmentOutcome = { diagnostics: [], cacheHits: [], ran: false }
+    const resolved = planned.get(assignment.engineId)
+    if (resolved === undefined) return outcome
+    const engine = resolved.engine
+
+    const take = (diagnostic: Diagnostic): void => {
+      if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) return
+      outcome.diagnostics.push(diagnostic)
+    }
 
       try {
         if ('error' in resolved) throw resolved.error
@@ -200,7 +233,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
           ...(options.fixTier === undefined ? {} : { fixTier: options.fixTier }),
         }
         const handle = await timing.phase(`materialize:${engine.id}`, () => engine.materializeConfig(assignment.selection, runContext))
-        enginesRun += 1
+        outcome.ran = true
 
         if (engine.capabilities.granularity === 'project') {
           try {
@@ -227,15 +260,13 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               projectStats,
               timing,
             )) {
-              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
-              collected.push(diagnostic)
-              yield { type: 'diagnostic', diagnostic }
+              take(diagnostic)
             }
-            if (projectStats.cacheHit) for (const file of assignment.files) recordCacheHit(engine.id, file.path)
+            if (projectStats.cacheHit) for (const file of assignment.files) outcome.cacheHits.push(file.path)
           } finally {
             await handle.dispose()
           }
-          continue
+          return outcome
         }
 
         try {
@@ -268,12 +299,8 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               pending.push(file)
               continue
             }
-            recordCacheHit(engine.id, file.path)
-            for (const diagnostic of hit) {
-              if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
-              collected.push(diagnostic)
-              yield { type: 'diagnostic', diagnostic }
-            }
+            outcome.cacheHits.push(file.path)
+            for (const diagnostic of hit) take(diagnostic)
           }
 
           const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
@@ -303,20 +330,33 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
               }))
 
               if (useCache) await timing.phase(`cache-write:${engine.id}`, () => resultStore.set(engine.id, keys.get(path)!, normalized, keyInputs.get(path)!))
-              for (const diagnostic of normalized) {
-                if (!isVisible(diagnostic) || isDuplicateSynthetic(diagnostic) || baseline?.accepts(diagnostic) === true) continue
-                collected.push(diagnostic)
-                yield { type: 'diagnostic', diagnostic }
-              }
+              for (const diagnostic of normalized) take(diagnostic)
             }
           }
         } finally {
           await timing.phase(`dispose:${engine.id}`, () => handle.dispose())
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        engineFailures.push({ engine: assignment.engineId, message })
-        yield { type: 'engine-failed', engine: assignment.engineId, message }
+        outcome.failure = error instanceof Error ? error.message : String(error)
+      }
+
+    return outcome
+  }
+
+  try {
+    const outcomes = await timing.phase('engines', () => mapWithLimit(plan, engineConcurrency(plan.length), runAssignment))
+
+    for (const [index, assignment] of plan.entries()) {
+      const outcome = outcomes[index]!
+      if (outcome.ran) enginesRun += 1
+      for (const path of outcome.cacheHits) recordCacheHit(assignment.engineId, path)
+      for (const diagnostic of outcome.diagnostics) {
+        collected.push(diagnostic)
+        yield { type: 'diagnostic', diagnostic }
+      }
+      if (outcome.failure !== undefined) {
+        engineFailures.push({ engine: assignment.engineId, message: outcome.failure })
+        yield { type: 'engine-failed', engine: assignment.engineId, message: outcome.failure }
       }
     }
   } finally {
@@ -369,6 +409,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
       ...(timing.enabled
         ? {
             timings: buildTimingReport({
+              busyMs: timing.busyMs(),
               phases: timing.measured(),
               startupMs: enteredAt - startedAt,
               insideMs: finishedAt - enteredAt,

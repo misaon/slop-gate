@@ -996,8 +996,11 @@ test('the timing rows name the walk, arbitration and the engine, and account for
 
   expect(report.startupMs).toBeGreaterThan(0)
   expect(report.unattributedMs).toBeGreaterThanOrEqual(0)
-  const summed = report.startupMs + report.phases.reduce((total, phase) => total + phase.durationMs, 0) + report.unattributedMs
+  // Engines run concurrently, so the phases overlap and their durations sum above the run. `busyMs`
+  // is the wall clock they occupied between them, and that is what still adds up exactly.
+  const summed = report.startupMs + report.busyMs + report.unattributedMs
   expect(Math.abs(summed - result.stats.durationMs)).toBeLessThan(1)
+  expect(report.phases.reduce((total, phase) => total + phase.durationMs, 0)).toBeGreaterThanOrEqual(report.busyMs)
 
   expect(report.rules).toEqual([{ ruleRefKey: 'oxlint/no-debugger', findings: 1 }])
 })

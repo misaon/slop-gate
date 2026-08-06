@@ -269,16 +269,13 @@ test('--timing puts the breakdown in the json document, and its rows account for
   const output = await runCheckCapturingStdout({ timing: true })
   const report = JSON.parse(output) as {
     stats: { durationMs: number }
-    timings: { startupMs: number; phases: Array<{ name: string; durationMs: number }>; unattributedMs: number }
+    timings: { startupMs: number; phases: Array<{ name: string; durationMs: number }>; unattributedMs: number; busyMs: number }
   }
 
   expect(report.timings.startupMs).toBeGreaterThan(0)
   expect(report.timings.phases.map((phase) => phase.name)).toContain('discover')
 
-  const summed =
-    report.timings.startupMs +
-    report.timings.phases.reduce((total, phase) => total + phase.durationMs, 0) +
-    report.timings.unattributedMs
+  const summed = report.timings.startupMs + report.timings.busyMs + report.timings.unattributedMs
   expect(Math.abs(summed - report.stats.durationMs)).toBeLessThan(1)
 })
 

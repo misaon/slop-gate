@@ -236,9 +236,16 @@ export function createPrettyReporter(context: ReporterContext): Reporter {
           `${paint('dim', padStartDisplay(share, 6) + spans)}`,
       )
     }
+    const attributed = report.phases.reduce((sum, phase) => sum + phase.durationMs, 0)
     for (const note of [
       'startup is node boot, the module graph and config load, before core ran.',
       "unattributed is orchestration and this reporter's own time between yields.",
+      ...(attributed > report.busyMs + 1
+        ? [
+            `engines run concurrently, so the phases overlap and their shares sum above 100%. They ` +
+              `occupied ${report.busyMs.toFixed(1)} ms of wall clock between them.`,
+          ]
+        : []),
       '`--format=json` carries every phase and every rule, uncapped.',
     ]) {
       for (const line of wrapText(note, Math.max(1, width - 2))) lines.push(`    ${paint('dim', line)}`)
