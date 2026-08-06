@@ -36,6 +36,17 @@ is right. Reliability is an em dash for the 920 rules nobody has measured, which
 **Options** separates "the rule takes no options" from "it takes options and we use the default" from
 "we tune it" — the last one opens the recorded reason and its measurement.
 
+## Icons and motion
+
+[lucide-preact](https://lucide.dev), named once in `src/components/icons.tsx` so the page's whole
+icon vocabulary is readable in one place and Lucide tree-shakes to only what is used — 17 icons for
+6.5 kB.
+
+Motion is **interaction-driven only**. 923 rows are on screen at once, so nothing animates on mount
+except the four summary tiles; an entrance animation per row would start 923 of them at a time.
+Everything is `transform` or `opacity` so it stays off the main thread, and everything sits inside
+`motion-safe`, so `prefers-reduced-motion: reduce` removes it rather than merely shortening it.
+
 ## Where the data comes from
 
 - **The catalogue** is `buildRuleCatalogue()` in core — static registry data, no run required.

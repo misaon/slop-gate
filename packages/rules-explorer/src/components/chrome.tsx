@@ -1,5 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import type { CatalogueStatus } from '@misaon/slop-gate-core'
+import { ICON_SMALL, ICON_TILE, STATUS_ICON } from './icons.tsx'
+import type { LucideIcon } from 'lucide-preact'
 
 const STATUS_CLASS: Readonly<Record<CatalogueStatus, string>> = {
   recommended: 'bg-state-on/12 text-state-on ring-state-on/25',
@@ -8,17 +10,39 @@ const STATUS_CLASS: Readonly<Record<CatalogueStatus, string>> = {
 }
 
 export function StatusPill({ status, label }: { status: CatalogueStatus; label: string }) {
+  const Icon = STATUS_ICON[status]
   return (
-    <span class={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${STATUS_CLASS[status]}`}>
+    <span
+      class={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${STATUS_CLASS[status]}`}
+    >
+      <Icon {...ICON_SMALL} />
       {label}
     </span>
   )
 }
 
-export function Tile({ label, value, tone }: { label: string; value: number | string; tone?: string }) {
+export function Tile({
+  label,
+  value,
+  tone,
+  icon: Icon,
+  delay = 0,
+}: {
+  label: string
+  value: number | string
+  tone?: string
+  icon: LucideIcon
+  delay?: number
+}) {
   return (
-    <div class="rounded-xl bg-ink-900 px-4 py-3 ring-1 ring-ink-800">
-      <div class="text-xs uppercase tracking-wide text-ink-500">{label}</div>
+    <div
+      class="motion-safe:rise rounded-xl bg-ink-900 px-4 py-3 ring-1 ring-ink-800 transition-colors hover:ring-ink-700"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
+        <Icon {...ICON_TILE} class={tone ?? 'text-ink-500'} />
+        {label}
+      </div>
       <div class={`mt-1 text-2xl font-semibold tabular-nums ${tone ?? 'text-ink-100'}`}>{value}</div>
     </div>
   )
@@ -45,8 +69,10 @@ export function Toggle({
           : 'bg-ink-900 text-ink-300 ring-ink-800 hover:bg-ink-850 hover:text-ink-100'
       }`}
     >
-      {children}
-      {count === undefined ? null : <span class="ml-1.5 text-xs tabular-nums text-ink-500">{count}</span>}
+      <span class="inline-flex items-center gap-1.5">
+        {children}
+        {count === undefined ? null : <span class="text-xs tabular-nums text-ink-500">{count}</span>}
+      </span>
     </button>
   )
 }

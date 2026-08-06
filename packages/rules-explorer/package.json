@@ -4,7 +4,7 @@
   "private": true,
   "description": "Internal: a visual index of every rule slop-gate knows about, its state and why.",
   "license": "MIT",
-  "author": "Ond\u0159ej Mis\u00e1k",
+  "author": "Ondřej Misák",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -20,6 +20,7 @@
     "@misaon/slop-gate-core": "workspace:*",
     "@tanstack/table-core": "^8.21.3",
     "hono": "^4.9.0",
+    "lucide-preact": "^1.29.0",
     "preact": "^10.27.0"
   },
   "devDependencies": {
