@@ -6,7 +6,8 @@
     "jsxImportSource": "preact",
     "module": "preserve",
     "moduleResolution": "bundler",
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client"],
+    "paths": { "react": ["../../node_modules/preact/compat"], "react-dom": ["../../node_modules/preact/compat"] }
   },
   "include": ["src", "server", "scripts", "vite.config.ts"]
 }

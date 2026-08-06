@@ -2,7 +2,15 @@ import type { CatalogueStatus, Impact } from '@misaon/slop-gate-core'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import logo from '../../../docs/assets/logo-wide-darkmode-360.webp'
 import { Tile, Toggle } from './components/chrome.tsx'
-import { CircleOff, ICON, Library, Search, ShieldCheck, Spinner, Target, X } from './components/icons.tsx'
+import {
+  BanAnimated,
+  BookTextAnimated,
+  GaugeAnimated,
+  HoverGroup,
+  SearchAnimated,
+  ShieldCheckAnimated,
+} from './components/animated/icons.tsx'
+import { ICON, Spinner, X } from './components/icons.tsx'
 import { columns, RulesTable } from './components/rules-table.tsx'
 import { fetchRules, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
 import { useTable } from './use-table.ts'
@@ -83,23 +91,23 @@ export function App() {
       </header>
 
       <section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile icon={Library} label="Rules known" value={summary.total} />
+        <Tile icon={BookTextAnimated} label="Rules known" value={summary.total} />
         <Tile
-          icon={ShieldCheck}
+          icon={ShieldCheckAnimated}
           label="On in recommended"
           value={summary.byStatus.recommended}
           tone="text-state-on"
           delay={60}
         />
         <Tile
-          icon={CircleOff}
+          icon={BanAnimated}
           label="Withheld, with a reason"
           value={summary.byStatus.withheld}
           tone="text-state-withheld"
           delay={120}
         />
         <Tile
-          icon={Target}
+          icon={GaugeAnimated}
           label="Reliability measured"
           value={`${summary.measured} of ${summary.total}`}
           tone="text-ink-300"
@@ -109,10 +117,9 @@ export function App() {
 
       <section class="mb-4 space-y-3">
         <div class="group relative">
-          <Search
-            {...ICON}
-            class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-500 transition-colors group-focus-within:text-brand"
-          />
+          <HoverGroup class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">
+            <SearchAnimated class="text-ink-500 transition-colors group-focus-within:text-brand" />
+          </HoverGroup>
           <input
             type="search"
             value={query}
