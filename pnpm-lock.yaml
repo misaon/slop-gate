@@ -231,6 +231,9 @@ importers:
       hono:
         specifier: ^4.9.0
         version: 4.13.0
+      lucide-preact:
+        specifier: ^1.29.0
+        version: 1.29.0(preact@10.29.8)
       preact:
         specifier: ^10.27.0
         version: 10.29.8
@@ -2717,6 +2720,11 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
+  lucide-preact@1.29.0:
+    resolution: {integrity: sha512-mooWJ3hA4C3KYsnREJNir5zXyNN1OzeE+778FB0iy2dPOCZ3g6kMTiPHNMnV1vplCoLAP3RwXa3kY/ulZtdeVQ==}
+    peerDependencies:
+      preact: ^10.27.2
+
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
@@ -5201,6 +5209,10 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  lucide-preact@1.29.0(preact@10.29.8):
+    dependencies:
+      preact: 10.29.8
 
   magic-string@0.30.21:
     dependencies:

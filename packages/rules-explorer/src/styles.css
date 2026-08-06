@@ -45,6 +45,52 @@ code,
   background: linear-gradient(90deg, var(--color-brand) 0%, var(--color-brand-deep) 38%, transparent 100%);
 }
 
+/*
+ * Motion is interaction-driven only. 923 rows are on screen at once, so nothing animates on mount
+ * except the four summary tiles — an entrance animation per row would start 923 of them at a time.
+ * Everything below is transform or opacity, so it stays off the main thread, and everything is
+ * inside `motion-safe` so `prefers-reduced-motion` turns the lot off rather than merely shortening
+ * it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    animation: rise 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .unfurl {
+    animation: unfurl 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes unfurl {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* The chevron is the expand affordance; rotating it is the whole state change. */
+.chevron {
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms ease;
+}
+
+.chevron[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
 /* The table is wide and long; keep its head visible without a fixed layout. */
 .sticky-head th {
   position: sticky;

@@ -2,6 +2,22 @@ import type { ColumnDef, Row as CoreRow, Table } from '@tanstack/table-core'
 import { useState } from 'preact/hooks'
 import { STATUS_LABEL, type Row } from '../data.ts'
 import { StatusPill } from './chrome.tsx'
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  ChevronsUpDown,
+  ExternalLink,
+  Gauge,
+  GitCommitHorizontal,
+  ICON,
+  ICON_SMALL,
+  Languages,
+  SlidersHorizontal,
+  Target,
+  TriangleAlert,
+  Wrench,
+} from './icons.tsx'
 import { ImpactBar, ReliabilityCell } from './impact.tsx'
 import { Prose } from './prose.tsx'
 
@@ -24,10 +40,10 @@ export const columns: ColumnDef<Row, unknown>[] = [
  * the detail row, and in `title` for a hover.
  */
 const COLUMN_WIDTH: Readonly<Record<string, string>> = {
-  rule: '22%',
+  rule: '21%',
   engine: '7.5rem',
-  concept: '26%',
-  status: '6.5rem',
+  concept: '25%',
+  status: '8rem',
   impact: '5.5rem',
   reliability: '8rem',
   options: '6rem',
@@ -37,17 +53,29 @@ const COLUMN_WIDTH: Readonly<Record<string, string>> = {
 const HEAD_CLASS = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500 select-none'
 
 function SortArrow({ direction }: { direction: false | 'asc' | 'desc' }) {
-  if (direction === false) return <span class="ml-1 text-ink-700 group-hover:text-ink-500">↕</span>
-  return <span class="ml-1 text-brand">{direction === 'asc' ? '↑' : '↓'}</span>
+  if (direction === false) {
+    return <ChevronsUpDown {...ICON_SMALL} class="ml-1 inline text-ink-700 group-hover:text-ink-500" />
+  }
+  const Arrow = direction === 'asc' ? ArrowUp : ArrowDown
+  return <Arrow {...ICON_SMALL} class="motion-safe:unfurl ml-1 inline text-brand" />
+}
+
+function Section({ icon: Icon, label }: { icon: typeof Wrench; label: string }) {
+  return (
+    <span class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
+      <Icon {...ICON_SMALL} />
+      {label}
+    </span>
+  )
 }
 
 function Detail({ row }: { row: Row }) {
   return (
-    <tr class="bg-ink-900/60">
+    <tr class="motion-safe:unfurl bg-ink-900/60">
       <td colSpan={columns.length + 1} class="px-6 py-4 text-sm">
         <div class="grid gap-3 md:grid-cols-2">
           <div>
-            <div class="text-xs uppercase tracking-wide text-ink-500">Concept</div>
+            <Section icon={Target} label="Concept" />
             <div class="mono mt-1 text-ink-100">{row.concept}</div>
             {row.title === '' ? null : <div class="mt-1 text-ink-300">{row.title}</div>}
             {row.description === '' ? null : (
@@ -58,23 +86,23 @@ function Detail({ row }: { row: Row }) {
           </div>
           <div class="space-y-2">
             <div>
-              <span class="text-xs uppercase tracking-wide text-ink-500">Impact</span>
+              <Section icon={Gauge} label="Impact" />
               <div class="mt-1">
                 <ImpactBar impact={row.impact} label={row.impactLabel} test={row.impactTest} withLabel />
               </div>
               <p class="mt-1 text-ink-500">{row.impactTest}</p>
             </div>
             <div>
-              <span class="text-xs uppercase tracking-wide text-ink-500">Fix</span>
+              <Section icon={Wrench} label="Fix" />
               <div class="mt-1 text-ink-300">{row.fixKind === 'none' ? 'none declared' : row.fixKind}</div>
             </div>
             <div>
-              <span class="text-xs uppercase tracking-wide text-ink-500">Languages</span>
+              <Section icon={Languages} label="Languages" />
               <div class="mono mt-1 text-ink-300">{row.languages.length === 0 ? '—' : row.languages.join(' · ')}</div>
             </div>
             {row.origin === null ? null : (
               <div>
-                <span class="text-xs uppercase tracking-wide text-ink-500">Added</span>
+                <Section icon={GitCommitHorizontal} label="Added" />
                 <div class="mt-1 text-ink-300">
                   <span class="mono">{row.origin.date}</span> · <span class="mono">{row.origin.commit}</span>
                   <div class="text-ink-500">{row.origin.subject}</div>
@@ -82,18 +110,23 @@ function Detail({ row }: { row: Row }) {
               </div>
             )}
             <a
-              class="inline-block text-brand hover:underline"
+              class="group inline-flex items-center gap-1.5 text-brand hover:underline"
               href={row.docsUrl}
               target="_blank"
               rel="noreferrer noopener"
             >
-              Rule documentation ↗
+              Rule documentation
+              <ExternalLink
+                {...ICON}
+                class="transition-transform motion-safe:group-hover:-translate-y-px motion-safe:group-hover:translate-x-px"
+              />
             </a>
           </div>
         </div>
         {row.reliability === null ? null : (
           <div class="mt-4 rounded-lg bg-ink-950/50 p-3 ring-1 ring-ink-800">
-            <div class="text-xs font-medium uppercase tracking-wide text-ink-500">
+            <div class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-500">
+              <Target {...ICON_SMALL} />
               Reliability · {row.reliability.percent}% of {row.reliability.sampled} findings read, against{' '}
               {row.reliability.measuredAgainst}
             </div>
@@ -104,7 +137,10 @@ function Detail({ row }: { row: Row }) {
         )}
         {row.optionReason === null ? null : (
           <div class="mt-4 rounded-lg bg-brand/8 p-3 ring-1 ring-brand/25">
-            <div class="text-xs font-medium uppercase tracking-wide text-brand">Why the options are tuned</div>
+            <div class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-brand">
+              <SlidersHorizontal {...ICON_SMALL} />
+              Why the options are tuned
+            </div>
             <div class="mt-1 text-ink-300">
               <Prose text={row.optionReason} />
             </div>
@@ -112,7 +148,10 @@ function Detail({ row }: { row: Row }) {
         )}
         {row.withheldReason === null ? null : (
           <div class="mt-4 rounded-lg bg-state-withheld/8 p-3 ring-1 ring-state-withheld/25">
-            <div class="text-xs font-medium uppercase tracking-wide text-state-withheld">Why it is withheld</div>
+            <div class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-state-withheld">
+              <TriangleAlert {...ICON_SMALL} />
+              Why it is withheld
+            </div>
             <div class="mt-1 text-ink-300">
               <Prose text={row.withheldReason} />
             </div>
@@ -208,7 +247,13 @@ export function RulesTable({ table }: { table: Table<Row> }) {
                   class={`cursor-pointer border-t border-ink-850 transition-colors hover:bg-ink-900 ${open ? 'bg-ink-900' : ''}`}
                   onClick={() => setExpanded(open ? null : row.ruleRefKey)}
                 >
-                  <td class="px-3 py-2 text-ink-500">{open ? '▾' : '▸'}</td>
+                  <td class="px-3 py-2">
+                    <ChevronRight
+                      {...ICON}
+                      data-open={open}
+                      class={`chevron ${open ? 'text-brand' : 'text-ink-700'}`}
+                    />
+                  </td>
                   {columns.map((column) => (
                     <td key={column.id} class="truncate px-3 py-2">
                       <Cell id={column.id ?? ''} row={row} />

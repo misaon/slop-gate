@@ -2,6 +2,7 @@ import type { CatalogueStatus, Impact } from '@misaon/slop-gate-core'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import logo from '../../../docs/assets/logo-wide-darkmode-360.webp'
 import { Tile, Toggle } from './components/chrome.tsx'
+import { CircleOff, ICON, Library, Search, ShieldCheck, Spinner, Target, X } from './components/icons.tsx'
 import { columns, RulesTable } from './components/rules-table.tsx'
 import { fetchRules, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
 import { useTable } from './use-table.ts'
@@ -49,7 +50,11 @@ export function App() {
     return <main class="mx-auto max-w-2xl p-10 text-severity-error">Could not load the catalogue: {error}</main>
   }
   if (state === null) {
-    return <main class="mx-auto max-w-2xl p-10 text-ink-500">Loading the catalogue…</main>
+    return (
+      <main class="mx-auto max-w-2xl p-10">
+        <Spinner label="Loading the catalogue…" />
+      </main>
+    )
   }
 
   const { summary, history, impacts: definitions } = state.payload
@@ -78,24 +83,54 @@ export function App() {
       </header>
 
       <section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile label="Rules known" value={summary.total} />
-        <Tile label="On in recommended" value={summary.byStatus.recommended} tone="text-state-on" />
-        <Tile label="Withheld, with a reason" value={summary.byStatus.withheld} tone="text-state-withheld" />
+        <Tile icon={Library} label="Rules known" value={summary.total} />
         <Tile
+          icon={ShieldCheck}
+          label="On in recommended"
+          value={summary.byStatus.recommended}
+          tone="text-state-on"
+          delay={60}
+        />
+        <Tile
+          icon={CircleOff}
+          label="Withheld, with a reason"
+          value={summary.byStatus.withheld}
+          tone="text-state-withheld"
+          delay={120}
+        />
+        <Tile
+          icon={Target}
           label="Reliability measured"
           value={`${summary.measured} of ${summary.total}`}
           tone="text-ink-300"
+          delay={180}
         />
       </section>
 
       <section class="mb-4 space-y-3">
-        <input
-          type="search"
-          value={query}
-          onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
-          placeholder="Filter by rule, concept or title…"
-          class="w-full rounded-lg bg-ink-900 px-3 py-2 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-500 focus:ring-brand/60"
-        />
+        <div class="group relative">
+          <Search
+            {...ICON}
+            class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-500 transition-colors group-focus-within:text-brand"
+          />
+          <input
+            type="search"
+            value={query}
+            onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
+            placeholder="Filter by rule, concept or title…"
+            class="w-full rounded-lg bg-ink-900 py-2 pr-9 pl-9 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-500 focus:ring-brand/60"
+          />
+          {query === '' ? null : (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="Clear the filter"
+              class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-ink-500 transition-colors hover:bg-ink-850 hover:text-ink-100"
+            >
+              <X {...ICON} />
+            </button>
+          )}
+        </div>
         <div class="flex flex-wrap gap-2">
           {summary.byEngine.map((entry) => (
             <Toggle
