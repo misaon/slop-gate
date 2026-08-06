@@ -62,6 +62,7 @@ export type { InventoryFile } from './discovery/types.ts'
 export { detectLanguage } from './discovery/language.ts'
 export { buildWorkspaceGraph } from './discovery/workspaces.ts'
 export { createWalkFileSource } from './discovery/inventory.ts'
+export { isAlwaysSkippedPath } from './discovery/sources.ts'
 
 export { engineAdjustmentsFor, settingValues, settingValuesFor } from './frameworks/adjustments.ts'
 export { detectFrameworks } from './frameworks/detect.ts'
