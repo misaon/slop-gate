@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { defineCommand } from 'citty'
 import { streamCheck, type CheckResult } from '@misaon/slop-gate-core'
 import { REPORTER_NAMES, createReporter, type ReporterContext } from '@misaon/slop-gate-reporters'
@@ -8,6 +6,7 @@ import { defaultEngines } from '../engine-registry.ts'
 import { EXIT_CODES, resolveExitCode } from '../exit-codes.ts'
 import { validateFormat } from '../format.ts'
 import { createReportSink, parseReportSpecs } from '../reports.ts'
+import { createSourceReader } from '../source-reader.ts'
 import { supportsColor, supportsUnicode } from '../terminal.ts'
 import { readCliVersion } from '../version.ts'
 import { resolveRootDir } from '../root-dir.ts'
@@ -105,18 +104,7 @@ export const check = defineCommand({
       version: readCliVersion(),
       ...(maxTokens === undefined ? {} : { maxTokens }),
       ...(maxFindings === undefined ? {} : { maxFindings }),
-      readSource: (file) => {
-        if (file === null) return null
-        const held = sources.get(file)
-        if (held !== undefined) return held
-        try {
-          const content = readFileSync(join(rootDir, file), 'utf8')
-          sources.set(file, content)
-          return content
-        } catch {
-          return null
-        }
-      },
+      readSource: createSourceReader(rootDir, sources),
     }
 
     const sinks = [

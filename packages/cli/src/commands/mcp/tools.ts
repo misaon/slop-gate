@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { explainConcept, resolveRun, ruleRefKey, RULE_ENTRIES, runCheck, runFix, type FixTier } from '@misaon/slop-gate-core'
 import { createAgentReporter, renderRulesWhyPretty, summariseAgentGroups } from '@misaon/slop-gate-reporters'
 import { z } from 'zod'
 import { DEFAULT_CONFIG, loadCliConfig, type CliConfig } from '../../config.ts'
 import { defaultEngines } from '../../engine-registry.ts'
+import { createSourceReader } from '../../source-reader.ts'
 import { checkOutcome, coverageGaps } from './coverage.ts'
 import { resolveToolRoot } from './root.ts'
 
@@ -135,18 +134,7 @@ export async function callCheck(args: z.infer<typeof CHECK_INPUT>, context: Tool
     width: 100,
     version: context.version,
     maxTokens,
-    readSource: (file) => {
-      if (file === null) return null
-      const held = sources.get(file)
-      if (held !== undefined) return held
-      try {
-        const content = readFileSync(join(rootDir, file), 'utf8')
-        sources.set(file, content)
-        return content
-      } catch {
-        return null
-      }
-    },
+    readSource: createSourceReader(rootDir, sources),
   }).onEvent({ type: 'done', result })
 
   const gaps = coverageGaps(result)
