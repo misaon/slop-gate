@@ -64,6 +64,7 @@ export { isAlwaysSkippedPath } from './discovery/sources.ts'
 
 export { engineAdjustmentsFor, settingValues, settingValuesFor } from './frameworks/adjustments.ts'
 export { detectFrameworks } from './frameworks/detect.ts'
+export { FRAMEWORK_PROFILES } from './frameworks/profiles.ts'
 export type { EngineSettings, FrameworkEvidence } from './frameworks/types.ts'
 
 export { hashContent, hashJson } from './cache/keys.ts'

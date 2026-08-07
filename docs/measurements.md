@@ -735,10 +735,18 @@ anything non-null, not an empty object). Eight enforce what AGENTS.md already st
 `no-webpack-loader-syntax`, `prefer-node-protocol`, `no-new-require`. And `react/no-danger` is re-homed to
 `security.dangerous-html`: it is the one React API that writes unescaped markup into the document.
 
-**`import/no-cycle` is left `unlisted` on purpose.** Its 2 findings are a real cycle between
-`frameworks/profiles.ts` and `frameworks/detect.ts`. Whether that cycle is harmless — ESM tolerates one
-whose bindings are not read during evaluation — is a question about this codebase, and answering it is not
-part of deciding whether the rule belongs in a preset.
+**`import/no-cycle` found a real cycle, and it is now `error`.** Its 2 findings were
+`frameworks/profiles.ts` ⇄ `frameworks/detect.ts`, and the cycle was safe **only by hoisting**:
+`profiles.ts` calls `defineProfile(…)` at module-evaluation time, and `detect.ts` reads
+`FRAMEWORK_PROFILES` only inside a function body. Entering `detect.ts` first is therefore fine — but only
+because `defineProfile` and its three siblings are `function` declarations. Rewriting any one of them as a
+`const` arrow would have turned it into a `ReferenceError` at import time, on a path that depends on which
+module the bundler happens to enter first.
+
+Fixed by inverting the layering the cycle was a symptom of: `detectFrameworks` now takes `profiles` as a
+required input instead of reaching back for a default, so `detect.ts` is a pure engine over the profiles it
+is handed and no longer imports the module built out of its own helpers. One production call site passes
+`FRAMEWORK_PROFILES`, which core now exports.
 
 ## The `style` audit — 270 reachable rules, 65 promoted and 96 rejected
 

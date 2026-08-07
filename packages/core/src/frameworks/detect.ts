@@ -3,7 +3,6 @@ import { join } from 'node:path'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import { compareStrings } from '../ordering.ts'
 import { toPosix } from '../paths.ts'
-import { FRAMEWORK_PROFILES } from './profiles.ts'
 import type {
   AnyFrameworkProfile,
   DependencyField,
@@ -104,11 +103,12 @@ async function buildDetectionContext(
 export type DetectFrameworksOptions = {
   readonly inventory: FileInventory
   readText?: (path: string) => Promise<string | null>
-  readonly profiles?: readonly AnyFrameworkProfile[]
+  /** Passed in, never defaulted here: `profiles.ts` is built out of this module's helpers, so reading it back would be a cycle. */
+  readonly profiles: readonly AnyFrameworkProfile[]
 }
 
 export async function detectFrameworks(options: DetectFrameworksOptions): Promise<FrameworkDetection> {
-  const profiles = options.profiles ?? FRAMEWORK_PROFILES
+  const { profiles } = options
   if (profiles.length === 0) return EMPTY_DETECTION
 
   const context = await buildDetectionContext(options.inventory, options.readText)
