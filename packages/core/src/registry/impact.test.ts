@@ -56,10 +56,11 @@ test('a rule whose impact outranks the level it is reported at is a gap worth se
     (entry) => entry.status === 'recommended' && entry.impact === 3 && entry.level !== 'error',
   )
 
-  // A published advisory and a credential in CI both exit 0 today. Recorded rather than fixed here:
-  // aligning what gates a build to impact is a breaking change and wants its own release.
+  // A published advisory, a credential in CI and an XSS sink all exit 0 today. Recorded rather than
+  // fixed here: aligning what gates a build to impact is a breaking change and wants its own release.
   expect(mismatched.map((entry) => entry.concept).sort()).toEqual([
     'security.vulnerable-dependency',
     'security.workflow-hardcoded-credential',
+    'suspicious.jsx-no-script-url',
   ])
 })
