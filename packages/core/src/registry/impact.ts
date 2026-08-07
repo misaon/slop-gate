@@ -66,6 +66,10 @@ const CONCEPT_IMPACT: Readonly<Record<string, Impact>> = {
   'slop.narrative-comment': 1,
   // The check itself did not run, so the verdict is incomplete rather than wrong.
   'deps.advisory-coverage-gap': 2,
+  // A suppressed diagnostic is a defect kept out of the report, not a habit — the same family as `slop.*`.
+  'pedantic.ban-ts-comment': 2,
+  // Every current browser implies `noopener` on a `_blank` link, so this is a hole only where one does not.
+  'security.target-blank': 2,
   // A `javascript:` URL in an href is an XSS sink, and React 19 refuses to render one at all.
   'suspicious.jsx-no-script-url': 3,
   // Executing a string is the same hole `security.eval-usage` names, reached through a timer.

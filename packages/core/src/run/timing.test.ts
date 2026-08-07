@@ -37,7 +37,7 @@ test('a phase entered twice reports one row with a count of two', async () => {
 test('a phase is measured even when the work throws, so a failed engine still accounts for its time', async () => {
   const timing = createTiming()
 
-  await expect(timing.phase('run', async () => Promise.reject(new Error('boom')))).rejects.toThrow('boom')
+  await expect(timing.phase('run', async () => { throw new Error('boom') })).rejects.toThrow('boom')
   expect(() =>
     timing.wrap('normalize', () => {
       throw new Error('bang')

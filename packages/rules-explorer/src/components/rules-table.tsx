@@ -366,7 +366,7 @@ function EditRow({ row, draft, onClose }: { row: Row; draft: Draft; onClose: () 
               Cancel
             </button>
             {save.isPending ? (
-              <span class="text-xs text-ink-500">The registry's own tests decide; a red one puts the file back.</span>
+              <span class="text-xs text-ink-500">The registry&rsquo;s own tests decide; a red one puts the file back.</span>
             ) : becomesWithheld && row.engine === 'oxlint' ? (
               <span class="text-xs text-ink-500">Also regenerates entries.generated.ts, which the preset is derived from.</span>
             ) : null}
@@ -416,7 +416,7 @@ function Cell({ id, row, draft, onDraft }: { id: string; row: Row; draft: Draft 
           label={`Impact of ${row.engineRuleId}`}
           value={current.impact}
           options={IMPACT_OPTIONS}
-          render={(impact) => String(impact)}
+          render={String}
           onPick={(impact) => onDraft({ ...current, impact })}
         />
       )

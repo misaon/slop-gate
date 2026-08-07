@@ -29,7 +29,7 @@ const capture = (result: ConceptWhy, contextOver: Partial<RulesReporterContext> 
   return output
 }
 
-const flat = (output: string): string => output.replace(/\s+/g, ' ')
+const flat = (output: string): string => output.replaceAll(/\s+/g, ' ')
 
 test('reports an unknown concept without throwing, and does not attempt to describe it', () => {
   const output = capture(explanation({ concept: 'not.a.concept', isKnownConcept: false, enablement: { enabled: false, level: 'off', options: [], optionsFrom: undefined, baseProvenance: [], overrides: [] } }))

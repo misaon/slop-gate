@@ -404,12 +404,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `jest/no-conditional-in-test` rule (category: pedantic). No Conditional In Test.',
   },
   {
-    id: 'pedantic.jsx-no-target-blank',
-    group: 'pedantic',
-    title: 'react/jsx-no-target-blank',
-    description: 'Generated from oxlint\'s `react/jsx-no-target-blank` rule (category: pedantic). Jsx No Target Blank.',
-  },
-  {
     id: 'pedantic.jsx-no-useless-fragment',
     group: 'pedantic',
     title: 'react/jsx-no-useless-fragment',
@@ -990,12 +984,6 @@ export const GENERATED_CONCEPTS = [
     group: 'pedantic',
     title: 'typescript/return-await',
     description: 'Generated from oxlint\'s `typescript/return-await` rule (category: pedantic). Return Await.',
-  },
-  {
-    id: 'pedantic.rules-of-hooks',
-    group: 'pedantic',
-    title: 'react/rules-of-hooks',
-    description: 'Generated from oxlint\'s `react/rules-of-hooks` rule (category: pedantic). Rules Of Hooks.',
   },
   {
     id: 'pedantic.sort-vars',

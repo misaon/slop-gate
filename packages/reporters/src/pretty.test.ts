@@ -4,7 +4,7 @@ import { displayWidth, hasWideOrFullwidthCharacter } from './display-width.ts'
 import { createReporter } from './index.ts'
 import type { ReporterContext } from './index.ts'
 
-const ANSI_ESCAPE = String.fromCharCode(27) + '['
+const ANSI_ESCAPE = String.fromCodePoint(27) + '['
 
 const diagnostic = (over: Partial<Diagnostic> = {}): Diagnostic => ({
   concept: 'correctness.no-debugger',

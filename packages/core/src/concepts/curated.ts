@@ -1293,6 +1293,14 @@ export const CURATED_CONCEPTS = [
       'describes is never announced.',
   },
   {
+    id: 'correctness.rules-of-hooks',
+    group: 'correctness',
+    title: 'Hook called outside the top level of a component',
+    description:
+      'React identifies hooks by call order, so one behind a condition, a loop or an early return shifts ' +
+      'every later hook onto the wrong slot and the component reads another one\'s state.',
+  },
+  {
     id: 'correctness.scope',
     group: 'correctness',
     title: 'Header scope outside a table header',
@@ -1491,6 +1499,14 @@ export const CURATED_CONCEPTS = [
     description:
       '`??` exists to handle a null or undefined left operand, so asserting that operand non-null ' +
       'claims the fallback is unreachable. One of the two is wrong.',
+  },
+  {
+    id: 'security.target-blank',
+    group: 'security',
+    title: 'New tab opened without `noopener`',
+    description:
+      'A page opened with `target="_blank"` receives a handle to the opener and can navigate it, so a link ' +
+      'to somewhere untrusted can replace the tab behind it with a copy of itself.',
   },
   {
     id: 'suspicious.always-return',

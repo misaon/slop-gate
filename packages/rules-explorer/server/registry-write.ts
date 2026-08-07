@@ -120,7 +120,7 @@ export function openRegistryWriter(repoRoot: string, catalogue: Catalogue) {
 
       let block: string | null = null
       if (edit.impact !== fromGroup) {
-        const note = (edit.impactNote ?? existing?.comment ?? '').replace(/\s+/g, ' ').trim()
+        const note = (edit.impactNote ?? existing?.comment ?? '').replaceAll(/\s+/g, ' ').trim()
         if (note === '') {
           return `impact.ts holds only concepts their group is wrong about, each with its reason. Say why ${entry.concept} is impact ${edit.impact} and not the ${entry.group} default${fromGroup === undefined ? '' : ` of ${fromGroup}`}.`
         }

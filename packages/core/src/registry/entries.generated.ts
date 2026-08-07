@@ -6175,7 +6175,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'react/jsx-no-target-blank',
-    concepts: ['pedantic.jsx-no-target-blank'],
+    concepts: ['security.target-blank'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -6695,7 +6695,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'react/rules-of-hooks',
-    concepts: ['pedantic.rules-of-hooks'],
+    concepts: ['correctness.rules-of-hooks'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
