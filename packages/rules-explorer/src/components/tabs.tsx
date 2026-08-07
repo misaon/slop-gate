@@ -2,11 +2,7 @@ import { useId, useState } from 'preact/hooks'
 
 export type Tab = { readonly id: string; readonly label: string; readonly count?: number | undefined }
 
-/**
- * Arrow keys move between tabs and only the selected one is tabbable, which is what `tablist` promises a
- * screen reader and a keyboard. Panels stay mounted and are hidden instead of unmounted, so switching tabs
- * does not refetch or lose a filter someone just typed.
- */
+// `tablist` promises a keyboard that arrow keys move the selection and that only the selected tab is tabbable.
 export function Tabs({
   tabs,
   children,
@@ -52,7 +48,7 @@ export function Tabs({
                   {tab.count}
                 </span>
               )}
-              {/* The underline is the selection, drawn under the border so the two meet without a seam. */}
+              {/* `-bottom-px` puts the underline over the tablist's own border, so the two meet without a seam. */}
               {selected ? <span class="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-brand" /> : null}
             </button>
           )

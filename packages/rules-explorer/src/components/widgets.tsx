@@ -1,11 +1,6 @@
 import type { LucideIcon } from 'lucide-preact'
 import { ICON_SMALL } from './icons.tsx'
 
-/**
- * One surface for every widget, so a dashboard reads as a set of related things rather than a page of loose
- * blocks. The lift on hover is 1px and the ring warms — enough to feel responsive, not enough to move text
- * a reader is in the middle of.
- */
 export function Card({
   icon: Icon,
   label,
@@ -38,7 +33,6 @@ export function Card({
   )
 }
 
-/** A number a reader takes at a glance, with its unit small enough not to compete with it. */
 export function Figure({ value, unit, caption }: { value: number | string; unit?: string | undefined; caption?: string | undefined }) {
   return (
     <div>
@@ -51,11 +45,7 @@ export function Figure({ value, unit, caption }: { value: number | string; unit?
   )
 }
 
-/**
- * A magnitude across a handful of named categories, so: one hue, the name in text, the count direct-labelled.
- * Two hues were measured and rejected — the palette's warm steps separate at ΔE 11.9 for normal vision, under
- * the floor of 15, so as two series a reader could not tell them apart.
- */
+// One hue: the palette's warm steps separate at ΔE 11.9, under the floor of 15, so two would not read apart.
 export function Ranked({ rows, total }: { rows: readonly { readonly key: string; readonly value: number }[]; total: number }) {
   const largest = Math.max(1, ...rows.map((row) => row.value))
   return (
@@ -81,11 +71,7 @@ export function Ranked({ rows, total }: { rows: readonly { readonly key: string;
 
 const hourLabel = (hour: string): string => hour.slice(11, 16)
 
-/**
- * Reports per hour, zero-filled by the query so a quiet hour is a visible trough. One series: the split
- * between this project's CI and everything else lives in the tooltip and in the panel's headline, because a
- * second series here would need a second hue the palette cannot supply safely.
- */
+// The buckets arrive zero-filled, so a bar of height 0 is an hour nobody reported and not a gap in the data.
 export function Timeline({ buckets }: { buckets: readonly { readonly hour: string; readonly reports: number; readonly ours: number }[] }) {
   const largest = Math.max(1, ...buckets.map((bucket) => bucket.reports))
 
