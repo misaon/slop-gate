@@ -16,7 +16,7 @@ export function createLineIndex(source: string): LineIndex {
   const bytes = encoder.encode(source)
   const lineStarts = [0]
   for (let i = 0; i < bytes.length; i += 1) {
-    if (bytes[i] === 0x0a) lineStarts.push(i + 1)
+    if (bytes[i] === 0x0A) lineStarts.push(i + 1)
   }
 
   const lineIndexAt = (byteOffset: number): number => {

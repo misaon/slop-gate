@@ -14,7 +14,7 @@ import type { AdvisoryRecord, AdvisoryTable } from './advisory.ts'
  *
  * `.rec`, read positionally: each name's records as JSON, concatenated in the same order.
  */
-const KEYED_TABLE_MAGIC = 0x53474d49
+const KEYED_TABLE_MAGIC = 0x53474D49
 
 const HEADER_BYTES = 8
 

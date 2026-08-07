@@ -65,7 +65,7 @@ function parseManifest(path: string, workspace: string, source: string): Manifes
     return null
   }
 
-  const dependencies: Array<{ name: string; field: DependencyField }> = []
+  const dependencies: { name: string; field: DependencyField }[] = []
   for (const field of DEPENDENCY_FIELDS) {
     const section = parsed[field]
     if (typeof section !== 'object' || section === null) continue

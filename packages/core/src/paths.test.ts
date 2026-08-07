@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import { expect, test } from 'vitest'
 import { absolutePrefixes, relativePosix, toPosix, toRepoRelative } from './paths.ts'
 
-test('POSIX separators are forced regardless of the host', () => {
-  expect(toPosix('packages\\app\\src\\a.ts')).toBe('packages/app/src/a.ts')
+test('pOSIX separators are forced regardless of the host', () => {
+  expect(toPosix(String.raw`packages\app\src\a.ts`)).toBe('packages/app/src/a.ts')
   expect(toPosix('packages/app/src/a.ts')).toBe('packages/app/src/a.ts')
 })
 
@@ -16,7 +16,7 @@ test('relativePosix relativises and normalises in one step', () => {
 
 test('an already-relative path is passed through untouched', () => {
   expect(toRepoRelative('src/a.ts', '/repo')).toBe('src/a.ts')
-  expect(toRepoRelative('packages\\app\\src\\a.ts', '/repo')).toBe('packages/app/src/a.ts')
+  expect(toRepoRelative(String.raw`packages\app\src\a.ts`, '/repo')).toBe('packages/app/src/a.ts')
 })
 
 test('an absolute POSIX path is made repo-relative', () => {
@@ -24,7 +24,7 @@ test('an absolute POSIX path is made repo-relative', () => {
 })
 
 test('a Windows drive path counts as absolute, on either side', () => {
-  expect(toRepoRelative('C:\\repo\\src\\a.ts', 'C:\\repo')).toBe('src/a.ts')
+  expect(toRepoRelative(String.raw`C:\repo\src\a.ts`, String.raw`C:\repo`)).toBe('src/a.ts')
   expect(toRepoRelative('c:/repo/src/a.ts', 'c:/repo')).toBe('src/a.ts')
 })
 
@@ -39,10 +39,10 @@ test('the prefixes include both the directory a run was given and the one a tool
   await mkdir(root)
   await symlink(root, link)
 
-  expect(await absolutePrefixes({ rootDir: link, tmpDir: root })).toEqual([link, root, root, root])
+  await expect(absolutePrefixes({ rootDir: link, tmpDir: root })).resolves.toEqual([link, root, root, root])
 })
 
 test('a directory that cannot be resolved is skipped rather than raised', async () => {
   const missing = join(tmpdir(), 'sgate-does-not-exist-8f2c')
-  expect(await absolutePrefixes({ rootDir: missing, tmpDir: missing })).toEqual([missing, missing])
+  await expect(absolutePrefixes({ rootDir: missing, tmpDir: missing })).resolves.toEqual([missing, missing])
 })

@@ -26,7 +26,7 @@ test('reliability is absent rather than assumed', () => {
 
   // The point of the axis: a rule nobody has read the findings of reports nothing, not 100%.
   expect(measured.length).toBeLessThan(catalogue.length / 10)
-  expect(measured.length).toBe(Object.keys(RULE_RELIABILITY).length)
+  expect(measured).toHaveLength(Object.keys(RULE_RELIABILITY).length)
   for (const entry of catalogue) {
     if (entry.reliability === null) continue
     expect(entry.reliability.correct).toBeLessThanOrEqual(entry.reliability.sampled)

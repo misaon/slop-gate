@@ -109,7 +109,7 @@ test('returns an empty array for a file with no directives', () => {
   expect(parseSuppressions('const a = 1\nconst b = 2\n')).toEqual([])
 })
 
-test('handles CRLF line endings without leaking \\r into the reason', () => {
+test(String.raw`handles CRLF line endings without leaking \r into the reason`, () => {
   const source = `// ${NEXT_LINE} slop.as-any-cast -- reason\r\nconst x = 1\r\n`
   const [directive] = parseSuppressions(source)
   expect(directive?.reason).toBe('reason')

@@ -16,8 +16,8 @@ afterEach(async () => {
 })
 
 test('returns null when no config file exists', async () => {
-  expect(await findConfigFile(dir)).toBeNull()
-  expect(await loadConfig(dir)).toBeNull()
+  await expect(findConfigFile(dir)).resolves.toBeNull()
+  await expect(loadConfig(dir)).resolves.toBeNull()
 })
 
 test('loads a TypeScript config with type annotations', async () => {
@@ -57,7 +57,7 @@ test('finds a config in a parent directory', async () => {
   await writeFile(join(dir, 'slop-gate.config.ts'), `export default {}`)
   const nested = join(dir, 'packages', 'app')
   await import('node:fs/promises').then((fs) => fs.mkdir(nested, { recursive: true }))
-  expect(await findConfigFile(nested)).toBe(join(dir, 'slop-gate.config.ts'))
+  await expect(findConfigFile(nested)).resolves.toBe(join(dir, 'slop-gate.config.ts'))
 })
 
 test('rejects a config without a default export', async () => {
@@ -145,7 +145,7 @@ test('restores the previous listeners afterwards, so a later unrelated warning s
   try {
     await suppressModuleTypelessPackageJsonWarning(async () => {})
 
-    expect(process.listeners('warning').length).toBe(countBefore)
+    expect(process.listeners('warning')).toHaveLength(countBefore)
 
     process.emitWarning('after the config load finished', { code: 'AFTER_RESTORE_CODE' })
     await new Promise<void>((resolve) => setImmediate(resolve))

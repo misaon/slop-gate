@@ -367,9 +367,9 @@ function EditRow({ row, draft, onClose }: { row: Row; draft: Draft; onClose: () 
             </button>
             {save.isPending ? (
               <span class="text-xs text-ink-500">The registry&rsquo;s own tests decide; a red one puts the file back.</span>
-            ) : becomesWithheld && row.engine === 'oxlint' ? (
+            ) : (becomesWithheld && row.engine === 'oxlint' ? (
               <span class="text-xs text-ink-500">Also regenerates entries.generated.ts, which the preset is derived from.</span>
-            ) : null}
+            ) : null)}
           </div>
         </div>
       </td>
@@ -381,22 +381,25 @@ function Cell({ id, row, draft, onDraft }: { id: string; row: Row; draft: Draft 
   const current: Draft = draft ?? { ruleRefKey: row.ruleRefKey, status: row.status, impact: row.impact }
 
   switch (id) {
-    case 'rule':
+    case 'rule': {
       return (
         <span class="mono text-ink-100" title={row.engineRuleId}>
           {row.engineRuleId}
           {row.overridden ? <span class="ml-2 text-xs text-brand" title="slop-gate overrides this rule">override</span> : null}
         </span>
       )
-    case 'engine':
+    }
+    case 'engine': {
       return <span class="mono text-ink-300">{row.engine}</span>
-    case 'concept':
+    }
+    case 'concept': {
       return (
         <span class="mono text-ink-500" title={row.concept}>
           {row.concept}
         </span>
       )
-    case 'status':
+    }
+    case 'status': {
       return draft === null ? (
         <StatusPill status={row.status} label={STATUS_LABEL[row.status]} />
       ) : (
@@ -408,7 +411,8 @@ function Cell({ id, row, draft, onDraft }: { id: string; row: Row; draft: Draft 
           onPick={(status) => onDraft({ ...current, status })}
         />
       )
-    case 'impact':
+    }
+    case 'impact': {
       return draft === null ? (
         <ImpactBar impact={row.impact} label={row.impactLabel} test={row.impactTest} />
       ) : (
@@ -420,14 +424,16 @@ function Cell({ id, row, draft, onDraft }: { id: string; row: Row; draft: Draft 
           onPick={(impact) => onDraft({ ...current, impact })}
         />
       )
-    case 'reliability':
+    }
+    case 'reliability': {
       return <ReliabilityCell percent={row.reliability?.percent ?? null} sampled={row.reliability?.sampled ?? null} />
-    case 'options':
+    }
+    case 'options': {
       return row.options === 'tuned' ? (
         <span class="text-brand" title="slop-gate sets options for this rule rather than taking the default">
           tuned
         </span>
-      ) : row.options === 'default' ? (
+      ) : (row.options === 'default' ? (
         <span class="text-ink-500" title="The rule accepts options; slop-gate takes the engine's default">
           default
         </span>
@@ -435,8 +441,9 @@ function Cell({ id, row, draft, onDraft }: { id: string; row: Row; draft: Draft 
         <span class="text-ink-700" title="The rule takes no options">
           —
         </span>
-      )
-    case 'seen':
+      ))
+    }
+    case 'seen': {
       return row.prevalence === null ? (
         <span class="text-ink-700" title="Fired on none of the 20 corpus projects">
           —
@@ -450,10 +457,13 @@ function Cell({ id, row, draft, onDraft }: { id: string; row: Row; draft: Draft 
           <span class="text-xs tabular-nums text-ink-700">{row.prevalence.findings}×</span>
         </span>
       )
-    case 'added':
+    }
+    case 'added': {
       return <span class="mono text-ink-500">{row.origin?.date ?? '—'}</span>
-    default:
+    }
+    default: {
       return null
+    }
   }
 }
 

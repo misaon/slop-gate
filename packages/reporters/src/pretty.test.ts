@@ -68,7 +68,7 @@ const capture = (events: CheckEvent[], contextOver: Partial<ReporterContext> = {
   return output
 }
 
-const manyDiagnostics = (specs: ReadonlyArray<{ concept: string; count: number; file?: string }>): Diagnostic[] => {
+const manyDiagnostics = (specs: readonly { concept: string; count: number; file?: string }[]): Diagnostic[] => {
   const out: Diagnostic[] = []
   for (const spec of specs) {
     for (let index = 0; index < spec.count; index += 1) {
@@ -415,7 +415,7 @@ test('adds a Most frequent block once total findings reach ten, ranked by count'
   expect(frequentSection).toContain('2')
 })
 
-test('Most frequent lists at most the top three concepts', () => {
+test('most frequent lists at most the top three concepts', () => {
   const diagnostics = manyDiagnostics([
     { concept: 'a.one', count: 5 },
     { concept: 'a.two', count: 4 },
@@ -512,7 +512,7 @@ test('falls back to ASCII frame characters and severity markers when unicode is 
   expect(output).toContain('E')
 })
 
-test('ASCII fallback does not imply colour is off, and vice versa', () => {
+test('aSCII fallback does not imply colour is off, and vice versa', () => {
   const asciiWithColor = capture([{ type: 'done', result: result({ counts: { error: 0, warn: 0, info: 0 } }) }], {
     unicode: false,
     color: true,

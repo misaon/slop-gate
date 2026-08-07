@@ -65,7 +65,7 @@ test('offsets survive the non-ASCII the registry is written in', () => {
 })
 
 test('a quoted string survives a quote, a backslash and a newline', () => {
-  expect(quote("it's a \\ and a\nbreak")).toBe("'it\\'s a \\\\ and a\\nbreak'")
+  expect(quote("it's a \\ and a\nbreak")).toBe(String.raw`'it\'s a \\ and a\nbreak'`)
 })
 
 test('a wrapped literal concatenates back to the string it was given', () => {

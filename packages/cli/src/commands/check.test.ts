@@ -50,7 +50,7 @@ async function installAdvisoryFixture(root: string): Promise<string> {
 }
 
 async function runCheck(): Promise<void> {
-  const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+  const stdout = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
   try {
     await check.run!({
       args: { format: 'json', cwd: dir, cache: false, _: [] },
@@ -93,7 +93,7 @@ test('a config diagnostic reports the config file as repo-relative, not the abso
   )
 
   const output = await runCheckCapturingStdout()
-  const report = JSON.parse(output) as { diagnostics: Array<{ concept: string; file: string }> }
+  const report = JSON.parse(output) as { diagnostics: { concept: string; file: string }[] }
   const configDiagnostics = report.diagnostics.filter((d) => d.concept.startsWith('config.'))
 
   expect(configDiagnostics.length).toBeGreaterThan(0)
@@ -104,7 +104,7 @@ test('a config diagnostic reports the config file as repo-relative, not the abso
 
 test('produces no config diagnostics when no config file exists and only oxlint is registered', async () => {
   const output = await runCheckCapturingStdout()
-  const report = JSON.parse(output) as { diagnostics: Array<{ concept: string }> }
+  const report = JSON.parse(output) as { diagnostics: { concept: string }[] }
 
   expect(report.diagnostics.some((d) => d.concept.startsWith('config.'))).toBe(false)
 })
@@ -190,7 +190,7 @@ test('rejects a --max-warnings that is not a non-negative integer instead of ign
 })
 
 test('a negative --max-warnings is refused rather than passed through as an always-failing threshold', async () => {
-  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+  const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
   try {
     await check.run!({
       args: { format: 'json', cwd: dir, cache: false, 'max-warnings': '-1', _: [] },
@@ -269,7 +269,7 @@ test('--timing puts the breakdown in the json document, and its rows account for
   const output = await runCheckCapturingStdout({ timing: true })
   const report = JSON.parse(output) as {
     stats: { durationMs: number }
-    timings: { startupMs: number; phases: Array<{ name: string; durationMs: number }>; unattributedMs: number; busyMs: number }
+    timings: { startupMs: number; phases: { name: string; durationMs: number }[]; unattributedMs: number; busyMs: number }
   }
 
   expect(report.timings.startupMs).toBeGreaterThan(0)

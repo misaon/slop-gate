@@ -93,7 +93,7 @@ function parseNpmLockfile(source: string): ParsedLockfile {
   const paths = walk(
     roots,
     (path) => {
-      const out: Array<{ readonly to: string; readonly name: string }> = []
+      const out: { readonly to: string; readonly name: string }[] = []
       for (const name of (edges.get(path) ?? new Map()).keys()) {
         const resolved = resolveNpmPath(path, name, versions)
         if (resolved !== undefined) out.push({ to: resolved, name })
@@ -171,7 +171,7 @@ function parsePnpmLockfile(source: string): ParsedLockfile {
   const paths = walk(
     roots,
     (key) => {
-      const out: Array<{ readonly to: string; readonly name: string }> = []
+      const out: { readonly to: string; readonly name: string }[] = []
       for (const [name, version] of edges.get(key) ?? new Map()) {
         const target = findPnpmKey(name, version, edges)
         if (target !== undefined) out.push({ to: target, name })
@@ -214,7 +214,7 @@ function stripPeerSuffix(value: string): string {
 
 function walk(
   roots: ReadonlyMap<string, string>,
-  neighbours: (node: string) => ReadonlyArray<{ readonly to: string; readonly name: string }>,
+  neighbours: (node: string) => readonly { readonly to: string; readonly name: string }[],
   queue: readonly string[],
 ): Map<string, readonly string[]> {
   const paths = new Map<string, readonly string[]>()

@@ -17,7 +17,7 @@ test('the library entry exposes defineConfig and has no side effects', async () 
     process.stdout.write = originalWrite
   }
 
-  expect(typeof loaded.defineConfig).toBe('function')
+  expect(loaded.defineConfig).toBeTypeOf('function')
   expect(writes).toEqual([])
 })
 

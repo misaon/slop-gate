@@ -23,8 +23,8 @@ afterEach(async () => {
 })
 
 test('returns nothing for empty stdout (a clean compile)', async () => {
-  expect(await collect(parseTscOutput('', dir))).toEqual([])
-  expect(await collect(parseTscOutput('   \n  \n', dir))).toEqual([])
+  await expect(collect(parseTscOutput('', dir))).resolves.toEqual([])
+  await expect(collect(parseTscOutput('   \n  \n', dir))).resolves.toEqual([])
 })
 
 test('parses a plain single-line diagnostic', async () => {
@@ -150,7 +150,7 @@ test('drops TS2307 for a single-file component that is really there', async () =
   await writeFile(join(dir, 'src/Card.test.ts'), "import Card from './Card.vue'\nexport default Card\n")
   const stdout = `src/Card.test.ts(8,19): error TS2307: Cannot find module './Card.vue' or its corresponding type declarations.\n`
 
-  expect(await collect(parseTscOutput(stdout, dir))).toEqual([])
+  await expect(collect(parseTscOutput(stdout, dir))).resolves.toEqual([])
 })
 
 test('keeps TS2307 for a single-file component that is not there', async () => {
@@ -167,7 +167,7 @@ test('keeps TS2307 for an ordinary module, however it is spelled', async () => {
   await writeFile(join(dir, 'src/a.ts'), "import { a } from './helper'\nexport default a\n")
   const stdout = `src/a.ts(1,20): error TS2307: Cannot find module './helper' or its corresponding type declarations.\n`
 
-  expect(await collect(parseTscOutput(stdout, dir))).toHaveLength(1)
+  await expect(collect(parseTscOutput(stdout, dir))).resolves.toHaveLength(1)
 })
 
 test('drops TS2307 for a Svelte or Astro component that exists', async () => {
@@ -178,7 +178,7 @@ test('drops TS2307 for a Svelte or Astro component that exists', async () => {
     `src/a.ts(1,20): error TS2307: Cannot find module './A.svelte' or its corresponding type declarations.\n` +
     `src/a.ts(2,20): error TS2307: Cannot find module './B.astro' or its corresponding type declarations.\n`
 
-  expect(await collect(parseTscOutput(stdout, dir))).toEqual([])
+  await expect(collect(parseTscOutput(stdout, dir))).resolves.toEqual([])
 })
 
 test('drops a diagnostic reported inside node_modules', async () => {
@@ -193,5 +193,5 @@ test('drops a diagnostic reported inside node_modules', async () => {
 
 test('drops a diagnostic reported inside a build output directory', async () => {
   const stdout = `dist/index.d.ts(1,1): error TS2304: Cannot find name 'Foo'.\n`
-  expect(await collect(parseTscOutput(stdout, dir))).toEqual([])
+  await expect(collect(parseTscOutput(stdout, dir))).resolves.toEqual([])
 })

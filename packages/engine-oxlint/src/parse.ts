@@ -8,7 +8,7 @@ type OxlintDiagnostic = {
   url?: string
   help?: string
   filename: string
-  labels?: Array<{ label?: string; span: OxlintSpan }>
+  labels?: { label?: string; span: OxlintSpan }[]
 }
 type OxlintPayload = { diagnostics?: OxlintDiagnostic[]; number_of_rules?: number }
 
@@ -77,9 +77,9 @@ export function parseOxlintOutput(
     const severity = SEVERITIES[diagnostic.severity] ?? 'warning'
     const engineRuleId =
       diagnostic.code === undefined
-        ? severity === 'error'
+        ? (severity === 'error'
           ? PARSE_ERROR_RULE_ID
-          : null
+          : null)
         : toEngineRuleId(diagnostic.code)
     if (engineRuleId === null) continue
 

@@ -17,7 +17,7 @@ test('returns results in input order, not completion order', async () => {
   gates[0]!.resolve(0)
   gates[1]!.resolve(1)
 
-  expect(await mapped).toEqual([0, 1, 2])
+  await expect(mapped).resolves.toEqual([0, 1, 2])
 })
 
 test('never exceeds the limit in flight', async () => {
@@ -39,12 +39,10 @@ test('never exceeds the limit in flight', async () => {
 
 test('starts no worker for an empty input', async () => {
   let calls = 0
-  expect(
-    await mapWithLimit([], 8, async () => {
+  await expect(mapWithLimit([], 8, async () => {
       calls += 1
       return 1
-    }),
-  ).toEqual([])
+    })).resolves.toEqual([])
   expect(calls).toBe(0)
 })
 

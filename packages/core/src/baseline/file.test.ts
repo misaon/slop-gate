@@ -82,7 +82,7 @@ test('sorts a hand-shuffled file on the way in, so what a run derives from it is
 })
 
 test('reads an absent baseline as absent, not as empty', async () => {
-  expect(await readBaseline(baselinePathFor(dir))).toBeNull()
+  await expect(readBaseline(baselinePathFor(dir))).resolves.toBeNull()
 })
 
 test('rejects a version it cannot read instead of accepting nothing from it', () => {

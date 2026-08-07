@@ -96,11 +96,11 @@ test("materializeConfig ignores slop-gate's own directory, and its config file w
   const withConfig = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {
     configFile: 'slop-gate.config.ts',
   })
-  expect(await readConfig(withConfig.path)).toMatchObject({ ignore: ['.slop-gate/**', 'slop-gate.config.ts'] })
+  await expect(readConfig(withConfig.path)).resolves.toMatchObject({ ignore: ['.slop-gate/**', 'slop-gate.config.ts'] })
   await withConfig.dispose()
 
   const withoutConfig = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, {})
-  expect(await readConfig(withoutConfig.path)).toMatchObject({ ignore: ['.slop-gate/**'] })
+  await expect(readConfig(withoutConfig.path)).resolves.toMatchObject({ ignore: ['.slop-gate/**'] })
   await withoutConfig.dispose()
 })
 
@@ -142,7 +142,7 @@ test("materializeConfig passes the user's own ignore patterns through to knip", 
     ignore: ['fixtures/**', 'packages/*/fixtures/**'],
   })
 
-  expect(await readConfig(handle.path)).toMatchObject({
+  await expect(readConfig(handle.path)).resolves.toMatchObject({
     ignore: ['.slop-gate/**', 'fixtures/**', 'packages/*/fixtures/**', 'slop-gate.config.ts'],
   })
   await handle.dispose()
@@ -155,7 +155,7 @@ test('user ignore patterns are deduplicated and sorted, so an equivalent config 
   const b = await materializeKnipConfig(new Map([['files', ['warn'] as const]]), context, { ignore: ['a/**', 'b/**'] })
 
   expect(a.rulesetHash).toBe(b.rulesetHash)
-  expect(await readConfig(a.path)).toMatchObject({ ignore: ['.slop-gate/**', 'a/**', 'b/**'] })
+  await expect(readConfig(a.path)).resolves.toMatchObject({ ignore: ['.slop-gate/**', 'a/**', 'b/**'] })
   await a.dispose()
   await b.dispose()
 })

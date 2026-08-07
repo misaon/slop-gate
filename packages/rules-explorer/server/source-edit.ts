@@ -40,7 +40,7 @@ function locate(filename: string, source: string, record: string): Located {
       const properties = init.properties.map((property) => {
         if (property.type !== 'Property') fail(`${record} in ${filename} holds a spread, which this editor cannot place`)
         const key = property.key
-        const name = key.type === 'Literal' ? String(key.value) : key.type === 'Identifier' ? key.name : null
+        const name = key.type === 'Literal' ? String(key.value) : (key.type === 'Identifier' ? key.name : null)
         if (name === null) fail(`${record} in ${filename} holds a computed key, which this editor cannot address`)
         return { key: name, start: property.start, end: property.end, valueStart: property.value.start }
       })
@@ -136,7 +136,7 @@ export function editObjectLiteral(
 
 /** Single quotes, because that is what both registry files use; a literal newline becomes `\n`. */
 export function quote(value: string): string {
-  return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\r', '\\r').replaceAll('\n', '\\n')}'`
+  return `'${value.replaceAll('\\', String.raw`\\`).replaceAll("'", String.raw`\'`).replaceAll('\r', String.raw`\r`).replaceAll('\n', String.raw`\n`)}'`
 }
 
 /**

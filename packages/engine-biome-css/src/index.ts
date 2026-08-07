@@ -91,8 +91,7 @@ async function* execute(
   for (const file of batch.files) {
     try {
       sources.set(file.path, await readFile(join(context.rootDir, file.path), 'utf8'))
-    } catch {
-    }
+    } catch {}
   }
 
   await mkdir(context.tmpDir, { recursive: true })

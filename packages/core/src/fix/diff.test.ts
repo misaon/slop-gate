@@ -61,14 +61,14 @@ test('a removed line is rendered as a removal with no matching addition', () => 
 
 test('a missing trailing newline is reported the way git reports it', () => {
   const result = diff('a\nb', 'a\nc')
-  expect(result).toContain('\\ No newline at end of file')
+  expect(result).toContain(String.raw`\ No newline at end of file`)
 })
 
 test('adding a trailing newline is a visible change, not a silent one', () => {
   const result = diff('a', 'a\n')
   expect(result).toContain('-a')
   expect(result).toContain('+a')
-  expect(result).toContain('\\ No newline at end of file')
+  expect(result).toContain(String.raw`\ No newline at end of file`)
 })
 
 test('multi-byte content is rendered by character, not mangled into replacement bytes', () => {

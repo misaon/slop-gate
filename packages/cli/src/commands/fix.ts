@@ -16,7 +16,7 @@ export const fix = defineCommand({
   },
   async run({ args }) {
     const rootDir = resolveRootDir(args.cwd)
-    const tier: FixTier = args.unsafe ? 'unsafe' : args.suggest ? 'suggested' : 'safe'
+    const tier: FixTier = args.unsafe ? 'unsafe' : (args.suggest ? 'suggested' : 'safe')
 
     const loaded = await loadCliConfig(rootDir, DEFAULT_CONFIG)
     if (loaded.kind === 'error') {

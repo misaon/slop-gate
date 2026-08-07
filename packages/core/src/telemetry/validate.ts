@@ -141,7 +141,7 @@ export function validateTelemetryPayload(input: unknown): ValidationResult {
         generated: Number(rule['generated']),
       })),
       disabledConcepts: disabled.map(String),
-      preset: preset,
+      preset,
       baseline: input['baseline'],
     },
   }

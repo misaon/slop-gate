@@ -33,7 +33,7 @@ afterEach(async () => {
 })
 
 test('reports its version', async () => {
-  expect(await createOxlintEngine().version()).toMatch(/^\d+\.\d+\.\d+/)
+  await expect(createOxlintEngine().version()).resolves.toMatch(/^\d+\.\d+\.\d+/)
 })
 
 test('declares file granularity and script languages', () => {
@@ -178,7 +178,7 @@ test('yields nothing for a clean file', async () => {
   const engine = createOxlintEngine()
   const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
-  expect(await collect(engine.run({ files: [file('src/clean.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [file('src/clean.ts')] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
   await handle.dispose()
 })
 
@@ -186,7 +186,7 @@ test('yields nothing for an empty batch without spawning a process', async () =>
   const engine = createOxlintEngine()
   const handle = await engine.materializeConfig(new Map([['no-debugger', ['error'] as const]]), context)
 
-  expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(1000)))).toEqual([])
+  await expect(collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(1000)))).resolves.toEqual([])
   await handle.dispose()
 })
 
