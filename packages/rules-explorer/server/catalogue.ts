@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import type { CatalogueEntry, CatalogueSummary, IMPACTS } from '@misaon/slop-gate-core'
+import type { CatalogueEntry, CatalogueSummary, Impact, IMPACTS } from '@misaon/slop-gate-core'
 import type { RuleHistory } from '../scripts/history.ts'
 
 const run = promisify(execFile)
@@ -13,6 +13,8 @@ export type Payload = {
   readonly rules: readonly CatalogueEntry[]
   readonly summary: CatalogueSummary
   readonly impacts: typeof IMPACTS
+  /** Keyed by `string` and not `ConceptGroup`, because that is the type a `CatalogueEntry` carries its group in. */
+  readonly groupImpact: Readonly<Record<string, Impact>>
   readonly history: RuleHistory
 }
 
@@ -82,6 +84,15 @@ export function openCatalogue(repoRoot: string) {
     get(): Promise<Payload> {
       pending ??= build()
       return pending
+    },
+    /** After this process itself wrote to the registry: re-fingerprint first, so the poller does not announce the same edit again. */
+    async refresh(): Promise<Payload> {
+      fingerprint = await scan()
+      generation += 1
+      pending = build()
+      const payload = await pending
+      for (const listener of listeners) listener(generation)
+      return payload
     },
     generation: () => generation,
     onChange(listener: (generation: number) => void): () => void {
