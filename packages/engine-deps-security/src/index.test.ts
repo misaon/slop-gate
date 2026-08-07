@@ -247,9 +247,11 @@ describe('run', () => {
     const handle = await engine.materializeConfig(allRules, context())
     await rm(snapshotDir, { recursive: true, force: true })
 
-    await expect(async () => {
-      for await (const _ of engine.run({ files: [] }, handle, context(), AbortSignal.timeout(5000))) {}
-    }).rejects.toThrow(EngineError)
+    const drain = async (): Promise<void> => {
+      for await (const batch of engine.run({ files: [] }, handle, context(), AbortSignal.timeout(5000))) void batch
+    }
+
+    await expect(drain()).rejects.toThrow(EngineError)
   })
 
   it('reads manifests from the assigned file list, so workspace exclusions apply', async () => {

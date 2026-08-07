@@ -40,7 +40,8 @@ export async function reportTelemetry(rootDir: string, loaded: LoadedConfig, res
 
     await sendTelemetry(endpoint, payload)
     await markSent(stateDir)
+    // sgate-disable-next-line slop.swallowed-error -- best-effort by construction: this runs after the check has already reported, so there is no channel left on which a user could act on the failure.
   } catch {
-    // Telemetry is best-effort by construction. There is nothing a user could do with an error here.
+    // Nothing to do here.
   }
 }
