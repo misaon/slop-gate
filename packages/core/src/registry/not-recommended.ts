@@ -16,6 +16,24 @@ export const NOT_RECOMMENDED_UNCATALOGUED: Readonly<Record<string, NotRecommende
       'looked like true positives. `dead-code.unused-file` in a config restores it.',
     evidence: 'knip-files',
   },
+  'astgrep/slop-swallowed-error': {
+    reason:
+      '**433 findings across the third-party corpus and 0 here, and roughly 19 of a 22-item sample were ' +
+      'deliberate** — feature probes, optional reads, best-effort cleanup. An empty `catch` is a defect when ' +
+      'the error mattered and a statement of intent when it did not, and the block cannot say which.\n\n' +
+      'Shipped without the "only logs and continues" half for the same reason: 5 findings, every one a CLI ' +
+      'printing an error at its top level. Available as `slop.swallowed-error`; §14 of the design spec holds ' +
+      'the sample.',
+  },
+  'astgrep/slop-emoji-in-code': {
+    reason:
+      '**20 findings on this repository and 20 of 20 false** — the pretty reporter’s severity glyphs and the ' +
+      'tests for wide characters, which is to say the two places a tool that prints to a terminal must have ' +
+      'them. 127 more on the third-party corpus.\n\n' +
+      'The rule is accurate about what it looks for; what it cannot know is whether the string reaches a ' +
+      'terminal or a source file. Available as `slop.emoji-in-code`, and `docs/rules/slop.emoji-in-code.md` ' +
+      'documents scoping it to the directories that do not render.',
+  },
   'knip/dependencies': {
     reason:
       '**5 findings across this repository, 5 false**, and every one is the same structural gap: a dependency ' +
@@ -311,6 +329,76 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
   'no-eq-null': { reason: '**2 findings.** `!= null` is the deliberate two-value check, and `pedantic.eqeqeq` is configured with `smart` for exactly that reason — see docs/measurements.md#pedantic-eqeqeq.' },
   'class-methods-use-this': { reason: '**1 finding.** A method that does not read `this` is often an interface implementation that must stay a method.' },
   'unicorn/prefer-module': { reason: '**1 finding**, a test asserting that a resolver handles `require.resolve`. This repository is ESM-only and the rules that enforce that — `no-commonjs`, `no-require-imports`, `no-var-requires`, `no-amd` — are in `recommended` as of this audit.' },
+  'typescript/prefer-readonly-parameter-types': {
+    reason:
+      '**1,123 findings in 236 files — the largest count any type-aware rule produces here.** It requires ' +
+      'every parameter to be deeply `readonly`, so every engine method, every context object and every ' +
+      'options bag is reported.\n\n' +
+      'That is a type discipline a project adopts wholesale or not at all, and adopting it means annotating ' +
+      'the transitive shape of everything that crosses a function boundary. It says nothing about whether ' +
+      'any of them is mutated.',
+    evidence: 'type-aware-audit',
+  },
+  'typescript/no-unsafe-type-assertion': {
+    reason:
+      '**225 findings, and the dominant shape is `JSON.parse(text) as T`** — the assertion every boundary ' +
+      'that reads external data makes. The rule is right that nothing checks it, and the fix is a validator ' +
+      'at each of those boundaries, which is a design decision rather than a lint repair.\n\n' +
+      'Distinct from `no-unnecessary-type-assertion`, which is in `recommended`: that one finds assertions ' +
+      'that do nothing, this one finds assertions that do something unchecked.',
+    evidence: 'type-aware-audit',
+  },
+  'typescript/no-unsafe-assignment': {
+    reason:
+      '**35 findings, and they trace to two sources outside this codebase\'s own types**: `JSON.parse`, which ' +
+      'returns `any` by construction, and vitest\'s `expect.stringContaining`, which is typed `any` upstream. ' +
+      '14 files, almost all tests.\n\n' +
+      'The four siblings below report the same `any` at a different point in its travel and are excluded with ' +
+      'it. Worth revisiting together once the boundaries that produce the `any` are validated rather than ' +
+      'asserted — see `typescript/no-unsafe-type-assertion` above, which is the same decision.',
+    evidence: 'type-aware-audit',
+  },
+  'typescript/no-unsafe-member-access': { reason: '**34 findings**, and 31 of them are one expression: `JSON.parse(await readFile(...)).rules` in a test. The same `any` as `typescript/no-unsafe-assignment` above, read one step later.' },
+  'typescript/no-unsafe-call': { reason: '**23 findings.** The same `any` as `typescript/no-unsafe-assignment` above, invoked rather than read.' },
+  'typescript/no-unsafe-argument': { reason: '**8 findings.** The same `any` as `typescript/no-unsafe-assignment` above, passed on rather than read.' },
+  'typescript/no-unsafe-return': { reason: '**4 findings.** The same `any` as `typescript/no-unsafe-assignment` above, returned rather than read.' },
+  'typescript/require-await': { reason: '**86 findings**, the type-aware twin of `require-await` above and excluded on the identical argument: an interface declaring a `Promise` return makes `async` the contract, and neither rule can see the signature that requires it.' },
+  'typescript/promise-function-async': {
+    reason:
+      '**79 findings.** It requires every function returning a promise to be declared `async`, which for one ' +
+      'that returns a promise it was handed — a cached lookup, a memoised call, a passthrough — adds a ' +
+      'microtask and a wrapper around a value that was already the right shape.\n\n' +
+      'The case it exists for is a synchronous throw escaping a promise-returning function. That is real, and ' +
+      'it is a narrower rule than this one.',
+    evidence: 'type-aware-audit',
+  },
+  'typescript/strict-void-return': { reason: '**72 findings.** It forbids returning a value from anything typed `void`, including the shorthand arrow bodies that make a callback one line. The contract is already that the value is ignored.' },
+  'typescript/no-confusing-void-expression': { reason: '**26 findings.** Same family as `strict-void-return` above: it reports `void` appearing in a position that discards it, which is what `void` is for.' },
+  'typescript/strict-boolean-expressions': { reason: '**6 findings.** It requires every condition to be an actual boolean, so a nullable string or a number has to be compared explicitly. A dialect a project adopts, not a defect.' },
+  'typescript/no-unnecessary-condition': { reason: '**29 findings**, and it is `nursery`. It reports a check the types prove redundant — which is exactly the check that survives data arriving from outside the types, where the guarantee was never real.' },
+  'typescript/restrict-plus-operands': { reason: '**10 findings.** It forbids `+` between different types, including the string-and-number concatenation that a template literal is the alternative to. `restrict-template-expressions`, which is the version that catches a real stringification bug, is in `recommended`.' },
+  'typescript/dot-notation': { reason: '**6 findings**, and all of them are index access this repository writes on purpose: `noPropertyAccessFromIndexSignature` requires it, so the rule and the compiler ask for opposite things.' },
+  'typescript/non-nullable-type-assertion-style': { reason: '**5 findings.** It prefers `!` to `as NonNullable<T>` — the opposite of what AGENTS.md asks for, which is the explicit form.' },
+  'typescript/prefer-nullish-coalescing': { reason: '**4 findings.** `||` and `??` differ on empty string and zero, and which one is wanted is a property of the value rather than of the operator. Where the two differ this repository already uses `??`.' },
+  'typescript/prefer-optional-chain': { reason: '**3 findings**, and `nursery`. Chained `&&` guards and `?.` differ on whether an intermediate is falsy or absent, so the rewrite is not always equivalent.' },
+  'typescript/use-unknown-in-catch-callback-variable': { reason: '**2 findings.** `useUnknownInCatchVariables` already types a `catch` binding as `unknown`; this extends it to the `.catch()` callback, where the same discipline is already applied by hand.' },
+  'typescript/return-await': { reason: '**2 findings.** `return await` inside a `try` keeps the frame in the stack trace and outside one adds a microtask, so the right answer depends on the block — which the default configuration does not distinguish.' },
+  'typescript/consistent-type-exports': {
+    reason:
+      'Silent here, and `style`. It separates type re-exports from value ones, which `isolatedModules` ' +
+      'already forces at the point it matters.\n\n' +
+      'The seven type-aware `style` rules below are silent here too and excluded on the argument the style ' +
+      'audit settled: a rule oxlint files under `style` earns `recommended` by holding a defect, and these ' +
+      'hold a preference. See docs/measurements.md#style-audit.',
+    evidence: 'style-audit',
+  },
+  'typescript/no-unnecessary-qualifier': { reason: 'Silent here, and `style`: a namespace qualifier inside its own namespace. Same argument as `typescript/consistent-type-exports` above.' },
+  'typescript/prefer-find': { reason: 'Silent here, and `style`. `perf.prefer-array-find` — unicorn\'s version of the same check — is already in `recommended`, so this would be a second concept for one question.' },
+  'typescript/prefer-readonly': { reason: 'Silent here, and `style`: a private field never reassigned could be `readonly`. Same argument as `typescript/consistent-type-exports` above.' },
+  'typescript/prefer-reduce-type-parameter': { reason: 'Silent here, and `style`: the accumulator typed through `reduce`\'s parameter rather than by asserting the seed. Same argument as `typescript/consistent-type-exports` above.' },
+  'typescript/prefer-regexp-exec': { reason: 'Silent here, and `style`. `match` and `exec` differ only when the pattern is global, and there the rule does not fire. Same argument as `typescript/consistent-type-exports` above.' },
+  'typescript/prefer-return-this-type': { reason: 'Silent here, and `style`: a fluent method returning the class rather than `this`. Same argument as `typescript/consistent-type-exports` above.' },
+  'typescript/prefer-string-starts-ends-with': { reason: 'Silent here, and `style`: a prefix test written through `indexOf` or a regular expression. Same argument as `typescript/consistent-type-exports` above.' },
   'typescript/unbound-method': {
     reason:
       '**10 findings, zero true positives, and one shape.** Every one is a function-valued property on an ' +
