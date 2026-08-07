@@ -25,7 +25,7 @@ import { ExternalLinkAnimated, HoverGroup } from './animated/icons.tsx'
 import { ImpactBar, ReliabilityCell } from './impact.tsx'
 import { Prose } from './prose.tsx'
 
-export const columns: ColumnDef<RulesFeatures, Row, unknown>[] = [
+export const columns: ColumnDef<RulesFeatures, Row>[] = [
   { id: 'rule', accessorFn: (row) => row.engineRuleId, header: 'Rule' },
   { id: 'engine', accessorFn: (row) => row.engine, header: 'Engine' },
   { id: 'concept', accessorFn: (row) => row.concept, header: 'Concept' },

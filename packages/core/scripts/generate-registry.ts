@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolveOxlintBinary, resolveOxlintSchemaPath } from '@misaon/slop-gate-engine-oxlint'
-import type { ConceptDefinition, ConceptGroup, ConceptId } from '../src/concepts/catalogue.ts'
+import type { ConceptDefinition, ConceptId } from '../src/concepts/catalogue.ts'
 import { CURATED_CONCEPTS, HAND_WRITTEN_CONCEPTS } from '../src/concepts/catalogue.ts'
 import { compareStrings } from '../src/ordering.ts'
 import { NOT_RECOMMENDED_GENERATED } from '../src/registry/not-recommended.ts'
@@ -197,7 +197,7 @@ function buildGeneratedConcepts(generated: readonly GeneratedEntry[]): readonly 
 
     byId.set(conceptId, {
       id: conceptId,
-      group: rule.category as ConceptGroup,
+      group: rule.category,
       title: engineRuleId,
       description:
         `Generated from oxlint's \`${rule.scope}/${rule.value}\` rule ` +

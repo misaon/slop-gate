@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  compareStrings,
   absolutePrefixes,
   EngineError,
   hashJson,
@@ -82,7 +83,7 @@ export function createActionlintEngine(options: { binaryPath?: string } = {}): E
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
       const enabled = [...selection].filter(([, [level]]) => level !== 'off')
-      const rulesetHash = hashJson(enabled.map(([rule, [level]]) => [rule, level]).sort())
+      const rulesetHash = hashJson(enabled.map(([rule, [level]]) => `${rule}:${level}`).sort(compareStrings))
       const path = join(context.tmpDir, `actionlint.${rulesetHash.slice(0, 12)}.yaml`)
       selections.set(path, new Set(enabled.map(([rule]) => rule)))
       await mkdir(context.tmpDir, { recursive: true })

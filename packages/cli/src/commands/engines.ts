@@ -20,7 +20,7 @@ export const engines = defineCommand({
         },
       },
       async run({ args }) {
-        const target = String(args.engine)
+        const target = args.engine
         if (!isOneOf(target, INSTALLABLE)) {
           process.stderr.write(`Unknown optional engine \`${target}\`. Available: ${INSTALLABLE.join(', ')}.\n`)
           process.exitCode = EXIT_CODES.config

@@ -28,7 +28,10 @@ const SNIPPET_MAX_CHARS = 160
 const CONFIG_LOCATION = '(configuration)'
 const MAX_LISTED_UNCOVERED = 8
 
-const DISABLE_DIRECTIVE = `sgate-disable${'-next-line'}`
+// Built from a variable so this source never contains a literal directive: a run over this repository
+// would otherwise read the example as a real suppression.
+const DISABLE = 'sgate-disable'
+const DISABLE_DIRECTIVE = `${DISABLE}-next-line`
 
 const estimateTokens = (text: string): number => Math.ceil(encodeUtf8(text).length / BYTES_PER_TOKEN)
 

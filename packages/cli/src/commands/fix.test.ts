@@ -153,7 +153,7 @@ const runFixCommand = async (args: Record<string, unknown>): Promise<string> => 
       args: { 'dry-run': false, suggest: false, unsafe: false, 'allow-dirty': false, cwd: dir, _: [], ...args },
       rawArgs: [],
       cmd: fix,
-    } as never)
+    })
   } finally {
     stdout.mockRestore()
   }

@@ -15,7 +15,7 @@ export function validateCatalogue(concepts: readonly ConceptDefinition[]): strin
     if (!ID_PATTERN.test(concept.id)) problems.push(`malformed concept id: ${concept.id}`)
 
     if (!isOneOf(concept.group, CONCEPT_GROUPS)) {
-      problems.push(`concept ${concept.id} declares unknown group ${concept.group}`)
+      problems.push(`concept ${concept.id} declares unknown group ${String(concept.group)}`)
     } else if (concept.id.split('.')[0] !== concept.group) {
       problems.push(`concept ${concept.id} declares group ${concept.group}`)
     }

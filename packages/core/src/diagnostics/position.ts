@@ -34,7 +34,7 @@ export function createLineIndex(source: string): LineIndex {
     positionAt(byteOffset) {
       const clamped = Math.max(0, Math.min(byteOffset, bytes.length))
       const line = lineIndexAt(clamped)
-      const prefix = decoder.decode(bytes.subarray(lineStarts[line]!, clamped))
+      const prefix = decoder.decode(bytes.subarray(lineStarts[line], clamped))
       return { line: line + 1, column: prefix.length + 1 }
     },
     offsetAt(position) {

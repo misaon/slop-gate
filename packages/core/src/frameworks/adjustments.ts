@@ -69,7 +69,7 @@ export function frameworkRuleLayers(detection: FrameworkDetection): readonly Fra
       source: application.id,
       rules: Object.fromEntries(
         [...concepts].sort(compareStrings).map((concept) => [concept, unscoped.get(concept)!]),
-      ) as Partial<Record<RuleKey, RuleLevel>>,
+      ),
     })
   }
 

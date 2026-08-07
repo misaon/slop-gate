@@ -39,7 +39,7 @@ export type RulesFeatures = typeof features
  * Using `@tanstack/react-table` instead would mean aliasing react to preact/compat through Vite and
  * tsc both, for a hook this size.
  */
-export function useTable<T extends RowData>(data: readonly T[], columns: readonly ColumnDef<RulesFeatures, T, unknown>[]): Table<RulesFeatures, T> {
+export function useTable<T extends RowData>(data: readonly T[], columns: readonly ColumnDef<RulesFeatures, T>[]): Table<RulesFeatures, T> {
   const [sorting, setSorting] = useState<SortingState>([])
 
   const table = useMemo(
@@ -49,8 +49,8 @@ export function useTable<T extends RowData>(data: readonly T[], columns: readonl
 
   table.setOptions((previous) => ({
     ...previous,
-    data: data as T[],
-    columns: columns as ColumnDef<RulesFeatures, T, unknown>[],
+    data: data,
+    columns: columns,
     state: { sorting },
     onSortingChange: setSorting,
   }))

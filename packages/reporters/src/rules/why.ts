@@ -108,8 +108,9 @@ function ineligibilityText(record: IneligibleCandidate): string {
       return `\`${record.candidate.engine}\` is registered but not installed on this machine`
     case 'missing-capability':
       return record.capability === 'types'
-        ? 'requires type information (`types`), which no participating engine provides yet — ' +
-            'type-aware support is not wired up (see "Blocks M2" in docs/superpowers/specs/2026-07-31-m0-followups.md)'
+        ? 'requires type information (`types`). oxlint provides it once `oxlint-tsgolint` is installed — ' +
+            'add it as a dev dependency. It is not bundled: it costs 21 MB and takes a run on this ' +
+            'repository from 3.1 s to 5.9 s (docs/measurements.md#type-aware-audit)'
         : `requires capability \`${record.capability}\`, which no participating engine provides`
     case 'language-mismatch':
       return 'this repository has no files in a language this rule applies to'

@@ -28,7 +28,7 @@ async function runWhyCapturingStdout(concept: string): Promise<string> {
     return true
   })
   try {
-    await why.run!({ args: { concept, format: 'json', cwd: dir, _: [] }, rawArgs: [], cmd: why } as never)
+    await why.run!({ args: { concept, format: 'json', cwd: dir, _: [] }, rawArgs: [], cmd: why })
   } finally {
     stdout.mockRestore()
   }

@@ -49,7 +49,7 @@ export function App() {
   useEffect(() => onCatalogueChange(() => void client.invalidateQueries({ queryKey: ['rules'] })), [client])
 
   const state = catalogue.data ?? null
-  const error = catalogue.error === null ? null : (catalogue.error as Error).message
+  const error = catalogue.error === null ? null : (catalogue.error).message
   const telemetry = telemetryQuery.data ?? null
 
   const rows = state?.rows
@@ -148,7 +148,7 @@ export function App() {
                 <input
                   type="search"
                   value={query}
-                  onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
+                  onInput={(event) => setQuery((event.currentTarget).value)}
                   placeholder="Filter by rule, concept or title…"
                   class="w-full rounded-lg bg-ink-900 py-2 pr-9 pl-9 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-500 focus:ring-brand/60"
                 />

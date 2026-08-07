@@ -540,7 +540,8 @@ test('an engine failure aborts the pass before anything is written', async () =>
 })
 
 test('a suppressed finding is never fixed', async () => {
-  const directive = `// sgate-${'disable-next-line'} correctness.no-debugger -- deliberate\n`
+  const DISABLE = 'sgate-disable'
+const directive = `// ${DISABLE}-next-line correctness.no-debugger -- deliberate\n`
   await writeFile(join(dir, 'src/a.ts'), `${directive}a\n`)
   const offset = directive.length
 

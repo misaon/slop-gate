@@ -185,7 +185,7 @@ function writeSummary(surface: Surface, result: CheckResult): void {
   if (total === 0) {
     const caveats: string[] = []
     if (gaps.length > 0) caveats.push(`${plural(gaps.length, 'engine')} could not run`)
-    if (accepted > 0) caveats.push(`${plural(accepted, 'baselined finding')}`)
+    if (accepted > 0) caveats.push(plural(accepted, 'baselined finding'))
     lines.push(
       caveats.length === 0
         ? `  ${surface.paint('green', surface.checkMark)}  No issues found`
@@ -277,7 +277,7 @@ function writeTimings(surface: Surface, result: CheckResult): void {
     const spans = row.count > 1 ? `  ${surface.multiplySign}${row.count}` : ''
     lines.push(
       `    ${padEndDisplay(row.name, nameWidth)}  ${padStartDisplay(row.durationMs.toFixed(1), 7)} ms  ` +
-        `${surface.paint('dim', padStartDisplay(share, 6) + spans)}`,
+        surface.paint('dim', padStartDisplay(share, 6) + spans),
     )
   }
   const attributed = report.phases.reduce((sum, phase) => sum + phase.durationMs, 0)

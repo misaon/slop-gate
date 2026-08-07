@@ -412,7 +412,8 @@ test('an engine that provides a capability lets a capability-requiring rule be e
   expect(result.ruleset.uncovered).toEqual([])
 })
 
-const NEXT_LINE = `sgate-disable${'-next-line'}`
+const DISABLE = 'sgate-disable'
+const NEXT_LINE = `${DISABLE}-next-line`
 
 const withUnusedSuppressionOn = () => ({
   ...baseOptions(),
@@ -721,7 +722,7 @@ test('an Angular repository gets the empty-class concept turned off, same as a N
   expect(result.diagnostics.map((d) => d.concept)).toEqual(['correctness.no-debugger'])
 })
 
-const suppression = (rest: string): string => `// sgate-${'disable-next-line'} ${rest}`
+const suppression = (rest: string): string => `// ${NEXT_LINE} ${rest}`
 
 const TWO_ENGINE_ENTRIES: RuleEntry[] = [
   ...ENTRIES,
