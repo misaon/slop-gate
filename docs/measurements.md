@@ -187,6 +187,48 @@ to tell them apart).
 `warn`, and so exits 0. That is the same deferred decision the other two entries record, and this is the
 strongest case yet for taking it.
 
+## The 59 type-aware oxlint rules, and why none of them can fire
+
+`packages/engine-oxlint/src/index.ts`, `packages/core/src/registry/elect.ts`
+
+**No engine declares `provides: ['types']`** — all ten declare `provides: []` — so every entry carrying
+`requires: ['types']` fails `isCapable` in `elect.ts` and is reported as `missing-capability` rather than
+ever owning a concept. `generate-registry.ts` also keeps them out of `recommended` (`!rule.type_aware`),
+so today they read as `unlisted`, which understates it: they are not merely off, they are unreachable.
+
+That is **59 rules — 15 `correctness`, 21 `pedantic`, 9 `suspicious`, 9 `style`, 3 `restriction`, 2
+`nursery`** — and the 24 `correctness`/`suspicious` ones are the defect classes this tool is named for:
+`no-floating-promises`, `await-thenable`, `unbound-method`, `no-base-to-string`, `no-misused-spread`,
+`require-array-sort-compare`, `no-unsafe-enum-comparison`, `restrict-template-expressions`.
+
+**The mechanism exists.** oxlint 1.76 takes `--type-aware`, which needs the separate `oxlint-tsgolint`
+package (7.0.2001, typescript-go). Installed temporarily and measured over `core`, `cli`, `reporters` and
+`engine-oxlint` sources — a tree at zero findings under the current 349 rules:
+
+| | findings |
+|---|---:|
+| `no-unsafe-type-assertion` | 156 |
+| `no-unnecessary-type-assertion` | 41 |
+| `no-unnecessary-template-expression` | 13 |
+| `no-unnecessary-boolean-literal-compare` | 7 |
+| `unbound-method` | 6 |
+| `no-misused-spread` | 3 |
+| the other six that fired | 9 |
+| **`no-floating-promises`** | **0** |
+
+**1.16 s wall clock** for the four packages, so cost is not the objection.
+
+Read the composition, not the total. `require-array-sort-compare`'s single finding is `.sort()` on an
+array of strings, where lexicographic order is correct — its `ignoreStringArrays` option removes it and
+keeps the `[10, 9, 1].sort()` case the rule exists for. `no-misused-spread`'s three are `[...someString]`
+in `position.ts` and `literal.ts`, which is deliberate code-point iteration in the two modules whose whole
+subject is that. Against those, `no-unnecessary-type-assertion`'s 41 are assertions that provably do
+nothing, and `unbound-method` and `no-base-to-string` are the invisible-until-runtime class.
+
+So this is not a registry edit. It needs an optional-engine dependency and the coverage-gap reporting
+that goes with one (§13.7's shape), per-rule options, and the findings above fixed before `--max-warnings 0`
+can stay green. Recorded here so the size of the gap is a number rather than an impression.
+
 ## Engine reach and noise floors
 
 - **biome-css** is the quietest engine by design: seventeen rules, of which **thirteen produced no finding
