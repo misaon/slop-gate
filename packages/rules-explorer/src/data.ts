@@ -85,6 +85,7 @@ export type TelemetryPanel = {
     readonly lastSeen: string | null
   }[]
   readonly disabledConcepts: readonly { readonly concept: string; readonly checkouts: number }[]
+  readonly overTime: readonly { readonly hour: string; readonly reports: number; readonly ours: number }[]
 }
 
 export async function fetchTelemetry(): Promise<TelemetryPanel> {

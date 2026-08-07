@@ -23,6 +23,8 @@ export type TelemetryPanel = {
     readonly lastSeen: string | null
   }[]
   readonly disabledConcepts: readonly { readonly concept: string; readonly checkouts: number }[]
+  /** One bucket per hour the window covers, zero-filled, so a quiet hour reads as a trough and not as absent. */
+  readonly overTime: readonly { readonly hour: string; readonly reports: number; readonly ours: number }[]
 }
 
 const EMPTY = (reason: string): TelemetryPanel => ({
@@ -39,6 +41,7 @@ const EMPTY = (reason: string): TelemetryPanel => ({
   runs: null,
   rules: [],
   disabledConcepts: [],
+  overTime: [],
 })
 
 /**
@@ -77,6 +80,21 @@ export function openTelemetry(): { read(): Promise<TelemetryPanel> } {
           from telemetry_rule_summary order by findings desc, checkouts desc, rule`
         const disabled = await sql`select concept, checkouts::int from telemetry_disabled_summary order by checkouts desc, concept`
 
+        // `generate_series` zero-fills the gaps: an hour nobody reported has to be a visible trough, because a
+        // series drawn only from the hours that exist invents activity in the ones that do not.
+        const overTime = await sql`
+          with bounds as (
+            select date_trunc('hour', min(ingested_at)) as lo, date_trunc('hour', max(ingested_at)) as hi
+            from telemetry_report
+          )
+          select to_char(h, 'YYYY-MM-DD HH24:MI') as hour,
+                 count(r.run)::int as reports,
+                 count(r.run) filter (where r.ci)::int as ours
+          from bounds, generate_series(bounds.lo, bounds.hi, interval '1 hour') as h
+          left join telemetry_report r on date_trunc('hour', r.ingested_at) = h
+          group by h
+          order by h`
+
         return {
           available: true,
           reports: totals?.['reports'] ?? 0,
@@ -101,6 +119,11 @@ export function openTelemetry(): { read(): Promise<TelemetryPanel> } {
             lastSeen: (row['last_seen'] as string | null) ?? null,
           })),
           disabledConcepts: disabled.map((row) => ({ concept: String(row['concept']), checkouts: Number(row['checkouts']) })),
+          overTime: overTime.map((row) => ({
+            hour: String(row['hour']),
+            reports: Number(row['reports']),
+            ours: Number(row['ours']),
+          })),
         }
       } catch (error) {
         return EMPTY(`the database refused the read: ${error instanceof Error ? error.message : String(error)}`)

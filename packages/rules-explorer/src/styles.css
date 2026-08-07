@@ -99,3 +99,15 @@ code,
   background: color-mix(in oklab, var(--color-ink-900) 92%, transparent);
   backdrop-filter: blur(8px);
 }
+
+/* Bars grow from the baseline rather than fading in: the animation carries the same meaning as the mark. */
+@keyframes grow-bar {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.grow-bar {
+  transform-origin: bottom;
+  animation: grow-bar 420ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
