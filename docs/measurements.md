@@ -830,6 +830,40 @@ question an import graph can actually answer. `binaries` is the inverse of the t
 binary a script invokes and no manifest declares, which is a build that works only where someone already
 installed it.
 
+## The React corpus — the five rules the audits could not judge here
+
+<a id="react-corpus"></a>
+
+Three real React applications, cloned at depth 1 and linted with the five rules the `perf`, `restriction`
+and `nursery` audits left open, because 0 findings on a repository with no React application in it says
+nothing about any of them: **excalidraw** (302 `.tsx`/`.jsx`), **reduxjs/redux-toolkit** (197) and
+**vercel/commerce** (45).
+
+| rule | excalidraw | redux-toolkit | commerce | total |
+|---|---:|---:|---:|---:|
+| `react-perf/jsx-no-new-function-as-prop` | 479 | 289 | 18 | **786** |
+| `react-perf/jsx-no-new-object-as-prop` | 246 | 58 | 7 | **311** |
+| `react/react-compiler` | 101 | 111 | 4 | **216** |
+| `react-perf/jsx-no-new-array-as-prop` | 105 | 27 | 1 | **133** |
+| `react-perf/jsx-no-jsx-as-prop` | 12 | 47 | 5 | **64** |
+| `react/no-array-index-key` | 14 | 11 | 5 | **30** |
+| `react/no-unknown-property` | 0 | 1 | 3 | **4** |
+
+**The `react-perf` family is 1,294 findings over 544 components and no defect among them.** An inline
+`onClick={() => …}` is how React is written; the identity it creates costs nothing unless the child is
+memoised, and the rule cannot see whether it is. Withheld, available by concept for a codebase that has
+memoised its tree.
+
+**`react/no-array-index-key` — 30, and sixteen were read.** Every one is a static list: `<hr key={idx}>`
+between menu sections, `<kbd key={index}>` over the parts of a split string, `<Feature key={idx}>` over a
+constant array. None is inserted into, sorted or filtered. That is the same shape as the three findings in
+this repository's own `prose.tsx`, so the exclusion written from one file survives contact with real code —
+the rule finds the lists that do not move, and cannot see the ones that do.
+
+**`react/no-unknown-property` — 4 on React against 187 here**, and that contrast is the entry. It is
+accurate where it belongs; the 187 are `class=` in Preact, where the DOM attribute name is the correct one.
+Measured against React specifically to establish the rule is not simply wrong before excluding it.
+
 ## hadolint/DL3066 — hadolint cannot catch a container running as root
 
 <a id="hadolint-dl3066"></a>

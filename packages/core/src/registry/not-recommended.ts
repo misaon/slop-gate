@@ -281,9 +281,11 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       '**187 findings, zero true positives, and one cause**: every one is `class=` in a Preact component. ' +
       'Preact takes the DOM attribute names, so `class` and `for` are correct there and `className` is the ' +
       'alias. The rule is React\'s property table with no way to know which renderer it is looking at.\n\n' +
-      'Real for a React codebase, which is why this is an exclusion and not a repair. Revisit if framework ' +
-      'detection (§23) can stand it down on a Preact tree, which is a signal the inventory already carries.',
-    evidence: 'restriction-audit',
+      '**Measured against React itself to be sure the rule is not simply wrong: 4 findings across three real ' +
+      'React applications**, against 187 here. That contrast is the whole entry — it is accurate where it ' +
+      'belongs and blind to which renderer it is looking at. Revisit if framework detection (§23) can stand ' +
+      'it down on a Preact tree, which is a signal the inventory already carries.',
+    evidence: 'react-corpus',
   },
   'unicorn/import-style': { reason: '**131 findings.** It prescribes namespace against named against default per module, from a built-in table — a house style, and one that disagrees with `node:path` being imported named.' },
   'node/no-process-env': { reason: '**89 findings.** Reading the environment is how a process is configured; the rule wants it funnelled through one module, which is a design a project chooses rather than a defect.' },
@@ -492,14 +494,33 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
   'unicorn/prefer-event-target': { reason: 'Node\'s `EventEmitter` to `EventTarget` is a migration with different semantics — no `once` return value, no listener count, different error handling — not a defect. A project that has chosen `EventTarget` enables the concept.' },
   'react/no-array-index-key': {
     reason:
-      '**Revisit trigger, not a verdict.** 3 findings here, 3 false, and the rule is right about the general ' +
-      'case: an index is a position, so after an insertion every later item inherits its neighbour’s key.\n\n' +
-      'All three are one component that re-derives its whole list from a single string and never reorders or ' +
-      'filters it. There an index key is not merely safe, it is the better one — a content key would unmount ' +
-      'and remount every node the text changed. The rule cannot see which shape it is looking at, and this ' +
-      'corpus has no React application in it, so 3/3 is a fact about one file rather than a measurement.\n\n' +
-      '**What settles it:** running it over real React applications. If it earns `recommended`, delete this row.',
-    evidence: 'perf-nursery-audit',
+      '**30 findings across excalidraw, redux-toolkit and vercel/commerce, and sixteen were read: every one ' +
+      'is a static list.** `<hr key={idx}>` between menu sections, `<kbd key={index}>` over the parts of a ' +
+      'split string, `<Feature key={idx}>` over a constant array — none inserted into, sorted or filtered.\n\n' +
+      'The rule is right about the general case: an index is a position, so after an insertion every later ' +
+      'item inherits its neighbour\'s key. It cannot see whether the list is one that moves, and on real ' +
+      'React the ones it finds are the ones that do not.',
+    evidence: 'react-corpus',
+  },
+  'react-perf/jsx-no-new-function-as-prop': {
+    reason:
+      '**786 findings across three real React applications** — excalidraw 479, redux-toolkit 289, ' +
+      'vercel/commerce 18. An inline `onClick={() => …}` is how React is written, and the identity it ' +
+      'creates only costs anything when the child is memoised, which the rule cannot see.\n\n' +
+      'With its three siblings this is 1,544 findings on 544 components and no defect among them. Available ' +
+      'by concept for a codebase that has memoised its tree and wants the discipline that goes with it.',
+    evidence: 'react-corpus',
+  },
+  'react-perf/jsx-no-new-object-as-prop': { reason: '**311 findings** across the same three applications. The object half of `react-perf/jsx-no-new-function-as-prop` above, on the identical argument.' },
+  'react-perf/jsx-no-new-array-as-prop': { reason: '**133 findings** across the same three applications. The array half of `react-perf/jsx-no-new-function-as-prop` above.' },
+  'react-perf/jsx-no-jsx-as-prop': { reason: '**64 findings** across the same three applications. Passing an element as a prop is what a `renderHeader`-shaped API is; same argument as its three siblings above.' },
+  'react/react-compiler': {
+    reason:
+      '**216 findings across three real React applications.** It reports code the React Compiler cannot ' +
+      'memoise, which is a fact about that compiler rather than about the code — a project not using it ' +
+      'gets a list of non-problems, and one using it already gets the same information from its build.\n\n' +
+      'Also `nursery` upstream.',
+    evidence: 'react-corpus',
   },
   'no-undef': {
     reason:
