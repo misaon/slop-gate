@@ -128,7 +128,7 @@ async function* execute(
   } catch (cause) {
     throw new EngineError(
       'biome-css',
-      `biome produced no report: ${failure?.stderr?.trim() || failure?.stdout?.trim() || String(failure?.code ?? 'unknown error')}`,
+      `biome produced no report: ${failure?.stderr?.trim() || failure?.stdout?.trim() || (typeof failure?.code === 'number' ? String(failure.code) : 'unknown error')}`,
       { cause },
     )
   } finally {

@@ -35,7 +35,7 @@ afterAll(async () => {
 const respond = (bytes: Uint8Array) => async () => ({
   ok: true,
   status: 200,
-  arrayBuffer: async () => bytes.slice().buffer as ArrayBuffer,
+  arrayBuffer: async () => bytes.slice().buffer,
 })
 
 const refuse = () => {

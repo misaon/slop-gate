@@ -1,9 +1,7 @@
 import { expect, test } from 'vitest'
-import type { ConceptId } from '../concepts/catalogue.ts'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { createRuleSetResolver } from '../config/resolve.ts'
-import type { RuleKey } from '../config/types.ts'
 import { engineAdjustmentsFor, frameworkOverrideLayers, frameworkRuleLayers } from './adjustments.ts'
 import { detectFrameworks } from './detect.ts'
 import { dualFiringConcepts, FRAMEWORK_PROFILES, scopeConcepts } from './profiles.ts'
@@ -480,7 +478,7 @@ test('the dual-firing set contains only rules both plugins implement', () => {
   ).flatMap((entry) => entry.concepts)
 
   expect(jestOnlyConcepts.filter((concept) => disabled.has(concept))).toEqual([])
-  expect(disabled.has('correctness.no-export' as ConceptId)).toBe(false)
+  expect(disabled.has('correctness.no-export')).toBe(false)
 })
 
 test('no concept claimed by a jest- or vitest-scope rule is claimed by any rule outside it', () => {
@@ -520,7 +518,7 @@ test('a jest repository turns the mock-factory false positive off in test files 
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
   const level = (path: string) =>
-    resolver.forFile(path).rules.get('suspicious.consistent-function-scoping' as RuleKey)?.level
+    resolver.forFile(path).rules.get('suspicious.consistent-function-scoping')?.level
 
   expect(level('src/service.test.ts')).toBe('off')
   expect(level('src/__tests__/service.ts')).toBe('off')
@@ -534,7 +532,7 @@ test('a chai repository turns the no-op-expression rule off in test files only',
     frameworks: frameworkRuleLayers(detection),
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
-  const level = (path: string) => resolver.forFile(path).rules.get('dead-code.no-op-expression' as RuleKey)?.level
+  const level = (path: string) => resolver.forFile(path).rules.get('dead-code.no-op-expression')?.level
 
   expect(level('test/functional/query-builder.test.ts')).toBe('off')
   expect(level('integration/injector/multiple-providers.spec.ts')).toBe('off')
@@ -550,7 +548,7 @@ test('a repository that does not declare chai keeps the rule on everywhere', asy
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  expect(resolver.forFile('src/thing.test.ts').rules.get('dead-code.no-op-expression' as RuleKey)?.level).toBe('error')
+  expect(resolver.forFile('src/thing.test.ts').rules.get('dead-code.no-op-expression')?.level).toBe('error')
   expect(applied(detection, 'chai')).toBeUndefined()
 })
 
@@ -562,7 +560,7 @@ test('a vitest-only repository keeps the mock-factory rule on, because upstream 
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  expect(resolver.forFile('src/service.test.ts').rules.get('suspicious.consistent-function-scoping' as RuleKey)?.level).toBe(
+  expect(resolver.forFile('src/service.test.ts').rules.get('suspicious.consistent-function-scoping')?.level).toBe(
     'warn',
   )
 })
@@ -654,11 +652,11 @@ test('the scoped subtraction reaches the sibling package and leaves the applicat
     frameworks: frameworkRuleLayers(detection),
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
-  const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element' as RuleKey)?.level
+  const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element')?.level
 
   expect(level('packages/ui/src/Logo.tsx')).toBe('off')
   expect(level('apps/web/app/page.tsx')).toBe('warn')
-  expect(resolver.base.rules.get('correctness.no-img-element' as RuleKey)?.level).toBe('warn')
+  expect(resolver.base.rules.get('correctness.no-img-element')?.level).toBe('warn')
 })
 
 test('a single-app repository gets evidence and no adjustments at all', async () => {
@@ -722,7 +720,7 @@ test('turns the whole Next.js scope off in a repository that has no Next.js at a
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  expect(resolver.forFile('app/routes/_index.tsx').rules.get('correctness.no-img-element' as RuleKey)?.level).toBe('off')
+  expect(resolver.forFile('app/routes/_index.tsx').rules.get('correctness.no-img-element')?.level).toBe('off')
 })
 
 test('leaves the Next.js scope on where Next.js is actually used', async () => {
@@ -736,7 +734,7 @@ test('leaves the Next.js scope on where Next.js is actually used', async () => {
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  expect(resolver.forFile('app/page.tsx').rules.get('correctness.no-img-element' as RuleKey)?.level).not.toBe('off')
+  expect(resolver.forFile('app/page.tsx').rules.get('correctness.no-img-element')?.level).not.toBe('off')
 })
 
 

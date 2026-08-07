@@ -8,7 +8,7 @@ test('the library entry exposes defineConfig and has no side effects', async () 
   process.stdout.write = ((chunk: unknown) => {
     writes.push(chunk)
     return true
-  }) as typeof process.stdout.write
+  })
 
   let loaded: typeof import('./index.ts')
   try {

@@ -187,47 +187,70 @@ to tell them apart).
 `warn`, and so exits 0. That is the same deferred decision the other two entries record, and this is the
 strongest case yet for taking it.
 
-## The 59 type-aware oxlint rules, and why none of them can fire
+## Type-aware linting: what it costs, and what it found
+
+<a id="type-aware-audit"></a>
 
 `packages/engine-oxlint/src/index.ts`, `packages/core/src/registry/elect.ts`
 
-**No engine declares `provides: ['types']`** — all ten declare `provides: []` — so every entry carrying
-`requires: ['types']` fails `isCapable` in `elect.ts` and is reported as `missing-capability` rather than
-ever owning a concept. `generate-registry.ts` also keeps them out of `recommended` (`!rule.type_aware`),
-so today they read as `unlisted`, which understates it: they are not merely off, they are unreachable.
+Fifty-nine oxlint rules carry `requires: ['types']`, and until this audit no engine declared
+`provides: ['types']`, so `elect.ts` reported every one as `missing-capability` and none could ever own a
+concept. They read as `unlisted`, which understated it: they were unreachable, not merely off.
 
-That is **59 rules — 15 `correctness`, 21 `pedantic`, 9 `suspicious`, 9 `style`, 3 `restriction`, 2
-`nursery`** — and the 24 `correctness`/`suspicious` ones are the defect classes this tool is named for:
-`no-floating-promises`, `await-thenable`, `unbound-method`, `no-base-to-string`, `no-misused-spread`,
-`require-array-sort-compare`, `no-unsafe-enum-comparison`, `restrict-template-expressions`.
+**Wired up, and deliberately not bundled.** `createOxlintEngine` resolves `oxlint-tsgolint`; if it is there
+the engine declares the capability and passes `--type-aware`, and if it is not, the 27 promoted concepts
+report as a coverage gap with the remedy in `sgate rules why`. Two numbers decide that it is opt-in:
 
-**The mechanism exists.** oxlint 1.76 takes `--type-aware`, which needs the separate `oxlint-tsgolint`
-package (7.0.2001, typescript-go). Installed temporarily and measured over `core`, `cli`, `reporters` and
-`engine-oxlint` sources — a tree at zero findings under the current 349 rules:
+| | without | with |
+|---|---:|---:|
+| `sgate check` on this repository | 3.1 s | **5.9 s** |
+| the same 59 rules, oxlint alone | 0.087 s | **5.73 s** |
+| install size | — | **21 MB** (`@oxlint-tsgolint/<platform>`) |
 
-| | findings |
-|---|---:|
-| `no-unsafe-type-assertion` | 156 |
-| `no-unnecessary-type-assertion` | 41 |
-| `no-unnecessary-template-expression` | 13 |
-| `no-unnecessary-boolean-literal-compare` | 7 |
-| `unbound-method` | 6 |
-| `no-misused-spread` | 3 |
-| the other six that fired | 9 |
-| **`no-floating-promises`** | **0** |
+Six platform packages cover the whole CI matrix, unlike `actionlint`, so the only objection is cost. That
+puts it on the same footing as the other optional engines (§13.7): present, reported when absent, and never
+installed by CI.
 
-**1.16 s wall clock** for the four packages, so cost is not the objection.
+**27 promoted of 59.** All 15 `correctness` rules and the `suspicious` and `pedantic` ones that hold a
+defect — `no-floating-promises`, `await-thenable`, `no-misused-promises`, `switch-exhaustiveness-check`,
+`only-throw-error`, `no-unsafe-enum-comparison`. Nineteen of them are silent on this tree, which is what a
+defect finder looks like on a repository already at zero.
 
-Read the composition, not the total. `require-array-sort-compare`'s single finding is `.sort()` on an
-array of strings, where lexicographic order is correct — its `ignoreStringArrays` option removes it and
-keeps the `[10, 9, 1].sort()` case the rule exists for. `no-misused-spread`'s three are `[...someString]`
-in `position.ts` and `literal.ts`, which is deliberate code-point iteration in the two modules whose whole
-subject is that. Against those, `no-unnecessary-type-assertion`'s 41 are assertions that provably do
-nothing, and `unbound-method` and `no-base-to-string` are the invisible-until-runtime class.
+**They cost 63 fixes**, and the largest class was real: `no-unnecessary-type-assertion` reported 49
+assertions that provably do nothing, and removing them left five type imports dead as well.
 
-So this is not a registry edit. It needs an optional-engine dependency and the coverage-gap reporting
-that goes with one (§13.7's shape), per-rule options, and the findings above fixed before `--max-warnings 0`
-can stay green. Recorded here so the size of the gap is a number rather than an impression.
+### Two things the fix pipeline got wrong, and both are recorded because they were nearly missed
+
+**`sgate fix` derived type-aware fixes against the wrong compiler options.** `derive-fixes.ts` copies the
+target files into a sandbox and runs `oxlint --fix` there — and the sandbox holds no `tsconfig.json`, so
+tsgolint fell back to defaults. Without `noUncheckedIndexedAccess`, every `array[index]!` looks
+unnecessary: the fixer removed six assertions from `position.ts` where the real run reports one, and the
+result did not compile. Verified in isolation that the rule itself is correct — given a real tsconfig, and
+given one reached through `extends`, it reports nothing on `xs[i]!`. `--type-aware` is therefore
+deliberately *not* passed to fix derivation, and the reason is a comment at that call site.
+
+**`no-unnecessary-template-expression` collapsed the splitting that keeps directives out of source.** Six
+files write `` `sgate-disable${'-next-line'}` `` so that the file itself never contains a literal
+directive — including `reporters/src/agent.ts`, which puts one in a report. The autofix joined them, and
+the next run read them as real suppressions: 12 `config.unused-suppression` and 11
+`config.suppression-missing-reason` findings appeared out of nowhere. The rule is right that the template
+is unnecessary and cannot see what the split is for. Fixed by building the marker from a `const DISABLE`
+variable, which is a genuine expression the rule leaves alone and the reader can follow.
+
+### Four rejected, each on what it reported here
+
+- **`unbound-method`** — 10, all method-shorthand properties on object literals returned by factories,
+  closing over locals rather than reading `this`. Its only option is `ignoreStatic`.
+- **`no-misused-spread`** — 4, all `[...someString]` in the two modules whose subject is counting code
+  points. Its `allow` option would exempt the accidental case with the deliberate one.
+- **`consistent-return`** — 4, all exhaustive `switch` statements over a discriminated union, where the
+  missing fall-through is what makes TypeScript check exhaustiveness. Same argument as `default-case`.
+- **`no-unnecessary-type-parameters`** — 2, both a parameter that constrains the implementation rather
+  than the call. It counts appearances in the signature only.
+
+**`prefer-readonly-parameter-types` reports 1,123 on its own** and is not promoted; `no-unsafe-type-assertion`
+reports 225, which is every `as` that is not provably safe, and is a different rule from the one that finds
+the assertions doing nothing.
 
 ## Engine reach and noise floors
 

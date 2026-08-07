@@ -1,9 +1,12 @@
 import { expect, test } from 'vitest'
 import { parseSuppressions } from './parse.ts'
 
-const NEXT_LINE = `sgate-disable${'-next-line'}`
-const LINE = `sgate-disable${'-line'}`
-const FILE = `sgate-disable${'-file'}`
+// Built from a variable so this file never contains a literal directive: it is the corpus the suppression
+// parser is tested against, and a real one here would be picked up by a run over this repository.
+const DISABLE = 'sgate-disable'
+const NEXT_LINE = `${DISABLE}-next-line`
+const LINE = `${DISABLE}-line`
+const FILE = `${DISABLE}-file`
 
 test('parses the canonical disable-next-line form from the spec', () => {
   const source = `// ${NEXT_LINE} slop.as-any-cast -- upstream types are wrong, see #482\nconst x = y as any\n`

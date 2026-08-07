@@ -36,7 +36,7 @@ test('reports a broken config file as an error, without throwing, after writing 
   process.stderr.write = ((chunk: string) => {
     stderr.push(chunk)
     return true
-  }) as typeof process.stderr.write
+  })
 
   try {
     const result = await loadCliConfig(dir, DEFAULT_CONFIG)

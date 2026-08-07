@@ -28,7 +28,7 @@ async function runConflictsCapturingStdout(): Promise<string> {
     return true
   })
   try {
-    await conflicts.run!({ args: { format: 'json', cwd: dir, _: [] }, rawArgs: [], cmd: conflicts } as never)
+    await conflicts.run!({ args: { format: 'json', cwd: dir, _: [] }, rawArgs: [], cmd: conflicts })
   } finally {
     stdout.mockRestore()
   }

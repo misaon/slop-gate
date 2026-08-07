@@ -173,11 +173,11 @@ function fixOf(entry: RuleEntry, raw: RawDiagnostic): { fix: Fix } | Record<stri
 }
 
 function classify(entry: RuleEntry, message: string): string {
-  if (entry.concepts.length === 1) return entry.concepts[0]!
+  if (entry.concepts.length === 1) return entry.concepts[0]
   for (const rule of entry.classify ?? []) {
     if (new RegExp(rule.messagePattern).test(message)) return rule.concept
   }
-  return entry.concepts[0]!
+  return entry.concepts[0]
 }
 
 function suppressionDiagnostic(params: {

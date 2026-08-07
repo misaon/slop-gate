@@ -97,7 +97,7 @@ export async function loadConfig(
     }
   }
 
-  return { config: exported as SlopGateConfig, file }
+  return { config: exported, file }
 }
 
 async function importModule(file: string): Promise<unknown> {
@@ -152,7 +152,7 @@ const filterWarning = (warning: NodeJS.ErrnoException): void => {
 
 export async function suppressModuleTypelessPackageJsonWarning<T>(fn: () => Promise<T>): Promise<T> {
   if (suppressionDepth === 0) {
-    suppressedListeners = process.listeners('warning') as Array<(warning: Error) => void>
+    suppressedListeners = process.listeners('warning')
     process.removeAllListeners('warning')
     process.on('warning', filterWarning)
   }

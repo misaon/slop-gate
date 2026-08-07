@@ -92,6 +92,8 @@ export async function deriveOxlintFixes(options: DeriveOxlintFixesOptions): Prom
       try {
         await exec(
           options.invocation.command,
+          // Deliberately not `--type-aware`: the sandbox holds copies of the files and no `tsconfig.json`, so a
+          // type-aware fix would be derived against default compiler options rather than the project's.
           [...options.invocation.prefixArgs, '--config', handle.path, '--disable-nested-config', flag, '--silent', ...files],
           { cwd: sandbox, signal: options.signal, encoding: 'utf8', maxBuffer: 1024 * 1024 * 64 },
         )

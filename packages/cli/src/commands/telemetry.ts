@@ -21,7 +21,7 @@ export const telemetry = defineCommand({
     cwd: { type: 'string', description: 'Directory to analyse (defaults to the current directory)' },
   },
   async run({ args }) {
-    const rootDir = args.cwd === undefined ? process.cwd() : resolve(String(args.cwd))
+    const rootDir = args.cwd === undefined ? process.cwd() : resolve(args.cwd)
     const stateDir = join(rootDir, '.slop-gate')
 
     const off = telemetryDisabled(process.env)

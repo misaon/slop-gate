@@ -309,6 +309,46 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
   'no-eq-null': { reason: '**2 findings.** `!= null` is the deliberate two-value check, and `pedantic.eqeqeq` is configured with `smart` for exactly that reason — see docs/measurements.md#pedantic-eqeqeq.' },
   'class-methods-use-this': { reason: '**1 finding.** A method that does not read `this` is often an interface implementation that must stay a method.' },
   'unicorn/prefer-module': { reason: '**1 finding**, a test asserting that a resolver handles `require.resolve`. This repository is ESM-only and the rules that enforce that — `no-commonjs`, `no-require-imports`, `no-var-requires`, `no-amd` — are in `recommended` as of this audit.' },
+  'typescript/unbound-method': {
+    reason:
+      '**10 findings, zero true positives, and one shape.** Every one is a function-valued property on an ' +
+      'object literal returned by a factory — `inFlight.track`, `context.readText` — declared with method ' +
+      'shorthand and closing over locals rather than reading `this`.\n\n' +
+      'The rule reports a method-shorthand declaration whatever its body does, which is the right call for a ' +
+      'class and the wrong one for the factory-plus-closure this codebase is written in. Its only option is ' +
+      '`ignoreStatic`, which covers none of them. The bug it exists for — `const f = obj.method; f()` where ' +
+      '`method` reads `this` — is real, and nothing else here catches it.',
+    evidence: 'type-aware-audit',
+  },
+  'typescript/no-misused-spread': {
+    reason:
+      '**4 findings, all `[...someString]`,** in `diagnostics/position.ts`, `frameworks/literal.ts` and their ' +
+      'tests — the two modules whose entire subject is counting code points rather than UTF-16 units. ' +
+      'Spreading a string is how that is written.\n\n' +
+      'Its `allow` option takes type specifiers, so exempting `string` would exempt the accidental case ' +
+      'along with the deliberate one. The rule is right that spreading a string is usually a mistake; here it ' +
+      'is the intent, and it cannot see the difference.',
+    evidence: 'type-aware-audit',
+  },
+  'typescript/consistent-return': {
+    reason:
+      '**4 findings, all exhaustive `switch` statements over a discriminated union** with a `return` in every ' +
+      'arm and no `default` — which is precisely what makes TypeScript check exhaustiveness for you. The rule ' +
+      'reads the missing fall-through as an implicit `return undefined` that the type system has already ' +
+      'proved unreachable.\n\n' +
+      'Same argument as `default-case`, excluded above: a rule that asks for the branch which turns off the ' +
+      'compiler\'s own exhaustiveness check is asking for less safety, not more.',
+    evidence: 'type-aware-audit',
+  },
+  'typescript/no-unnecessary-type-parameters': {
+    reason:
+      '**2 findings, and in both the parameter constrains the implementation rather than the call.** ' +
+      '`openPackedStore<Key>` threads `Key` through a `Map<string, StoredEntry<Key>>` the signature never ' +
+      'mentions, and a test helper uses `<T>` as the caller\'s way of naming what it expects back.\n\n' +
+      'The rule counts appearances in the signature only, so a type parameter doing work inside the body ' +
+      'reads to it as an assertion in disguise.',
+    evidence: 'type-aware-audit',
+  },
   'require-unicode-regexp': {
     reason:
       '**305 findings, zero defects.** Every one is an ASCII pattern where `u` changes nothing — `/\\\\/g`, ' +

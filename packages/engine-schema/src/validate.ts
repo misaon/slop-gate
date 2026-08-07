@@ -22,7 +22,7 @@ export function createSchemaValidator(): SchemaValidator {
     const validate = compiled.get(binding.id) ?? ajv.compile(binding.schema)
     compiled.set(binding.id, validate)
 
-    if (validate(document.value) === true) return []
+    if (validate(document.value)) return []
     return collapse(validate.errors ?? []).map((error) => toFinding(error, binding, document.document))
   }
 }
