@@ -1195,3 +1195,76 @@ reading +10.5% against an unchanged tool; two left it at +3.2%.
 **A cold run is 5.8× a warm one** on the corpus (2049 ms against 353 ms), and 20× on this repository
 (7,132–7,353 ms against 363–381 ms). That ratio is why the cache-hit counter is a hard gate at zero
 tolerance while the durations are not.
+
+## The maximal preset — 830 rules on, and the three reasons a rule is off
+
+The earlier audits promoted a rule when its findings were mostly defects and rejected it when they were
+mostly noise. That bar answers "would a developer act on this?", which is not the question slop-gate is
+for. A rule that is right every time it fires belongs in `recommended` even when it fires constantly;
+what a project does about the volume is the project's decision, and it has a config file to make it in.
+
+So `recommended` was rebuilt on a narrower bar. A rule is off only if one of three things is true:
+
+1. **It is wrong.** The finding does not describe a defect, or the fixer changes what the code means.
+   35 rules — `unicorn/catch-error-name` rewrites `catch (cause)` into `catch (error)` and the rebuilt
+   `Error` silently loses its cause; `unicorn/prefer-spread` turns `bytes.slice().buffer` into
+   `[...bytes].buffer` and the `.buffer` disappears with the `Uint8Array`.
+2. **It contradicts another rule.** Two rules rewrite the same code in opposite directions, options
+   cannot separate them, and one is more useful. 16 rules — `oxc/no-async-await` against
+   `promise/prefer-await-to-then`, `no-undefined` against `unicorn/no-null` (between them a nullable
+   value has no spelling left), `no-ternary` against `unicorn/prefer-ternary`.
+3. **It cannot be obeyed.** The finding is real and the fix does not exist. One rule:
+   [`import/no-default-export`](#no-default-export).
+
+Nothing is off for being loud. `style.no-magic-numbers` (188,761 corpus findings), `style.sort-keys`
+(100,152) and `style.id-length` (68,238) are all on.
+
+45 further rules stayed out because they have *no content* without options — `no-restricted-syntax`,
+`id-match`, `forbid-elements` and their kin report nothing at all until a project supplies the list, so
+naming them in a preset would be decoration.
+
+**830 recommended (240 error, 590 warn), 68 withheld, 25 unlisted.** On this repository it is 21,947
+findings across 107 concepts, which is what a strict preset meeting a codebase written under a lenient
+one looks like. `slop-gate.config.ts` records which of the 107 this repository declines and why; that
+file is the worked example of the paragraph above, not a weakening of the preset.
+
+### <a id="no-default-export"></a>`import/no-default-export` — the file format is the finding
+
+17 of 17 findings here are configuration files: thirteen `tsdown.config.ts`, plus `vitest.config.ts`,
+`vite.config.ts`, `commitlint.config.js` and `slop-gate.config.ts`. Every one of them is loaded by a
+tool that reads the default export. There is no edit that satisfies both the rule and the loader.
+
+It is not withheld for volume, and it is not a false positive — the rule correctly reports what it sees.
+It is withheld because a preset cannot currently scope a rule to a path glob, so shipping it would put
+an unfixable finding in every project that has a config file. Give `recommended` path scoping with
+`**/*.config.*` exempt and this rule belongs back in it.
+
+### `vitest/valid-expect` — the option its own exclusion named
+
+The rule was previously withheld with a note that `maxArgs: 2` would fix it "and is not promoted, because
+it changes nothing on the 32,035-file corpus". Under the narrower bar that reasoning inverts: the option
+costs nothing and the rule catches a real defect class, so it is promoted with the option rather than
+kept out.
+
+56 findings on defaults in this repository, 0 with `maxArgs: 2`, and all 56 are the same shape — oxlint
+reports "Expect takes at most 1 argument" whenever `expect`'s second argument is not a string *literal*,
+while vitest's signature is `<T>(actual: T, message?: string)`. `jest/valid-expect` keeps the default:
+jest's `expect` really does take one argument, and the same option there would blind a correct rule.
+
+### What the fifty repositories report under it
+
+Re-measured with `packages/rule-corpus` after the change, all fifty at their pinned commits:
+
+| | findings per 1k files |
+|---|---:|
+| median | 27,618 |
+| 25th / 75th percentile | 17,820 / 57,968 |
+| frontend median (25 repos) | 18,224 |
+| backend median (25 repos) | 36,906 |
+| quietest — `html5-boilerplate` | 2,452 |
+| loudest — `got` | 125,438 |
+
+67,616 files, 1,660,597 findings. The previous preset read a median of 2,354 per thousand over the same
+set, so this is an order of magnitude more, and the corpus is the reason it can be stated rather than
+guessed at. The frontend/backend gap is not a claim about either: a larger share of a frontend
+repository is markup, styles and configuration, which fewer rules reach at all.

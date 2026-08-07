@@ -1742,6 +1742,14 @@ export const CURATED_CONCEPTS = [
       'the runner expects, so some or all of them never run.',
   },
   {
+    id: 'correctness.vitest-valid-expect',
+    group: 'correctness',
+    title: 'Malformed expect call',
+    description:
+      'An `expect` that is never given a matcher, or is given arguments it has no signature for, asserts ' +
+      'nothing. The test passes on any input, including the one it was written to reject.',
+  },
+  {
     id: 'correctness.vitest-valid-expect-in-promise',
     group: 'correctness',
     title: 'Unawaited assertion in a promise chain',
@@ -1790,6 +1798,22 @@ export const CURATED_CONCEPTS = [
       'that was meant to read it is missing, so this is a symptom rather than untidiness.',
   },
   {
+    id: 'nursery.react-compiler',
+    group: 'nursery',
+    title: 'Code the compiler cannot optimise',
+    description:
+      'The compiler memoises only components whose rules it can verify. Where it bails out, the component keeps ' +
+      're-rendering — and the reason is not visible without the diagnostic.',
+  },
+  {
+    id: 'pedantic.accessor-pairs',
+    group: 'pedantic',
+    title: 'Setter without a getter',
+    description:
+      'A property with a setter and no getter accepts a value and gives nothing back, so reading what was just ' +
+      'written returns `undefined`.',
+  },
+  {
     id: 'pedantic.array-callback-return',
     group: 'pedantic',
     title: 'Array callback that returns nothing',
@@ -1830,6 +1854,14 @@ export const CURATED_CONCEPTS = [
       'framework logs a warning rather than fixing it.',
   },
   {
+    id: 'pedantic.consistent-assert',
+    group: 'pedantic',
+    title: 'Mixed assertion helpers',
+    description:
+      'Different assertion functions in one codebase fail differently — some throw, some only narrow — so what ' +
+      'happens when one fails depends on which was used.',
+  },
+  {
     id: 'pedantic.consistent-empty-array-spread',
     group: 'pedantic',
     title: 'Conditional spread that changes type by branch',
@@ -1854,6 +1886,53 @@ export const CURATED_CONCEPTS = [
       'passes for a value the author did not have in mind.',
   },
   {
+    id: 'pedantic.escape-case',
+    group: 'pedantic',
+    title: 'Mixed escape case',
+    description:
+      '`\\u00FF` and `\\u00ff` are the same character written two ways, so a search for one misses the other.',
+  },
+  {
+    id: 'pedantic.eslint-no-lonely-if',
+    group: 'pedantic',
+    title: 'if alone inside an else',
+    description:
+      'An `if` as the only statement of an `else` is an `else if` written with an extra level of nesting, which ' +
+      'hides that the two conditions are alternatives.',
+  },
+  {
+    id: 'pedantic.eslint-no-negated-condition',
+    group: 'pedantic',
+    title: 'Negated condition with an else',
+    description:
+      '`if (!x) … else …` makes the reader invert the condition to find the positive branch, and the inversion ' +
+      'is where the mistake is made.',
+  },
+  {
+    id: 'pedantic.eslint-require-await',
+    group: 'pedantic',
+    title: 'async function that never awaits',
+    description:
+      'An `async` function with no `await` returns a promise that is already resolved, so the marker tells ' +
+      'callers to wait for something that never suspends.',
+  },
+  {
+    id: 'pedantic.explicit-length-check',
+    group: 'pedantic',
+    title: 'Length used as a boolean',
+    description:
+      '`if (x.length)` is false for an empty array and for `undefined` alike, so a missing value and an empty ' +
+      'one take the same branch.',
+  },
+  {
+    id: 'pedantic.jest-no-conditional-in-test',
+    group: 'pedantic',
+    title: 'Branch inside a test',
+    description:
+      'A test containing an `if` asserts different things depending on its input. When it passes, which branch ' +
+      'ran — and therefore what was actually verified — is not recorded anywhere.',
+  },
+  {
     id: 'pedantic.jsx-no-useless-fragment',
     group: 'pedantic',
     title: 'Fragment wrapping a single child',
@@ -1862,12 +1941,60 @@ export const CURATED_CONCEPTS = [
       'has to look past.',
   },
   {
+    id: 'pedantic.max-classes-per-file',
+    group: 'pedantic',
+    title: 'Several classes in one file',
+    description:
+      'Classes sharing a file share its import graph and its rebuild, so touching one invalidates the others ' +
+      'and a reader looking for one has to establish which of several this file is about.',
+  },
+  {
+    id: 'pedantic.max-dependencies',
+    group: 'pedantic',
+    title: 'Too many imports in one module',
+    description:
+      'A module that imports from many others is coupled to all of them: it cannot be tested, moved or ' +
+      'understood without them, and every one is a way for a change elsewhere to reach it.',
+  },
+  {
+    id: 'pedantic.max-depth',
+    group: 'pedantic',
+    title: 'Deeply nested blocks',
+    description:
+      'Each level of nesting is another condition that has to hold, and past a few the reader is tracking more ' +
+      'state than they can keep — which is where the wrong branch gets edited.',
+  },
+  {
+    id: 'pedantic.max-lines',
+    group: 'pedantic',
+    title: 'Oversized file',
+    description:
+      'A file too long to hold in view is edited a section at a time, so contradictions between its parts ' +
+      'survive review.',
+  },
+  {
+    id: 'pedantic.max-lines-per-function',
+    group: 'pedantic',
+    title: 'Oversized function',
+    description:
+      'A function longer than a screen cannot be checked against its own name: whether it still does one thing ' +
+      'is not answerable without reading all of it.',
+  },
+  {
     id: 'pedantic.new-for-builtins',
     group: 'pedantic',
     title: 'Built-in called with the wrong construction form',
     description:
       'Some built-ins must be called with `new` and some must not, and the wrong form yields an object ' +
       'where a primitive was wanted or throws outright.',
+  },
+  {
+    id: 'pedantic.no-array-callback-reference',
+    group: 'pedantic',
+    title: 'Function passed directly to an array method',
+    description:
+      'Array methods pass the index and the array as extra arguments, so a function with optional parameters ' +
+      'receives them — which is how `[\'1\',\'2\',\'3\'].map(Number.parseInt)` returns `[1, NaN, NaN]`.',
   },
   {
     id: 'pedantic.no-array-constructor',
@@ -1902,6 +2029,14 @@ export const CURATED_CONCEPTS = [
       'upgrade nobody scheduled.',
   },
   {
+    id: 'pedantic.no-else-return',
+    group: 'pedantic',
+    title: 'else after return',
+    description:
+      'An `else` after a `return` adds a level of indentation for a branch that is already unreachable, which ' +
+      'hides the function\'s actual exit points.',
+  },
+  {
     id: 'pedantic.no-fallthrough',
     group: 'pedantic',
     title: 'Case that falls into the next one',
@@ -1916,6 +2051,22 @@ export const CURATED_CONCEPTS = [
     description:
       '`\\x0a` and `\\u000a` are the same character written two ways, and the padded form invites a ' +
       'reader to count digits that do not matter.',
+  },
+  {
+    id: 'pedantic.no-immediate-mutation',
+    group: 'pedantic',
+    title: 'Array built by pushing into an empty literal',
+    description:
+      'An array declared empty and immediately filled leaves it in an incomplete state between the two, and ' +
+      'nothing prevents something reading it there.',
+  },
+  {
+    id: 'pedantic.no-inline-comments',
+    group: 'pedantic',
+    title: 'Comment on the code line',
+    description:
+      'A trailing comment is cut off by the next reformat and pushes the line past where anyone reads, so the ' +
+      'note that mattered ends up out of view.',
   },
   {
     id: 'pedantic.no-inner-declarations',
@@ -1996,6 +2147,14 @@ export const CURATED_CONCEPTS = [
     description:
       '`Object()` returns its argument when given one, so the call produces a number or a string ' +
       'wherever an empty object was expected.',
+  },
+  {
+    id: 'pedantic.no-promise-executor-return',
+    group: 'pedantic',
+    title: 'Value returned from a promise executor',
+    description:
+      'The executor\'s return value is discarded. Returning from it usually means a `resolve` call was meant, ' +
+      'and the promise then never settles.',
   },
   {
     id: 'pedantic.no-prototype-builtins',
@@ -2126,6 +2285,22 @@ export const CURATED_CONCEPTS = [
       'changes nothing and leaving it suggests it does.',
   },
   {
+    id: 'pedantic.no-useless-undefined',
+    group: 'pedantic',
+    title: 'undefined passed or returned explicitly',
+    description:
+      'Writing `undefined` where it is the default distinguishes "not supplied" from "supplied as absent" ' +
+      'nowhere, while making the two look different in the source.',
+  },
+  {
+    id: 'pedantic.no-warning-comments',
+    group: 'pedantic',
+    title: 'TODO or FIXME comment',
+    description:
+      'A note left in the source is not tracked anywhere: nothing schedules it, nothing assigns it, and nothing ' +
+      'reports that it has been there for two years.',
+  },
+  {
     id: 'pedantic.only-throw-error',
     group: 'pedantic',
     title: 'Non-error thrown or rejected with',
@@ -2214,6 +2389,14 @@ export const CURATED_CONCEPTS = [
       'everything below — including data already written to disk.',
   },
   {
+    id: 'pedantic.prefer-event-target',
+    group: 'pedantic',
+    title: 'Node EventEmitter instead of EventTarget',
+    description:
+      '`EventEmitter` exists only in Node, so a module using it cannot run in a browser, a worker or an edge ' +
+      'runtime without a shim.',
+  },
+  {
     id: 'pedantic.prefer-import-meta-properties',
     group: 'pedantic',
     title: 'Module path derived by hand',
@@ -2286,6 +2469,14 @@ export const CURATED_CONCEPTS = [
       'advances the pattern’s own index between calls.',
   },
   {
+    id: 'pedantic.prefer-single-call',
+    group: 'pedantic',
+    title: 'Repeated calls that one call covers',
+    description:
+      'Calling the same method once per item does the surrounding work once per item too, where the single-call ' +
+      'form does it once.',
+  },
+  {
     id: 'pedantic.prefer-string-replace-all',
     group: 'pedantic',
     title: 'Global replacement written as a pattern',
@@ -2300,6 +2491,14 @@ export const CURATED_CONCEPTS = [
     description:
       '`substr` is a legacy annex of the specification, and `substring` reorders its arguments when ' +
       'they are the wrong way round rather than returning nothing.',
+  },
+  {
+    id: 'pedantic.prefer-top-level-await',
+    group: 'pedantic',
+    title: 'Async IIFE at module scope',
+    description:
+      'An immediately-invoked async function at module top level detaches its work from the module\'s ' +
+      'evaluation, so importers proceed before it finishes and its rejection is unhandled.',
   },
   {
     id: 'pedantic.prefer-ts-expect-error',
@@ -2342,6 +2541,93 @@ export const CURATED_CONCEPTS = [
       'expects the value unchanged.',
   },
   {
+    id: 'pedantic.require-param',
+    group: 'pedantic',
+    title: 'Undocumented parameter',
+    description:
+      'A documented function that omits a parameter leaves that argument\'s meaning unstated in exactly the ' +
+      'place a reader was told to look.',
+  },
+  {
+    id: 'pedantic.require-param-description',
+    group: 'pedantic',
+    title: 'Parameter documented by name only',
+    description:
+      'A parameter tag with no description restates the signature and adds nothing the reader could not already ' +
+      'see.',
+  },
+  {
+    id: 'pedantic.require-param-name',
+    group: 'pedantic',
+    title: 'Parameter tag without a name',
+    description:
+      'A parameter tag that names no parameter cannot be matched to one, so the tooling silently attaches it to ' +
+      'whichever position it happens to fall in.',
+  },
+  {
+    id: 'pedantic.require-param-type',
+    group: 'pedantic',
+    title: 'Parameter tag without a type',
+    description:
+      'In a documented signature an untyped parameter tag is the only one whose type the reader has to infer, ' +
+      'which is where a wrong assumption gets made.',
+  },
+  {
+    id: 'pedantic.require-returns',
+    group: 'pedantic',
+    title: 'Undocumented return value',
+    description:
+      'A documented function that says nothing about what it returns leaves the caller to guess whether the ' +
+      'value is the result, a status, or nothing at all.',
+  },
+  {
+    id: 'pedantic.require-returns-description',
+    group: 'pedantic',
+    title: 'Return documented by type only',
+    description:
+      'A return tag naming a type but not a meaning tells the caller the shape of the value and nothing about ' +
+      'which of several possible values it is.',
+  },
+  {
+    id: 'pedantic.require-returns-type',
+    group: 'pedantic',
+    title: 'Return tag without a type',
+    description:
+      'A return tag with no type documents that something comes back without saying what, which is less than ' +
+      'the signature already said.',
+  },
+  {
+    id: 'pedantic.require-throws-type',
+    group: 'pedantic',
+    title: 'Throws tag without a type',
+    description:
+      'Without an error type the caller cannot tell which errors to catch and which to let through, so the ' +
+      'handler ends up catching everything.',
+  },
+  {
+    id: 'pedantic.require-unicode-regexp',
+    group: 'pedantic',
+    title: 'Regular expression without the u flag',
+    description:
+      'Without `u` a pattern matches UTF-16 code units, so a character outside the basic plane — an emoji, much ' +
+      'of CJK — is two units and `.` matches half of it.',
+  },
+  {
+    id: 'pedantic.require-yields-type',
+    group: 'pedantic',
+    title: 'Yields tag without a type',
+    description:
+      'A generator documented without the type it yields leaves every consumer of the iterator to infer the ' +
+      'element type from a call site.',
+  },
+  {
+    id: 'pedantic.sort-vars',
+    group: 'pedantic',
+    title: 'Unsorted declarations',
+    description:
+      'Several variables declared in one statement in no order make a duplicate declaration invisible.',
+  },
+  {
     id: 'pedantic.switch-exhaustiveness-check',
     group: 'pedantic',
     title: 'Switch that does not cover its union',
@@ -2358,6 +2644,29 @@ export const CURATED_CONCEPTS = [
       'be told apart in a log.',
   },
   {
+    id: 'pedantic.unicorn-no-lonely-if',
+    group: 'pedantic',
+    title: 'if alone inside an if',
+    description:
+      'An `if` as the only statement of another is a single condition written as two, and the reader has to ' +
+      'combine them to see what actually has to hold.',
+  },
+  {
+    id: 'pedantic.unicorn-no-negated-condition',
+    group: 'pedantic',
+    title: 'Negated condition with an else',
+    description:
+      'Leading with the negative branch makes the reader invert the condition to find the ordinary case.',
+  },
+  {
+    id: 'pedantic.vitest-no-conditional-in-test',
+    group: 'pedantic',
+    title: 'Branch inside a test',
+    description:
+      'A test with an `if` asserts different things depending on its input, and a pass records nothing about ' +
+      'which branch ran — so what was verified is unknown.',
+  },
+  {
     id: 'perf.jsx-no-constructed-context-values',
     group: 'perf',
     title: 'Context value rebuilt on every render',
@@ -2366,12 +2675,52 @@ export const CURATED_CONCEPTS = [
       're-renders whether or not anything it reads has changed.',
   },
   {
+    id: 'perf.jsx-no-jsx-as-prop',
+    group: 'perf',
+    title: 'JSX element passed as a prop',
+    description:
+      'An element constructed inline is a new object on every render, so the child sees a changed prop each ' +
+      'time and memoisation never holds.',
+  },
+  {
+    id: 'perf.jsx-no-new-array-as-prop',
+    group: 'perf',
+    title: 'Array literal passed as a prop',
+    description:
+      'A fresh array every render is never equal to the previous one, so any child comparing props re-renders ' +
+      'unconditionally.',
+  },
+  {
+    id: 'perf.jsx-no-new-function-as-prop',
+    group: 'perf',
+    title: 'Function created in a prop',
+    description:
+      'An inline function is a new value on every render, which defeats the memoisation the child was wrapped ' +
+      'in and re-runs any effect that lists it as a dependency.',
+  },
+  {
+    id: 'perf.jsx-no-new-object-as-prop',
+    group: 'perf',
+    title: 'Object literal passed as a prop',
+    description:
+      'A new object each render compares unequal to the last, so the child re-renders whether or not anything ' +
+      'in it changed.',
+  },
+  {
     id: 'perf.no-accumulating-spread',
     group: 'perf',
     title: 'Spread into an accumulator inside a loop',
     description:
       'Copying the accumulator on every iteration makes the loop quadratic, so it is fast on a test ' +
       'fixture and hangs on real input.',
+  },
+  {
+    id: 'perf.no-await-in-loop',
+    group: 'perf',
+    title: 'Serialised awaits',
+    description:
+      'Awaiting inside a loop runs independent operations one after another, so total time is their sum rather ' +
+      'than their maximum.',
   },
   {
     id: 'perf.no-object-type-as-default-prop',
@@ -2452,12 +2801,116 @@ export const CURATED_CONCEPTS = [
       'detached from the call that caused it.',
   },
   {
+    id: 'restriction.check-access',
+    group: 'restriction',
+    title: 'Invalid access tag',
+    description:
+      'An `@access` tag with a value the documentation tooling does not recognise is dropped, so the member ' +
+      'documents itself as public whatever the tag says.',
+  },
+  {
+    id: 'restriction.class-methods-use-this',
+    group: 'restriction',
+    title: 'Method that ignores its instance',
+    description:
+      'A method that never touches `this` does not need an instance. Calling it through one implies a ' +
+      'dependency on object state that does not exist.',
+  },
+  {
+    id: 'restriction.complexity',
+    group: 'restriction',
+    title: 'Too many branches in one function',
+    description:
+      'Independent branches multiply the paths through a function, and past a point no test suite covers them ' +
+      'all. The uncovered ones are where behaviour nobody intended lives.',
+  },
+  {
+    id: 'restriction.default-case',
+    group: 'restriction',
+    title: 'switch without a default',
+    description:
+      'A `switch` with no `default` falls through silently when the value matches nothing, so an unhandled case ' +
+      'is indistinguishable from a handled one that does nothing.',
+  },
+  {
+    id: 'restriction.empty-tags',
+    group: 'restriction',
+    title: 'Documentation tag with no content',
+    description:
+      'A tag written without its content documents nothing while making the member look documented, so it never ' +
+      'appears in a search for what is missing.',
+  },
+  {
+    id: 'restriction.explicit-function-return-type',
+    group: 'restriction',
+    title: 'Inferred return type',
+    description:
+      'An inferred return type changes when the body changes, so a refactor can widen a function\'s contract ' +
+      'without anything in the diff saying so.',
+  },
+  {
+    id: 'restriction.explicit-member-accessibility',
+    group: 'restriction',
+    title: 'Class member without an accessibility keyword',
+    description:
+      'Members default to public, so nothing distinguishes "deliberately part of the API" from "never thought ' +
+      'about".',
+  },
+  {
+    id: 'restriction.explicit-module-boundary-types',
+    group: 'restriction',
+    title: 'Inferred type on an exported function',
+    description:
+      'At a module boundary the inferred type is the published contract, and it changes silently whenever the ' +
+      'implementation does.',
+  },
+  {
+    id: 'restriction.forbid-component-props',
+    group: 'restriction',
+    title: 'Styling prop on a component',
+    description:
+      '`className` and `style` passed to a component reach into markup the component owns, so its internals ' +
+      'become part of the caller\'s contract.',
+  },
+  {
     id: 'restriction.handle-callback-err',
     group: 'restriction',
     title: 'Error argument the callback never reads',
     description:
       'A node-style callback whose error parameter is ignored proceeds as though the operation ' +
       'succeeded, using data that was never produced.',
+  },
+  {
+    id: 'restriction.import-style',
+    group: 'restriction',
+    title: 'Wrong import style for the module',
+    description:
+      'Some modules export a namespace and some a default, and importing one as the other yields `undefined` at ' +
+      'the first use rather than an error at the import.',
+  },
+  {
+    id: 'restriction.jsx-filename-extension',
+    group: 'restriction',
+    title: 'JSX in a non-JSX file',
+    description:
+      'A file containing JSX under a plain extension is parsed differently by editors, bundlers and type- ' +
+      'checkers, and `<T>` is read as a cast in one and as an element in another.',
+  },
+  {
+    id: 'restriction.jsx-no-literals',
+    group: 'restriction',
+    title: 'Untranslatable string in markup',
+    description:
+      'Text written directly into markup is invisible to extraction, so it is the one string that stays in the ' +
+      'original language after everything else is translated.',
+  },
+  {
+    id: 'restriction.max-props',
+    group: 'restriction',
+    title: 'Too many props on one component',
+    description:
+      'A component with many props has many combinations, most of them never rendered and none of them tested, ' +
+      'and the ones that do not work are found by users.',
   },
   {
     id: 'restriction.no-abusive-eslint-disable',
@@ -2492,6 +2945,38 @@ export const CURATED_CONCEPTS = [
       'thing the file exports is the hardest thing in it to identify.',
   },
   {
+    id: 'restriction.no-array-for-each',
+    group: 'restriction',
+    title: 'forEach instead of a loop',
+    description:
+      '`forEach` cannot be stopped, cannot `await`, and cannot `return` from the enclosing function, so any of ' +
+      'those needs the loop it replaced.',
+  },
+  {
+    id: 'restriction.no-array-reduce',
+    group: 'restriction',
+    title: 'reduce',
+    description:
+      '`reduce` hides the accumulator\'s shape in a callback signature, and reading what it builds means ' +
+      'simulating every iteration.',
+  },
+  {
+    id: 'restriction.no-barrel-file',
+    group: 'restriction',
+    title: 'Barrel file',
+    description:
+      'A file re-exporting a whole directory makes every consumer depend on all of it, which defeats tree- ' +
+      'shaking and turns one changed module into a rebuild of everything downstream.',
+  },
+  {
+    id: 'restriction.no-bitwise',
+    group: 'restriction',
+    title: 'Bitwise operator',
+    description:
+      '`&` and `|` next to `&&` and `||` are a one-character typo apart with entirely different semantics, and ' +
+      'JavaScript\'s bitwise operators truncate to 32 bits without warning.',
+  },
+  {
     id: 'restriction.no-clone-element',
     group: 'restriction',
     title: '`cloneElement` used to inject props',
@@ -2506,6 +2991,14 @@ export const CURATED_CONCEPTS = [
     description:
       '`require` and `module.exports` in a package declared as ESM are either rewritten by a bundler or ' +
       'fail outright, and which one depends on the toolchain rather than the code.',
+  },
+  {
+    id: 'restriction.no-console',
+    group: 'restriction',
+    title: 'Console call',
+    description:
+      '`console` output goes to a stream nothing structured reads, survives into production logs, and in a CLI ' +
+      'mixes with the output a caller is parsing.',
   },
   {
     id: 'restriction.no-const-enum',
@@ -2541,6 +3034,14 @@ export const CURATED_CONCEPTS = [
       'silently sets none, with no error either way.',
   },
   {
+    id: 'restriction.no-dynamic-delete',
+    group: 'restriction',
+    title: 'delete with a computed key',
+    description:
+      'Deleting a computed key changes an object\'s shape at runtime in a way the type still describes, so every ' +
+      'later read is typed as present and is not.',
+  },
+  {
     id: 'restriction.no-dynamic-require',
     group: 'restriction',
     title: '`require` with a computed specifier',
@@ -2549,12 +3050,36 @@ export const CURATED_CONCEPTS = [
       'the output and fails only when that branch is reached.',
   },
   {
+    id: 'restriction.no-empty',
+    group: 'restriction',
+    title: 'Empty block',
+    description:
+      'An empty block is indistinguishable from an unfinished one: nothing records whether the case was handled ' +
+      'by doing nothing or simply never written.',
+  },
+  {
+    id: 'restriction.no-empty-function',
+    group: 'restriction',
+    title: 'Empty function',
+    description:
+      'A function that does nothing satisfies its callers\' type checks while performing none of the work its ' +
+      'name promises.',
+  },
+  {
     id: 'restriction.no-empty-object-type',
     group: 'restriction',
     title: '`{}` used as a type',
     description:
       '`{}` means anything that is not null or undefined, so it accepts a string, a number and a ' +
       'function — which is the opposite of the empty object it reads as.',
+  },
+  {
+    id: 'restriction.no-eq-null',
+    group: 'restriction',
+    title: 'Loose null comparison',
+    description:
+      '`== null` matches both `null` and `undefined`. Where the two mean different things — absent versus not ' +
+      'yet set — the comparison silently merges them.',
   },
   {
     id: 'restriction.no-implicit-globals',
@@ -2581,6 +3106,14 @@ export const CURATED_CONCEPTS = [
       'import statement, so the module is loaded at runtime purely for its side effects.',
   },
   {
+    id: 'restriction.no-invalid-void-type',
+    group: 'restriction',
+    title: 'void used as a value type',
+    description:
+      '`void` means "ignore whatever comes back", not "nothing comes back". Used as a parameter or property ' +
+      'type it accepts any value while reading as though it accepts none.',
+  },
+  {
     id: 'restriction.no-length-as-slice-end',
     group: 'restriction',
     title: '`slice` given the length as its end',
@@ -2595,6 +3128,14 @@ export const CURATED_CONCEPTS = [
     description:
       'A numeric depth beyond 1 depends on a nesting the call site cannot show, so the value stops ' +
       'matching the data without any error.',
+  },
+  {
+    id: 'restriction.no-multi-comp',
+    group: 'restriction',
+    title: 'Several components in one file',
+    description:
+      'Components sharing a file cannot be imported, tested or lazily loaded separately, and the file\'s name ' +
+      'answers for only one of them.',
   },
   {
     id: 'restriction.no-multiple-slot-args',
@@ -2628,12 +3169,52 @@ export const CURATED_CONCEPTS = [
       'claims the fallback is unreachable. One of the two is wrong.',
   },
   {
+    id: 'restriction.no-non-null-assertion',
+    group: 'restriction',
+    title: 'Non-null assertion',
+    description:
+      '`!` removes the check without removing the possibility, so the value the compiler warned about still ' +
+      'arrives — now as a runtime error at the first property access.',
+  },
+  {
+    id: 'restriction.no-param-reassign',
+    group: 'restriction',
+    title: 'Parameter reassigned',
+    description:
+      'Reassigning a parameter means its name no longer refers to what the caller passed, so a reader reaching ' +
+      'the bottom of the function has the wrong value in mind.',
+  },
+  {
     id: 'restriction.no-path-concat',
     group: 'restriction',
     title: 'Path built by joining strings',
     description:
       'Concatenating a directory and a name assumes one separator and no trailing slash, so the result ' +
       'is wrong on some platforms and some inputs.',
+  },
+  {
+    id: 'restriction.no-plusplus',
+    group: 'restriction',
+    title: 'Increment operator',
+    description:
+      '`++` both reads and writes, and whether the value used is before or after the change depends on which ' +
+      'side of the operand it sits.',
+  },
+  {
+    id: 'restriction.no-process-env',
+    group: 'restriction',
+    title: 'Direct process.env access',
+    description:
+      'Reading the environment where it is used spreads configuration across the codebase, and every read is an ' +
+      'untyped `string | undefined` with no record of what it should have been.',
+  },
+  {
+    id: 'restriction.no-process-exit',
+    group: 'restriction',
+    title: 'process.exit',
+    description:
+      '`process.exit` terminates immediately: buffered stdout is truncated, pending writes are lost and no ' +
+      'cleanup handler runs.',
   },
   {
     id: 'restriction.no-proto',
@@ -2660,6 +3241,14 @@ export const CURATED_CONCEPTS = [
       'something other than what the author counted.',
   },
   {
+    id: 'restriction.no-relative-parent-imports',
+    group: 'restriction',
+    title: 'Import reaching out of its directory',
+    description:
+      '`../../..` encodes a path that breaks the moment a file moves, and it lets a module depend on parts of ' +
+      'the tree its own directory says nothing about.',
+  },
+  {
     id: 'restriction.no-require-imports',
     group: 'restriction',
     title: '`require` used in a TypeScript module',
@@ -2674,6 +3263,22 @@ export const CURATED_CONCEPTS = [
     description:
       'The comma evaluates both sides and yields the last, which reads as an argument list or a mistake ' +
       'far more often than as the intent.',
+  },
+  {
+    id: 'restriction.no-top-level-await',
+    group: 'restriction',
+    title: 'Top-level await',
+    description:
+      'Top-level `await` delays the module\'s evaluation, and everything importing it — directly or not — waits ' +
+      'too. In a CommonJS consumer it fails outright.',
+  },
+  {
+    id: 'restriction.no-use-before-define',
+    group: 'restriction',
+    title: 'Use before definition',
+    description:
+      'Hoisting makes this legal for declarations and a runtime error for `const` and `let`, so whether the ' +
+      'line works depends on a keyword further down the file.',
   },
   {
     id: 'restriction.no-useless-error-capture-stack-trace',
@@ -2692,12 +3297,36 @@ export const CURATED_CONCEPTS = [
       'when it stops existing.',
   },
   {
+    id: 'restriction.no-void',
+    group: 'restriction',
+    title: 'void operator',
+    description:
+      '`void` evaluates its operand and discards the result, which reads as deletion rather than as the ' +
+      'deliberate ignoring of a value it actually is.',
+  },
+  {
     id: 'restriction.no-webpack-loader-syntax',
     group: 'restriction',
     title: 'Loader written into an import specifier',
     description:
       'An inline `loader!` prefix binds the source to one bundler, and every other tool reads it as a ' +
       'module path that does not exist.',
+  },
+  {
+    id: 'restriction.only-export-components',
+    group: 'restriction',
+    title: 'Module exporting both a component and other values',
+    description:
+      'Fast refresh replaces a module whose exports are all components and reloads the rest, so a mixed module ' +
+      'loses state on every edit.',
+  },
+  {
+    id: 'restriction.prefer-function-component',
+    group: 'restriction',
+    title: 'Class component',
+    description:
+      'A class component cannot use hooks, so any shared logic written as one is unavailable to it and has to ' +
+      'be duplicated as lifecycle methods.',
   },
   {
     id: 'restriction.prefer-literal-enum-member',
@@ -2716,6 +3345,14 @@ export const CURATED_CONCEPTS = [
       'keeps, and the loss is invisible until the numbers matter.',
   },
   {
+    id: 'restriction.prefer-module',
+    group: 'restriction',
+    title: 'CommonJS construct',
+    description:
+      '`require`, `__dirname` and `module.exports` do not exist in an ES module, so code using them is pinned ' +
+      'to a module system the rest of the ecosystem has left.',
+  },
+  {
     id: 'restriction.prefer-node-protocol',
     group: 'restriction',
     title: 'Built-in imported without the `node:` prefix',
@@ -2732,12 +3369,28 @@ export const CURATED_CONCEPTS = [
       '`parseInt(0.0000005)` is 5. The `Number` versions do not coerce.',
   },
   {
+    id: 'restriction.require-test-timeout',
+    group: 'restriction',
+    title: 'Test without a timeout',
+    description:
+      'A test with no timeout of its own inherits the runner\'s, so work that hangs is reported as a suite-wide ' +
+      'stall rather than as the one test that never finished.',
+  },
+  {
     id: 'restriction.spec-only',
     group: 'restriction',
     title: 'Non-standard promise method called',
     description:
       'A method outside the specification comes from one library’s implementation, so the code stops ' +
       'working the moment the promise is produced by something else.',
+  },
+  {
+    id: 'restriction.unambiguous',
+    group: 'restriction',
+    title: 'File that is neither script nor module',
+    description:
+      'A file with no import or export is parsed as a script by some tools and as a module by others, and the ' +
+      'two differ on `this`, on strict mode and on top-level scope.',
   },
   {
     id: 'restriction.unicode-bom',
@@ -2796,12 +3449,43 @@ export const CURATED_CONCEPTS = [
       'signatures stop applying to one another.',
   },
   {
+    id: 'style.array-type',
+    group: 'style',
+    title: 'Mixed array type syntax',
+    description:
+      '`T[]` and `Array<T>` are the same type. Using both suggests a distinction, and readers look for it.',
+  },
+  {
+    id: 'style.arrow-body-style',
+    group: 'style',
+    title: 'Inconsistent arrow body',
+    description:
+      'An arrow function written sometimes with a block and sometimes with an expression body makes the ' +
+      'difference between returning a value and returning `undefined` a matter of two invisible characters.',
+  },
+  {
+    id: 'style.avoid-new',
+    group: 'style',
+    title: 'Promise constructor around existing promises',
+    description:
+      'Wrapping already-async work in `new Promise` re-implements what `async` gives for free, and any throw ' +
+      'between the constructor and `resolve` is swallowed rather than rejecting.',
+  },
+  {
     id: 'style.ban-tslint-comment',
     group: 'style',
     title: 'TSLint directive left in the source',
     description:
       'TSLint is discontinued and nothing reads the comment, so the suppression it looks like it ' +
       'applies does not.',
+  },
+  {
+    id: 'style.capitalized-comments',
+    group: 'style',
+    title: 'Uncapitalised comment',
+    description:
+      'Comments that start inconsistently read as two different registers in one file — sentences and fragments ' +
+      '— which makes it harder to tell prose from commented-out code.',
   },
   {
     id: 'style.class-literal-property-style',
@@ -2852,6 +3536,14 @@ export const CURATED_CONCEPTS = [
       'mixing them hides where a type actually comes from.',
   },
   {
+    id: 'style.consistent-indexed-object-style',
+    group: 'style',
+    title: 'Mixed index signature syntax',
+    description:
+      'An index signature and a `Record` describe the same thing, so writing both makes the reader check ' +
+      'whether one of them is doing something extra.',
+  },
+  {
     id: 'style.consistent-template-literal-escape',
     group: 'style',
     title: 'Escape written inconsistently inside a template',
@@ -2876,11 +3568,43 @@ export const CURATED_CONCEPTS = [
       'does not work everywhere.',
   },
   {
+    id: 'style.consistent-type-definitions',
+    group: 'style',
+    title: 'Mixed interface and type alias',
+    description:
+      'Interfaces merge across declarations and type aliases do not. Using both for the same kind of shape ' +
+      'means whether a later declaration extends or collides depends on the spelling.',
+  },
+  {
+    id: 'style.consistent-type-imports',
+    group: 'style',
+    title: 'Type imported as a value',
+    description:
+      'A type imported without `type` survives into the emitted JavaScript as a real import, so a type-only ' +
+      'dependency becomes a runtime one and a module loads that need not have.',
+  },
+  {
+    id: 'style.consistent-type-specifier-style',
+    group: 'style',
+    title: 'Mixed type-import spelling',
+    description:
+      '`import type { T }` and `import { type T }` mean the same thing. Using both makes it look as though the ' +
+      'distinction matters, and readers stop to work out whether it does.',
+  },
+  {
     id: 'style.consistent-vitest-vi',
     group: 'style',
     title: 'Test API reached through the compatibility alias',
     description:
       '`vi` is the API and `jest` is a shim for it; a file mixing them has two names for one object.',
+  },
+  {
+    id: 'style.curly',
+    group: 'style',
+    title: 'Unbraced block',
+    description:
+      'An `if` without braces owns exactly one statement. Adding a second line under it looks conditional and ' +
+      'runs unconditionally — the shape behind Apple\'s `goto fail`.',
   },
   {
     id: 'style.custom-error-definition',
@@ -2922,6 +3646,14 @@ export const CURATED_CONCEPTS = [
       'not need.',
   },
   {
+    id: 'style.define-props-destructuring',
+    group: 'style',
+    title: 'Props destructured against the compiler\'s setting',
+    description:
+      'Whether destructured props stay reactive depends on a compiler flag, so the same code is reactive in one ' +
+      'project and a one-time snapshot in another.',
+  },
+  {
     id: 'style.empty-brace-spaces',
     group: 'style',
     title: 'Space inside an empty block',
@@ -2935,6 +3667,14 @@ export const CURATED_CONCEPTS = [
     description:
       'An error with nothing in it reports only its class, so the log says something failed and not ' +
       'what.',
+  },
+  {
+    id: 'style.eslint-no-nested-ternary',
+    group: 'style',
+    title: 'Nested ternary',
+    description:
+      'A ternary inside a ternary has no visible grouping, so which condition selects which result is read from ' +
+      'operator precedence rather than from the code.',
   },
   {
     id: 'style.eslint-prefer-spread',
@@ -2953,6 +3693,30 @@ export const CURATED_CONCEPTS = [
       'what a reader needs to know.',
   },
   {
+    id: 'style.exports-last',
+    group: 'style',
+    title: 'Exports scattered through the file',
+    description:
+      'Exports spread among internal declarations give no single place to read a module\'s public surface, so ' +
+      'the answer to "what does this file offer?" is a search rather than a glance.',
+  },
+  {
+    id: 'style.exports-style',
+    group: 'style',
+    title: 'Mixed CommonJS export style',
+    description:
+      'Assigning to `module.exports` and to `exports` in one module means the second has no effect once the ' +
+      'first has replaced the object.',
+  },
+  {
+    id: 'style.filename-case',
+    group: 'style',
+    title: 'Inconsistent filename case',
+    description:
+      'macOS and Windows match filenames case-insensitively and Linux does not, so an import that resolves on a ' +
+      'developer\'s machine can fail only in CI.',
+  },
+  {
     id: 'style.first',
     group: 'style',
     title: 'Import placed after other statements',
@@ -2967,6 +3731,46 @@ export const CURATED_CONCEPTS = [
     description:
       'A function expression named one thing and assigned to another shows the name in a stack trace ' +
       'and the binding everywhere else, so a search for either finds half the story.',
+  },
+  {
+    id: 'style.func-names',
+    group: 'style',
+    title: 'Anonymous function expression',
+    description:
+      'An unnamed function expression appears in a stack trace as `<anonymous>`, so the frame that threw cannot ' +
+      'be identified from the trace alone.',
+  },
+  {
+    id: 'style.func-style',
+    group: 'style',
+    title: 'Mixed function declaration style',
+    description:
+      'Declarations hoist and expressions do not. Mixing both in one file means whether a function can be ' +
+      'called above its definition depends on which spelling it happened to get.',
+  },
+  {
+    id: 'style.function-component-definition',
+    group: 'style',
+    title: 'Mixed component definition style',
+    description:
+      'Components written sometimes as declarations and sometimes as arrow constants differ in hoisting and in ' +
+      'how they appear in a stack trace, for no difference in behaviour.',
+  },
+  {
+    id: 'style.global-require',
+    group: 'style',
+    title: 'require away from the top of the module',
+    description:
+      'A `require` inside a function makes the module\'s dependencies invisible to anything reading its head, ' +
+      'and moves the load — and any failure — to first call.',
+  },
+  {
+    id: 'style.group-exports',
+    group: 'style',
+    title: 'Exports split across several statements',
+    description:
+      'A module\'s public surface stated in one place can be read; the same surface spread over a dozen `export` ' +
+      'keywords has to be reconstructed.',
   },
   {
     id: 'style.grouped-accessor-pairs',
@@ -2991,6 +3795,46 @@ export const CURATED_CONCEPTS = [
     description:
       'The setter’s name is what tells a reader which state it writes; naming it independently means ' +
       'every call site has to be traced.',
+  },
+  {
+    id: 'style.id-length',
+    group: 'style',
+    title: 'Single-character name',
+    description:
+      'A one-character identifier carries no information about what it holds, so understanding the line ' +
+      'requires finding the assignment it came from.',
+  },
+  {
+    id: 'style.init-declarations',
+    group: 'style',
+    title: 'Declaration without an initialiser',
+    description:
+      'A variable declared without a value holds `undefined` until something assigns it, and every read between ' +
+      'the two points is a bug the type system cannot see.',
+  },
+  {
+    id: 'style.jest-consistent-test-it',
+    group: 'style',
+    title: 'Mixed test and it',
+    description:
+      '`test` and `it` are the same function. Using both in one file makes a reader look for a difference that ' +
+      'does not exist.',
+  },
+  {
+    id: 'style.jest-max-expects',
+    group: 'style',
+    title: 'Too many assertions in one test',
+    description:
+      'A test with many assertions fails on the first one, so everything after it goes unmeasured and the ' +
+      'report names one problem where there may be several.',
+  },
+  {
+    id: 'style.jest-max-nested-describe',
+    group: 'style',
+    title: 'Deeply nested describe blocks',
+    description:
+      'Deep nesting means the setup that applies to a test is spread over several enclosing blocks, and reading ' +
+      'the test alone no longer tells you what state it runs in.',
   },
   {
     id: 'style.jest-no-alias-methods',
@@ -3025,6 +3869,14 @@ export const CURATED_CONCEPTS = [
       'assertion has to be maintained by hand from then on.',
   },
   {
+    id: 'style.jest-no-large-snapshots',
+    group: 'style',
+    title: 'Oversized snapshot',
+    description:
+      'A snapshot too large to read is approved without being read, so it records whatever the code did rather ' +
+      'than what it should do, and updates it on every change.',
+  },
+  {
     id: 'style.jest-no-mocks-import',
     group: 'style',
     title: 'Manual mock imported directly',
@@ -3057,6 +3909,30 @@ export const CURATED_CONCEPTS = [
       'a rejection inside it is unhandled.',
   },
   {
+    id: 'style.jest-padding-around-after-all-blocks',
+    group: 'style',
+    title: 'No blank line around afterAll',
+    description:
+      'Teardown pressed against the tests around it is easy to read as part of one of them, which hides when ' +
+      'cleanup actually runs.',
+  },
+  {
+    id: 'style.jest-padding-around-test-blocks',
+    group: 'style',
+    title: 'No blank line between tests',
+    description:
+      'Adjacent test blocks with no separation read as one, and a missing closing brace produces a file that ' +
+      'still parses with half the tests nested inside another.',
+  },
+  {
+    id: 'style.jest-prefer-called-with',
+    group: 'style',
+    title: 'Assertion on the call, not the arguments',
+    description:
+      '`toHaveBeenCalled` passes for any arguments at all, so a call made with the wrong values is reported as ' +
+      'correct.',
+  },
+  {
     id: 'style.jest-prefer-comparison-matcher',
     group: 'style',
     title: 'Comparison asserted through its boolean result',
@@ -3078,6 +3954,14 @@ export const CURATED_CONCEPTS = [
     description:
       '`expect(a === b).toBe(true)` discards both values before the matcher sees them, so the failure ' +
       'says nothing about what they were.',
+  },
+  {
+    id: 'style.jest-prefer-expect-assertions',
+    group: 'style',
+    title: 'No assertion count in an async test',
+    description:
+      'An async test that returns before its callback runs passes with zero assertions executed. ' +
+      '`expect.assertions(n)` is what turns that into a failure.',
   },
   {
     id: 'style.jest-prefer-expect-resolves',
@@ -3104,6 +3988,14 @@ export const CURATED_CONCEPTS = [
       'they start in.',
   },
   {
+    id: 'style.jest-prefer-lowercase-title',
+    group: 'style',
+    title: 'Capitalised test title',
+    description:
+      'A test title is read as a sentence completing "it …". Capitalising it breaks the sentence in the report ' +
+      'output.',
+  },
+  {
     id: 'style.jest-prefer-mock-promise-shorthand',
     group: 'style',
     title: 'Mock resolution written as an implementation',
@@ -3127,6 +4019,22 @@ export const CURATED_CONCEPTS = [
       'in the file inherits the replacement.',
   },
   {
+    id: 'style.jest-prefer-strict-equal',
+    group: 'style',
+    title: 'Loose deep equality',
+    description:
+      '`toEqual` ignores `undefined` properties and class identity, so an object missing a field it should ' +
+      'have, or of the wrong class entirely, still passes.',
+  },
+  {
+    id: 'style.jest-prefer-to-be',
+    group: 'style',
+    title: 'Deep equality on a primitive',
+    description:
+      '`toEqual` on a primitive does a structural comparison where an identity check is what is meant, and its ' +
+      'failure output is less precise about which value differed.',
+  },
+  {
     id: 'style.jest-prefer-to-contain',
     group: 'style',
     title: 'Membership asserted through an index',
@@ -3143,12 +4051,28 @@ export const CURATED_CONCEPTS = [
       'calls happened.',
   },
   {
+    id: 'style.jest-prefer-to-have-length',
+    group: 'style',
+    title: 'Length compared by hand',
+    description:
+      'Asserting on `.length` reports "expected 3, got 2" without saying what was in the array; `toHaveLength` ' +
+      'prints the contents on failure.',
+  },
+  {
     id: 'style.jest-prefer-todo',
     group: 'style',
     title: 'Empty test left as a passing one',
     description:
       'A test with no body passes, so a placeholder counts towards the suite as though it checked ' +
       'something. `todo` counts separately.',
+  },
+  {
+    id: 'style.jest-require-top-level-describe',
+    group: 'style',
+    title: 'Tests with no enclosing describe',
+    description:
+      'Without an enclosing block the test\'s name is its whole context, so a failure in the report says nothing ' +
+      'about which unit it belongs to.',
   },
   {
     id: 'style.jsx-boolean-value',
@@ -3181,6 +4105,14 @@ export const CURATED_CONCEPTS = [
       'which code.',
   },
   {
+    id: 'style.jsx-max-depth',
+    group: 'style',
+    title: 'Deeply nested markup',
+    description:
+      'Markup nested past a few levels cannot be matched to its closing tags by eye, so an element moved one ' +
+      'level out of place looks identical in the source.',
+  },
+  {
     id: 'style.jsx-pascal-case',
     group: 'style',
     title: 'Component used with a lower-case name',
@@ -3189,12 +4121,68 @@ export const CURATED_CONCEPTS = [
       'unknown HTML tag rather than called.',
   },
   {
+    id: 'style.jsx-props-no-spreading',
+    group: 'style',
+    title: 'Props spread into an element',
+    description:
+      'Spreading hides which props a component actually receives, so a typo passes through silently and an ' +
+      'unexpected key reaches the DOM.',
+  },
+  {
     id: 'style.logical-assignment-operators',
     group: 'style',
     title: 'Conditional assignment written the long way',
     description:
       '`x = x || y` reassigns even when nothing changed, which matters for a setter, a proxy or ' +
       'anything watching the property.',
+  },
+  {
+    id: 'style.max-nested-calls',
+    group: 'style',
+    title: 'Deeply nested calls',
+    description:
+      'Calls nested inside calls are evaluated inside-out while being read outside-in, so the order in which ' +
+      'they run is the reverse of the order they appear.',
+  },
+  {
+    id: 'style.max-params',
+    group: 'style',
+    title: 'Too many parameters',
+    description:
+      'A long positional parameter list is called correctly only by counting, and two adjacent arguments of the ' +
+      'same type can be swapped without any diagnostic at all.',
+  },
+  {
+    id: 'style.max-statements',
+    group: 'style',
+    title: 'Too many statements in one function',
+    description:
+      'A function accumulating statements accumulates reasons to change, and the sequence stops being checkable ' +
+      'against what the function claims to do.',
+  },
+  {
+    id: 'style.method-signature-style',
+    group: 'style',
+    title: 'Method shorthand in a type',
+    description:
+      'Method shorthand is checked bivariantly and a property with a function type is checked contravariantly, ' +
+      'so the shorthand accepts arguments the other spelling rejects.',
+  },
+  {
+    id: 'style.new-cap',
+    group: 'style',
+    title: 'Constructor case mismatch',
+    description:
+      'Capitalisation is how a reader tells a constructor from a plain call. When it disagrees with the `new`, ' +
+      'the value\'s type is not readable from the call site.',
+  },
+  {
+    id: 'style.newline-after-import',
+    group: 'style',
+    title: 'No blank line after imports',
+    description:
+      'Without a break, the first statement of a module reads as part of the import block, which is where side- ' +
+      'effecting setup code hides.',
   },
   {
     id: 'style.next-tick-style',
@@ -3213,6 +4201,14 @@ export const CURATED_CONCEPTS = [
       'the receiver a reader sees is not the one in effect.',
   },
   {
+    id: 'style.no-await-expression-member',
+    group: 'style',
+    title: 'Property read off an await expression',
+    description:
+      '`(await x).y` puts the await and the access on one line, so which part is asynchronous is decided by ' +
+      'parentheses that are easy to misplace.',
+  },
+  {
     id: 'style.no-confusing-set-timeout',
     group: 'style',
     title: 'Timer helper called outside the scope it affects',
@@ -3229,12 +4225,28 @@ export const CURATED_CONCEPTS = [
       'output.',
   },
   {
+    id: 'style.no-continue',
+    group: 'style',
+    title: 'continue statement',
+    description:
+      '`continue` moves the loop\'s exit condition away from the top, so what is skipped and what is processed ' +
+      'is no longer readable from the loop header.',
+  },
+  {
     id: 'style.no-deprecated-functions',
     group: 'style',
     title: 'Deprecated test API used',
     description:
       'The function is scheduled for removal, so the suite compiles today and stops running on the next ' +
       'major version.',
+  },
+  {
+    id: 'style.no-duplicate-imports',
+    group: 'style',
+    title: 'Module imported twice',
+    description:
+      'Two import statements for one module split its bindings across the file, so the answer to "what do we ' +
+      'use from this?" needs both.',
   },
   {
     id: 'style.no-duplicates',
@@ -3267,6 +4279,14 @@ export const CURATED_CONCEPTS = [
     description:
       'A label is only needed to break out of an outer loop; on the innermost one it names something ' +
       '`break` already reaches.',
+  },
+  {
+    id: 'style.no-implicit-coercion',
+    group: 'style',
+    title: 'Coercion by operator trick',
+    description:
+      '`!!x`, `+x` and `\'\' + x` convert types through punctuation, so the conversion is invisible to a reader ' +
+      'scanning for one.',
   },
   {
     id: 'style.no-import-node-test',
@@ -3316,6 +4336,22 @@ export const CURATED_CONCEPTS = [
       'pair of braces that suggests a control structure was removed.',
   },
   {
+    id: 'style.no-magic-numbers',
+    group: 'style',
+    title: 'Unexplained numeric literal',
+    description:
+      'A bare number states a value without its meaning, so nothing connects the two places that must change ' +
+      'together when it changes.',
+  },
+  {
+    id: 'style.no-mixed-requires',
+    group: 'style',
+    title: 'Mixed require and plain declarations',
+    description:
+      'Grouping imports with ordinary variables in one declaration hides which names come from outside the ' +
+      'module.',
+  },
+  {
     id: 'style.no-multi-assign',
     group: 'style',
     title: 'One value assigned to several names at once',
@@ -3347,12 +4383,36 @@ export const CURATED_CONCEPTS = [
       '`import { default as x }` is the default export in a syntax that reads as a named one.',
   },
   {
+    id: 'style.no-namespace',
+    group: 'style',
+    title: 'Namespace import',
+    description:
+      '`import * as x` pulls in every export, so a bundler cannot tell which are used and tree-shaking keeps ' +
+      'all of them.',
+  },
+  {
     id: 'style.no-nesting',
     group: 'style',
     title: 'Promise chain nested inside a handler',
     description:
       'A chain started inside `then` is not joined to the outer one, so the outer promise settles ' +
       'before the inner work finishes and its rejection escapes.',
+  },
+  {
+    id: 'style.no-nodejs-modules',
+    group: 'style',
+    title: 'Node built-in in shared code',
+    description:
+      'A module importing `node:fs` or `node:path` cannot run in a browser, a worker or an edge runtime. The ' +
+      'failure appears at deploy time, not at build time.',
+  },
+  {
+    id: 'style.no-null',
+    group: 'style',
+    title: 'null used alongside undefined',
+    description:
+      'A codebase using both has two spellings of absence, and every check has to handle both or silently miss ' +
+      'one.',
   },
   {
     id: 'style.no-redundant-should-component-update',
@@ -3384,6 +4444,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Direct `setState` in a class component is the pattern hooks replaced, and it is the one the ' +
       'concurrent renderer does not schedule.',
+  },
+  {
+    id: 'style.no-sync',
+    group: 'style',
+    title: 'Synchronous file system call',
+    description:
+      'A `…Sync` call blocks the event loop for the whole operation, so every other request, timer and callback ' +
+      'waits on this one file.',
   },
   {
     id: 'style.no-unreadable-array-destructuring',
@@ -3425,11 +4493,51 @@ export const CURATED_CONCEPTS = [
       'not have.',
   },
   {
+    id: 'style.number-literal-case',
+    group: 'style',
+    title: 'Mixed numeric literal case',
+    description:
+      '`0xFF` and `0xff` are the same number spelled two ways, so a search for a constant finds only some of ' +
+      'its uses.',
+  },
+  {
+    id: 'style.numeric-separators-style',
+    group: 'style',
+    title: 'Inconsistent numeric separators',
+    description:
+      'Digit separators placed inconsistently are worse than none: `1_00_000` reads as a different magnitude at ' +
+      'a glance than the number it is.',
+  },
+  {
+    id: 'style.object-shorthand',
+    group: 'style',
+    title: 'Longhand object property',
+    description:
+      '`{ x: x }` and `{ x }` differ only in noise, and mixing them makes a genuine rename from `{ a: b }` ' +
+      'harder to spot among them.',
+  },
+  {
     id: 'style.operator-assignment',
     group: 'style',
     title: 'Assignment that repeats its own target',
     description:
       '`x = x + 1` names the target twice, so a rename has to change both and can change one.',
+  },
+  {
+    id: 'style.param-names',
+    group: 'style',
+    title: 'Promise executor parameters misnamed',
+    description:
+      'When the executor\'s parameters are not `resolve` and `reject`, which one settles and which one fails has ' +
+      'to be worked out from the body.',
+  },
+  {
+    id: 'style.parameter-properties',
+    group: 'style',
+    title: 'Constructor parameter property',
+    description:
+      'A parameter that also declares a field puts the class\'s state in its constructor signature, so reading ' +
+      'the class\'s fields means reading its parameter list.',
   },
   {
     id: 'style.prefer-array-index-of',
@@ -3448,6 +4556,22 @@ export const CURATED_CONCEPTS = [
       'gets the wrong one without any error.',
   },
   {
+    id: 'style.prefer-await-to-callbacks',
+    group: 'style',
+    title: 'Callback-style asynchrony',
+    description:
+      'A callback\'s errors arrive as a first argument that nothing forces anyone to read, and nesting them ' +
+      'makes the order of operations a matter of indentation.',
+  },
+  {
+    id: 'style.prefer-await-to-then',
+    group: 'style',
+    title: 'then chain instead of await',
+    description:
+      'A `.then` chain keeps its results in closures, so a value from one step is not in scope for a later one ' +
+      'without threading it through, and a missing `return` breaks the chain silently.',
+  },
+  {
     id: 'style.prefer-bigint-literals',
     group: 'style',
     title: 'BigInt built from a constructor call',
@@ -3462,6 +4586,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Asserting the count and the arguments separately passes when a second call happened with ' +
       'different ones.',
+  },
+  {
+    id: 'style.prefer-called-once',
+    group: 'style',
+    title: 'Call count asserted by hand',
+    description:
+      'Comparing a call count to one reports "expected 1, got 2" without saying what the extra call was; the ' +
+      'dedicated matcher prints the arguments of every call.',
   },
   {
     id: 'style.prefer-called-times',
@@ -3503,12 +4635,28 @@ export const CURATED_CONCEPTS = [
       'only place a caller looks.',
   },
   {
+    id: 'style.prefer-destructuring',
+    group: 'style',
+    title: 'Property read into a same-named variable',
+    description:
+      'Repeating the name on both sides of the assignment gives two places to change on a rename and one of ' +
+      'them to miss.',
+  },
+  {
     id: 'style.prefer-dom-node-text-content',
     group: 'style',
     title: 'Text read through `innerText`',
     description:
       '`innerText` reflects layout: it triggers a reflow to read, and returns different text depending ' +
       'on what is hidden by CSS.',
+  },
+  {
+    id: 'style.prefer-ending-with-an-expect',
+    group: 'style',
+    title: 'Test that ends without asserting',
+    description:
+      'A test whose last statement is an action rather than an assertion often measures nothing after that ' +
+      'point: an async action that rejects later fails no test.',
   },
   {
     id: 'style.prefer-es6-class',
@@ -3532,6 +4680,14 @@ export const CURATED_CONCEPTS = [
     title: 'Power written as a call',
     description:
       '`Math.pow(a, b)` and `a ** b` are the same operation, and only one of them reads as arithmetic.',
+  },
+  {
+    id: 'style.prefer-export-from',
+    group: 'style',
+    title: 'Re-export written as an import and an export',
+    description:
+      'Importing a binding only to export it again introduces a local name that shadows nothing and means the ' +
+      'value is read into this module\'s scope for no reason.',
   },
   {
     id: 'style.prefer-for-of',
@@ -3564,6 +4720,22 @@ export const CURATED_CONCEPTS = [
     description:
       'A mock factory is hoisted above the imports, so a `require` inside it loads a second copy of the ' +
       'module the test then does not control.',
+  },
+  {
+    id: 'style.prefer-importing-jest-globals',
+    group: 'style',
+    title: 'Test globals used without importing them',
+    description:
+      'Relying on injected globals ties the file to one runner\'s configuration; imported explicitly, the same ' +
+      'file runs anywhere and type-checks on its own.',
+  },
+  {
+    id: 'style.prefer-importing-vitest-globals',
+    group: 'style',
+    title: 'Test globals used without importing them',
+    description:
+      'Relying on injected globals ties the file to one runner configuration; imported explicitly it runs ' +
+      'anywhere and type-checks on its own.',
   },
   {
     id: 'style.prefer-includes',
@@ -3603,6 +4775,14 @@ export const CURATED_CONCEPTS = [
     description:
       '`insertBefore` and `replaceChild` are called on the parent and take their arguments in an order ' +
       'that is easy to reverse; the modern methods are called on the node itself.',
+  },
+  {
+    id: 'style.prefer-named-capture-group',
+    group: 'style',
+    title: 'Unnamed capture group',
+    description:
+      'A numbered group is read by position, so inserting a group anywhere earlier in the pattern silently ' +
+      'renumbers every use of the ones after it.',
   },
   {
     id: 'style.prefer-negative-index',
@@ -3708,6 +4888,22 @@ export const CURATED_CONCEPTS = [
       'opposite end in a right-to-left script.',
   },
   {
+    id: 'style.prefer-template',
+    group: 'style',
+    title: 'String built by concatenation',
+    description:
+      'Concatenation puts the quoting, the `+` and the spacing in the reader\'s way, and a missing space between ' +
+      'two joined fragments is invisible in the source.',
+  },
+  {
+    id: 'style.prefer-ternary',
+    group: 'style',
+    title: 'Branching that only picks a value',
+    description:
+      'An `if`/`else` whose branches differ only in one assigned value states the branching twice — once in the ' +
+      'condition and once in the duplicated assignment.',
+  },
+  {
     id: 'style.prefer-to-be-object',
     group: 'style',
     title: 'Object-ness asserted through its constructor',
@@ -3748,6 +4944,14 @@ export const CURATED_CONCEPTS = [
       'meant to choose.',
   },
   {
+    id: 'style.require-default-prop',
+    group: 'style',
+    title: 'Optional prop with no default',
+    description:
+      'An optional prop with no default is `undefined` when omitted, so the template renders whatever ' +
+      '`undefined` produces rather than a stated fallback.',
+  },
+  {
     id: 'style.require-direct-export',
     group: 'style',
     title: 'Component exported through a variable',
@@ -3771,6 +4975,14 @@ export const CURATED_CONCEPTS = [
       'than a warning.',
   },
   {
+    id: 'style.require-throws-description',
+    group: 'style',
+    title: 'Throws tag with no description',
+    description:
+      'A `@throws` with no description tells a caller that failure is possible but not which condition causes ' +
+      'it, so there is nothing to write a handler against.',
+  },
+  {
     id: 'style.require-typed-ref',
     group: 'style',
     title: 'Reactive reference with no type',
@@ -3779,12 +4991,44 @@ export const CURATED_CONCEPTS = [
       '`noImplicitAny` without ever being checked.',
   },
   {
+    id: 'style.self-closing-comp',
+    group: 'style',
+    title: 'Empty element written with a closing tag',
+    description:
+      'A pair of tags with nothing between them looks like markup whose content was removed, which is exactly ' +
+      'what a bad merge produces.',
+  },
+  {
+    id: 'style.sort-imports',
+    group: 'style',
+    title: 'Unsorted imports',
+    description:
+      'An unordered import block gives no place to look for a given module, and two branches adding imports at ' +
+      'different points conflict where an ordering would have merged.',
+  },
+  {
+    id: 'style.sort-keys',
+    group: 'style',
+    title: 'Unsorted object keys',
+    description:
+      'Without an order there is nowhere a key belongs, so a duplicate is not adjacent to the one it duplicates ' +
+      'and two branches adding keys collide.',
+  },
+  {
     id: 'style.state-in-constructor',
     group: 'style',
     title: 'State initialised inconsistently',
     description:
       'A class that sets state in the constructor and as a field describes its initial shape in two ' +
       'places.',
+  },
+  {
+    id: 'style.switch-case-braces',
+    group: 'style',
+    title: 'switch case without braces',
+    description:
+      'Cases share one scope without braces, so a `let` in one case is visible to — and collides with — every ' +
+      'case after it.',
   },
   {
     id: 'style.switch-case-break-position',
@@ -3811,12 +5055,52 @@ export const CURATED_CONCEPTS = [
       'differently depending on which error type is used.',
   },
   {
+    id: 'style.unicorn-no-nested-ternary',
+    group: 'style',
+    title: 'Nested ternary',
+    description:
+      'Nesting conditional expressions removes the visible grouping, so which result belongs to which condition ' +
+      'is read from precedence rather than from the code.',
+  },
+  {
     id: 'style.unified-signatures',
     group: 'style',
     title: 'Overloads that differ by one optional argument',
     description:
       'Two signatures separated only by an optional or a union parameter can be written as one, and as ' +
       'two they can drift apart.',
+  },
+  {
+    id: 'style.vars-on-top',
+    group: 'style',
+    title: 'var declared away from the top',
+    description:
+      '`var` is hoisted to the top of its function whatever line it is written on, so a declaration in the ' +
+      'middle describes a scope that does not match the code.',
+  },
+  {
+    id: 'style.vitest-consistent-test-it',
+    group: 'style',
+    title: 'Mixed test and it',
+    description:
+      '`test` and `it` are the same function; using both makes a reader look for a difference that is not ' +
+      'there.',
+  },
+  {
+    id: 'style.vitest-max-expects',
+    group: 'style',
+    title: 'Too many assertions in one test',
+    description:
+      'The test stops at the first failing assertion, so everything after it is unmeasured and the report names ' +
+      'one failure where there may be several.',
+  },
+  {
+    id: 'style.vitest-max-nested-describe',
+    group: 'style',
+    title: 'Deeply nested describe blocks',
+    description:
+      'Setup applying to a test is spread over its enclosing blocks, so reading the test alone no longer says ' +
+      'what state it runs in.',
   },
   {
     id: 'style.vitest-no-alias-methods',
@@ -3851,6 +5135,14 @@ export const CURATED_CONCEPTS = [
       'assertion has to be maintained by hand from then on.',
   },
   {
+    id: 'style.vitest-no-large-snapshots',
+    group: 'style',
+    title: 'Oversized snapshot',
+    description:
+      'A snapshot too large to read is approved unread, so it records what the code did rather than what it ' +
+      'should do.',
+  },
+  {
     id: 'style.vitest-no-mocks-import',
     group: 'style',
     title: 'Manual mock imported directly',
@@ -3883,6 +5175,30 @@ export const CURATED_CONCEPTS = [
       'a rejection inside it is unhandled.',
   },
   {
+    id: 'style.vitest-padding-around-after-all-blocks',
+    group: 'style',
+    title: 'No blank line around afterAll',
+    description:
+      'Teardown pressed against the tests around it reads as part of one of them, hiding when cleanup actually ' +
+      'runs.',
+  },
+  {
+    id: 'style.vitest-padding-around-test-blocks',
+    group: 'style',
+    title: 'No blank line between tests',
+    description:
+      'Adjacent tests with no separation read as one, and a missing brace produces a file that still parses ' +
+      'with half the tests nested inside another.',
+  },
+  {
+    id: 'style.vitest-prefer-called-with',
+    group: 'style',
+    title: 'Assertion on the call, not the arguments',
+    description:
+      '`toHaveBeenCalled` passes for any arguments, so a call made with the wrong values is reported as ' +
+      'correct.',
+  },
+  {
     id: 'style.vitest-prefer-comparison-matcher',
     group: 'style',
     title: 'Comparison asserted through its boolean result',
@@ -3899,6 +5215,22 @@ export const CURATED_CONCEPTS = [
       'says nothing about what they were.',
   },
   {
+    id: 'style.vitest-prefer-expect-assertions',
+    group: 'style',
+    title: 'No assertion count in an async test',
+    description:
+      'An async test that returns before its callback runs passes having executed no assertions at all; ' +
+      '`expect.assertions(n)` is what turns that into a failure.',
+  },
+  {
+    id: 'style.vitest-prefer-expect-resolves',
+    group: 'style',
+    title: 'Await inside expect',
+    description:
+      '`expect(await p)` fails the test with the raw rejection when the promise rejects, rather than with an ' +
+      'assertion message naming what was expected.',
+  },
+  {
     id: 'style.vitest-prefer-hooks-in-order',
     group: 'style',
     title: 'Setup hooks declared out of order',
@@ -3913,6 +5245,13 @@ export const CURATED_CONCEPTS = [
     description:
       'The hook still runs first, so a reader meeting the tests before it has no way to know what state ' +
       'they start in.',
+  },
+  {
+    id: 'style.vitest-prefer-lowercase-title',
+    group: 'style',
+    title: 'Capitalised test title',
+    description:
+      'A test title completes the sentence "it …", and capitalising it breaks that sentence in the report.',
   },
   {
     id: 'style.vitest-prefer-mock-promise-shorthand',
@@ -3938,6 +5277,22 @@ export const CURATED_CONCEPTS = [
       'in the file inherits the replacement.',
   },
   {
+    id: 'style.vitest-prefer-strict-equal',
+    group: 'style',
+    title: 'Loose deep equality',
+    description:
+      '`toEqual` ignores `undefined` properties and class identity, so an object missing a field or of the ' +
+      'wrong class still passes.',
+  },
+  {
+    id: 'style.vitest-prefer-to-be',
+    group: 'style',
+    title: 'Deep equality on a primitive',
+    description:
+      'A structural comparison where identity is meant, with less precise failure output about which value ' +
+      'differed.',
+  },
+  {
     id: 'style.vitest-prefer-to-contain',
     group: 'style',
     title: 'Membership asserted through an index',
@@ -3954,12 +5309,28 @@ export const CURATED_CONCEPTS = [
       'calls happened.',
   },
   {
+    id: 'style.vitest-prefer-to-have-length',
+    group: 'style',
+    title: 'Length compared by hand',
+    description:
+      'Asserting on `.length` reports the numbers without the contents; `toHaveLength` prints what was actually ' +
+      'in the collection.',
+  },
+  {
     id: 'style.vitest-prefer-todo',
     group: 'style',
     title: 'Empty test left as a passing one',
     description:
       'A test with no body passes, so a placeholder counts towards the suite as though it checked ' +
       'something. `todo` counts separately.',
+  },
+  {
+    id: 'style.vitest-require-top-level-describe',
+    group: 'style',
+    title: 'Tests with no enclosing describe',
+    description:
+      'Without an enclosing block the test\'s name is its entire context, so a failure says nothing about which ' +
+      'unit it belongs to.',
   },
   {
     id: 'style.yoda',
@@ -4054,6 +5425,22 @@ export const CURATED_CONCEPTS = [
     description:
       '`fill` stores the same reference in every slot, so writing through one element is visible ' +
       'through all of them.',
+  },
+  {
+    id: 'suspicious.no-array-reverse',
+    group: 'suspicious',
+    title: 'reverse mutates in place',
+    description:
+      '`Array#reverse` reorders the array it is called on and returns that same array. Anything else holding a ' +
+      'reference — a cached list, a prop, the caller\'s own variable — silently changes order too.',
+  },
+  {
+    id: 'suspicious.no-array-sort',
+    group: 'suspicious',
+    title: 'sort mutates in place',
+    description:
+      '`Array#sort` reorders the array it is called on rather than returning a new one, so sorting a value ' +
+      'someone else owns changes it for them. `toSorted` returns a copy and leaves the original alone.',
   },
   {
     id: 'suspicious.no-async-endpoint-handlers',
@@ -4182,6 +5569,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Most bundlers do not preserve the receiver for an exported function, so `this` is `undefined` at ' +
       'the call site rather than the module it was written in.',
+  },
+  {
+    id: 'suspicious.no-underscore-dangle',
+    group: 'suspicious',
+    title: 'Underscore-prefixed name',
+    description:
+      'A leading or trailing underscore is a convention for "private", and the language has no such thing. ' +
+      'Readers treat the member as internal while the compiler lets anything reach it.',
   },
   {
     id: 'suspicious.no-unnecessary-boolean-literal-compare',

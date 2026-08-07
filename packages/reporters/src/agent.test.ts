@@ -175,7 +175,7 @@ test('states the reason once per concept instead of once per finding', () => {
 test('omits the reason for a concept whose description is generator boilerplate, and says so once', () => {
   const output = capture([
     done([
-      diagnostic({ concept: 'pedantic.accessor-pairs', ruleRefKey: 'oxlint/accessor-pairs', file: 'src/a.ts' }),
+      diagnostic({ concept: 'style.id-denylist', ruleRefKey: 'oxlint/id-denylist', file: 'src/a.ts' }),
       diagnostic({ concept: 'correctness.no-debugger', ruleRefKey: 'oxlint/no-debugger', file: 'src/b.ts' }),
     ]),
   ])
