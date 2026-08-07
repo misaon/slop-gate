@@ -257,6 +257,137 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       'confusingly — so this is an engine mismatch rather than a verdict.',
     evidence: 'style-audit',
   },
+  'arrow-body-style': { reason: '**9,546 findings across 44 of 48 corpus repositories.** Whether an arrow body is wrapped in braces, which oxfmt neither adds nor removes.' },
+  'import/newline-after-import': { reason: '**1,018 findings across 35 of 48 corpus repositories.** A blank line, which oxfmt owns.' },
+  'import/no-amd': { reason: 'Same argument as `import/no-commonjs` above.' },
+  'import/no-commonjs': {
+    reason:
+      '**7,059 findings across 36 of 48 corpus repositories.** Promoted on the grounds that this repository is ' +
+      'ESM-only — which is a fact about this repository and not about the code being checked. A CommonJS project is ' +
+      'not defective; it made a different decision.\\n\\n`no-require-imports`, `no-var-requires` and `no-amd` are ' +
+      'excluded with it, on the same reading.',
+    evidence: 'rule-corpus',
+  },
+  'import/no-namespace': {
+    reason:
+      '**3,524 findings across 40 of 48 corpus repositories.** `import * as` is how a module with many exports is ' +
+      'used, and how every `node:` builtin is imported.',
+    evidence: 'rule-corpus',
+  },
+  'jest/consistent-test-it': {
+    reason:
+      '**10,613 findings across 28 of 48 corpus repositories.** `test` against `it` is what a suite is called, not ' +
+      'what it checks. The vitest twin is excluded with it.',
+    evidence: 'rule-corpus',
+  },
+  'jest/prefer-called-with': {
+    reason:
+      '**1,051 findings across 21 of 48 corpus repositories.** Asserting that a call happened is a weaker check than ' +
+      'asserting its arguments, and sometimes it is the check that was wanted.',
+    evidence: 'rule-corpus',
+  },
+  'jest/prefer-importing-jest-globals': { reason: '**3,455 findings**, the jest twin of `vitest/prefer-importing-vitest-globals` above, and in the same collision.' },
+  'jest/prefer-lowercase-title': { reason: '**6,573 findings across 31 of 48 corpus repositories.** The first letter of a test name.' },
+  'jest/prefer-to-be': { reason: '**6,468 findings across 24 of 48 corpus repositories.** `toBe` against `toEqual` for a primitive, where both are correct.' },
+  'jest/prefer-to-have-length': { reason: '**3,724 findings across 24 of 48 corpus repositories.** `toHaveLength` against `toBe` on `.length`.' },
+  'jest/require-hook': {
+    reason:
+      '**21,629 findings in 7,009 files across 47 of 48 corpus repositories, and the samples are not tests** — ' +
+      '`src/index.tsx`, `src/main.ts`, `dev-docs/.../index.js`. The rule asks that setup live in a hook and applies ' +
+      'that to every file it is given rather than to test files.\\n\\nIts vitest twin is excluded with it, on the same ' +
+      'measurement.',
+    evidence: 'rule-corpus',
+  },
+  'no-implicit-coercion': {
+    reason:
+      '**2,005 findings across 40 of 48 corpus repositories.** `!!x` and `+x` are idiomatic conversions, and ' +
+      '`pedantic.prefer-number-coercion` already argues the narrower half.',
+    evidence: 'rule-corpus',
+  },
+  'no-shadow': {
+    reason:
+      '**10,605 findings in 2,270 files across 46 of 48 corpus repositories** — `children`, `variant`, `err`, ' +
+      '`projects`: a parameter named after something in an enclosing scope, which is how a callback is ' +
+      'written.\\n\\nThe bug it exists for is real and rare; at 159 findings per thousand files it buries the rules ' +
+      'that find it. Available as `correctness.shadows-outer-binding`.',
+    evidence: 'rule-corpus',
+  },
+  'object-shorthand': { reason: '**2,238 findings across 36 of 48 corpus repositories.** `{ x: x }` against `{ x }`.' },
+  'prefer-arrow-callback': {
+    reason:
+      '**7,908 findings across 32 of 48 corpus repositories.** A function expression brings its own `this`, which is ' +
+      'sometimes the point; the rule cannot see which.',
+    evidence: 'rule-corpus',
+  },
+  'promise/prefer-await-to-callbacks': {
+    reason:
+      '**4,564 findings across 43 of 48 corpus repositories.** A callback-based API is not rewritten by wishing; the ' +
+      'rule reports the call site rather than the API.',
+    evidence: 'rule-corpus',
+  },
+  'react/jsx-no-useless-fragment': {
+    reason:
+      '**1,122 findings across 17 of 48 corpus repositories.** A fragment around one child, which is often what a ' +
+      'conditional branch needs to stay symmetrical.',
+    evidence: 'rule-corpus',
+  },
+  'react/react-in-jsx-scope': {
+    reason:
+      '**56,079 findings across 23 of 48 corpus repositories — the noisiest rule in the whole measurement.** It ' +
+      'requires `React` in scope for JSX, which the automatic runtime removed in React 17: every one of the 56,079 is ' +
+      'a file compiled by a toolchain that does not need the import.\\n\\nThe classic runtime still exists and there ' +
+      'the rule is right, so this is a default that expired rather than a check that is wrong. What brings it back is ' +
+      'a framework profile reading the JSX transform out of tsconfig, which §23 already resolves for `resolveJsx`.',
+    evidence: 'rule-corpus',
+  },
+  'react/self-closing-comp': { reason: '**1,220 findings across 17 of 48 corpus repositories.** Whether an empty element closes itself.' },
+  'typescript/consistent-indexed-object-style': { reason: '**1,088 findings across 38 of 48 corpus repositories.** `Record<K, V>` against an index signature, which differ in what they accept for a key.' },
+  'typescript/no-require-imports': { reason: '**5,762 findings across 35 of 48 corpus repositories.** Same argument as `import/no-commonjs` above: a module system is a project decision.' },
+  'typescript/no-var-requires': { reason: 'Same argument as `import/no-commonjs` above.' },
+  'typescript/parameter-properties': {
+    reason:
+      '**1,789 findings across 23 of 48 corpus repositories**, and constructor parameter properties are the idiom ' +
+      'dependency injection is written in — NestJS and Angular both generate them.',
+    evidence: 'rule-corpus',
+  },
+  'unicorn/consistent-function-scoping': {
+    reason:
+      '**4,439 findings across 43 of 48 corpus repositories.** A closure that could be hoisted is usually kept where ' +
+      'it is read, and the rule cannot see the capture that stops it moving.',
+    evidence: 'rule-corpus',
+  },
+  'unicorn/filename-case': { reason: '**7,418 findings across 38 of 48 corpus repositories.** A file naming convention, and the corpus shows at least three in use.' },
+  'unicorn/no-nested-ternary': { reason: '**1,091 findings across 40 of 48 corpus repositories.** Parentheses around a nested ternary.' },
+  'unicorn/prefer-dom-node-append': { reason: '**1,024 findings across 25 of 48 corpus repositories.** `appendChild` against `append`, where the older name is the one every tutorial uses.' },
+  'unicorn/prefer-global-this': {
+    reason:
+      '**2,978 findings across 36 of 48 corpus repositories**, and the samples are browser files using `window`, ' +
+      'where `window` is the correct name and `globalThis` is the generalisation.',
+    evidence: 'rule-corpus',
+  },
+  'unicorn/prefer-ternary': {
+    reason:
+      '**1,156 findings across 44 of 48 corpus repositories.** An `if`/`else` that assigns is often clearer than the ' +
+      'ternary the rule asks for, and `style.no-nested-ternary` argues the other direction.',
+    evidence: 'rule-corpus',
+  },
+  'unicorn/switch-case-braces': { reason: '**4,361 findings across 41 of 48 corpus repositories.** Braces around a case body.' },
+  'vars-on-top': { reason: '**2,208 findings across 19 of 48 corpus repositories.** Declaration placement, and only for `var`, which `style.no-var` already argues about.' },
+  'vitest/consistent-test-it': { reason: '**10,613 findings**, the vitest twin of `jest/consistent-test-it` above.' },
+  'vitest/prefer-called-once': { reason: '**2,180 findings across 24 of 48 corpus repositories.** `toHaveBeenCalledOnce` against `toHaveBeenCalledTimes(1)`.' },
+  'vitest/prefer-called-with': { reason: 'The vitest twin of `jest/prefer-called-with` above.' },
+  'vitest/prefer-importing-vitest-globals': {
+    reason:
+      '**7,893 findings across 40 of 48 corpus repositories**, and it is the opposite of ' +
+      '`vitest/no-importing-vitest-globals`, which is excluded above. The two cannot both be right: one wants the ' +
+      'globals imported and the other wants them implicit. Whichever a project chose, one of the pair reports every ' +
+      'test file it has.',
+    evidence: 'rule-corpus',
+  },
+  'vitest/prefer-lowercase-title': { reason: 'The vitest twin of `jest/prefer-lowercase-title` above.' },
+  'vitest/prefer-to-be': { reason: 'The vitest twin of `jest/prefer-to-be` above.' },
+  'vitest/prefer-to-have-length': { reason: 'The vitest twin of `jest/prefer-to-have-length` above.' },
+  'vitest/require-hook': { reason: '**21,629 findings**, the vitest twin of `jest/require-hook` above, on the same corpus and the same argument.' },
   'sort-keys': {
     reason:
       '**4,513 findings, the largest count this registry has ever recorded on this repository.** It wants ' +

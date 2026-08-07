@@ -510,19 +510,18 @@ test('both installed disables both scopes — the double report would be genuine
   )
 })
 
-test('a jest repository turns the mock-factory false positive off in test files only', async () => {
+test('a jest repository scopes the mock-factory false positive to test files only', async () => {
   const detection = await detect({ 'package.json': manifest({ jest: '^30.0.0' }, 'devDependencies') })
-  const resolver = createRuleSetResolver({
-    config: { extends: ['recommended'] },
-    frameworks: frameworkRuleLayers(detection),
-    frameworkOverrides: frameworkOverrideLayers(detection),
-  })
-  const level = (path: string) =>
-    resolver.forFile(path).rules.get('suspicious.consistent-function-scoping')?.level
 
-  expect(level('src/service.test.ts')).toBe('off')
-  expect(level('src/__tests__/service.ts')).toBe('off')
-  expect(level('src/service.ts')).toBe('warn')
+  // Asserted on the layer rather than on a resolved level: the corpus took this concept out of
+  // `recommended`, and naming it in a config would outrank the framework layer this test is about.
+  const scoped = frameworkOverrideLayers(detection).filter(
+    (layer) => layer.rules['suspicious.consistent-function-scoping'] === 'off',
+  )
+
+  expect(scoped).toHaveLength(1)
+  expect([...(scoped[0]?.files ?? [])].sort()).toEqual(['**/?(*.)+(spec|test).[jt]s?(x)', '**/__tests__/**/*.[jt]s?(x)'].sort())
+  expect(frameworkRuleLayers(detection).some((layer) => 'suspicious.consistent-function-scoping' in layer.rules)).toBe(false)
 })
 
 test('a chai repository turns the no-op-expression rule off in test files only', async () => {
@@ -552,17 +551,14 @@ test('a repository that does not declare chai keeps the rule on everywhere', asy
   expect(applied(detection, 'chai')).toBeUndefined()
 })
 
-test('a vitest-only repository keeps the mock-factory rule on, because upstream exempts only jest', async () => {
+test('a vitest-only repository gets no such scoping, because upstream exempts only jest', async () => {
   const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
-  const resolver = createRuleSetResolver({
-    config: { extends: ['recommended'] },
-    frameworks: frameworkRuleLayers(detection),
-    frameworkOverrides: frameworkOverrideLayers(detection),
-  })
 
-  expect(resolver.forFile('src/service.test.ts').rules.get('suspicious.consistent-function-scoping')?.level).toBe(
-    'warn',
+  const scoped = frameworkOverrideLayers(detection).filter(
+    (layer) => layer.rules['suspicious.consistent-function-scoping'] === 'off',
   )
+
+  expect(scoped).toEqual([])
 })
 
 test('neither installed disables both scopes, degrading to the exclusion this replaces', async () => {

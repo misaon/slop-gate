@@ -289,6 +289,52 @@ because a withheld rule does not run. Splitting the reasons into a chunk that on
 list` and the explorer load would remove 44 kB from the common path. On the numbers above that is worth
 well under a millisecond, so it is recorded as available rather than as an improvement.
 
+## The fifty-repository corpus, and what it said about rules that were already on
+
+<a id="rule-corpus"></a>
+
+`packages/rule-corpus`
+
+Every figure this file cited before was taken against a corpus nobody can re-run. This one is a tool:
+fifty repositories pinned by commit in `corpus.lock.json`, checked through `sgate check` itself with a
+config naming every concept the registry knows, so all ten engines are exercised rather than oxlint alone.
+Forty-eight cloned; two refs had moved.
+
+**48 repositories, 66,741 files, 2,352,953 findings from 677 concepts**, with 249 concepts silent across
+the whole corpus. Density below is findings per thousand files scanned, which is the only figure
+comparable between a 34-file repository and a 6,607-file one.
+
+**The corpus confirmed the audit's rejections and then found the audit's own mistake.** The top of the
+table is almost entirely already-`withheld` — `no-magic-numbers` at 2,443/1k, `no-undef` at 2,238,
+`sort-keys` at 1,188. What it also showed is that *silent on this repository* had been standing in for
+*quiet*, and those are different claims:
+
+| concept | findings | repos | why it is now off |
+|---|---:|---:|---|
+| `suspicious.react-in-jsx-scope` | 56,079 | 23/48 | the automatic runtime removed the requirement in React 17 |
+| `style.jest-require-hook` | 21,629 | 47/48 | fires on `src/index.tsx` and `src/main.ts` — not test files |
+| `correctness.shadows-outer-binding` | 10,605 | 46/48 | `children`, `variant`, `err`: how a callback is written |
+| `style.jest-consistent-test-it` | 10,613 | 28/48 | what a suite is called, not what it checks |
+| `style.arrow-body-style` | 9,546 | 44/48 | whether an arrow body has braces |
+| `restriction.no-commonjs` | 7,059 | 36/48 | a module system is a project's decision, not a defect |
+| `style.prefer-importing-vitest-globals` | 7,893 | 40/48 | the exact opposite of `no-importing-vitest-globals`, also excluded |
+
+Forty concepts came out on that reading, and two of them are the interesting ones.
+
+**`react-in-jsx-scope` is a default that expired rather than a check that is wrong.** Under the classic
+runtime it is correct; the corpus is full of Next.js and Vite projects on the automatic one. What brings
+it back is a framework profile reading the JSX transform from tsconfig, which §23 already resolves for
+`resolveJsx`.
+
+**`prefer-importing-vitest-globals` and `no-importing-vitest-globals` cannot both be right**, and both were
+in the registry — one excluded, the other enabled by this audit. Whichever a project chose, one of the pair
+reports every test file it has. That is the shape of collision the corpus is best at finding: on one
+repository only the losing half fires.
+
+**What the corpus cannot say.** `types.type-error` reports 42,054 findings across 22 repositories, and
+that is an artefact: the corpus installs no dependencies, so every third-party import is unresolved. A
+figure from this corpus is about rules that read source, not about rules that need a built project.
+
 ## Engine reach and noise floors
 
 - **biome-css** is the quietest engine by design: seventeen rules, of which **thirteen produced no finding

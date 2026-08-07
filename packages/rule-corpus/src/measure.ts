@@ -10,7 +10,9 @@ const run = promisify(execFile)
 
 const HERE = import.meta.dirname
 const REPO_ROOT = resolve(HERE, '../../..')
-const CORPUS_DIR = join(HERE, '..', '.corpus')
+// Outside `packages/`, because that is a pnpm workspace glob: forty-eight checkouts inside a workspace
+// package is forty-eight more projects for knip to analyse, and a `sgate check` that does not return.
+const CORPUS_DIR = join(REPO_ROOT, '.rule-corpus')
 const LOCK = join(HERE, '..', 'corpus.lock.json')
 const OUT = join(HERE, '..', 'findings.json')
 const SGATE = join(REPO_ROOT, 'packages/cli/bin/sgate.js')

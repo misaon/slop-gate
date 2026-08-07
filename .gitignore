@@ -45,3 +45,6 @@ packages/rules-explorer/dist/
 .env.*
 !.env.example
 .vercel
+
+# The fifty checkouts the rule corpus measures. Outside packages/ so no workspace tool walks them.
+.rule-corpus/
