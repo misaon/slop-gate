@@ -430,6 +430,24 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       'widens an error handler cannot be a default.',
     evidence: 'rule-corpus',
   },
+  'oxc/no-async-endpoint-handlers': {
+    reason:
+      '**213 findings across 13 of 50 corpus repositories, and it cannot tell Express from the frameworks ' +
+      'that are not Express.** 34 are in fastify’s own tests and 1 in elysia’s — both handle a rejected ' +
+      'async handler natively, which is the whole failure this rule exists to prevent. It matches ' +
+      '`.get(path, async fn)` on any object, and `got`, an HTTP client, contributes 141.\n\n' +
+      'Its premise is also historical: Express 5 routes a rejected promise to the error middleware. What ' +
+      'would bring it back is a framework profile that knows which router is in the manifest.',
+    evidence: 'rule-corpus',
+  },
+  'vitest/require-mock-type-parameters': {
+    reason:
+      '**3,866 findings across 17 of 50 corpus repositories**, and every one is `vi.fn()` written without a ' +
+      'type argument — which infers, and is what the documentation shows.\n\n' +
+      'Typing a mock against the function it replaces is a good discipline and a project can adopt it; a ' +
+      'preset asking for it reports every mock in every suite that did not.',
+    evidence: 'rule-corpus',
+  },
   'sort-keys': {
     reason:
       '**4,513 findings, the largest count this registry has ever recorded on this repository.** It wants ' +

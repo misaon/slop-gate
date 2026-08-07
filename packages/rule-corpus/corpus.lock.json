@@ -46,5 +46,7 @@
   "zod": "912f0f51b0ced654d0069741e7160834dca742ee",
   "vitest": "c67d296f42f93ec888ff148e821877194969cea9",
   "commander": "ba6d13ddb4243e5913367734f8c159089ffe7834",
-  "json-server": "89a34a44b7a6a5311dc84f3b8a1b8b45c0905aea"
+  "json-server": "89a34a44b7a6a5311dc84f3b8a1b8b45c0905aea",
+  "adonis-core": "595c48602aa39e5cfdfaf24f4ac7396425c1c083",
+  "graphql-js": "9c245018484668b7c35f3ed219092a98855bd51e"
 }
