@@ -51,6 +51,8 @@ async function measureOnce(command: string, args: readonly string[], cwd: string
     cwd,
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],
+    // Fifty measured runs would be fifty telemetry reports, and a benchmark is not usage.
+    env: { ...process.env, SLOP_GATE_TELEMETRY: '0' },
   })
 
   let stderr = ''
