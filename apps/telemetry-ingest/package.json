@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-telemetry-ingest",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Internal: receives anonymous telemetry from the slop-gate CLI.",
   "license": "MIT",

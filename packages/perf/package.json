@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-perf",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Internal: the performance corpus, the KPIs a change has to keep, and the harness that measures them.",
   "license": "MIT",

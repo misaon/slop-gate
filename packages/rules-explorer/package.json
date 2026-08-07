@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-rules-explorer",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Internal: a visual index of every rule slop-gate knows about, its state and why.",
   "license": "MIT",
