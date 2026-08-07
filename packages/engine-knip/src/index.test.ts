@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import {
   detectFrameworks,
+  FRAMEWORK_PROFILES,
   engineAdjustmentsFor,
   type EngineSettings,
   type EngineRuleSelection,
@@ -292,6 +293,7 @@ test(
 
 const knipAdjustments = async (paths: readonly string[]): Promise<EngineSettings> => {
   const detection = await detectFrameworks({
+    profiles: FRAMEWORK_PROFILES,
     inventory: {
       root: dir,
       files: paths.map((path) => file(path)),

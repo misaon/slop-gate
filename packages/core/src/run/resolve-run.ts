@@ -6,6 +6,7 @@ import type { FileInventory } from '../discovery/types.ts'
 import type { Engine } from '../engine/types.ts'
 import { frameworkOverrideLayers, frameworkRuleLayers } from '../frameworks/adjustments.ts'
 import { detectFrameworks } from '../frameworks/detect.ts'
+import { FRAMEWORK_PROFILES } from '../frameworks/profiles.ts'
 import type { FrameworkDetection } from '../frameworks/types.ts'
 import { electOwners, type DisplacedOwner, type ElectionResult } from '../registry/elect.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
@@ -53,7 +54,7 @@ export async function resolveRun(options: ResolveRunOptions): Promise<ResolvedRu
     signal,
   }))
 
-  const frameworks = options.frameworks ?? (await timing.phase('detect-frameworks', () => detectFrameworks({ inventory })))
+  const frameworks = options.frameworks ?? (await timing.phase('detect-frameworks', () => detectFrameworks({ inventory, profiles: FRAMEWORK_PROFILES })))
   const resolver = timing.wrap('resolve-ruleset', () => createRuleSetResolver({
     config: options.config,
     ...(configFile === undefined ? {} : { configFile }),

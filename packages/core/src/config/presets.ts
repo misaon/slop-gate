@@ -152,6 +152,7 @@ const recommended: RuleMap = {
   'restriction.no-anonymous-default-export': 'warn',
   'restriction.anchor-ambiguous-text': 'warn',
   'restriction.no-alert': 'warn',
+  'restriction.no-cycle': 'error',
   'restriction.no-import-compiler-macros': 'warn',
   'restriction.no-multiple-slot-args': 'warn',
 

@@ -6,7 +6,7 @@ import { createRuleSetResolver } from '../config/resolve.ts'
 import type { RuleKey } from '../config/types.ts'
 import { engineAdjustmentsFor, frameworkOverrideLayers, frameworkRuleLayers } from './adjustments.ts'
 import { detectFrameworks } from './detect.ts'
-import { dualFiringConcepts, scopeConcepts } from './profiles.ts'
+import { dualFiringConcepts, FRAMEWORK_PROFILES, scopeConcepts } from './profiles.ts'
 import type { FrameworkDetection } from './types.ts'
 
 const inventoryFile = (path: string, workspace = ''): InventoryFile => ({
@@ -37,7 +37,7 @@ const manifest = (dependencies: Record<string, string>, field = 'dependencies'):
   JSON.stringify({ name: 'app', [field]: dependencies })
 
 const detect = async (files: Record<string, string>, workspaces?: Record<string, string>): Promise<FrameworkDetection> =>
-  detectFrameworks(repository(files, workspaces))
+  detectFrameworks({ ...repository(files, workspaces), profiles: FRAMEWORK_PROFILES })
 
 const applied = (detection: FrameworkDetection, id: string) => detection.applied.find((a) => a.id === id)
 
@@ -600,6 +600,7 @@ test('the same repository detects identically regardless of manifest key order',
 test('detection reads no manifest the inventory did not list', async () => {
   const read: string[] = []
   await detectFrameworks({
+    profiles: FRAMEWORK_PROFILES,
     inventory: repository({ 'package.json': manifest({ '@nestjs/core': '1' }) }).inventory,
     async readText(path) {
       read.push(path)
