@@ -182,12 +182,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/no-inline-comments` rule (category: pedantic). No Inline Comments.',
   },
   {
-    id: 'pedantic.no-loop-func',
-    group: 'pedantic',
-    title: 'no-loop-func',
-    description: 'Generated from oxlint\'s `eslint/no-loop-func` rule (category: pedantic). No Loop Func.',
-  },
-  {
     id: 'pedantic.no-promise-executor-return',
     group: 'pedantic',
     title: 'no-promise-executor-return',
@@ -560,12 +554,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `import/no-default-export` rule (category: restriction). No Default Export.',
   },
   {
-    id: 'restriction.no-div-regex',
-    group: 'restriction',
-    title: 'no-div-regex',
-    description: 'Generated from oxlint\'s `eslint/no-div-regex` rule (category: restriction). No Div Regex.',
-  },
-  {
     id: 'restriction.no-dynamic-delete',
     group: 'restriction',
     title: 'typescript/no-dynamic-delete',
@@ -770,12 +758,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `promise/avoid-new` rule (category: style). Avoid New.',
   },
   {
-    id: 'style.ban-tslint-comment',
-    group: 'style',
-    title: 'typescript/ban-tslint-comment',
-    description: 'Generated from oxlint\'s `typescript/ban-tslint-comment` rule (category: style). Ban Tslint Comment.',
-  },
-  {
     id: 'style.callback-return',
     group: 'style',
     title: 'node/callback-return',
@@ -794,52 +776,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `unicorn/catch-error-name` rule (category: style). Catch Error Name.',
   },
   {
-    id: 'style.class-literal-property-style',
-    group: 'style',
-    title: 'typescript/class-literal-property-style',
-    description: 'Generated from oxlint\'s `typescript/class-literal-property-style` rule (category: style). Class Literal Property Style.',
-  },
-  {
-    id: 'style.component-definition-name-casing',
-    group: 'style',
-    title: 'vue/component-definition-name-casing',
-    description: 'Generated from oxlint\'s `vue/component-definition-name-casing` rule (category: style). Component Definition Name Casing.',
-  },
-  {
-    id: 'style.consistent-each-for',
-    group: 'style',
-    title: 'vitest/consistent-each-for',
-    description: 'Generated from oxlint\'s `vitest/consistent-each-for` rule (category: style). Consistent Each For.',
-  },
-  {
-    id: 'style.consistent-generic-constructors',
-    group: 'style',
-    title: 'typescript/consistent-generic-constructors',
-    description: 'Generated from oxlint\'s `typescript/consistent-generic-constructors` rule (category: style). Consistent Generic Constructors.',
-  },
-  {
     id: 'style.consistent-indexed-object-style',
     group: 'style',
     title: 'typescript/consistent-indexed-object-style',
     description: 'Generated from oxlint\'s `typescript/consistent-indexed-object-style` rule (category: style). Consistent Indexed Object Style.',
-  },
-  {
-    id: 'style.consistent-template-literal-escape',
-    group: 'style',
-    title: 'unicorn/consistent-template-literal-escape',
-    description: 'Generated from oxlint\'s `unicorn/consistent-template-literal-escape` rule (category: style). Consistent Template Literal Escape.',
-  },
-  {
-    id: 'style.consistent-test-filename',
-    group: 'style',
-    title: 'vitest/consistent-test-filename',
-    description: 'Generated from oxlint\'s `vitest/consistent-test-filename` rule (category: style). Consistent Test Filename.',
-  },
-  {
-    id: 'style.consistent-type-assertions',
-    group: 'style',
-    title: 'typescript/consistent-type-assertions',
-    description: 'Generated from oxlint\'s `typescript/consistent-type-assertions` rule (category: style). Consistent Type Assertions.',
   },
   {
     id: 'style.consistent-type-definitions',
@@ -866,28 +806,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `import/consistent-type-specifier-style` rule (category: style). Consistent Type Specifier Style.',
   },
   {
-    id: 'style.consistent-vitest-vi',
-    group: 'style',
-    title: 'vitest/consistent-vitest-vi',
-    description: 'Generated from oxlint\'s `vitest/consistent-vitest-vi` rule (category: style). Consistent Vitest Vi.',
-  },
-  {
     id: 'style.curly',
     group: 'style',
     title: 'curly',
     description: 'Generated from oxlint\'s `eslint/curly` rule (category: style). Curly.',
-  },
-  {
-    id: 'style.define-emits-declaration',
-    group: 'style',
-    title: 'vue/define-emits-declaration',
-    description: 'Generated from oxlint\'s `vue/define-emits-declaration` rule (category: style). Define Emits Declaration.',
-  },
-  {
-    id: 'style.define-props-declaration',
-    group: 'style',
-    title: 'vue/define-props-declaration',
-    description: 'Generated from oxlint\'s `vue/define-props-declaration` rule (category: style). Define Props Declaration.',
   },
   {
     id: 'style.define-props-destructuring',
@@ -900,12 +822,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'typescript/dot-notation',
     description: 'Generated from oxlint\'s `typescript/dot-notation` rule (category: style). Dot Notation.',
-  },
-  {
-    id: 'style.empty-brace-spaces',
-    group: 'style',
-    title: 'unicorn/empty-brace-spaces',
-    description: 'Generated from oxlint\'s `unicorn/empty-brace-spaces` rule (category: style). Empty Brace Spaces.',
   },
   {
     id: 'style.eslint-no-nested-ternary',
@@ -930,18 +846,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'unicorn/filename-case',
     description: 'Generated from oxlint\'s `unicorn/filename-case` rule (category: style). Filename Case.',
-  },
-  {
-    id: 'style.first',
-    group: 'style',
-    title: 'import/first',
-    description: 'Generated from oxlint\'s `import/first` rule (category: style). First.',
-  },
-  {
-    id: 'style.func-name-matching',
-    group: 'style',
-    title: 'func-name-matching',
-    description: 'Generated from oxlint\'s `eslint/func-name-matching` rule (category: style). Func Name Matching.',
   },
   {
     id: 'style.func-names',
@@ -972,18 +876,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'import/group-exports',
     description: 'Generated from oxlint\'s `import/group-exports` rule (category: style). Group Exports.',
-  },
-  {
-    id: 'style.grouped-accessor-pairs',
-    group: 'style',
-    title: 'grouped-accessor-pairs',
-    description: 'Generated from oxlint\'s `eslint/grouped-accessor-pairs` rule (category: style). Grouped Accessor Pairs.',
-  },
-  {
-    id: 'style.hook-use-state',
-    group: 'style',
-    title: 'react/hook-use-state',
-    description: 'Generated from oxlint\'s `react/hook-use-state` rule (category: style). Hook Use State.',
   },
   {
     id: 'style.id-denylist',
@@ -1046,18 +938,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `jest/no-restricted-matchers` rule (category: style). No Restricted Matchers.',
   },
   {
-    id: 'style.jest-no-test-prefixes',
-    group: 'style',
-    title: 'jest/no-test-prefixes',
-    description: 'Generated from oxlint\'s `jest/no-test-prefixes` rule (category: style). No Test Prefixes.',
-  },
-  {
-    id: 'style.jest-no-unneeded-async-expect-function',
-    group: 'style',
-    title: 'jest/no-unneeded-async-expect-function',
-    description: 'Generated from oxlint\'s `jest/no-unneeded-async-expect-function` rule (category: style). No Unneeded Async Expect Function.',
-  },
-  {
     id: 'style.jest-padding-around-after-all-blocks',
     group: 'style',
     title: 'jest/padding-around-after-all-blocks',
@@ -1076,70 +956,16 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `jest/prefer-called-with` rule (category: style). Prefer Called With.',
   },
   {
-    id: 'style.jest-prefer-comparison-matcher',
-    group: 'style',
-    title: 'jest/prefer-comparison-matcher',
-    description: 'Generated from oxlint\'s `jest/prefer-comparison-matcher` rule (category: style). Prefer Comparison Matcher.',
-  },
-  {
-    id: 'style.jest-prefer-each',
-    group: 'style',
-    title: 'jest/prefer-each',
-    description: 'Generated from oxlint\'s `jest/prefer-each` rule (category: style). Prefer Each.',
-  },
-  {
-    id: 'style.jest-prefer-equality-matcher',
-    group: 'style',
-    title: 'jest/prefer-equality-matcher',
-    description: 'Generated from oxlint\'s `jest/prefer-equality-matcher` rule (category: style). Prefer Equality Matcher.',
-  },
-  {
     id: 'style.jest-prefer-expect-assertions',
     group: 'style',
     title: 'jest/prefer-expect-assertions',
     description: 'Generated from oxlint\'s `jest/prefer-expect-assertions` rule (category: style). Prefer Expect Assertions.',
   },
   {
-    id: 'style.jest-prefer-expect-resolves',
-    group: 'style',
-    title: 'jest/prefer-expect-resolves',
-    description: 'Generated from oxlint\'s `jest/prefer-expect-resolves` rule (category: style). Prefer Expect Resolves.',
-  },
-  {
-    id: 'style.jest-prefer-hooks-in-order',
-    group: 'style',
-    title: 'jest/prefer-hooks-in-order',
-    description: 'Generated from oxlint\'s `jest/prefer-hooks-in-order` rule (category: style). Prefer Hooks In Order.',
-  },
-  {
-    id: 'style.jest-prefer-hooks-on-top',
-    group: 'style',
-    title: 'jest/prefer-hooks-on-top',
-    description: 'Generated from oxlint\'s `jest/prefer-hooks-on-top` rule (category: style). Prefer Hooks On Top.',
-  },
-  {
     id: 'style.jest-prefer-lowercase-title',
     group: 'style',
     title: 'jest/prefer-lowercase-title',
     description: 'Generated from oxlint\'s `jest/prefer-lowercase-title` rule (category: style). Prefer Lowercase Title.',
-  },
-  {
-    id: 'style.jest-prefer-mock-promise-shorthand',
-    group: 'style',
-    title: 'jest/prefer-mock-promise-shorthand',
-    description: 'Generated from oxlint\'s `jest/prefer-mock-promise-shorthand` rule (category: style). Prefer Mock Promise Shorthand.',
-  },
-  {
-    id: 'style.jest-prefer-mock-return-shorthand',
-    group: 'style',
-    title: 'jest/prefer-mock-return-shorthand',
-    description: 'Generated from oxlint\'s `jest/prefer-mock-return-shorthand` rule (category: style). Prefer Mock Return Shorthand.',
-  },
-  {
-    id: 'style.jest-prefer-spy-on',
-    group: 'style',
-    title: 'jest/prefer-spy-on',
-    description: 'Generated from oxlint\'s `jest/prefer-spy-on` rule (category: style). Prefer Spy On.',
   },
   {
     id: 'style.jest-prefer-strict-equal',
@@ -1154,28 +980,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `jest/prefer-to-be` rule (category: style). Prefer To Be.',
   },
   {
-    id: 'style.jest-prefer-to-contain',
-    group: 'style',
-    title: 'jest/prefer-to-contain',
-    description: 'Generated from oxlint\'s `jest/prefer-to-contain` rule (category: style). Prefer To Contain.',
-  },
-  {
-    id: 'style.jest-prefer-to-have-been-called-times',
-    group: 'style',
-    title: 'jest/prefer-to-have-been-called-times',
-    description: 'Generated from oxlint\'s `jest/prefer-to-have-been-called-times` rule (category: style). Prefer To Have Been Called Times.',
-  },
-  {
     id: 'style.jest-prefer-to-have-length',
     group: 'style',
     title: 'jest/prefer-to-have-length',
     description: 'Generated from oxlint\'s `jest/prefer-to-have-length` rule (category: style). Prefer To Have Length.',
-  },
-  {
-    id: 'style.jest-prefer-todo',
-    group: 'style',
-    title: 'jest/prefer-todo',
-    description: 'Generated from oxlint\'s `jest/prefer-todo` rule (category: style). Prefer Todo.',
   },
   {
     id: 'style.jest-require-hook',
@@ -1190,40 +998,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `jest/require-top-level-describe` rule (category: style). Require Top Level Describe.',
   },
   {
-    id: 'style.jsx-boolean-value',
-    group: 'style',
-    title: 'react/jsx-boolean-value',
-    description: 'Generated from oxlint\'s `react/jsx-boolean-value` rule (category: style). Jsx Boolean Value.',
-  },
-  {
-    id: 'style.jsx-curly-brace-presence',
-    group: 'style',
-    title: 'react/jsx-curly-brace-presence',
-    description: 'Generated from oxlint\'s `react/jsx-curly-brace-presence` rule (category: style). Jsx Curly Brace Presence.',
-  },
-  {
-    id: 'style.jsx-fragments',
-    group: 'style',
-    title: 'react/jsx-fragments',
-    description: 'Generated from oxlint\'s `react/jsx-fragments` rule (category: style). Jsx Fragments.',
-  },
-  {
-    id: 'style.jsx-handler-names',
-    group: 'style',
-    title: 'react/jsx-handler-names',
-    description: 'Generated from oxlint\'s `react/jsx-handler-names` rule (category: style). Jsx Handler Names.',
-  },
-  {
     id: 'style.jsx-max-depth',
     group: 'style',
     title: 'react/jsx-max-depth',
     description: 'Generated from oxlint\'s `react/jsx-max-depth` rule (category: style). Jsx Max Depth.',
-  },
-  {
-    id: 'style.jsx-pascal-case',
-    group: 'style',
-    title: 'react/jsx-pascal-case',
-    description: 'Generated from oxlint\'s `react/jsx-pascal-case` rule (category: style). Jsx Pascal Case.',
   },
   {
     id: 'style.jsx-props-no-spreading',
@@ -1268,12 +1046,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `import/newline-after-import` rule (category: style). Newline After Import.',
   },
   {
-    id: 'style.next-tick-style',
-    group: 'style',
-    title: 'vue/next-tick-style',
-    description: 'Generated from oxlint\'s `vue/next-tick-style` rule (category: style). Next Tick Style.',
-  },
-  {
     id: 'style.no-anonymous-default-export',
     group: 'style',
     title: 'import/no-anonymous-default-export',
@@ -1284,12 +1056,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'unicorn/no-await-expression-member',
     description: 'Generated from oxlint\'s `unicorn/no-await-expression-member` rule (category: style). No Await Expression Member.',
-  },
-  {
-    id: 'style.no-console-spaces',
-    group: 'style',
-    title: 'unicorn/no-console-spaces',
-    description: 'Generated from oxlint\'s `unicorn/no-console-spaces` rule (category: style). No Console Spaces.',
   },
   {
     id: 'style.no-continue',
@@ -1310,18 +1076,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/no-duplicate-imports` rule (category: style). No Duplicate Imports.',
   },
   {
-    id: 'style.no-duplicates',
-    group: 'style',
-    title: 'import/no-duplicates',
-    description: 'Generated from oxlint\'s `import/no-duplicates` rule (category: style). No Duplicates.',
-  },
-  {
-    id: 'style.no-extra-label',
-    group: 'style',
-    title: 'no-extra-label',
-    description: 'Generated from oxlint\'s `eslint/no-extra-label` rule (category: style). No Extra Label.',
-  },
-  {
     id: 'style.no-implicit-coercion',
     group: 'style',
     title: 'no-implicit-coercion',
@@ -1332,30 +1086,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'vitest/no-importing-vitest-globals',
     description: 'Generated from oxlint\'s `vitest/no-importing-vitest-globals` rule (category: style). No Importing Vitest Globals.',
-  },
-  {
-    id: 'style.no-inferrable-types',
-    group: 'style',
-    title: 'typescript/no-inferrable-types',
-    description: 'Generated from oxlint\'s `typescript/no-inferrable-types` rule (category: style). No Inferrable Types.',
-  },
-  {
-    id: 'style.no-label-var',
-    group: 'style',
-    title: 'no-label-var',
-    description: 'Generated from oxlint\'s `eslint/no-label-var` rule (category: style). No Label Var.',
-  },
-  {
-    id: 'style.no-labels',
-    group: 'style',
-    title: 'no-labels',
-    description: 'Generated from oxlint\'s `eslint/no-labels` rule (category: style). No Labels.',
-  },
-  {
-    id: 'style.no-lone-blocks',
-    group: 'style',
-    title: 'no-lone-blocks',
-    description: 'Generated from oxlint\'s `eslint/no-lone-blocks` rule (category: style). No Lone Blocks.',
   },
   {
     id: 'style.no-magic-numbers',
@@ -1370,18 +1100,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `node/no-mixed-requires` rule (category: style). No Mixed Requires.',
   },
   {
-    id: 'style.no-multi-assign',
-    group: 'style',
-    title: 'no-multi-assign',
-    description: 'Generated from oxlint\'s `eslint/no-multi-assign` rule (category: style). No Multi Assign.',
-  },
-  {
-    id: 'style.no-named-default',
-    group: 'style',
-    title: 'import/no-named-default',
-    description: 'Generated from oxlint\'s `import/no-named-default` rule (category: style). No Named Default.',
-  },
-  {
     id: 'style.no-named-export',
     group: 'style',
     title: 'import/no-named-export',
@@ -1392,12 +1110,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'import/no-namespace',
     description: 'Generated from oxlint\'s `import/no-namespace` rule (category: style). No Namespace.',
-  },
-  {
-    id: 'style.no-nesting',
-    group: 'style',
-    title: 'promise/no-nesting',
-    description: 'Generated from oxlint\'s `promise/no-nesting` rule (category: style). No Nesting.',
   },
   {
     id: 'style.no-nodejs-modules',
@@ -1412,12 +1124,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `unicorn/no-null` rule (category: style). No Null.',
   },
   {
-    id: 'style.no-redundant-should-component-update',
-    group: 'style',
-    title: 'react/no-redundant-should-component-update',
-    description: 'Generated from oxlint\'s `react/no-redundant-should-component-update` rule (category: style). No Redundant Should Component Update.',
-  },
-  {
     id: 'style.no-restricted-jest-methods',
     group: 'style',
     title: 'jest/no-restricted-jest-methods',
@@ -1428,12 +1134,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'vitest/no-restricted-vi-methods',
     description: 'Generated from oxlint\'s `vitest/no-restricted-vi-methods` rule (category: style). No Restricted Vi Methods.',
-  },
-  {
-    id: 'style.no-set-state',
-    group: 'style',
-    title: 'react/no-set-state',
-    description: 'Generated from oxlint\'s `react/no-set-state` rule (category: style). No Set State.',
   },
   {
     id: 'style.no-sync',
@@ -1458,18 +1158,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'typescript/no-unnecessary-qualifier',
     description: 'Generated from oxlint\'s `typescript/no-unnecessary-qualifier` rule (category: style). No Unnecessary Qualifier.',
-  },
-  {
-    id: 'style.no-useless-collection-argument',
-    group: 'style',
-    title: 'unicorn/no-useless-collection-argument',
-    description: 'Generated from oxlint\'s `unicorn/no-useless-collection-argument` rule (category: style). No Useless Collection Argument.',
-  },
-  {
-    id: 'style.no-useless-computed-key',
-    group: 'style',
-    title: 'no-useless-computed-key',
-    description: 'Generated from oxlint\'s `eslint/no-useless-computed-key` rule (category: style). No Useless Computed Key.',
   },
   {
     id: 'style.number-literal-case',
@@ -1514,22 +1202,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `promise/prefer-await-to-then` rule (category: style). Prefer Await To Then.',
   },
   {
-    id: 'style.prefer-called-exactly-once-with',
-    group: 'style',
-    title: 'vitest/prefer-called-exactly-once-with',
-    description: 'Generated from oxlint\'s `vitest/prefer-called-exactly-once-with` rule (category: style). Prefer Called Exactly Once With.',
-  },
-  {
     id: 'style.prefer-called-once',
     group: 'style',
     title: 'vitest/prefer-called-once',
     description: 'Generated from oxlint\'s `vitest/prefer-called-once` rule (category: style). Prefer Called Once.',
-  },
-  {
-    id: 'style.prefer-called-times',
-    group: 'style',
-    title: 'vitest/prefer-called-times',
-    description: 'Generated from oxlint\'s `vitest/prefer-called-times` rule (category: style). Prefer Called Times.',
   },
   {
     id: 'style.prefer-catch',
@@ -1562,18 +1238,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `jest/prefer-ending-with-an-expect` rule (category: style). Prefer Ending With An Expect.',
   },
   {
-    id: 'style.prefer-es6-class',
-    group: 'style',
-    title: 'react/prefer-es6-class',
-    description: 'Generated from oxlint\'s `react/prefer-es6-class` rule (category: style). Prefer Es6 Class.',
-  },
-  {
-    id: 'style.prefer-expect-type-of',
-    group: 'style',
-    title: 'vitest/prefer-expect-type-of',
-    description: 'Generated from oxlint\'s `vitest/prefer-expect-type-of` rule (category: style). Prefer Expect Type Of.',
-  },
-  {
     id: 'style.prefer-export-from',
     group: 'style',
     title: 'unicorn/prefer-export-from',
@@ -1584,12 +1248,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'typescript/prefer-find',
     description: 'Generated from oxlint\'s `typescript/prefer-find` rule (category: style). Prefer Find.',
-  },
-  {
-    id: 'style.prefer-import-in-mock',
-    group: 'style',
-    title: 'vitest/prefer-import-in-mock',
-    description: 'Generated from oxlint\'s `vitest/prefer-import-in-mock` rule (category: style). Prefer Import In Mock.',
   },
   {
     id: 'style.prefer-importing-jest-globals',
@@ -1604,22 +1262,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/prefer-importing-vitest-globals` rule (category: style). Prefer Importing Vitest Globals.',
   },
   {
-    id: 'style.prefer-jest-mocked',
-    group: 'style',
-    title: 'jest/prefer-jest-mocked',
-    description: 'Generated from oxlint\'s `jest/prefer-jest-mocked` rule (category: style). Prefer Jest Mocked.',
-  },
-  {
     id: 'style.prefer-named-capture-group',
     group: 'style',
     title: 'prefer-named-capture-group',
     description: 'Generated from oxlint\'s `eslint/prefer-named-capture-group` rule (category: style). Prefer Named Capture Group.',
-  },
-  {
-    id: 'style.prefer-optional-catch-binding',
-    group: 'style',
-    title: 'unicorn/prefer-optional-catch-binding',
-    description: 'Generated from oxlint\'s `unicorn/prefer-optional-catch-binding` rule (category: style). Prefer Optional Catch Binding.',
   },
   {
     id: 'style.prefer-readonly',
@@ -1652,12 +1298,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/prefer-strict-boolean-matchers` rule (category: style). Prefer Strict Boolean Matchers.',
   },
   {
-    id: 'style.prefer-string-raw',
-    group: 'style',
-    title: 'unicorn/prefer-string-raw',
-    description: 'Generated from oxlint\'s `unicorn/prefer-string-raw` rule (category: style). Prefer String Raw.',
-  },
-  {
     id: 'style.prefer-string-starts-ends-with',
     group: 'style',
     title: 'typescript/prefer-string-starts-ends-with',
@@ -1688,58 +1328,16 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/prefer-to-be-falsy` rule (category: style). Prefer To Be Falsy.',
   },
   {
-    id: 'style.prefer-to-be-object',
-    group: 'style',
-    title: 'vitest/prefer-to-be-object',
-    description: 'Generated from oxlint\'s `vitest/prefer-to-be-object` rule (category: style). Prefer To Be Object.',
-  },
-  {
     id: 'style.prefer-to-be-truthy',
     group: 'style',
     title: 'vitest/prefer-to-be-truthy',
     description: 'Generated from oxlint\'s `vitest/prefer-to-be-truthy` rule (category: style). Prefer To Be Truthy.',
   },
   {
-    id: 'style.prefer-to-have-been-called',
-    group: 'style',
-    title: 'jest/prefer-to-have-been-called',
-    description: 'Generated from oxlint\'s `jest/prefer-to-have-been-called` rule (category: style). Prefer To Have Been Called.',
-  },
-  {
-    id: 'style.prop-name-casing',
-    group: 'style',
-    title: 'vue/prop-name-casing',
-    description: 'Generated from oxlint\'s `vue/prop-name-casing` rule (category: style). Prop Name Casing.',
-  },
-  {
-    id: 'style.relative-url-style',
-    group: 'style',
-    title: 'unicorn/relative-url-style',
-    description: 'Generated from oxlint\'s `unicorn/relative-url-style` rule (category: style). Relative Url Style.',
-  },
-  {
     id: 'style.require-default-prop',
     group: 'style',
     title: 'vue/require-default-prop',
     description: 'Generated from oxlint\'s `vue/require-default-prop` rule (category: style). Require Default Prop.',
-  },
-  {
-    id: 'style.require-direct-export',
-    group: 'style',
-    title: 'vue/require-direct-export',
-    description: 'Generated from oxlint\'s `vue/require-direct-export` rule (category: style). Require Direct Export.',
-  },
-  {
-    id: 'style.require-module-attributes',
-    group: 'style',
-    title: 'unicorn/require-module-attributes',
-    description: 'Generated from oxlint\'s `unicorn/require-module-attributes` rule (category: style). Require Module Attributes.',
-  },
-  {
-    id: 'style.require-prop-types',
-    group: 'style',
-    title: 'vue/require-prop-types',
-    description: 'Generated from oxlint\'s `vue/require-prop-types` rule (category: style). Require Prop Types.',
   },
   {
     id: 'style.require-throws-description',
@@ -1772,22 +1370,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/sort-keys` rule (category: style). Sort Keys.',
   },
   {
-    id: 'style.state-in-constructor',
-    group: 'style',
-    title: 'react/state-in-constructor',
-    description: 'Generated from oxlint\'s `react/state-in-constructor` rule (category: style). State In Constructor.',
-  },
-  {
     id: 'style.switch-case-braces',
     group: 'style',
     title: 'unicorn/switch-case-braces',
     description: 'Generated from oxlint\'s `unicorn/switch-case-braces` rule (category: style). Switch Case Braces.',
-  },
-  {
-    id: 'style.switch-case-break-position',
-    group: 'style',
-    title: 'unicorn/switch-case-break-position',
-    description: 'Generated from oxlint\'s `unicorn/switch-case-break-position` rule (category: style). Switch Case Break Position.',
   },
   {
     id: 'style.unicorn-no-nested-ternary',
@@ -1844,18 +1430,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/no-restricted-matchers` rule (category: style). No Restricted Matchers.',
   },
   {
-    id: 'style.vitest-no-test-prefixes',
-    group: 'style',
-    title: 'vitest/no-test-prefixes',
-    description: 'Generated from oxlint\'s `vitest/no-test-prefixes` rule (category: style). No Test Prefixes.',
-  },
-  {
-    id: 'style.vitest-no-unneeded-async-expect-function',
-    group: 'style',
-    title: 'vitest/no-unneeded-async-expect-function',
-    description: 'Generated from oxlint\'s `vitest/no-unneeded-async-expect-function` rule (category: style). No Unneeded Async Expect Function.',
-  },
-  {
     id: 'style.vitest-padding-around-after-all-blocks',
     group: 'style',
     title: 'vitest/padding-around-after-all-blocks',
@@ -1874,22 +1448,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/prefer-called-with` rule (category: style). Prefer Called With.',
   },
   {
-    id: 'style.vitest-prefer-comparison-matcher',
-    group: 'style',
-    title: 'vitest/prefer-comparison-matcher',
-    description: 'Generated from oxlint\'s `vitest/prefer-comparison-matcher` rule (category: style). Prefer Comparison Matcher.',
-  },
-  {
     id: 'style.vitest-prefer-each',
     group: 'style',
     title: 'vitest/prefer-each',
     description: 'Generated from oxlint\'s `vitest/prefer-each` rule (category: style). Prefer Each.',
-  },
-  {
-    id: 'style.vitest-prefer-equality-matcher',
-    group: 'style',
-    title: 'vitest/prefer-equality-matcher',
-    description: 'Generated from oxlint\'s `vitest/prefer-equality-matcher` rule (category: style). Prefer Equality Matcher.',
   },
   {
     id: 'style.vitest-prefer-expect-assertions',
@@ -1904,40 +1466,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/prefer-expect-resolves` rule (category: style). Prefer Expect Resolves.',
   },
   {
-    id: 'style.vitest-prefer-hooks-in-order',
-    group: 'style',
-    title: 'vitest/prefer-hooks-in-order',
-    description: 'Generated from oxlint\'s `vitest/prefer-hooks-in-order` rule (category: style). Prefer Hooks In Order.',
-  },
-  {
-    id: 'style.vitest-prefer-hooks-on-top',
-    group: 'style',
-    title: 'vitest/prefer-hooks-on-top',
-    description: 'Generated from oxlint\'s `vitest/prefer-hooks-on-top` rule (category: style). Prefer Hooks On Top.',
-  },
-  {
     id: 'style.vitest-prefer-lowercase-title',
     group: 'style',
     title: 'vitest/prefer-lowercase-title',
     description: 'Generated from oxlint\'s `vitest/prefer-lowercase-title` rule (category: style). Prefer Lowercase Title.',
-  },
-  {
-    id: 'style.vitest-prefer-mock-promise-shorthand',
-    group: 'style',
-    title: 'vitest/prefer-mock-promise-shorthand',
-    description: 'Generated from oxlint\'s `vitest/prefer-mock-promise-shorthand` rule (category: style). Prefer Mock Promise Shorthand.',
-  },
-  {
-    id: 'style.vitest-prefer-mock-return-shorthand',
-    group: 'style',
-    title: 'vitest/prefer-mock-return-shorthand',
-    description: 'Generated from oxlint\'s `vitest/prefer-mock-return-shorthand` rule (category: style). Prefer Mock Return Shorthand.',
-  },
-  {
-    id: 'style.vitest-prefer-spy-on',
-    group: 'style',
-    title: 'vitest/prefer-spy-on',
-    description: 'Generated from oxlint\'s `vitest/prefer-spy-on` rule (category: style). Prefer Spy On.',
   },
   {
     id: 'style.vitest-prefer-strict-equal',
@@ -1952,28 +1484,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/prefer-to-be` rule (category: style). Prefer To Be.',
   },
   {
-    id: 'style.vitest-prefer-to-contain',
-    group: 'style',
-    title: 'vitest/prefer-to-contain',
-    description: 'Generated from oxlint\'s `vitest/prefer-to-contain` rule (category: style). Prefer To Contain.',
-  },
-  {
-    id: 'style.vitest-prefer-to-have-been-called-times',
-    group: 'style',
-    title: 'vitest/prefer-to-have-been-called-times',
-    description: 'Generated from oxlint\'s `vitest/prefer-to-have-been-called-times` rule (category: style). Prefer To Have Been Called Times.',
-  },
-  {
     id: 'style.vitest-prefer-to-have-length',
     group: 'style',
     title: 'vitest/prefer-to-have-length',
     description: 'Generated from oxlint\'s `vitest/prefer-to-have-length` rule (category: style). Prefer To Have Length.',
-  },
-  {
-    id: 'style.vitest-prefer-todo',
-    group: 'style',
-    title: 'vitest/prefer-todo',
-    description: 'Generated from oxlint\'s `vitest/prefer-todo` rule (category: style). Prefer Todo.',
   },
   {
     id: 'style.vitest-require-hook',
@@ -1986,12 +1500,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'vitest/require-top-level-describe',
     description: 'Generated from oxlint\'s `vitest/require-top-level-describe` rule (category: style). Require Top Level Describe.',
-  },
-  {
-    id: 'style.yoda',
-    group: 'style',
-    title: 'yoda',
-    description: 'Generated from oxlint\'s `eslint/yoda` rule (category: style). Yoda.',
   },
   {
     id: 'suspicious.consistent-return',
