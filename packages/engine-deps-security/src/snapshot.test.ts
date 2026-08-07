@@ -57,7 +57,7 @@ describe('advisorySnapshotDir', () => {
   it('uses LOCALAPPDATA only on Windows', () => {
     const env = { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' }
     expect(advisorySnapshotDir({ env, platform: 'win32', homeDir: 'C:\\Users\\u' })).toBe(
-      join('C:\\Users\\u\\AppData\\Local', 'slop-gate', 'advisories', version),
+      join(String.raw`C:\Users\u\AppData\Local`, 'slop-gate', 'advisories', version),
     )
     expect(advisorySnapshotDir({ env, platform: 'linux', homeDir: '/home/u' })).toBe(
       join('/home/u', '.cache', 'slop-gate', 'advisories', version),

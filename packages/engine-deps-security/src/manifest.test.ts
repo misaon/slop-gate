@@ -26,7 +26,7 @@ describe('findDependencyRange', () => {
 
     const range = findDependencyRange(source, 'lodash')
     expect(range).toBeDefined()
-    expect(source.slice(0, range?.start).includes('"devDependencies"')).toBe(true)
+    expect(source.slice(0, range?.start)).toContain('"devDependencies"')
   })
 
   it.each(['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'])('searches %s', (group) => {

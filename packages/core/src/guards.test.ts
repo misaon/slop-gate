@@ -12,7 +12,7 @@ test('membership is decided on the value, not on its declared type', () => {
 })
 
 test('the checked branch is narrowed, which is the whole point', () => {
-  const raw: string = 'error'
+  const raw = 'error'
   if (!isOneOf(raw, LEVELS)) throw new Error('unreachable')
   const level: (typeof LEVELS)[number] = raw
   expect(level).toBe('error')

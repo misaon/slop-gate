@@ -294,7 +294,7 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
     reason:
       '**21,629 findings in 7,009 files across 47 of 48 corpus repositories, and the samples are not tests** — ' +
       '`src/index.tsx`, `src/main.ts`, `dev-docs/.../index.js`. The rule asks that setup live in a hook and applies ' +
-      'that to every file it is given rather than to test files.\\n\\nIts vitest twin is excluded with it, on the same ' +
+      String.raw`that to every file it is given rather than to test files.\n\nIts vitest twin is excluded with it, on the same ` +
       'measurement.',
     evidence: 'rule-corpus',
   },
@@ -308,7 +308,7 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
     reason:
       '**10,605 findings in 2,270 files across 46 of 48 corpus repositories** — `children`, `variant`, `err`, ' +
       '`projects`: a parameter named after something in an enclosing scope, which is how a callback is ' +
-      'written.\\n\\nThe bug it exists for is real and rare; at 159 findings per thousand files it buries the rules ' +
+      String.raw`written.\n\nThe bug it exists for is real and rare; at 159 findings per thousand files it buries the rules ` +
       'that find it. Available as `correctness.shadows-outer-binding`.',
     evidence: 'rule-corpus',
   },
@@ -335,7 +335,7 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
     reason:
       '**56,079 findings across 23 of 48 corpus repositories — the noisiest rule in the whole measurement.** It ' +
       'requires `React` in scope for JSX, which the automatic runtime removed in React 17: every one of the 56,079 is ' +
-      'a file compiled by a toolchain that does not need the import.\\n\\nThe classic runtime still exists and there ' +
+      String.raw`a file compiled by a toolchain that does not need the import.\n\nThe classic runtime still exists and there ` +
       'the rule is right, so this is a default that expired rather than a check that is wrong. What brings it back is ' +
       'a framework profile reading the JSX transform out of tsconfig, which §23 already resolves for `resolveJsx`.',
     evidence: 'rule-corpus',
@@ -388,6 +388,48 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
   'vitest/prefer-to-be': { reason: 'The vitest twin of `jest/prefer-to-be` above.' },
   'vitest/prefer-to-have-length': { reason: 'The vitest twin of `jest/prefer-to-have-length` above.' },
   'vitest/require-hook': { reason: '**21,629 findings**, the vitest twin of `jest/require-hook` above, on the same corpus and the same argument.' },
+  'unicorn/no-await-expression-member': {
+    reason:
+      '**976 findings across 35 of 48 corpus repositories, and 44 here** — not a noisy rule, but its fix is ' +
+      'not a lint fix. `(await response).json()` becomes two statements, and the second needs a name for ' +
+      'the intermediate value that neither oxlint’s fixer nor a script can choose.\n\n' +
+      'oxlint marks it `fixable_dangerous_fix` for that reason. A rule whose remedy is a rename at every ' +
+      'site is a refactor a team schedules, not a default a tool applies.',
+    evidence: 'rule-corpus',
+  },
+  'unicorn/prefer-export-from': {
+    reason:
+      '**695 findings across 29 of 48 corpus repositories, and 18 here.** Same shape as ' +
+      '`no-await-expression-member` above: collapsing an import and a re-export into `export … from` is ' +
+      'correct, and doing it removes a binding the rest of the module may still use — so the fix is only ' +
+      'safe where the import has no other reader, which the rule does not check.',
+    evidence: 'rule-corpus',
+  },
+  'vitest/prefer-each': {
+    reason:
+      '**Fires outside test files.** Nine findings here and one of them is `for (const manifest of ' +
+      'input.manifests)` in `engine-deps-security/src/scan.ts` — production code, told to use `test.each`. ' +
+      'Same defect as `jest/require-hook`: a test-runner rule applied to every file it is handed.\n\n' +
+      '241 findings across 29 of 48 corpus repositories, so the volume is not the objection; the targeting is.',
+    evidence: 'rule-corpus',
+  },
+  'node/callback-return': {
+    reason:
+      '**6 findings here, 6 false, and all one expression**: `written.push(writeFile(…))`. The rule looks for ' +
+      'a node-style callback being invoked without `return` and matched `push` as one.\n\n' +
+      'The pattern it exists for — a callback called twice because the first call was not returned — is real ' +
+      'and this is not it. 826 findings across 38 of 48 corpus repositories.',
+    evidence: 'rule-corpus',
+  },
+  'promise/prefer-catch': {
+    reason:
+      '**Its fix changes what is caught.** `then(onFulfilled, onRejected)` does not route an error thrown by ' +
+      '`onFulfilled` to `onRejected`; `then(onFulfilled).catch(onRejected)` does. The two forms exist because ' +
+      'that difference is sometimes the point.\n\n' +
+      '81 findings across 21 of 48 corpus repositories, so this is not about volume — a rule whose remedy ' +
+      'widens an error handler cannot be a default.',
+    evidence: 'rule-corpus',
+  },
   'sort-keys': {
     reason:
       '**4,513 findings, the largest count this registry has ever recorded on this repository.** It wants ' +

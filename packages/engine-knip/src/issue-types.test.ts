@@ -25,7 +25,7 @@ test('an issue type is either surfaced or excluded, never both and never neither
   for (const type of KNIP_ISSUE_TYPES) {
     const surfaced = KNIP_SURFACED_ISSUE_TYPES.includes(type)
     const excluded = Object.hasOwn(KNIP_EXCLUDED_ISSUE_TYPES, type)
-    expect(surfaced !== excluded, `${type} is ${surfaced && excluded ? 'both' : 'neither'}`).toBe(true)
+    expect(surfaced, `${type} is ${surfaced && excluded ? 'both' : 'neither'}`).not.toBe(excluded)
   }
 })
 

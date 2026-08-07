@@ -251,7 +251,7 @@ describe('scanDependencies: rule selection', () => {
   )
 
   it('emits nothing at all when no rule is enabled', () => {
-    expect(scan({ parsed, enabled: new Set([]) })).toEqual([])
+    expect(scan({ parsed, enabled: new Set() })).toEqual([])
   })
 
   it.each(ALL_RULES)('only ever emits %s findings when only %s is enabled', (rule) => {

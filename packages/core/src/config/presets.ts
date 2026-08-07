@@ -338,6 +338,20 @@ const recommended: RuleMap = {
   'style.vitest-prefer-mock-return-shorthand': 'warn',
   'style.prefer-expect-type-of': 'warn',
 
+  // The last of `style`, kept because fifty repositories say they are quiet: each is under 20 findings
+  // per thousand files across the corpus. docs/measurements.md#rule-corpus.
+  'restriction.no-div-regex': 'warn',
+  'style.vitest-prefer-equality-matcher': 'warn',
+  'style.no-useless-collection-argument': 'warn',
+  'style.vitest-prefer-to-contain': 'warn',
+  'style.vitest-prefer-hooks-on-top': 'warn',
+  'pedantic.no-loop-func': 'warn',
+  'style.jest-no-test-prefixes': 'warn',
+  'style.vitest-no-test-prefixes': 'warn',
+  'style.require-module-attributes': 'warn',
+  'style.no-inferrable-types': 'warn',
+  'style.prefer-string-raw': 'warn',
+
   'config.compose-schema': 'error',
   'config.rule-overlap': 'info',
   'config.dead-override': 'warn',

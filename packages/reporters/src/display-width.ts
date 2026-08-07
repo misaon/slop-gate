@@ -1,7 +1,7 @@
 const graphemeSegmenter = new Intl.Segmenter('en', { granularity: 'grapheme' })
 
 const ESCAPE_CHAR = String.fromCodePoint(27)
-const ANSI_ESCAPE_PATTERN = new RegExp(ESCAPE_CHAR + '\\[[0-9;]*[a-zA-Z]', 'g')
+const ANSI_ESCAPE_PATTERN = new RegExp(ESCAPE_CHAR + String.raw`\[[0-9;]*[a-zA-Z]`, 'g')
 
 const isCombiningMark = (codePoint: number): boolean => /\p{M}/u.test(String.fromCodePoint(codePoint))
 

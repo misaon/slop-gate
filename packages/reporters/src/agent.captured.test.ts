@@ -233,7 +233,7 @@ test('every captured finding appears in exactly one of the two sections', () => 
 
   for (const diagnostic of CAPTURED) {
     const location = `${diagnostic.file}:${diagnostic.position.startLine}:${diagnostic.position.startColumn}`
-    expect(automated.includes(location) !== judgement.includes(location), location).toBe(true)
+    expect(automated.includes(location), location).not.toBe(judgement.includes(location))
   }
 })
 
