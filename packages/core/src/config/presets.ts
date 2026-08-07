@@ -23,7 +23,7 @@ const recommended: RuleMap = {
   'deps.unlisted-dependency': 'warn',
   'deps.unresolved-import': 'error',
 
-  'security.vulnerable-dependency': 'warn',
+  'security.vulnerable-dependency': 'error',
   'security.malicious-dependency': 'error',
   'deps.advisory-coverage-gap': 'warn',
   ...optionedRules,
@@ -283,7 +283,7 @@ const recommended: RuleMap = {
   'config.workflow-matrix': 'warn',
   'config.workflow-permissions': 'warn',
   'config.workflow-shell': 'warn',
-  'security.workflow-hardcoded-credential': 'warn',
+  'security.workflow-hardcoded-credential': 'error',
   'config.dockerfile-base-image-mutable-tag': 'warn',
   'config.dockerfile-base-image-untagged': 'warn',
   'config.dockerfile-entrypoint-form': 'warn',
