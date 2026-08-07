@@ -56,15 +56,11 @@ test('a rule whose impact outranks the level it is reported at is a gap worth se
     (entry) => entry.status === 'recommended' && entry.impact === 3 && entry.level !== 'error',
   )
 
-  // A published advisory and a credential in CI both exit 0 today. Recorded rather than fixed here:
-  // aligning what gates a build to impact is a breaking change and wants its own release.
+  // Empty, and it stays empty. Impact 3 says the finding is a security or data-loss risk now, and a
+  // preset that reports one at `warn` exits 0 on it — which is the gap this list used to record.
   //
-  // The security rules the audits added do not join them, and the line is deliberate: one that reports an
-  // API a caller may be using safely — `security.target-blank`, `security.dangerous-html`,
-  // `security.script-url` — is impact 2, and one that reports a hole whatever the value —
-  // `security.eval-usage`, `security.function-constructor` — is impact 3 at `error`.
-  expect(mismatched.map((entry) => entry.concept).sort()).toEqual([
-    'security.vulnerable-dependency',
-    'security.workflow-hardcoded-credential',
-  ])
+  // The line the audits settled on: a rule reporting an API a caller may be using safely is impact 2
+  // (`security.target-blank`, `security.dangerous-html`, `security.script-url`); a rule reporting a hole
+  // whatever the value is impact 3, and therefore `error`.
+  expect(mismatched.map((entry) => entry.concept).sort()).toEqual([])
 })
