@@ -134,7 +134,7 @@ export function editObjectLiteral(
 
 /** Single quotes, because that is what both registry files use; a literal newline becomes `\n`. */
 export function quote(value: string): string {
-  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n')}'`
+  return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\r', '\\r').replaceAll('\n', '\\n')}'`
 }
 
 /**

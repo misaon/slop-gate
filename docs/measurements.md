@@ -648,6 +648,62 @@ corpus with no React application in it says nothing about them. They need a meas
 verdict, not a reason written from the rule name. `no-restricted-exports` has no content at all without an
 option naming what to restrict, which is a per-repository decision.
 
+## The `pedantic` audit — 104 reachable rules, 57 promoted and 30 rejected
+
+<a id="pedantic-audit"></a>
+
+`pedantic` is oxlint's largest category outside `correctness` and `style`, and the generator promotes none of
+it. Read in full: 21 of its 125 rules are type-aware and unreachable (see the record above), leaving 104.
+Counts are from the same all-rules run — 34,727 diagnostics over `packages`, `apps` and `scripts`.
+
+**30 fire here, and reading them is what decides the category.** They divide cleanly:
+
+| class | rules | findings | what they are |
+|---|---|---:|---|
+| hardening with no defect | `require-unicode-regexp` | 305 | ASCII patterns where `u` changes nothing |
+| the signature is the contract | `require-await` | 113 | `async version()`, `async dispose()` — interface implementations |
+| cannot see the test's shape | `no-conditional-in-test` ×2 | 306 | mock factories and table-driven loops, no conditional assertion |
+| threshold is not ours to pick | `max-*` ×5, `import/max-dependencies` | 113 | a number, not a property |
+| restates the signature | `jsdoc/*` ×9 | 57 | what AGENTS.md forbids in so many words |
+| style | `no-inline-comments`, `no-negated-condition` ×2, `prefer-single-call`, `escape-case`, `no-else-return`, `no-lonely-if` ×2, `sort-vars`, `explicit-length-check` | 66 | preference |
+| no arity to check against | `no-array-callback-reference` | 24 | `.map(ruleRefKey)`; the real bug is `.map(parseInt)` |
+| TypeScript names `undefined` | `no-useless-undefined` | 37 | `() => undefined` satisfying `X \| undefined` |
+
+**`unicorn/prefer-math-trunc` is the one that would have introduced a bug.** Its 3 findings are the `>>> 0`
+in a seeded PRNG, where the shift is coercion to uint32 and not truncation — `Math.trunc` does not wrap at
+2³², and the generator would stop matching its reference implementation. Bitwise-as-truncation and
+bitwise-as-uint32 read identically and the rule cannot separate them.
+
+**57 promoted, and they cost this repository nothing** — every one is silent here, which is what a rule that
+finds defects rather than habits looks like on a tree already at zero. `no-constructor-return`,
+`no-prototype-builtins`, `no-case-declarations`, `no-fallthrough`, `radix`, `array-callback-return`,
+`no-self-compare`, `no-throw-literal`, `no-new-wrappers`, `unicorn/no-object-as-default-parameter` (one
+mutable default shared by every call), `unicorn/new-for-builtins`, `unicorn/prefer-import-meta-properties`,
+and the rest of the `unicorn/prefer-*` modernisations AGENTS.md's syntax rule already asks for.
+
+**Three are re-homed by `overrides.ts`, because `pedantic` is the wrong place to look for them:**
+
+- `react/rules-of-hooks` → `correctness.rules-of-hooks`, at `error`. React identifies hooks by call order;
+  one behind a condition shifts every later hook onto the wrong slot. That is not a strictness preference.
+- `react/jsx-no-target-blank` → `security.target-blank`, and impact 2 rather than the group's 3: every
+  current browser implies `noopener` on a `_blank` link, so it is a hole only where one does not.
+`typescript/ban-ts-comment` keeps its `pedantic.ban-ts-comment` id and takes an impact exception to 2
+instead. Verified empirically against 1.76.0, because the documentation does not state its defaults: it bans
+`@ts-ignore` outright and requires a description of three characters or more on `@ts-expect-error`. That is
+AGENTS.md's own rule — no `@ts-ignore` without a reason on the same line. Re-homing it to `slop.*` was tried
+and reverted: `engine-astgrep/src/rules.test.ts` gates that namespace on a per-concept measurement, and
+"AGENTS.md already says so" is not one.
+
+`pedantic.*` ids are kept for the other 55.
+
+**`prefer-code-point` cost a measurement and one suppression.** Four of its five findings are
+`String.fromCharCode(27)` and became `fromCodePoint`. The fifth is `isPrintableAscii`'s loop in
+`display-width.ts`, which §`displayWidth` above records as the hottest self-time frame in a large run:
+`codePointAt` there is **3,278,883 hz to 2,928,794 — 10.7% slower at ±0.11% rme**, and the predicate is
+unchanged either way, since a surrogate half fails `code > 0x7e` exactly as a code point does. It carries
+an inline `sgate-disable-next-line` with that figure, which is what the directive is for. Unlike `nursery`, the label does not expire, and
+`pedantic.prefer-ts-expect-error` was already in `recommended` under that name.
+
 ## hadolint/DL3066 — hadolint cannot catch a container running as root
 
 <a id="hadolint-dl3066"></a>

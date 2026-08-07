@@ -23,6 +23,11 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'vitest/valid-title': {
     severityDefault: 'warn',
   },
+  // A conditionally-called hook is broken React, not a strictness preference.
+  'react/rules-of-hooks': { concepts: ['correctness.rules-of-hooks'] },
+  // Reverse tabnabbing: the opened page can rewrite `window.opener.location`.
+  'react/jsx-no-target-blank': { concepts: ['security.target-blank'] },
+
   // `nursery` is oxlint's readiness label, not a subject. A concept id is a config key a user writes
   // down, so it cannot be one that stops being true the day upstream graduates the rule.
   'import/export': { concepts: ['correctness.duplicate-export-name'] },

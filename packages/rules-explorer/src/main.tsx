@@ -21,7 +21,7 @@ const client = new QueryClient({
   },
 })
 
-const root = document.getElementById('app')
+const root = document.querySelector('#app')
 if (root === null) throw new Error('#app is missing from index.html')
 render(
   <QueryClientProvider client={client}>

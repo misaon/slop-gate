@@ -10,7 +10,7 @@ export type FingerprintInput = {
 }
 
 export function normalizedWindow(index: LineIndex, range: ByteRange): string {
-  return index.sliceBytes(index.lineRangeOf(range)).replace(/\s+/g, ' ').trim()
+  return index.sliceBytes(index.lineRangeOf(range)).replaceAll(/\s+/g, ' ').trim()
 }
 
 export function fingerprint(input: FingerprintInput): string {

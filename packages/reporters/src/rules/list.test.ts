@@ -72,7 +72,7 @@ test('summarises total, overlap, uncovered and language-mismatch counts in the f
 })
 
 test('emits no escape codes when colour is off', () => {
-  const ANSI_ESCAPE = String.fromCharCode(27) + '['
+  const ANSI_ESCAPE = String.fromCodePoint(27) + '['
   const output = capture([entry({ concept: 'a.one', group: 'a' })], { color: false })
   expect(output).not.toContain(ANSI_ESCAPE)
 })

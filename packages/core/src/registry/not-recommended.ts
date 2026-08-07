@@ -189,6 +189,82 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       '`recommended` combined, and the default figure is the largest ever measured for this registry.',
     evidence: 'no-underscore-dangle',
   },
+  'require-unicode-regexp': {
+    reason:
+      '**305 findings, zero defects.** Every one is an ASCII pattern where `u` changes nothing — `/\\\\/g`, ' +
+      '`/^https:\\/\\//`, `/^ {2}[│╭╰]/`. The flag is worth having where a pattern touches astral characters or ' +
+      'uses `\\p{…}`, and there the code already carries it.\n\n' +
+      'A rule that reports a third of a codebase to harden the handful of patterns it actually helps is the ' +
+      '`biome-css/noHexColors` shape: house style with no defect content, at a volume that buries the rules ' +
+      'which do have some. Available as `pedantic.require-unicode-regexp`.',
+    evidence: 'pedantic-audit',
+  },
+  'require-await': {
+    reason:
+      '**113 findings, and the shape is structural.** `async version(cache)`, `async materializeConfig(…)`, ' +
+      '`async dispose()`, `async detect(context)` — implementations of an interface that declares a `Promise` ' +
+      'return, where this implementation happens not to await. The `async` keyword there is the contract, not ' +
+      'an oversight, and removing it means hand-writing `Promise.resolve`.\n\n' +
+      'The rule sees one function at a time and has no way to know a signature requires it. Test doubles are ' +
+      'the rest: `async () => "1.2.3"` standing in for something that really is asynchronous.',
+    evidence: 'pedantic-audit',
+  },
+  'vitest/no-conditional-in-test': {
+    reason:
+      '**153 findings, and none is a conditional assertion.** The real target — an `expect` behind an `if` that ' +
+      'may never run — is worth catching. What it reports here is a mock implementation with a ternary ' +
+      '(`levelOf: (concept) => concept === … ? "warn" : undefined`), a table-driven `for` over fixtures, and ' +
+      '`expect(a === b && c)`.\n\n' +
+      'It cannot tell a test body apart from the setup inside it, so on any suite that builds its doubles ' +
+      'inline the count is a function of how the mocks are written. `jest/no-conditional-in-test` is the same ' +
+      'rule and excluded with it.',
+    evidence: 'pedantic-audit',
+  },
+  'jest/no-conditional-in-test': { reason: '**153 findings**, the jest twin of `vitest/no-conditional-in-test` above, on the same code and the same argument.' },
+  'unicorn/no-useless-undefined': {
+    reason:
+      '**37 findings, and in TypeScript `undefined` is a value the signature names.** `levelOf: () => undefined` ' +
+      'satisfies `(concept) => Level | undefined`; `defaultEngines(dir, undefined, undefined)` fills positional ' +
+      'parameters that have no other spelling. Dropping either changes what the type says.\n\n' +
+      'Its two options (`checkArguments`, `checkArrowFunctionBody`) each remove one of those classes and both ' +
+      'are needed, which leaves the rule reporting only `return undefined` — three findings, also explicit on ' +
+      'purpose.',
+    evidence: 'pedantic-audit',
+  },
+  'unicorn/no-array-callback-reference': {
+    reason:
+      '**24 findings, zero true positives.** All are `.map(ruleRefKey)` and friends: single-parameter functions, ' +
+      'where the extra `(index, array)` arguments a callback receives are ignored.\n\n' +
+      'The bug it exists for is real and famous — `["1","2","3"].map(parseInt)` — but telling that apart needs ' +
+      'the callee\'s arity, which this rule does not have. A type-aware check would; this one reports every ' +
+      'point-free callback in the codebase instead.',
+    evidence: 'pedantic-audit',
+  },
+  'unicorn/prefer-math-trunc': {
+    reason:
+      '**3 findings, and taking its advice would introduce a bug.** All three are the `>>> 0` in a seeded PRNG ' +
+      '(`state = (state + 0x6d2b79f5) >>> 0`), where the shift is not truncation but coercion to uint32 — the ' +
+      'whole arithmetic depends on it. `Math.trunc` does not wrap at 2³² and the generator would stop matching ' +
+      'its reference implementation.\n\n' +
+      'Bitwise-as-truncation is the pattern the rule is right about; bitwise-as-uint32 reads identically and it ' +
+      'cannot separate them.',
+    evidence: 'pedantic-audit',
+  },
+  'unicorn/prefer-single-call': { reason: '**28 findings, zero defects.** Consecutive `lines.push(…)` calls in report builders, where one statement per line is what makes the branch structure readable. A style preference with a micro-allocation story behind it.' },
+  'no-inline-comments': { reason: '**23 findings, zero defects**, and it contradicts AGENTS.md, which asks for a constraint stated on one line — often the line it constrains. A trailing comment is a legitimate form of that, not a lesser one.' },
+  'no-negated-condition': { reason: '**6 findings, zero defects.** `level !== null ? recommended : withheld` reads in the order the reader cares about; inverting it to satisfy the rule puts the uninteresting branch first.' },
+  'unicorn/no-negated-condition': { reason: '**6 findings**, the unicorn twin of `no-negated-condition` above, on the same expressions.' },
+  'unicorn/escape-case': { reason: '**3 findings, zero defects.** It wants `\\u00D7` rather than `\\u00d7`. Letter case inside an escape sequence, which changes nothing a reader or an engine can observe.' },
+  'no-promise-executor-return': {
+    reason:
+      '**6 findings, zero defects.** All are `new Promise((resolve) => setImmediate(resolve))` and its siblings ' +
+      '— an arrow body wrapping a callback API, which is the canonical way to promisify one, and whose returned ' +
+      'value is a `Timeout` nobody meant to use.\n\n' +
+      'Its `allowVoid` option only accepts the fix already written as `void …`. The case it exists for is an ' +
+      'executor that returns a promise someone thought was awaited, and it cannot tell that from a one-line ' +
+      'wrapper.',
+    evidence: 'pedantic-audit',
+  },
   'no-await-in-loop': {
     reason:
       '**77 findings here, and one of them is `await Promise.all(...)`** — the very construct the rule tells ' +
@@ -207,6 +283,53 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       'allocation for in-place mutation of data the caller still holds is a worse defect than the one it removes.',
     evidence: 'perf-nursery-audit',
   },
+  'jsdoc/require-returns': {
+    reason:
+      '**30 findings, and the rule asks for what AGENTS.md forbids.** Every one is a typed function whose ' +
+      '`@returns` would restate its return type in prose — "Nikdy nekomentuj: podpis funkce slovy". In ' +
+      'TypeScript the signature is the documentation, and a tag repeating it is a second copy that goes stale ' +
+      'on the first refactor.\n\n' +
+      '`require-param` and the five type and description rules below are excluded on the identical argument. ' +
+      'A JavaScript project that documents with JSDoc enables the `pedantic.jsdoc-*` concepts and gets them all.',
+    evidence: 'pedantic-audit',
+  },
+  'jsdoc/require-param': { reason: '**27 findings.** The parameter half of `jsdoc/require-returns` above: a `@param` beside a typed parameter restates the signature in prose, which AGENTS.md forbids.' },
+  'jsdoc/require-param-description': { reason: 'Same argument as `jsdoc/require-returns` above, applied to descriptions.' },
+  'jsdoc/require-param-name': { reason: 'Same argument as `jsdoc/require-returns` above.' },
+  'jsdoc/require-param-type': { reason: 'Same argument as `jsdoc/require-returns` above, and in TypeScript a `@param {type}` tag is the type written twice.' },
+  'jsdoc/require-returns-description': { reason: 'Same argument as `jsdoc/require-returns` above.' },
+  'jsdoc/require-returns-type': { reason: 'Same argument as `jsdoc/require-returns` above, and in TypeScript a `@returns {type}` tag is the type written twice.' },
+  'jsdoc/require-throws-type': { reason: 'Same argument as `jsdoc/require-returns` above.' },
+  'jsdoc/require-yields-type': { reason: 'Same argument as `jsdoc/require-returns` above.' },
+  'max-lines-per-function': {
+    reason:
+      '**68 findings at the default of 50 lines**, and the number is the whole rule. A threshold that is not ' +
+      'this repository\'s to choose: it says nothing about whether a function does one thing, which is what ' +
+      'AGENTS.md actually asks for, and a 60-line exhaustive `switch` is not improved by being split.\n\n' +
+      '`max-lines`, `max-depth`, `max-classes-per-file`, `max-nested-callbacks` and `import/max-dependencies` ' +
+      'are excluded on the identical argument. Each is available by concept for a team that has agreed a number.',
+    evidence: 'pedantic-audit',
+  },
+  'max-lines': { reason: '**29 findings at the default of 300 lines.** A threshold argument, same as `max-lines-per-function` above.' },
+  'max-depth': { reason: '**3 findings at the default of 4.** A threshold argument, same as `max-lines-per-function` above.' },
+  'max-classes-per-file': { reason: '**1 finding at the default of 1 class.** A threshold argument, same as `max-lines-per-function` above.' },
+  'max-nested-callbacks': { reason: 'A threshold argument, same as `max-lines-per-function` above. Silent here, which is a fact about this codebase and not about the rule.' },
+  'import/max-dependencies': { reason: '**12 findings at the default of 10 imports.** A threshold argument, same as `max-lines-per-function` above, and the count it caps is a property of what a module composes rather than of its quality.' },
+  'no-else-return': { reason: 'Style with no defect behind it: whether the early return or the symmetric `if`/`else` reads better depends on whether the two branches are peers. Silent here.' },
+  'no-lonely-if': { reason: 'Style with no defect behind it — `else { if … }` against `else if`. Silent here.' },
+  'unicorn/no-lonely-if': { reason: 'The unicorn twin of `no-lonely-if` above, on the same argument.' },
+  'sort-vars': { reason: 'Declaration order inside one statement, which no reader depends on. `sort-keys` and `sort-imports` are excluded on the same ground — they produced 4,513 and 787 findings here between them.' },
+  'accessor-pairs': { reason: 'A getter without its setter is a deliberate read-only property far more often than it is an omission, and the rule cannot tell those apart. Silent here.' },
+  'unicorn/explicit-length-check': { reason: '`array.length` in a boolean position is unambiguous — the only falsy length is 0. A preference for `> 0`, with no defect behind it.' },
+  'unicorn/prefer-top-level-await': {
+    reason:
+      'It reads a `main().catch(…)` entry point as legacy, and for a CLI it is not: `bin/sgate.js` needs a ' +
+      'synchronous body so `module.enableCompileCache()` runs before the module graph loads, which is worth ' +
+      '26 ms of every run (see docs/measurements.md). Top-level await also changes how a bundler can emit the ' +
+      'module, which is a packaging decision and not a lint one.',
+  },
+  'unicorn/consistent-assert': { reason: '`assert(x)` against `assert.ok(x)` — its own documentation calls this consistency and readability, and both spellings do the same thing.' },
+  'unicorn/prefer-event-target': { reason: 'Node\'s `EventEmitter` to `EventTarget` is a migration with different semantics — no `once` return value, no listener count, different error handling — not a defect. A project that has chosen `EventTarget` enables the concept.' },
   'react/no-array-index-key': {
     reason:
       '**Revisit trigger, not a verdict.** 3 findings here, 3 false, and the rule is right about the general ' +
