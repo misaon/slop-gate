@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-engine-deps-security",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Advisory adapter for slop-gate: known-vulnerable and malicious dependencies.",
   "keywords": [
     "slop-gate",
