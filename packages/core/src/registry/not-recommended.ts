@@ -220,76 +220,14 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       'it down on a Preact tree, which is a signal the inventory already carries.',
     evidence: 'react-corpus',
   },
-  'typescript/prefer-readonly-parameter-types': {
-    reason:
-      '**1,123 findings in 236 files — the largest count any type-aware rule produces here.** It requires ' +
-      'every parameter to be deeply `readonly`, so every engine method, every context object and every ' +
-      'options bag is reported.\n\n' +
-      'That is a type discipline a project adopts wholesale or not at all, and adopting it means annotating ' +
-      'the transitive shape of everything that crosses a function boundary. It says nothing about whether ' +
-      'any of them is mutated.',
-    evidence: 'type-aware-audit',
-  },
-  'typescript/no-unsafe-type-assertion': {
-    reason:
-      '**225 findings, and the dominant shape is `JSON.parse(text) as T`** — the assertion every boundary ' +
-      'that reads external data makes. The rule is right that nothing checks it, and the fix is a validator ' +
-      'at each of those boundaries, which is a design decision rather than a lint repair.\n\n' +
-      'Distinct from `no-unnecessary-type-assertion`, which is in `recommended`: that one finds assertions ' +
-      'that do nothing, this one finds assertions that do something unchecked.',
-    evidence: 'type-aware-audit',
-  },
-  'typescript/no-unsafe-assignment': {
-    reason:
-      '**35 findings, and they trace to two sources outside this codebase\'s own types**: `JSON.parse`, which ' +
-      'returns `any` by construction, and vitest\'s `expect.stringContaining`, which is typed `any` upstream. ' +
-      '14 files, almost all tests.\n\n' +
-      'The four siblings below report the same `any` at a different point in its travel and are excluded with ' +
-      'it. Worth revisiting together once the boundaries that produce the `any` are validated rather than ' +
-      'asserted — see `typescript/no-unsafe-type-assertion` above, which is the same decision.',
-    evidence: 'type-aware-audit',
-  },
-  'typescript/no-unsafe-member-access': { reason: '**34 findings**, and 31 of them are one expression: `JSON.parse(await readFile(...)).rules` in a test. The same `any` as `typescript/no-unsafe-assignment` above, read one step later.' },
-  'typescript/no-unsafe-call': { reason: '**23 findings.** The same `any` as `typescript/no-unsafe-assignment` above, invoked rather than read.' },
-  'typescript/no-unsafe-argument': { reason: '**8 findings.** The same `any` as `typescript/no-unsafe-assignment` above, passed on rather than read.' },
-  'typescript/no-unsafe-return': { reason: '**4 findings.** The same `any` as `typescript/no-unsafe-assignment` above, returned rather than read.' },
   'typescript/require-await': { reason: '**86 findings**, the type-aware twin of `require-await` above and excluded on the identical argument: an interface declaring a `Promise` return makes `async` the contract, and neither rule can see the signature that requires it.' },
-  'typescript/promise-function-async': {
-    reason:
-      '**79 findings.** It requires every function returning a promise to be declared `async`, which for one ' +
-      'that returns a promise it was handed — a cached lookup, a memoised call, a passthrough — adds a ' +
-      'microtask and a wrapper around a value that was already the right shape.\n\n' +
-      'The case it exists for is a synchronous throw escaping a promise-returning function. That is real, and ' +
-      'it is a narrower rule than this one.',
-    evidence: 'type-aware-audit',
-  },
-  'typescript/strict-void-return': { reason: '**72 findings.** It forbids returning a value from anything typed `void`, including the shorthand arrow bodies that make a callback one line. The contract is already that the value is ignored.' },
-  'typescript/no-confusing-void-expression': { reason: '**26 findings.** Same family as `strict-void-return` above: it reports `void` appearing in a position that discards it, which is what `void` is for.' },
-  'typescript/strict-boolean-expressions': { reason: '**6 findings.** It requires every condition to be an actual boolean, so a nullable string or a number has to be compared explicitly. A dialect a project adopts, not a defect.' },
   'typescript/no-unnecessary-condition': { reason: '**29 findings**, and it is `nursery`. It reports a check the types prove redundant — which is exactly the check that survives data arriving from outside the types, where the guarantee was never real.' },
-  'typescript/restrict-plus-operands': { reason: '**10 findings.** It forbids `+` between different types, including the string-and-number concatenation that a template literal is the alternative to. `restrict-template-expressions`, which is the version that catches a real stringification bug, is in `recommended`.' },
   'typescript/dot-notation': { reason: '**6 findings**, and all of them are index access this repository writes on purpose: `noPropertyAccessFromIndexSignature` requires it, so the rule and the compiler ask for opposite things.' },
   'typescript/non-nullable-type-assertion-style': { reason: '**5 findings.** It prefers `!` to `as NonNullable<T>` — the opposite of what AGENTS.md asks for, which is the explicit form.' },
   'typescript/prefer-nullish-coalescing': { reason: '**4 findings.** `||` and `??` differ on empty string and zero, and which one is wanted is a property of the value rather than of the operator. Where the two differ this repository already uses `??`.' },
   'typescript/prefer-optional-chain': { reason: '**3 findings**, and `nursery`. Chained `&&` guards and `?.` differ on whether an intermediate is falsy or absent, so the rewrite is not always equivalent.' },
   'typescript/use-unknown-in-catch-callback-variable': { reason: '**2 findings.** `useUnknownInCatchVariables` already types a `catch` binding as `unknown`; this extends it to the `.catch()` callback, where the same discipline is already applied by hand.' },
-  'typescript/return-await': { reason: '**2 findings.** `return await` inside a `try` keeps the frame in the stack trace and outside one adds a microtask, so the right answer depends on the block — which the default configuration does not distinguish.' },
-  'typescript/consistent-type-exports': {
-    reason:
-      'Silent here, and `style`. It separates type re-exports from value ones, which `isolatedModules` ' +
-      'already forces at the point it matters.\n\n' +
-      'The seven type-aware `style` rules below are silent here too and excluded on the argument the style ' +
-      'audit settled: a rule oxlint files under `style` earns `recommended` by holding a defect, and these ' +
-      'hold a preference. See docs/measurements.md#style-audit.',
-    evidence: 'style-audit',
-  },
-  'typescript/no-unnecessary-qualifier': { reason: 'Silent here, and `style`: a namespace qualifier inside its own namespace. Same argument as `typescript/consistent-type-exports` above.' },
   'typescript/prefer-find': { reason: 'Silent here, and `style`. `perf.prefer-array-find` — unicorn\'s version of the same check — is already in `recommended`, so this would be a second concept for one question.' },
-  'typescript/prefer-readonly': { reason: 'Silent here, and `style`: a private field never reassigned could be `readonly`. Same argument as `typescript/consistent-type-exports` above.' },
-  'typescript/prefer-reduce-type-parameter': { reason: 'Silent here, and `style`: the accumulator typed through `reduce`\'s parameter rather than by asserting the seed. Same argument as `typescript/consistent-type-exports` above.' },
-  'typescript/prefer-regexp-exec': { reason: 'Silent here, and `style`. `match` and `exec` differ only when the pattern is global, and there the rule does not fire. Same argument as `typescript/consistent-type-exports` above.' },
-  'typescript/prefer-return-this-type': { reason: 'Silent here, and `style`: a fluent method returning the class rather than `this`. Same argument as `typescript/consistent-type-exports` above.' },
-  'typescript/prefer-string-starts-ends-with': { reason: 'Silent here, and `style`: a prefix test written through `indexOf` or a regular expression. Same argument as `typescript/consistent-type-exports` above.' },
   'typescript/unbound-method': {
     reason:
       '**10 findings, zero true positives, and one shape.** Every one is a function-valued property on an ' +
@@ -377,6 +315,86 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       'of `security.implied-eval` that this registry does not provide.\n\n' +
       'Scoped to the bare `eslint` rule; `typescript/no-implied-eval` is separate and type-aware.',
     evidence: 'no-implied-eval',
+  },
+  'hadolint/DL1000': {
+    reason:
+      '**Could not be made to fire.** Authored Dockerfiles built from the rule\'s own description produced nothing, with the rule forced to `error` through an `override` block so a default-off severity cannot be the explanation. A rule whose behaviour cannot be demonstrated must not be shipped as coverage.',
+  },
+  'hadolint/DL1001': {
+    reason:
+      '**It forbids hadolint\'s own `# hadolint ignore=` pragma, which is a suppression question rather than a Dockerfile one.** slop-gate already models a foreign tool\'s suppression directly, so routing the same concern through a lint rule would report it twice and in the weaker of the two places. Off by default upstream for the same reason.',
+  },
+  'hadolint/DL3026': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3032': {
+    reason:
+      '**Excluded on the identical argument as `DL3009` and `DL3019`**: an image-size optimisation, routinely pointless in a build stage that a later multi-stage `COPY` discards wholesale. It reports that a cache directory survived into a layer, not that anything in the image is wrong.',
+  },
+  'hadolint/DL3033': {
+    reason:
+      '**Excluded on the identical argument as `DL3008`**: the package archive keeps only the current version, so a pin stops resolving the moment a security update lands. That is why `DL3016` (npm), `DL3028` (gem) and `DL3062` (go) ship and this one does not — those registries keep every version published, and a pin there stays valid.',
+  },
+  'hadolint/DL3036': {
+    reason:
+      '**Excluded on the identical argument as `DL3009` and `DL3019`**: an image-size optimisation, routinely pointless in a build stage that a later multi-stage `COPY` discards wholesale. It reports that a cache directory survived into a layer, not that anything in the image is wrong.',
+  },
+  'hadolint/DL3037': {
+    reason:
+      '**Excluded on the identical argument as `DL3008`**: the package archive keeps only the current version, so a pin stops resolving the moment a security update lands. That is why `DL3016` (npm), `DL3028` (gem) and `DL3062` (go) ship and this one does not — those registries keep every version published, and a pin there stays valid.',
+  },
+  'hadolint/DL3040': {
+    reason:
+      '**Excluded on the identical argument as `DL3009` and `DL3019`**: an image-size optimisation, routinely pointless in a build stage that a later multi-stage `COPY` discards wholesale. It reports that a cache directory survived into a layer, not that anything in the image is wrong.',
+  },
+  'hadolint/DL3041': {
+    reason:
+      '**Excluded on the identical argument as `DL3008`**: the package archive keeps only the current version, so a pin stops resolving the moment a security update lands. That is why `DL3016` (npm), `DL3028` (gem) and `DL3062` (go) ship and this one does not — those registries keep every version published, and a pin there stays valid.',
+  },
+  'hadolint/DL3046': {
+    reason:
+      '**Could not be made to fire.** Authored Dockerfiles built from the rule\'s own description produced nothing, with the rule forced to `error` through an `override` block so a default-off severity cannot be the explanation. A rule whose behaviour cannot be demonstrated must not be shipped as coverage.',
+  },
+  'hadolint/DL3049': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3050': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3051': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3052': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3053': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3054': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3055': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3056': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3058': {
+    reason:
+      '**Reports nothing without a label schema the project supplies.** Verified: a fixture that produced 0 findings on its own produced 7 under a `label-schema` block. The rule holds no opinion of its own — the list of required labels, their formats and whether extras are allowed are all facts about a project. Naming it in a preset would be decoration, the same as `no-restricted-syntax`.',
+  },
+  'hadolint/DL3060': {
+    reason:
+      '**Excluded on the identical argument as `DL3009` and `DL3019`**: an image-size optimisation, routinely pointless in a build stage that a later multi-stage `COPY` discards wholesale. It reports that a cache directory survived into a layer, not that anything in the image is wrong.',
   },
   'hadolint/DL3008': {
     reason:

@@ -1,4 +1,5 @@
 FROM debian:12-slim
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo hello | cat
+HEALTHCHECK CMD /app/healthy.sh
 ENTRYPOINT ["/app/start.sh"]

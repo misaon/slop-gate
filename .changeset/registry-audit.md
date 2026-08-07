@@ -3,29 +3,19 @@
 ---
 
 **Every rule in the registry has been read against its documentation, and `recommended` goes from 349
-rules to 829.** Expect substantially more findings on the first run after upgrading. That is the
+rules to 886.** Expect substantially more findings on the first run after upgrading. That is the
 intended direction, and the bar is deliberately narrow: a rule is on unless it is *wrong* (it does not
 describe a defect, or its fixer changes what the code means), it *contradicts another rule* that no
 option can separate it from, or it *cannot be obeyed* (the finding is real and no fix exists). Volume
 is not a reason. `style.no-magic-numbers`, `style.sort-keys` and `style.id-length` are all on.
 
-The shape of the registry, by the concept group a rule lands in:
+Coverage per engine, which the earlier passes had not stated: oxlint is complete at 847 of the 847
+rules it ships. hadolint had 20 of its 72 read and now has all 72. biome's CSS rules and knip's issue
+types were already complete. 20 type-aware rules came back after their exclusions were re-read against
+the same bar, `typescript/return-await` among them with the `in-try-catch` option its own note had
+described.
 
-| | rules | on | withheld | unlisted |
-|---|---:|---:|---:|---:|
-| `style` | 278 | 241 | 20 | 17 |
-| `correctness` | 269 | 267 | 2 | 0 |
-| `pedantic` | 123 | 108 | 15 | 0 |
-| `restriction` | 95 | 78 | 10 | 7 |
-| non-oxlint engines | 75 | 65 | 10 | 0 |
-| `suspicious` | 53 | 46 | 7 | 0 |
-| `perf` | 14 | 13 | 1 | 0 |
-| `security` | 6 | 6 | 0 | 0 |
-| `nursery` | 6 | 1 | 4 | 1 |
-| `dead-code` | 3 | 3 | 0 | 0 |
-| `slop` | 1 | 1 | 0 | 0 |
-
-**Withheld rules went from 20 to 69.** A rule that is off now says why it is off, with the count and
+**Withheld rules went from 20 to 49.** A rule that is off now says why it is off, with the count and
 the composition behind it, and `docs/measurements.md` holds the working. What is left `unlisted` is 25 rules that report
 nothing at all until a project supplies a list — `no-restricted-syntax`, `id-match`, `forbid-elements`
 and their kin — so naming them in a preset would be decoration.
@@ -40,7 +30,7 @@ this repository goes from 3.1 s to 5.9 s. Without it those concepts report as a 
 35 with a stated failure path — so the group default is now 2. Catalogue-wide that is 621/294/8 to
 569/344/10 across impact 1/2/3.
 
-**Every one of the 829 rules `recommended` enables now carries a written description** of what breaks,
+**Every one of the 886 rules `recommended` enables now carries a written description** of what breaks,
 rather than the generator's placeholder.
 
 **Every exclusion was measured against fifty repositories.** `packages/rule-corpus` clones twenty-five

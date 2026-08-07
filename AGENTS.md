@@ -47,8 +47,8 @@ because a cached "the gate passed" verdict is not a verdict. `--output-logs=erro
 because turbo replays a cached task's log in full: 229 lines of tsdown output ahead of the findings,
 which in CI is the whole step log a contributor opens. A build that fails still prints everything.
 
-**`--max-warnings 0`, not bare `sgate check`.** Only 239 of the 832 concepts `recommended` enables here
-are `error`; 592 are `warn`, including all six `slop.*` rules. Measured: a file with an `as any` cast
+**`--max-warnings 0`, not bare `sgate check`.** Only 240 of the 889 concepts `recommended` enables here
+are `error`; 648 are `warn`, including all six `slop.*` rules. Measured: a file with an `as any` cast
 and a stub implementation exits `0` from a bare `sgate check` and `1` with the flag. Without it the
 gate would pass on precisely the findings this tool exists to make. One concept is still not gated —
 `config.rule-overlap` is `info`, and there is no threshold flag for `info`.
