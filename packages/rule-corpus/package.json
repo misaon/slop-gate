@@ -1,0 +1,19 @@
+{
+  "name": "@misaon/slop-gate-rule-corpus",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Internal: run every rule slop-gate knows over fifty real repositories, so an exclusion is a measurement.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "measure": "node --experimental-strip-types src/measure.ts",
+    "report": "node --experimental-strip-types src/report.ts"
+  },
+  "dependencies": {
+    "@misaon/slop-gate-core": "workspace:*"
+  }
+}

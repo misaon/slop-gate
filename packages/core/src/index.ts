@@ -5,6 +5,7 @@ export type { BaselineEntry } from './baseline/types.ts'
 export { baselinePathFor, entriesOf, readBaseline, writeBaseline } from './baseline/file.ts'
 
 export {
+  CONCEPTS,
   CONCEPT_GROUPS,
   GENERATED_CONCEPT_IDS,
   conceptById,
