@@ -1790,6 +1790,510 @@ export const CURATED_CONCEPTS = [
       'that was meant to read it is missing, so this is a symptom rather than untidiness.',
   },
   {
+    id: 'pedantic.array-callback-return',
+    group: 'pedantic',
+    title: 'Array callback that returns nothing',
+    description:
+      '`map`, `filter` and `reduce` read the callback’s return value; a body that falls off its end ' +
+      'fills the result with `undefined` and the loop looks like it worked.',
+  },
+  {
+    id: 'pedantic.ban-ts-comment',
+    group: 'pedantic',
+    title: 'Type error suppressed without a reason',
+    description:
+      'A `@ts-ignore`, or a `@ts-expect-error` with nothing written beside it, hides a diagnostic and ' +
+      'records nothing about why. `@ts-ignore` also stays silent once the error underneath it is gone.',
+  },
+  {
+    id: 'pedantic.ban-types',
+    group: 'pedantic',
+    title: 'Type that means less than it looks like',
+    description:
+      '`Object`, `Function` and the boxed primitives accept far more than their names suggest, so the ' +
+      'annotation checks almost nothing.',
+  },
+  {
+    id: 'pedantic.branches-sharing-code',
+    group: 'pedantic',
+    title: 'Both branches beginning or ending the same way',
+    description:
+      'Statements shared by every branch belong outside the condition, where a change reaches all of ' +
+      'them instead of one.',
+  },
+  {
+    id: 'pedantic.checked-requires-onchange-or-readonly',
+    group: 'pedantic',
+    title: 'Controlled input with no way to change',
+    description:
+      'An input given `checked` without a change handler or `readOnly` ignores every click, and the ' +
+      'framework logs a warning rather than fixing it.',
+  },
+  {
+    id: 'pedantic.consistent-empty-array-spread',
+    group: 'pedantic',
+    title: 'Conditional spread that changes type by branch',
+    description:
+      'Spreading an array in one branch and a non-array in the other produces different shapes from one ' +
+      'expression, which the type is unable to describe.',
+  },
+  {
+    id: 'pedantic.display-name',
+    group: 'pedantic',
+    title: 'Component with no name to report',
+    description:
+      'Without a name the component appears as `Unknown` in a stack trace, in the developer tools and ' +
+      'in every error boundary above it.',
+  },
+  {
+    id: 'pedantic.eqeqeq',
+    group: 'pedantic',
+    title: 'Loose equality between values that can coerce',
+    description:
+      '`==` converts before comparing, so `0 == ’’` and `null == undefined` are true and a comparison ' +
+      'passes for a value the author did not have in mind.',
+  },
+  {
+    id: 'pedantic.jsx-no-useless-fragment',
+    group: 'pedantic',
+    title: 'Fragment wrapping a single child',
+    description:
+      'A fragment around one element adds a node to the tree that the reconciler walks and the reader ' +
+      'has to look past.',
+  },
+  {
+    id: 'pedantic.new-for-builtins',
+    group: 'pedantic',
+    title: 'Built-in called with the wrong construction form',
+    description:
+      'Some built-ins must be called with `new` and some must not, and the wrong form yields an object ' +
+      'where a primitive was wanted or throws outright.',
+  },
+  {
+    id: 'pedantic.no-array-constructor',
+    group: 'pedantic',
+    title: 'Array built with its constructor',
+    description:
+      '`new Array(3)` makes three holes and `new Array(3, 4)` makes two elements, so the same call ' +
+      'means different things depending on how many arguments it has.',
+  },
+  {
+    id: 'pedantic.no-case-declarations',
+    group: 'pedantic',
+    title: 'Declaration inside a switch case',
+    description:
+      'A `let`, `const` or `class` in a case is scoped to the whole switch, so a later case can reach a ' +
+      'binding whose initialiser never ran.',
+  },
+  {
+    id: 'pedantic.no-constructor-return',
+    group: 'pedantic',
+    title: 'Constructor that returns a value',
+    description:
+      'Returning an object from a constructor discards the instance `new` created, so the class’s own ' +
+      'initialisation is thrown away.',
+  },
+  {
+    id: 'pedantic.no-deprecated',
+    group: 'pedantic',
+    title: 'Deprecated API used',
+    description:
+      'The declaration says it is going away, so the call compiles today and stops compiling on an ' +
+      'upgrade nobody scheduled.',
+  },
+  {
+    id: 'pedantic.no-fallthrough',
+    group: 'pedantic',
+    title: 'Case that falls into the next one',
+    description:
+      'Without a `break` the following case also runs, and nothing distinguishes the deliberate ' +
+      'fall-through from the missing statement.',
+  },
+  {
+    id: 'pedantic.no-hex-escape',
+    group: 'pedantic',
+    title: 'Escape written with a leading zero',
+    description:
+      '`\\x0a` and `\\u000a` are the same character written two ways, and the padded form invites a ' +
+      'reader to count digits that do not matter.',
+  },
+  {
+    id: 'pedantic.no-inner-declarations',
+    group: 'pedantic',
+    title: 'Function declared inside a block',
+    description:
+      'How a declaration in a block is hoisted differs between strict and sloppy mode, so what the name ' +
+      'refers to before that line depends on the file’s mode.',
+  },
+  {
+    id: 'pedantic.no-instanceof-array',
+    group: 'pedantic',
+    title: 'Array checked with `instanceof`',
+    description:
+      'An array from another realm has a different constructor, so the check is false for something ' +
+      'that is exactly an array. `Array.isArray` is not.',
+  },
+  {
+    id: 'pedantic.no-misused-promises',
+    group: 'pedantic',
+    title: 'Promise passed where a plain value belongs',
+    description:
+      'A promise in a condition is always truthy, and an async function given to something expecting ' +
+      '`void` runs unawaited with its rejection unhandled.',
+  },
+  {
+    id: 'pedantic.no-mixed-enums',
+    group: 'pedantic',
+    title: 'Enum mixing numbers and strings',
+    description:
+      'Numeric members get a reverse mapping and string ones do not, so iterating the enum yields a ' +
+      'different set depending on which member is read.',
+  },
+  {
+    id: 'pedantic.no-negation-in-equality-check',
+    group: 'pedantic',
+    title: 'Negation applied before a comparison',
+    description:
+      '`!a === b` negates first and compares a boolean, which is almost never the `a !== b` it was ' +
+      'written to mean.',
+  },
+  {
+    id: 'pedantic.no-new-buffer',
+    group: 'pedantic',
+    title: 'Buffer allocated with its constructor',
+    description:
+      '`new Buffer(n)` returns memory that was never cleared, so the contents are whatever the process ' +
+      'last had there.',
+  },
+  {
+    id: 'pedantic.no-new-wrappers',
+    group: 'pedantic',
+    title: 'Primitive wrapped in its object form',
+    description:
+      '`new Boolean(false)` is an object and every object is truthy, so the value tests as the opposite ' +
+      'of what it holds.',
+  },
+  {
+    id: 'pedantic.no-object-as-default-parameter',
+    group: 'pedantic',
+    title: 'Object literal as a default parameter',
+    description:
+      'The default is one object shared by nothing — it is rebuilt per call — but its identity changes ' +
+      'every time, so anything memoising on it never hits.',
+  },
+  {
+    id: 'pedantic.no-object-constructor',
+    group: 'pedantic',
+    title: 'Object built with its constructor',
+    description:
+      '`Object()` returns its argument when given one, so the call produces a number or a string ' +
+      'wherever an empty object was expected.',
+  },
+  {
+    id: 'pedantic.no-prototype-builtins',
+    group: 'pedantic',
+    title: 'Prototype method called directly on an object',
+    description:
+      'An object used as a map can carry a key called `hasOwnProperty`, or have no prototype at all, ' +
+      'and the call then throws or answers about the data.',
+  },
+  {
+    id: 'pedantic.no-redeclare',
+    group: 'pedantic',
+    title: 'Name declared twice in one scope',
+    description:
+      'The second declaration wins silently, so one of the two initialisers never takes effect and ' +
+      'neither line says which.',
+  },
+  {
+    id: 'pedantic.no-self-compare',
+    group: 'pedantic',
+    title: 'Value compared against itself',
+    description:
+      'The result is fixed except for `NaN`, so the comparison either always holds or is a `NaN` check ' +
+      'written in a way nobody reads as one.',
+  },
+  {
+    id: 'pedantic.no-static-only-class',
+    group: 'pedantic',
+    title: 'Class holding only static members',
+    description:
+      'A class used as a namespace cannot be tree-shaken, and it invites an instantiation that produces ' +
+      'an object with nothing on it.',
+  },
+  {
+    id: 'pedantic.no-this-assignment',
+    group: 'pedantic',
+    title: '`this` copied into a variable',
+    description:
+      'Aliasing the receiver predates arrow functions, and the alias outlives the scope it was captured ' +
+      'for, so it points at the wrong object after a refactor.',
+  },
+  {
+    id: 'pedantic.no-throw-literal',
+    group: 'pedantic',
+    title: 'Something other than an `Error` thrown',
+    description:
+      'A thrown string or object carries no stack, so the report names the line that caught it rather ' +
+      'than the line that failed.',
+  },
+  {
+    id: 'pedantic.no-typeof-undefined',
+    group: 'pedantic',
+    title: 'Undefined checked through `typeof`',
+    description:
+      '`typeof x === ’undefined’` was needed when reading an undeclared name threw; for a declared ' +
+      'binding the direct comparison says the same thing and catches the typo.',
+  },
+  {
+    id: 'pedantic.no-unescaped-entities',
+    group: 'pedantic',
+    title: 'Quote or bracket written raw in JSX',
+    description:
+      'Characters such as `>` and `"` are ambiguous in JSX text: some parsers accept them and some do ' +
+      'not, so the same source renders differently.',
+  },
+  {
+    id: 'pedantic.no-unnecessary-array-flat-depth',
+    group: 'pedantic',
+    title: '`flat` given the depth it already uses',
+    description:
+      'Passing `1` is what omitting the argument does, and the explicit value becomes wrong when the ' +
+      'nesting changes.',
+  },
+  {
+    id: 'pedantic.no-unnecessary-array-splice-count',
+    group: 'pedantic',
+    title: '`splice` given a count that reaches the end',
+    description:
+      'Passing the remaining length is what omitting the argument does, and the arithmetic is a place ' +
+      'to make an off-by-one that removes one element too few.',
+  },
+  {
+    id: 'pedantic.no-unnecessary-slice-end',
+    group: 'pedantic',
+    title: '`slice` given an end it does not need',
+    description:
+      'Passing the length is what omitting the argument does, and the expression has to be revisited ' +
+      'whenever the receiver changes.',
+  },
+  {
+    id: 'pedantic.no-unreadable-iife',
+    group: 'pedantic',
+    title: 'Immediately invoked arrow with an inline body',
+    description:
+      'An arrow whose body is itself parenthesised and called reads as a call to something else, and ' +
+      'the number of parentheses is the only thing that says otherwise.',
+  },
+  {
+    id: 'pedantic.no-unsafe-function-type',
+    group: 'pedantic',
+    title: '`Function` used as a type',
+    description:
+      'It accepts any callable with any signature and returns `any`, so nothing about the call is ' +
+      'checked.',
+  },
+  {
+    id: 'pedantic.no-useless-promise-resolve-reject',
+    group: 'pedantic',
+    title: 'Promise wrapped around a value inside an async function',
+    description:
+      'An async function already wraps what it returns, so resolving explicitly adds a layer and ' +
+      'rejecting explicitly hides what a `throw` would have shown.',
+  },
+  {
+    id: 'pedantic.no-useless-return',
+    group: 'pedantic',
+    title: '`return` at the end of a function',
+    description:
+      'A final bare return does what falling off the end already does, and suggests a branch that used ' +
+      'to be below it.',
+  },
+  {
+    id: 'pedantic.no-useless-switch-case',
+    group: 'pedantic',
+    title: 'Default preceded by an empty case',
+    description:
+      'A case falling straight into `default` matches what `default` already matches, so removing it ' +
+      'changes nothing and leaving it suggests it does.',
+  },
+  {
+    id: 'pedantic.only-throw-error',
+    group: 'pedantic',
+    title: 'Non-error thrown or rejected with',
+    description:
+      'A rejection carrying a string reaches the handler with no stack and no name, so what failed has ' +
+      'to be inferred from where it was caught.',
+  },
+  {
+    id: 'pedantic.prefer-array-flat',
+    group: 'pedantic',
+    title: 'Nesting removed by hand',
+    description:
+      '`concat`, `reduce` and spread each flatten one level in a way the reader has to decode, where ' +
+      'the dedicated method says the depth outright.',
+  },
+  {
+    id: 'pedantic.prefer-array-some',
+    group: 'pedantic',
+    title: 'Existence tested by finding or filtering',
+    description:
+      '`find` and `filter` build or return a value the caller discards, and `filter(...).length > 0` ' +
+      'walks the whole array to answer a question the first match settles.',
+  },
+  {
+    id: 'pedantic.prefer-at',
+    group: 'pedantic',
+    title: 'Last element reached by arithmetic',
+    description:
+      '`x[x.length - 1]` names the receiver twice and produces `undefined` on an empty array with no ' +
+      'sign that the arithmetic went negative.',
+  },
+  {
+    id: 'pedantic.prefer-blob-reading-methods',
+    group: 'pedantic',
+    title: 'Blob read through a reader object',
+    description:
+      'The reader form is event-based and needs its own error handling; the promise-returning methods ' +
+      'report the same failure through the call.',
+  },
+  {
+    id: 'pedantic.prefer-code-point',
+    group: 'pedantic',
+    title: 'Character handled as a UTF-16 unit',
+    description:
+      '`charCodeAt` and `fromCharCode` truncate to 16 bits, so anything outside the basic plane — an ' +
+      'emoji, most scripts — is split or corrupted.',
+  },
+  {
+    id: 'pedantic.prefer-date-now',
+    group: 'pedantic',
+    title: 'Current time taken through a date object',
+    description:
+      'Constructing a date to read one number allocates an object and gives three ways to write the ' +
+      'same thing.',
+  },
+  {
+    id: 'pedantic.prefer-dom-node-append',
+    group: 'pedantic',
+    title: 'Node added with the older insertion method',
+    description:
+      '`appendChild` takes one node and returns it; `append` takes several and accepts strings, so the ' +
+      'older form is the one that needs a loop.',
+  },
+  {
+    id: 'pedantic.prefer-dom-node-dataset',
+    group: 'pedantic',
+    title: 'Data attribute reached as a raw attribute',
+    description:
+      'Going through `getAttribute` means spelling the `data-` prefix and the casing by hand at every ' +
+      'call site.',
+  },
+  {
+    id: 'pedantic.prefer-dom-node-remove',
+    group: 'pedantic',
+    title: 'Node removed through its parent',
+    description:
+      '`parentNode.removeChild(node)` fails when the parent is null, which is exactly the case ' +
+      '`remove()` handles.',
+  },
+  {
+    id: 'pedantic.prefer-enum-initializers',
+    group: 'pedantic',
+    title: 'Enum member with an implicit value',
+    description:
+      'An implicit member takes its position as its value, so inserting one above it renumbers ' +
+      'everything below — including data already written to disk.',
+  },
+  {
+    id: 'pedantic.prefer-import-meta-properties',
+    group: 'pedantic',
+    title: 'Module path derived by hand',
+    description:
+      '`dirname(fileURLToPath(import.meta.url))` is three calls and two imports for something ' +
+      '`import.meta.dirname` states directly.',
+  },
+  {
+    id: 'pedantic.prefer-includes',
+    group: 'pedantic',
+    title: 'Membership tested through an index',
+    description:
+      '`indexOf(x) !== -1` states the answer through a position, and the off-by-one that turns it into ' +
+      '`> 0` silently stops matching the first element.',
+  },
+  {
+    id: 'pedantic.prefer-math-min-max',
+    group: 'pedantic',
+    title: 'Clamp written as a conditional',
+    description:
+      'A ternary picking the larger or smaller value repeats both operands, so a change has to be made ' +
+      'twice and the two can disagree.',
+  },
+  {
+    id: 'pedantic.prefer-native-coercion-functions',
+    group: 'pedantic',
+    title: 'Wrapper around a conversion the platform provides',
+    description:
+      'An arrow that only calls `String` or `Number` on its argument adds a frame and a place for the ' +
+      'argument list to drift.',
+  },
+  {
+    id: 'pedantic.prefer-number-coercion',
+    group: 'pedantic',
+    title: 'Number produced by an operator rather than a conversion',
+    description:
+      'Unary plus and the double bitwise negation convert, but they also truncate and read as ' +
+      'arithmetic, so the intent has to be inferred.',
+  },
+  {
+    id: 'pedantic.prefer-promise-reject-errors',
+    group: 'pedantic',
+    title: 'Promise rejected with something that is not an error',
+    description:
+      'The rejection reaches its handler with no stack, so the failure is reported at the point it was ' +
+      'caught and not the point it happened.',
+  },
+  {
+    id: 'pedantic.prefer-prototype-methods',
+    group: 'pedantic',
+    title: 'Prototype method reached through a literal',
+    description:
+      '`[].slice.call(x)` allocates an array to borrow a method from it, where the prototype can be ' +
+      'named directly.',
+  },
+  {
+    id: 'pedantic.prefer-query-selector',
+    group: 'pedantic',
+    title: 'Element found through a specialised lookup',
+    description:
+      '`getElementById` and its relatives each take a different kind of string, so a codebase using ' +
+      'them mixes several selector dialects.',
+  },
+  {
+    id: 'pedantic.prefer-regexp-test',
+    group: 'pedantic',
+    title: 'Match used only as a condition',
+    description:
+      '`match` and `exec` build a result object to answer yes or no, and with a global flag `exec` also ' +
+      'advances the pattern’s own index between calls.',
+  },
+  {
+    id: 'pedantic.prefer-string-replace-all',
+    group: 'pedantic',
+    title: 'Global replacement written as a pattern',
+    description:
+      'Reaching for a regular expression to replace every occurrence means escaping the needle, and ' +
+      'forgetting the `g` flag replaces only the first.',
+  },
+  {
+    id: 'pedantic.prefer-string-slice',
+    group: 'pedantic',
+    title: 'Substring taken with the older method',
+    description:
+      '`substr` is a legacy annex of the specification, and `substring` reorders its arguments when ' +
+      'they are the wrong way round rather than returning nothing.',
+  },
+  {
     id: 'pedantic.prefer-ts-expect-error',
     group: 'pedantic',
     title: 'Suppression that outlives its error',
@@ -1798,12 +2302,210 @@ export const CURATED_CONCEPTS = [
       'and hides the next error on that line. `@ts-expect-error` fails when it is no longer needed.',
   },
   {
+    id: 'pedantic.prefer-type-error',
+    group: 'pedantic',
+    title: 'Type check that throws the wrong error',
+    description:
+      'A failed type check reported as a generic error cannot be told from any other failure by a ' +
+      'handler that catches by class.',
+  },
+  {
+    id: 'pedantic.radix',
+    group: 'pedantic',
+    title: '`parseInt` called without a radix',
+    description:
+      'The base is inferred from the text, so a leading zero or an `0x` prefix in user input changes ' +
+      'the number the same string produces.',
+  },
+  {
+    id: 'pedantic.related-getter-setter-pairs',
+    group: 'pedantic',
+    title: 'Getter and setter that disagree about the type',
+    description:
+      'When the setter accepts a type the getter cannot return, a value written through one comes back ' +
+      'as something else through the other.',
+  },
+  {
+    id: 'pedantic.require-number-to-fixed-digits-argument',
+    group: 'pedantic',
+    title: '`toFixed` called with no digits',
+    description:
+      'The default is zero digits, so the call rounds to an integer where a reader almost always ' +
+      'expects the value unchanged.',
+  },
+  {
+    id: 'pedantic.switch-exhaustiveness-check',
+    group: 'pedantic',
+    title: 'Switch that does not cover its union',
+    description:
+      'A member added to the union later falls through every case, and without the check nothing ' +
+      'reports that the new one is unhandled.',
+  },
+  {
+    id: 'pedantic.symbol-description',
+    group: 'pedantic',
+    title: 'Symbol created without a description',
+    description:
+      'A symbol with no description prints as `Symbol()`, so a key collision or a wrong lookup cannot ' +
+      'be told apart in a log.',
+  },
+  {
+    id: 'perf.jsx-no-constructed-context-values',
+    group: 'perf',
+    title: 'Context value rebuilt on every render',
+    description:
+      'A fresh object as the provider’s value has a new identity each render, so every consumer ' +
+      're-renders whether or not anything it reads has changed.',
+  },
+  {
+    id: 'perf.no-accumulating-spread',
+    group: 'perf',
+    title: 'Spread into an accumulator inside a loop',
+    description:
+      'Copying the accumulator on every iteration makes the loop quadratic, so it is fast on a test ' +
+      'fixture and hangs on real input.',
+  },
+  {
+    id: 'perf.no-object-type-as-default-prop',
+    group: 'perf',
+    title: 'Object literal as a default prop',
+    description:
+      'A default evaluated on each render has a new identity every time, which defeats memoisation in ' +
+      'everything that receives it.',
+  },
+  {
+    id: 'perf.no-useless-call',
+    group: 'perf',
+    title: '`call` or `apply` where a plain call would do',
+    description:
+      'Passing the receiver the function already has adds a dynamic dispatch and hides an ordinary call ' +
+      'behind a reflective one.',
+  },
+  {
+    id: 'perf.prefer-array-find',
+    group: 'perf',
+    title: 'Whole array filtered to take one element',
+    description:
+      'Filtering allocates and scans everything to reach a result that stops at the first match.',
+  },
+  {
+    id: 'perf.prefer-array-flat-map',
+    group: 'perf',
+    title: 'Map followed by a flatten',
+    description:
+      'Mapping and then flattening builds an intermediate array of arrays that the second pass ' +
+      'immediately discards.',
+  },
+  {
+    id: 'perf.prefer-set-has',
+    group: 'perf',
+    title: 'Array searched repeatedly for membership',
+    description:
+      '`includes` scans, so a lookup inside a loop is quadratic where a set is not.',
+  },
+  {
     id: 'perf.useless-iterator-to-array',
     group: 'perf',
     title: 'Iterator materialised for no reason',
     description:
       'Collecting an iterator into an array only to iterate it once allocates the whole sequence to read ' +
       'it in order, which is what the iterator already did.',
+  },
+  {
+    id: 'restriction.anchor-ambiguous-text',
+    group: 'restriction',
+    title: 'Link whose text says nothing',
+    description:
+      'Screen readers offer a list of a page’s links out of context, so text such as “click here” or ' +
+      '“read more” describes none of the destinations it appears on.',
+  },
+  {
+    id: 'restriction.bad-bitwise-operator',
+    group: 'restriction',
+    title: 'Bitwise operator where a logical one was meant',
+    description:
+      '`&` and `|` evaluate both sides and produce a number, so a condition written with them neither ' +
+      'short-circuits nor yields a boolean.',
+  },
+  {
+    id: 'restriction.button-has-type',
+    group: 'restriction',
+    title: 'Button with no explicit type',
+    description:
+      'A `<button>` inside a form defaults to `submit`, so a control meant to do something local ' +
+      'submits the form and navigates away.',
+  },
+  {
+    id: 'restriction.catch-or-return',
+    group: 'restriction',
+    title: 'Promise chain that ends without a handler',
+    description:
+      'A chain with no terminal `catch` or `return` leaves a rejection to surface as an unhandled one, ' +
+      'detached from the call that caused it.',
+  },
+  {
+    id: 'restriction.handle-callback-err',
+    group: 'restriction',
+    title: 'Error argument the callback never reads',
+    description:
+      'A node-style callback whose error parameter is ignored proceeds as though the operation ' +
+      'succeeded, using data that was never produced.',
+  },
+  {
+    id: 'restriction.no-abusive-eslint-disable',
+    group: 'restriction',
+    title: 'Blanket suppression with no rule named',
+    description:
+      'A disable comment naming nothing switches off every rule for that line, including the ones ' +
+      'written after it, and records nothing about which finding was being refused.',
+  },
+  {
+    id: 'restriction.no-alert',
+    group: 'restriction',
+    title: 'Blocking browser dialog',
+    description:
+      '`alert`, `confirm` and `prompt` stop the event loop and cannot be styled or tested, so they ' +
+      'survive into production as the one interaction nothing else in the application looks like.',
+  },
+  {
+    id: 'restriction.no-amd',
+    group: 'restriction',
+    title: 'AMD module syntax',
+    description:
+      '`define` and the AMD form of `require` are a module system this toolchain does not load; the ' +
+      'file is neither bundled nor executed as its author expected.',
+  },
+  {
+    id: 'restriction.no-anonymous-default-export',
+    group: 'restriction',
+    title: 'Default export with no name',
+    description:
+      'The binding has no name in a stack trace, in the module graph or in hot reloading, so the one ' +
+      'thing the file exports is the hardest thing in it to identify.',
+  },
+  {
+    id: 'restriction.no-clone-element',
+    group: 'restriction',
+    title: '`cloneElement` used to inject props',
+    description:
+      'Cloning overrides props invisibly at a distance, so the element a reader sees written is not the ' +
+      'one that renders.',
+  },
+  {
+    id: 'restriction.no-commonjs',
+    group: 'restriction',
+    title: 'CommonJS module syntax',
+    description:
+      '`require` and `module.exports` in a package declared as ESM are either rewritten by a bundler or ' +
+      'fail outright, and which one depends on the toolchain rather than the code.',
+  },
+  {
+    id: 'restriction.no-const-enum',
+    group: 'restriction',
+    title: '`const enum` declared',
+    description:
+      'The values are inlined at compile time, which no isolated-module transpiler can do, so the enum ' +
+      'resolves to nothing under a bundler that compiles file by file.',
   },
   {
     id: 'restriction.no-cycle',
@@ -1815,6 +2517,46 @@ export const CURATED_CONCEPTS = [
       'Type-only cycles are erased and are not reported.',
   },
   {
+    id: 'restriction.no-document-cookie',
+    group: 'restriction',
+    title: 'Cookie written by string assignment',
+    description:
+      'The API takes one serialised attribute string, so an escaping mistake sets a different cookie or ' +
+      'silently sets none, with no error either way.',
+  },
+  {
+    id: 'restriction.no-dynamic-require',
+    group: 'restriction',
+    title: '`require` with a computed specifier',
+    description:
+      'A specifier built at run time cannot be resolved by a bundler, so the dependency is missing from ' +
+      'the output and fails only when that branch is reached.',
+  },
+  {
+    id: 'restriction.no-empty-object-type',
+    group: 'restriction',
+    title: '`{}` used as a type',
+    description:
+      '`{}` means anything that is not null or undefined, so it accepts a string, a number and a ' +
+      'function — which is the opposite of the empty object it reads as.',
+  },
+  {
+    id: 'restriction.no-implicit-globals',
+    group: 'restriction',
+    title: 'Declaration that lands on the global object',
+    description:
+      'A top-level `var` or function in a script becomes a property of the global object, where any ' +
+      'other script can read or replace it.',
+  },
+  {
+    id: 'restriction.no-import-compiler-macros',
+    group: 'restriction',
+    title: 'Compiler macro imported explicitly',
+    description:
+      'The macros are compiled away, so importing them adds a specifier the build has to strip and that ' +
+      'fails wherever it does not.',
+  },
+  {
     id: 'restriction.no-import-type-side-effects',
     group: 'restriction',
     title: 'Type-only import that still emits',
@@ -1823,12 +2565,171 @@ export const CURATED_CONCEPTS = [
       'import statement, so the module is loaded at runtime purely for its side effects.',
   },
   {
+    id: 'restriction.no-length-as-slice-end',
+    group: 'restriction',
+    title: '`slice` given the length as its end',
+    description:
+      'Passing the length is what omitting the argument already does, and it becomes wrong the moment ' +
+      'the expression before it is changed to a different array.',
+  },
+  {
+    id: 'restriction.no-magic-array-flat-depth',
+    group: 'restriction',
+    title: '`flat` given a depth nobody can read',
+    description:
+      'A numeric depth beyond 1 depends on a nesting the call site cannot show, so the value stops ' +
+      'matching the data without any error.',
+  },
+  {
+    id: 'restriction.no-multiple-slot-args',
+    group: 'restriction',
+    title: 'Slot invoked with more than one argument',
+    description:
+      'Only the first argument reaches the slot’s props; the rest are dropped without a warning.',
+  },
+  {
+    id: 'restriction.no-namespace',
+    group: 'restriction',
+    title: 'TypeScript namespace declared',
+    description:
+      'Namespaces predate modules and merge across files, so what a name refers to depends on which ' +
+      'files were included in the compilation.',
+  },
+  {
+    id: 'restriction.no-new-require',
+    group: 'restriction',
+    title: '`new` applied to the result of `require`',
+    description:
+      'The precedence means `new require(’x’)` constructs the module function rather than something it ' +
+      'exports, which is almost never what was meant.',
+  },
+  {
     id: 'restriction.no-non-null-asserted-nullish-coalescing',
     group: 'restriction',
     title: 'Non-null assertion before a nullish fallback',
     description:
       '`??` exists to handle a null or undefined left operand, so asserting that operand non-null ' +
       'claims the fallback is unreachable. One of the two is wrong.',
+  },
+  {
+    id: 'restriction.no-path-concat',
+    group: 'restriction',
+    title: 'Path built by joining strings',
+    description:
+      'Concatenating a directory and a name assumes one separator and no trailing slash, so the result ' +
+      'is wrong on some platforms and some inputs.',
+  },
+  {
+    id: 'restriction.no-proto',
+    group: 'restriction',
+    title: '`__proto__` used to reach the prototype',
+    description:
+      'The property is deprecated, is slower than the accessor that replaced it, and is the vector ' +
+      'prototype pollution travels through when the key comes from data.',
+  },
+  {
+    id: 'restriction.no-react-children',
+    group: 'restriction',
+    title: '`Children` helpers used to inspect children',
+    description:
+      'The helpers flatten and renumber, so keys change and state moves between siblings when the shape ' +
+      'of the children changes.',
+  },
+  {
+    id: 'restriction.no-regex-spaces',
+    group: 'restriction',
+    title: 'Run of spaces inside a pattern',
+    description:
+      'Two or more literal spaces are indistinguishable from one when read, so the pattern matches ' +
+      'something other than what the author counted.',
+  },
+  {
+    id: 'restriction.no-require-imports',
+    group: 'restriction',
+    title: '`require` used in a TypeScript module',
+    description:
+      'Mixing the call form with `import` gives one module two loading semantics, and only one of them ' +
+      'participates in the bundler’s graph.',
+  },
+  {
+    id: 'restriction.no-sequences',
+    group: 'restriction',
+    title: 'Comma operator used as an expression',
+    description:
+      'The comma evaluates both sides and yields the last, which reads as an argument list or a mistake ' +
+      'far more often than as the intent.',
+  },
+  {
+    id: 'restriction.no-useless-error-capture-stack-trace',
+    group: 'restriction',
+    title: 'Stack capture the constructor already did',
+    description:
+      '`Error` records its stack when it is constructed, so capturing again replaces a correct trace ' +
+      'with one rooted at the capture.',
+  },
+  {
+    id: 'restriction.no-var-requires',
+    group: 'restriction',
+    title: 'Module assigned from a `require` call',
+    description:
+      'The binding has no type and no static edge, so nothing checks what the module exports or notices ' +
+      'when it stops existing.',
+  },
+  {
+    id: 'restriction.no-webpack-loader-syntax',
+    group: 'restriction',
+    title: 'Loader written into an import specifier',
+    description:
+      'An inline `loader!` prefix binds the source to one bundler, and every other tool reads it as a ' +
+      'module path that does not exist.',
+  },
+  {
+    id: 'restriction.prefer-literal-enum-member',
+    group: 'restriction',
+    title: 'Enum member computed rather than written',
+    description:
+      'A member whose value is an expression is not inlined and cannot be checked for collisions, so ' +
+      'two members can silently share a value.',
+  },
+  {
+    id: 'restriction.prefer-modern-math-apis',
+    group: 'restriction',
+    title: 'Formula written out where the platform has it',
+    description:
+      'Hand-written `Math.log(x) / Math.LN2` and its relatives lose precision the dedicated function ' +
+      'keeps, and the loss is invisible until the numbers matter.',
+  },
+  {
+    id: 'restriction.prefer-node-protocol',
+    group: 'restriction',
+    title: 'Built-in imported without the `node:` prefix',
+    description:
+      'Without the prefix the specifier can be shadowed by a package of the same name, so which module ' +
+      'is loaded depends on what is installed.',
+  },
+  {
+    id: 'restriction.prefer-number-properties',
+    group: 'restriction',
+    title: 'Global numeric function used',
+    description:
+      'Global `isNaN` and `parseInt` coerce their argument first, so `isNaN(’’)` is false and ' +
+      '`parseInt(0.0000005)` is 5. The `Number` versions do not coerce.',
+  },
+  {
+    id: 'restriction.spec-only',
+    group: 'restriction',
+    title: 'Non-standard promise method called',
+    description:
+      'A method outside the specification comes from one library’s implementation, so the code stops ' +
+      'working the moment the promise is produced by something else.',
+  },
+  {
+    id: 'restriction.unicode-bom',
+    group: 'restriction',
+    title: 'Byte order mark at the start of a file',
+    description:
+      'The mark is content: it appears in the first token, breaks a shebang, and turns an otherwise ' +
+      'identical file into a different one for every tool that hashes it.',
   },
   {
     id: 'security.dangerous-html',
@@ -1871,12 +2772,543 @@ export const CURATED_CONCEPTS = [
       'to somewhere untrusted can replace the tab behind it with a copy of itself.',
   },
   {
+    id: 'style.adjacent-overload-signatures',
+    group: 'style',
+    title: 'Overloads separated by other members',
+    description:
+      'The compiler groups overloads by adjacency, so a member between them starts a new group and the ' +
+      'signatures stop applying to one another.',
+  },
+  {
+    id: 'style.consistent-date-clone',
+    group: 'style',
+    title: 'Date copied through its own number',
+    description:
+      '`new Date(date.getTime())` takes two calls to do what passing the date does, and loses the ' +
+      'intent the moment either half is edited.',
+  },
+  {
+    id: 'style.consistent-existence-index-check',
+    group: 'style',
+    title: 'Index compared inconsistently for existence',
+    description:
+      '`!== -1` and `>= 0` say the same thing, and `> 0` — one character away — silently stops matching ' +
+      'the first element.',
+  },
+  {
+    id: 'style.default-case-last',
+    group: 'style',
+    title: 'Default clause placed before a case',
+    description:
+      'A `default` that is not last still matches last, so the order in the source is not the order the ' +
+      'switch evaluates.',
+  },
+  {
+    id: 'style.default-param-last',
+    group: 'style',
+    title: 'Parameter with a default before a required one',
+    description:
+      'A default that cannot be skipped is not optional: every caller has to pass it to reach the ' +
+      'parameters after it.',
+  },
+  {
+    id: 'style.error-message',
+    group: 'style',
+    title: 'Error constructed with no message',
+    description:
+      'An error with nothing in it reports only its class, so the log says something failed and not ' +
+      'what.',
+  },
+  {
+    id: 'style.eslint-prefer-spread',
+    group: 'style',
+    title: 'Arguments passed through `apply`',
+    description:
+      '`f.apply(null, args)` also rebinds the receiver, so the call changes two things where the spread ' +
+      'changes one.',
+  },
+  {
+    id: 'style.explicit-timer-delay',
+    group: 'style',
+    title: 'Timer scheduled with no delay stated',
+    description:
+      'An omitted delay is zero, which is not immediate but next-tick, and the difference is exactly ' +
+      'what a reader needs to know.',
+  },
+  {
+    id: 'style.guard-for-in',
+    group: 'style',
+    title: '`for…in` that does not filter inherited keys',
+    description:
+      'The loop walks the prototype chain, so anything added to a shared prototype joins the iteration ' +
+      'of every object of that shape.',
+  },
+  {
+    id: 'style.jest-no-alias-methods',
+    group: 'style',
+    title: 'Matcher called by a deprecated alias',
+    description:
+      'The aliases are scheduled for removal and do not appear in the documentation, so the assertion ' +
+      'is harder to look up and breaks on a major upgrade.',
+  },
+  {
+    id: 'style.jest-no-duplicate-hooks',
+    group: 'style',
+    title: 'Hook declared twice in one block',
+    description:
+      'Two `beforeEach` in the same block both run in source order, which reads as one having replaced ' +
+      'the other.',
+  },
+  {
+    id: 'style.jest-no-identical-title',
+    group: 'style',
+    title: 'Two tests with the same name',
+    description:
+      'Both run, and the report names them identically — so a failure cannot be traced to one of them ' +
+      'without counting.',
+  },
+  {
+    id: 'style.jest-no-mocks-import',
+    group: 'style',
+    title: 'Manual mock imported directly',
+    description:
+      'The mock directory is loaded by the runner, so importing from it by hand bypasses the mechanism ' +
+      'and gets a second, unregistered copy.',
+  },
+  {
+    id: 'style.jest-no-test-return-statement',
+    group: 'style',
+    title: 'Test that returns instead of awaiting',
+    description:
+      'Returning a value that is not a promise tells the runner nothing, and returning one alongside a ' +
+      'done callback makes the completion ambiguous.',
+  },
+  {
+    id: 'style.logical-assignment-operators',
+    group: 'style',
+    title: 'Conditional assignment written the long way',
+    description:
+      '`x = x || y` reassigns even when nothing changed, which matters for a setter, a proxy or ' +
+      'anything watching the property.',
+  },
+  {
+    id: 'style.no-array-method-this-argument',
+    group: 'style',
+    title: 'Array method given a `this` argument',
+    description:
+      'The extra argument only binds an old-style callback; with an arrow it is silently ignored, so ' +
+      'the receiver a reader sees is not the one in effect.',
+  },
+  {
+    id: 'style.no-confusing-set-timeout',
+    group: 'style',
+    title: 'Timer helper called outside the scope it affects',
+    description:
+      'Fake timers configured in the wrong hook apply to tests other than the one that asked for them, ' +
+      'so a failure appears in a test that did not change.',
+  },
+  {
+    id: 'style.no-deprecated-functions',
+    group: 'style',
+    title: 'Deprecated test API used',
+    description:
+      'The function is scheduled for removal, so the suite compiles today and stops running on the next ' +
+      'major version.',
+  },
+  {
+    id: 'style.no-empty-interface',
+    group: 'style',
+    title: 'Interface that declares nothing',
+    description:
+      'An empty interface extending one type is an alias written the long way; extending nothing ' +
+      'accepts any non-nullable value.',
+  },
+  {
+    id: 'style.no-exports-assign',
+    group: 'style',
+    title: '`exports` replaced rather than extended',
+    description:
+      'Assigning to `exports` rebinds the local variable and leaves `module.exports` as it was, so the ' +
+      'module exports nothing that was written.',
+  },
+  {
+    id: 'style.no-import-node-test',
+    group: 'style',
+    title: 'Node’s test runner imported inside another one',
+    description:
+      'Two runners in one file register two sets of globals, and which set a call reaches depends on ' +
+      'import order.',
+  },
+  {
+    id: 'style.no-jasmine-globals',
+    group: 'style',
+    title: 'Jasmine global used inside a modern runner',
+    description:
+      'The compatibility shims are not part of the runner’s API and are removed without notice, so the ' +
+      'suite depends on something nothing documents.',
+  },
+  {
+    id: 'style.no-multi-str',
+    group: 'style',
+    title: 'String continued across lines with a backslash',
+    description:
+      'The continuation swallows the newline and any trailing whitespace after the backslash silently ' +
+      'breaks it, with no error to say so.',
+  },
+  {
+    id: 'style.no-mutable-exports',
+    group: 'style',
+    title: 'Exported binding that can be reassigned',
+    description:
+      'An exported `let` or `var` is a live binding: its value changes under every importer, at a ' +
+      'moment none of them can see.',
+  },
+  {
+    id: 'style.no-return-assign',
+    group: 'style',
+    title: 'Assignment returned from a function',
+    description:
+      '`return a = b` assigns and returns, which is one character away from the comparison it reads as.',
+  },
+  {
+    id: 'style.no-return-wrap',
+    group: 'style',
+    title: 'Value wrapped in a promise inside a handler',
+    description:
+      'A `then` handler already wraps what it returns, so resolving explicitly adds a layer and ' +
+      'rejecting explicitly hides what a `throw` would have shown.',
+  },
+  {
+    id: 'style.no-unreadable-array-destructuring',
+    group: 'style',
+    title: 'Destructuring with a run of holes',
+    description:
+      'Consecutive commas encode a position by counting, so a reader has to count them and an inserted ' +
+      'element moves every binding after it.',
+  },
+  {
+    id: 'style.no-untyped-mock-factory',
+    group: 'style',
+    title: 'Mock factory with no type parameter',
+    description:
+      'Without the parameter the mock is unchecked against the module it replaces, so it keeps ' +
+      'compiling after that module’s shape changes.',
+  },
+  {
+    id: 'style.no-zero-fractions',
+    group: 'style',
+    title: 'Number written with a redundant fraction',
+    description:
+      '`1.0` and `1.` are the same value as `1`, and the fraction suggests a precision the type does ' +
+      'not have.',
+  },
+  {
+    id: 'style.operator-assignment',
+    group: 'style',
+    title: 'Assignment that repeats its own target',
+    description:
+      '`x = x + 1` names the target twice, so a rename has to change both and can change one.',
+  },
+  {
+    id: 'style.prefer-array-index-of',
+    group: 'style',
+    title: 'Position found with a predicate that only compares',
+    description:
+      '`findIndex` takes a callback to do what `indexOf` does with a value, which is a function ' +
+      'allocation and a place for the comparison to drift.',
+  },
+  {
+    id: 'style.prefer-arrow-callback',
+    group: 'style',
+    title: 'Callback written as a function expression',
+    description:
+      'A function expression brings its own `this` and `arguments`, so a callback that reads either ' +
+      'gets the wrong one without any error.',
+  },
+  {
+    id: 'style.prefer-bigint-literals',
+    group: 'style',
+    title: 'BigInt built from a constructor call',
+    description:
+      '`BigInt(1)` converts at run time what `1n` states in the source, and the call accepts a value ' +
+      'that cannot be represented.',
+  },
+  {
+    id: 'style.prefer-class-fields',
+    group: 'style',
+    title: 'Field assigned in the constructor rather than declared',
+    description:
+      'A field only visible inside the constructor is not part of the class’s written shape, so a ' +
+      'reader has to execute the constructor to know what the instance holds.',
+  },
+  {
+    id: 'style.prefer-classlist-toggle',
+    group: 'style',
+    title: 'Class added or removed by branching',
+    description:
+      'An `if` around `add` and `remove` states the same class name twice, so the two can be edited ' +
+      'apart.',
+  },
+  {
+    id: 'style.prefer-const',
+    group: 'style',
+    title: 'Binding declared `let` and never reassigned',
+    description:
+      'A `let` tells a reader the value changes somewhere, so they look for the place it does.',
+  },
+  {
+    id: 'style.prefer-default-parameters',
+    group: 'style',
+    title: 'Default applied inside the body',
+    description:
+      'Reassigning a parameter when it is undefined hides the default from the signature, which is the ' +
+      'only place a caller looks.',
+  },
+  {
+    id: 'style.prefer-dom-node-text-content',
+    group: 'style',
+    title: 'Text read through `innerText`',
+    description:
+      '`innerText` reflects layout: it triggers a reflow to read, and returns different text depending ' +
+      'on what is hidden by CSS.',
+  },
+  {
+    id: 'style.prefer-exponentiation-operator',
+    group: 'style',
+    title: 'Power written as a call',
+    description:
+      '`Math.pow(a, b)` and `a ** b` are the same operation, and only one of them reads as arithmetic.',
+  },
+  {
+    id: 'style.prefer-for-of',
+    group: 'style',
+    title: 'Index loop that only reads the element',
+    description:
+      'A counted loop states three things to do one, and each of the three is a place to put the ' +
+      'off-by-one.',
+  },
+  {
+    id: 'style.prefer-function-type',
+    group: 'style',
+    title: 'Call signature wrapped in an interface',
+    description:
+      'An interface holding a single call signature cannot be used where a function type can, and reads ' +
+      'as a shape with a method.',
+  },
+  {
+    id: 'style.prefer-global-this',
+    group: 'style',
+    title: 'Global object named per environment',
+    description:
+      '`window`, `self` and `global` each exist in some runtimes and not others, so the reference is ' +
+      'undefined wherever the code is moved.',
+  },
+  {
+    id: 'style.prefer-includes',
+    group: 'style',
+    title: 'Membership tested through an index',
+    description:
+      '`indexOf(x) !== -1` answers a yes-or-no question with a position, and the off-by-one that turns ' +
+      'it into `> 0` stops matching the first element.',
+  },
+  {
+    id: 'style.prefer-keyboard-event-key',
+    group: 'style',
+    title: 'Key read from a deprecated numeric property',
+    description:
+      '`keyCode` and `which` are deprecated and layout-dependent, so a shortcut bound through them ' +
+      'lands on a different key on a different keyboard.',
+  },
+  {
+    id: 'style.prefer-logical-operator-over-ternary',
+    group: 'style',
+    title: 'Ternary that repeats its own condition',
+    description:
+      '`a ? a : b` evaluates `a` twice, which matters as soon as it is a call or a getter.',
+  },
+  {
+    id: 'style.prefer-modern-dom-apis',
+    group: 'style',
+    title: 'Node inserted with a legacy method',
+    description:
+      '`insertBefore` and `replaceChild` are called on the parent and take their arguments in an order ' +
+      'that is easy to reverse; the modern methods are called on the node itself.',
+  },
+  {
+    id: 'style.prefer-numeric-literals',
+    group: 'style',
+    title: 'Number parsed from a literal string',
+    description:
+      '`parseInt(’0xff’, 16)` converts a constant at run time, where the literal states it once and ' +
+      'cannot be given the wrong base.',
+  },
+  {
+    id: 'style.prefer-object-from-entries',
+    group: 'style',
+    title: 'Object built by reducing into an accumulator',
+    description:
+      'Reducing pairs into an object hides the intent behind an accumulator, and the common spread form ' +
+      'of it is quadratic.',
+  },
+  {
+    id: 'style.prefer-object-has-own',
+    group: 'style',
+    title: 'Ownership tested through the prototype',
+    description:
+      '`Object.hasOwn` answers the same question without going through an object that may have no ' +
+      'prototype or a shadowed method.',
+  },
+  {
+    id: 'style.prefer-object-spread',
+    group: 'style',
+    title: 'Object merged with `Object.assign`',
+    description:
+      'Assigning into a fresh literal mutates that literal to build a value, where the spread produces ' +
+      'it in one expression.',
+  },
+  {
+    id: 'style.prefer-promise-reject-errors',
+    group: 'style',
+    title: 'Promise rejected with something that is not an error',
+    description:
+      'The rejection arrives with no stack, so the failure is reported where it was caught rather than ' +
+      'where it happened.',
+  },
+  {
+    id: 'style.prefer-reflect-apply',
+    group: 'style',
+    title: '`apply` reached through the function prototype',
+    description:
+      '`Function.prototype.apply.call(f, …)` breaks when `f` has its own `apply`, which is exactly the ' +
+      'case the indirection was written for.',
+  },
+  {
+    id: 'style.prefer-regex-literals',
+    group: 'style',
+    title: 'Pattern built from a string',
+    description:
+      'A pattern in a string needs every backslash doubled, so an escape that is correct in the regular ' +
+      'expression is wrong in the source and nothing checks it.',
+  },
+  {
+    id: 'style.prefer-response-static-json',
+    group: 'style',
+    title: 'JSON response built by hand',
+    description:
+      'Constructing a response from a serialised body means setting the content type by hand, and ' +
+      'forgetting it is not an error anywhere.',
+  },
+  {
+    id: 'style.prefer-rest-params',
+    group: 'style',
+    title: '`arguments` read instead of a rest parameter',
+    description:
+      '`arguments` is array-like rather than an array, is absent in arrow functions, and does not ' +
+      'appear in the signature a reader checks.',
+  },
+  {
+    id: 'style.prefer-string-trim-start-end',
+    group: 'style',
+    title: 'Whitespace trimmed with a legacy alias',
+    description:
+      '`trimLeft` and `trimRight` are annex-B aliases named after visual direction, which is the ' +
+      'opposite end in a right-to-left script.',
+  },
+  {
+    id: 'style.require-array-join-separator',
+    group: 'style',
+    title: '`join` called with no separator',
+    description:
+      'The default is a comma, so an omitted argument produces `a,b,c` where the author almost always ' +
+      'meant to choose.',
+  },
+  {
+    id: 'style.text-encoding-identifier-case',
+    group: 'style',
+    title: 'Encoding name written in the wrong case',
+    description:
+      'The specification names it `utf-8`; other spellings are accepted by some APIs and rejected by ' +
+      'others, so the same string works in one place and not another.',
+  },
+  {
+    id: 'style.throw-new-error',
+    group: 'style',
+    title: 'Error thrown without `new`',
+    description:
+      'It works for the built-in constructors and not for a subclass, so the same line behaves ' +
+      'differently depending on which error type is used.',
+  },
+  {
+    id: 'style.unified-signatures',
+    group: 'style',
+    title: 'Overloads that differ by one optional argument',
+    description:
+      'Two signatures separated only by an optional or a union parameter can be written as one, and as ' +
+      'two they can drift apart.',
+  },
+  {
+    id: 'style.vitest-no-alias-methods',
+    group: 'style',
+    title: 'Matcher called by a deprecated alias',
+    description:
+      'The aliases are scheduled for removal and do not appear in the documentation, so the assertion ' +
+      'is harder to look up and breaks on a major upgrade.',
+  },
+  {
+    id: 'style.vitest-no-duplicate-hooks',
+    group: 'style',
+    title: 'Hook declared twice in one block',
+    description:
+      'Two `beforeEach` in the same block both run in source order, which reads as one having replaced ' +
+      'the other.',
+  },
+  {
+    id: 'style.vitest-no-identical-title',
+    group: 'style',
+    title: 'Two tests with the same name',
+    description:
+      'Both run, and the report names them identically — so a failure cannot be traced to one of them ' +
+      'without counting.',
+  },
+  {
+    id: 'style.vitest-no-mocks-import',
+    group: 'style',
+    title: 'Manual mock imported directly',
+    description:
+      'The mock directory is loaded by the runner, so importing from it by hand bypasses the mechanism ' +
+      'and gets a second, unregistered copy.',
+  },
+  {
+    id: 'style.vitest-no-test-return-statement',
+    group: 'style',
+    title: 'Test that returns instead of awaiting',
+    description:
+      'Returning a value that is not a promise tells the runner nothing, and returning one alongside a ' +
+      'done callback makes the completion ambiguous.',
+  },
+  {
     id: 'suspicious.always-return',
     group: 'suspicious',
     title: 'Promise callback with no return',
     description:
       'A `then` callback that starts work without returning it breaks the chain: the next `then` runs ' +
       'immediately, before the inner work has settled, and its rejection is unhandled.',
+  },
+  {
+    id: 'suspicious.approx-constant',
+    group: 'suspicious',
+    title: 'Mathematical constant written out by hand',
+    description:
+      'A typed-out `3.14159` is less precise than the constant the platform provides, and the ' +
+      'difference accumulates through every calculation that uses it.',
+  },
+  {
+    id: 'suspicious.block-scoped-var',
+    group: 'suspicious',
+    title: '`var` used outside the block it was declared in',
+    description:
+      'A `var` is function-scoped however it looks, so a declaration inside an `if` or a loop is ' +
+      'visible before it and after it — and reads `undefined` rather than failing.',
   },
   {
     id: 'suspicious.consistent-function-scoping',
@@ -1887,12 +3319,250 @@ export const CURATED_CONCEPTS = [
       'parent, and its placement implies a dependency on that scope which does not exist.',
   },
   {
+    id: 'suspicious.iframe-missing-sandbox',
+    group: 'suspicious',
+    title: 'Frame embedded without a sandbox',
+    description:
+      'Without the attribute the embedded document runs with the privileges of the page around it; with ' +
+      'both `allow-same-origin` and `allow-scripts` it can remove the sandbox itself.',
+  },
+  {
+    id: 'suspicious.jest-no-commented-out-tests',
+    group: 'suspicious',
+    title: 'Test commented out rather than removed',
+    description:
+      'A commented test is a check that cannot fail and cannot be counted, and nothing in the suite ' +
+      'reports that it stopped running.',
+  },
+  {
+    id: 'suspicious.jsx-no-comment-textnodes',
+    group: 'suspicious',
+    title: 'Comment rendered as visible text',
+    description:
+      'A `//` or `/* */` written where JSX expects children is a string, so the comment is painted on ' +
+      'the page instead of ignored.',
+  },
+  {
+    id: 'suspicious.misrefactored-assign-op',
+    group: 'suspicious',
+    title: 'Compound assignment that repeats its own target',
+    description:
+      '`a += a + b` adds `a` twice, which is almost never what the shorthand was meant to express.',
+  },
+  {
+    id: 'suspicious.no-absolute-path',
+    group: 'suspicious',
+    title: 'Import written as an absolute path',
+    description:
+      'An absolute specifier resolves against the machine it was written on, so the build works there ' +
+      'and nowhere else.',
+  },
+  {
+    id: 'suspicious.no-accessor-recursion',
+    group: 'suspicious',
+    title: 'Getter or setter that reads its own property',
+    description:
+      'An accessor referring to the property it implements calls itself until the stack runs out.',
+  },
+  {
+    id: 'suspicious.no-array-fill-with-reference-type',
+    group: 'suspicious',
+    title: 'Array filled with one shared object',
+    description:
+      '`fill` stores the same reference in every slot, so writing through one element is visible ' +
+      'through all of them.',
+  },
+  {
+    id: 'suspicious.no-async-endpoint-handlers',
+    group: 'suspicious',
+    title: 'Async handler on an endpoint that cannot await it',
+    description:
+      'Before Express 5 a rejected promise from a handler is not routed to the error middleware: it ' +
+      'becomes an unhandled rejection and can take the process down.',
+  },
+  {
+    id: 'suspicious.no-confusing-array-with',
+    group: 'suspicious',
+    title: '`with` given an index that does not mean what it looks like',
+    description:
+      '`Array#with` treats a negative index as an offset from the end, unlike `slice`, and an index ' +
+      'equal to the length yields `undefined` rather than appending.',
+  },
+  {
+    id: 'suspicious.no-confusing-non-null-assertion',
+    group: 'suspicious',
+    title: 'Assertion placed where it reads as an operator',
+    description:
+      '`a! == b` and `a !== b` differ by one space, and the first asserts then compares loosely while ' +
+      'the second compares strictly.',
+  },
+  {
     id: 'suspicious.no-empty-named-blocks',
     group: 'suspicious',
     title: 'Empty named import block',
     description:
       'An import with empty braces loads the module for its side effects while reading as though it ' +
       'imports names, and is usually the residue of a deleted binding.',
+  },
+  {
+    id: 'suspicious.no-extra-bind',
+    group: 'suspicious',
+    title: '`bind` on a function that has no `this`',
+    description:
+      'Binding a function that never reads `this` allocates a wrapper and tells a reader to look for a ' +
+      'receiver that is not there.',
+  },
+  {
+    id: 'suspicious.no-extraneous-class',
+    group: 'suspicious',
+    title: 'Class used only as a namespace',
+    description:
+      'A class with nothing but static members is a module written in the wrong shape: it cannot be ' +
+      'tree-shaken and it invites an instantiation that does nothing.',
+  },
+  {
+    id: 'suspicious.no-instanceof-builtins',
+    group: 'suspicious',
+    title: 'Built-in checked with `instanceof`',
+    description:
+      'A value from another realm — a frame, a worker, a VM context — has a different constructor, so ' +
+      'the check is false for something that is exactly the type asked about.',
+  },
+  {
+    id: 'suspicious.no-multiple-resolved',
+    group: 'suspicious',
+    title: 'Promise settled more than once',
+    description:
+      'Only the first settlement counts. The second result is discarded silently, so a branch that ' +
+      'looks like it reports an error reports nothing.',
+  },
+  {
+    id: 'suspicious.no-named-as-default',
+    group: 'suspicious',
+    title: 'Default import named after a named export',
+    description:
+      'The module exports both, and the import takes the default while reading as though it took the ' +
+      'named one. Nothing breaks; the line says the opposite of what it does.',
+  },
+  {
+    id: 'suspicious.no-named-as-default-member',
+    group: 'suspicious',
+    title: 'Named export reached through the default import',
+    description:
+      'The named export is not a property of the default one, so the access is `undefined` at run time ' +
+      'rather than an import error.',
+  },
+  {
+    id: 'suspicious.no-namespace',
+    group: 'suspicious',
+    title: 'Namespaced element in JSX',
+    description:
+      'React does not support namespace syntax such as `svg:circle`, so the element is not rendered as ' +
+      'the author intended.',
+  },
+  {
+    id: 'suspicious.no-new',
+    group: 'suspicious',
+    title: 'Object constructed and discarded',
+    description:
+      'Calling `new` for its side effect alone hides the work in a position that reads as a value, and ' +
+      'the instance is unreachable the moment the statement ends.',
+  },
+  {
+    id: 'suspicious.no-promise-in-callback',
+    group: 'suspicious',
+    title: 'Promise created inside a node-style callback',
+    description:
+      'Mixing the two error conventions leaves the promise’s rejection outside the callback’s error ' +
+      'argument, so a failure reaches neither.',
+  },
+  {
+    id: 'suspicious.no-required-prop-with-default',
+    group: 'suspicious',
+    title: 'Required prop that also has a default',
+    description:
+      'The two contradict: the default can never apply, and the requirement is the only half that takes ' +
+      'effect.',
+  },
+  {
+    id: 'suspicious.no-self-import',
+    group: 'suspicious',
+    title: 'Module that imports itself',
+    description:
+      'The binding is read before the module finishes evaluating, so it is `undefined` wherever the ' +
+      'cycle is entered.',
+  },
+  {
+    id: 'suspicious.no-this-in-exported-function',
+    group: 'suspicious',
+    title: '`this` inside an exported function',
+    description:
+      'Most bundlers do not preserve the receiver for an exported function, so `this` is `undefined` at ' +
+      'the call site rather than the module it was written in.',
+  },
+  {
+    id: 'suspicious.no-unnecessary-boolean-literal-compare',
+    group: 'suspicious',
+    title: 'Boolean compared against a boolean literal',
+    description:
+      'Comparing a boolean to `true` or `false` restates the value, and the longer form suggests the ' +
+      'operand might not be one.',
+  },
+  {
+    id: 'suspicious.no-unnecessary-template-expression',
+    group: 'suspicious',
+    title: 'Template holding nothing but a constant',
+    description:
+      'An interpolation of a literal produces the literal, so the backticks say a value varies where ' +
+      'none does.',
+  },
+  {
+    id: 'suspicious.no-unnecessary-type-arguments',
+    group: 'suspicious',
+    title: 'Type argument that repeats the default',
+    description:
+      'Spelling out a parameter the declaration already defaults to means the call has to be edited ' +
+      'when the default changes.',
+  },
+  {
+    id: 'suspicious.no-unnecessary-type-assertion',
+    group: 'suspicious',
+    title: 'Assertion the type already guarantees',
+    description:
+      'An assertion the receiver does not need is dead weight, and it hides the day the underlying type ' +
+      'changes and the assertion becomes load-bearing.',
+  },
+  {
+    id: 'suspicious.no-unnecessary-type-constraint',
+    group: 'suspicious',
+    title: 'Type parameter constrained to everything',
+    description:
+      '`extends any` or `extends unknown` constrains nothing and only exists to disambiguate an arrow ' +
+      'in a `.tsx` file.',
+  },
+  {
+    id: 'suspicious.no-unnecessary-type-conversion',
+    group: 'suspicious',
+    title: 'Conversion applied to a value already of that type',
+    description:
+      'Wrapping a string in `String()` changes neither type nor value, and tells a reader the input ' +
+      'might be something else.',
+  },
+  {
+    id: 'suspicious.no-unneeded-ternary',
+    group: 'suspicious',
+    title: 'Conditional that returns a boolean it already has',
+    description:
+      '`x ? true : false` is `Boolean(x)`, and the longer form invites a reader to look for a ' +
+      'difference between the branches.',
+  },
+  {
+    id: 'suspicious.no-unsafe-enum-comparison',
+    group: 'suspicious',
+    title: 'Enum compared against a raw value',
+    description:
+      'An enum compared to a plain number or string is compared by its backing value, so the comparison ' +
+      'survives a renumbering that changes what it means.',
   },
   {
     id: 'suspicious.no-unstable-nested-components',
@@ -1903,11 +3573,75 @@ export const CURATED_CONCEPTS = [
       'unmounted and rebuilt each time the parent updates, discarding its DOM and state.',
   },
   {
+    id: 'suspicious.no-useless-concat',
+    group: 'suspicious',
+    title: 'Two literals joined at run time',
+    description:
+      'Concatenating adjacent literals does at run time what the source could have done once, and ' +
+      'usually marks a place where an interpolation was removed.',
+  },
+  {
+    id: 'suspicious.no-useless-constructor',
+    group: 'suspicious',
+    title: 'Constructor that only calls `super`',
+    description:
+      'A constructor doing nothing its parent would not do is a place a reader stops to check, and the ' +
+      'class behaves identically without it.',
+  },
+  {
+    id: 'suspicious.prefer-add-event-listener',
+    group: 'suspicious',
+    title: 'Handler assigned to an `on*` property',
+    description:
+      'Assigning replaces whatever handler was there, so two pieces of code registering for the same ' +
+      'event leave only the later one.',
+  },
+  {
+    id: 'suspicious.react-in-jsx-scope',
+    group: 'suspicious',
+    title: 'JSX compiled to a factory that is not in scope',
+    description:
+      'Under the classic runtime every element becomes a call to a name the file must import, and ' +
+      'without it the component throws a `ReferenceError` when it first renders.',
+  },
+  {
+    id: 'suspicious.require-default-export',
+    group: 'suspicious',
+    title: 'Single-file component with no default export',
+    description:
+      'The compiler loads the component from the default export, so a file without one contributes ' +
+      'nothing and fails at the point it is used.',
+  },
+  {
     id: 'suspicious.require-module-specifiers',
     group: 'suspicious',
     title: 'Empty specifier list',
     description:
       'An import or export with empty braces is either a side-effect import written the long way or ' +
       'what a removed binding left behind.',
+  },
+  {
+    id: 'suspicious.require-post-message-target-origin',
+    group: 'suspicious',
+    title: '`postMessage` sent without a target origin',
+    description:
+      'Called without the second argument the message reaches no window at all, so the send appears to ' +
+      'succeed and nothing receives it.',
+  },
+  {
+    id: 'suspicious.style-prop-object',
+    group: 'suspicious',
+    title: 'Style passed as a string',
+    description:
+      'The style prop takes an object of properties; a string is ignored, so the styling silently does ' +
+      'not apply.',
+  },
+  {
+    id: 'suspicious.vitest-no-commented-out-tests',
+    group: 'suspicious',
+    title: 'Test commented out rather than removed',
+    description:
+      'A commented test is a check that cannot fail and cannot be counted, and nothing in the suite ' +
+      'reports that it stopped running.',
   },
 ] as const satisfies readonly ConceptDefinition[]

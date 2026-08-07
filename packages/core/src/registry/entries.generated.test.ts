@@ -101,7 +101,10 @@ test('every generated concept has a non-empty title and description', () => {
 test('no generated concept duplicates a written one', () => {
   const written = new Set<string>([...HAND_WRITTEN_CONCEPTS, ...CURATED_CONCEPTS].map((c) => c.id))
   expect(GENERATED_CONCEPTS.filter((c) => written.has(c.id)).map((c) => c.id)).toEqual([])
-  expect(GENERATED_CONCEPTS.length).toBeGreaterThan(400)
+  // A floor, not a target, and it falls as concepts are written up: every rule `recommended` enables now
+  // carries a curated description, which moved 218 of these into `curated.ts`. Lower it when that
+  // continues; a sudden jump the other way means the generator stopped seeing the written ones.
+  expect(GENERATED_CONCEPTS.length).toBeGreaterThan(300)
 })
 
 test('every generated-recommended concept exists in the catalogue and is at error or warn', () => {
