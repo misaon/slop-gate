@@ -20,6 +20,8 @@
     "@hono/node-server": "catalog:",
     "@misaon/slop-gate-core": "workspace:*",
     "@neondatabase/serverless": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-virtual": "catalog:",
     "@tanstack/table-core": "catalog:",
     "hono": "catalog:",
     "lucide-preact": "catalog:",
