@@ -27,6 +27,18 @@ const result = (over: Partial<FixResult> = {}): FixResult => ({
   ...over,
 })
 
+beforeEach(async () => {
+  originalExitCode = process.exitCode
+  dir = await mkdtemp(join(tmpdir(), 'sgate-cli-fix-'))
+  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture', type: 'module' }))
+  await mkdir(join(dir, 'src'), { recursive: true })
+})
+
+afterEach(async () => {
+  process.exitCode = originalExitCode
+  await rm(dir, { recursive: true, force: true })
+})
+
 test('a refusal prints only the refusal, never a summary implying a run happened', () => {
   const output = renderFixSummary(
     result({ refusal: { reason: 'dirty-worktree', message: 'The git worktree has uncommitted changes.' } }),
@@ -128,18 +140,6 @@ test('a refusal exits with the config code, and an engine failure with the engin
 
 test('an oscillation exits with the findings code', () => {
   expect(fixExitCode(result({ oscillations: [{ concept: 'config.fix-oscillation' } as never] }))).toBe(EXIT_CODES.findings)
-})
-
-beforeEach(async () => {
-  originalExitCode = process.exitCode
-  dir = await mkdtemp(join(tmpdir(), 'sgate-cli-fix-'))
-  await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture', type: 'module' }))
-  await mkdir(join(dir, 'src'), { recursive: true })
-})
-
-afterEach(async () => {
-  process.exitCode = originalExitCode
-  await rm(dir, { recursive: true, force: true })
 })
 
 const runFixCommand = async (args: Record<string, unknown>): Promise<string> => {

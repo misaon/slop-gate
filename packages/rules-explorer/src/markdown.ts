@@ -34,10 +34,10 @@ export function tokenise(paragraph: string): Token[] {
       tokens.push({ kind: 'text', value: segment, bold: false })
       continue
     }
-    segment.split(BOLD).forEach((part, index) => {
+    for (const [index, part] of segment.split(BOLD).entries()) {
       if (index > 0) bold = !bold
       if (part !== '') tokens.push({ kind: 'text', value: part, bold })
-    })
+    }
   }
 
   return tokens

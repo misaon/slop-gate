@@ -448,7 +448,7 @@ test('a framework may declare a workspace that holds no package.json', async () 
   // own the layer's 77 unused-export findings go to 0, where the same globs on the *root* workspace
   // left 23. The workspace boundary is what makes an entry glob reach inside it.
   await write('package.json', JSON.stringify({ name: 'root' }))
-  const path = (await createKnipEngine().materializeConfig(everything(), context)).path
+  const {path} = await createKnipEngine().materializeConfig(everything(), context)
   const adjustments: EngineSettings = [{ key: 'entry', workspace: 'layers/a', values: ['app/**/*.ts'] }]
 
   await mergeWorkspacesIntoConfig(path, synthesizeKnipWorkspaces([file('package.json')]), adjustments)
