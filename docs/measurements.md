@@ -828,6 +828,31 @@ about them. `no-return-assign` catches `return a = b` where `===` was meant; `un
 stack; `guard-for-in` catches a `for…in` that walks the prototype; `no-identical-title` catches two tests
 with one name; `import/no-mutable-exports` catches a `let` export whose value changes under its consumers.
 
+**A spot-check found the first pass had a hole, and the hole was in the method.** The 174 silent rules
+were read one by one and the 96 firing ones were read from the top down — which left the tail dismissed as
+a class. `unicorn/prefer-negative-index` fires once here, so it was never in the silent list, and it is the
+third of a family whose other two (`prefer-at`, `no-length-as-slice-end`) were promoted. Re-reading all 73
+that remained produced four more promotions and three more rejections:
+
+- **`unicorn/prefer-negative-index`** and **`unicorn/custom-error-definition`** — the second is 2 findings
+  and both real: `class KeyedTableFormatError extends Error {}` reports as `Error` in every log and
+  serialised payload, because `name` comes from the prototype.
+- **`vue/require-typed-ref`** — `ref()` with neither a type argument nor an initial value is `Ref<any>`,
+  which its documentation says passes `noImplicitAny` without being checked.
+- **`no-interpolation-in-snapshots`**, both twins — its documentation is explicit that interpolation stops
+  the runner rewriting the snapshot, which is a broken update mechanism rather than a style.
+- Rejected: **`no-template-curly-in-string`** (9, all `${{ }}` GitHub Actions expressions written as text),
+  **`unicorn/prefer-structured-clone`** (2, at least one a deliberate JSON round-trip modelling transport)
+  and **`jest/no-done-callback`** (2, both `test.for(TABLE)(…)` whose row parameter the jest rule reads as
+  a `done` callback).
+
+**Four of eight guesses made from the rule name were wrong, and the documentation is what caught them.**
+`unicorn/require-module-attributes` flags an *empty* `with {}` rather than a missing one.
+`jest/no-test-prefixes` is a spelling preference that accepts `it.only`, so it does not catch a committed
+focused test. `vue/define-props-destructuring` is style, and its default asks for the opposite of what the
+name suggests. `vue/require-default-prop` its own documentation calls a convention rather than a
+correctness problem. None was promoted.
+
 **Four are re-homed into `security`, and one of them exposed a modelling mistake worth recording.**
 `no-new-func` and `no-script-url` were first mapped onto `security.eval-usage` and `security.script-url`
 alongside the rules already there — and the dogfood reported `config.rule-overlap`: two rules on one concept

@@ -76,7 +76,9 @@ export function buildKeyedTable(table: AdvisoryTable): KeyedTableFiles {
   return { index, records }
 }
 
-export class KeyedTableFormatError extends Error {}
+export class KeyedTableFormatError extends Error {
+  override readonly name = 'KeyedTableFormatError'
+}
 
 export type KeyedTable = {
   lookup(name: string): Promise<readonly AdvisoryRecord[]>
