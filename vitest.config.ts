@@ -29,6 +29,7 @@ export default defineConfig({
   resolve: { alias: workspaceAlias },
   test: {
     include: ['packages/*/src/**/*.test.ts'],
+    setupFiles: ['./vitest.setup.ts'],
     environment: 'node',
     benchmark: { include: ['packages/*/bench/**/*.bench.ts'] },
   },
