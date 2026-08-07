@@ -252,6 +252,43 @@ variable, which is a genuine expression the rule leaves alone and the reader can
 reports 225, which is every `as` that is not provably safe, and is a different rule from the one that finds
 the assertions doing nothing.
 
+## Moving the registry's prose out of TypeScript — measured and rejected
+
+`packages/core/src/concepts/curated.ts`, `packages/core/src/registry/not-recommended.ts`
+
+The registry now holds **164 kB of prose in an 878 kB bundle** — 120 kB of concept descriptions and 44 kB
+of withheld reasons, 19% of what a user installs. That is enough to ask whether it belongs in `.ts` files
+at all, so it was measured rather than argued.
+
+**Cost: about 2.5 ms, and the ranges overlap.** `dist/index.js` was copied twice, once with every
+`description:` and `reason:` string replaced by `"x"`, and the two imported interleaved, six runs each:
+
+| | runs | mean |
+|---|---|---:|
+| full (878 kB) | 96.5 / 93.1 / 93.0 / 89.4 / 90.2 / 91.1 | **92.2 ms** |
+| prose stripped (714 kB) | 91.5 / 92.0 / 89.3 / 88.0 / 89.8 / 87.8 | **89.7 ms** |
+
+Uncached, and `bin/sgate.js` calls `module.enableCompileCache()`, which removes most of what that
+difference is. Touching the data after import costs **0.07 ms** — the literals are built during module
+evaluation and reading them is free. §"`module.enableCompileCache()`" above already measured the other
+half of this: the same 922 entries as a `.json` file parse in 22.6 ms against 23.5 ms as a literal, inside
+one σ. V8 parses a data literal about as fast as it parses JSON, so extraction buys nothing either way.
+
+**And it costs the type.** `ConceptId` is `(typeof CONCEPTS)[number]['id']` — a union derived from the
+literal array, which is what makes a mistyped concept in `presets.ts`, `overrides.ts` or `rule-options.ts`
+a compile error rather than a preset that silently enables nothing. JSON or YAML collapses that to
+`string` unless a `.d.ts` is generated back, which trades a free guarantee for a build step.
+
+**The split the question is really about has already been made.** AGENTS.md puts the conclusion in the
+source, capped at 900 characters by `not-recommended.test.ts`, and the corpus and the method in this file.
+That move took 36 kB of prose out of the registry once. The remaining text is not documentation embedded
+in logic — those two modules contain no logic — it is the product's content, typed.
+
+What is worth revisiting is bundling rather than authoring: a `sgate check` never reads a withheld reason,
+because a withheld rule does not run. Splitting the reasons into a chunk that only `rules why`, `rules
+list` and the explorer load would remove 44 kB from the common path. On the numbers above that is worth
+well under a millisecond, so it is recorded as available rather than as an improvement.
+
 ## Engine reach and noise floors
 
 - **biome-css** is the quietest engine by design: seventeen rules, of which **thirteen produced no finding
