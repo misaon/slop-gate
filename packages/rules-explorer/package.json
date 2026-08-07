@@ -23,6 +23,8 @@
     "@tanstack/react-query": "catalog:",
     "@tanstack/table-core": "catalog:",
     "hono": "catalog:",
+    "kysely": "catalog:",
+    "kysely-neon": "catalog:",
     "lucide-preact": "catalog:",
     "motion": "catalog:",
     "preact": "catalog:"

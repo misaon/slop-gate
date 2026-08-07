@@ -50,6 +50,8 @@ catalog:
   '@tanstack/react-query': ^5.101.4
   '@tanstack/table-core': ^9.0.0
   hono: ^4.9.0
+  kysely: ^0.29.4
+  kysely-neon: ^3.0.0
   lucide-preact: ^1.28.0
   motion: ^13.0.0
   preact: ^10.27.0
