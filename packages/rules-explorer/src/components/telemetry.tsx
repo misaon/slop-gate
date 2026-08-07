@@ -1,41 +1,64 @@
 import type { TelemetryPanel } from '../data.ts'
-import { Tile } from './chrome.tsx'
-import { ICON_SMALL, Languages, Target, TriangleAlert } from './icons.tsx'
-import { BookTextAnimated, GaugeAnimated, ShieldCheckAnimated } from './animated/icons.tsx'
+import { ICON_SMALL, Gauge, Languages, Target, TriangleAlert } from './icons.tsx'
 
 const HEAD = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500'
+const NUM = 'px-3 py-2 text-right tabular-nums'
 
-function Bars({ rows, label }: { rows: readonly { readonly key: string; readonly reports: number }[]; label: string }) {
-  const largest = Math.max(1, ...rows.map((row) => row.reports))
+function Section({ icon: Icon, label, children }: { icon: typeof Target; label: string; children: preact.ComponentChildren }) {
   return (
     <div>
       <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
-        <Languages {...ICON_SMALL} />
+        <Icon {...ICON_SMALL} />
         {label}
       </div>
-      <div class="mt-2 space-y-1.5">
-        {rows.length === 0 ? <div class="text-sm text-ink-700">—</div> : null}
-        {rows.map((row) => (
-          <div key={row.key} class="flex items-center gap-2 text-sm">
-            <span class="mono w-24 shrink-0 truncate text-ink-300">{row.key}</span>
-            <span class="h-2 rounded-full bg-brand/70" style={{ width: `${(row.reports / largest) * 100}%`, minWidth: '2px' }} />
-            <span class="tabular-nums text-ink-500">{row.reports}</span>
-          </div>
-        ))}
-      </div>
+      {children}
     </div>
   )
 }
 
 /**
- * Every number here is a count from `telemetry_report` and the two summary views, read live. None is a rate
- * or a projection, and the sample size sits at the top rather than in a footnote — 28 reports is not a
- * population, and a panel that renders percentages off it would be inventing confidence it does not have.
+ * One hue for every bar, and the category named in text beside it. Not a stylistic choice: the palette's two
+ * warm steps fail an adjacent-pair check at ΔE 11.9 for normal vision, so a reader could not tell two series
+ * apart, and this comparison is one measure across categories — a magnitude, which takes a single hue anyway.
+ * The count is labelled on every bar because there are three of them; that is direct labelling, not clutter.
+ */
+function Distribution({ rows, total }: { rows: readonly { readonly key: string; readonly reports: number }[]; total: number }) {
+  const largest = Math.max(1, ...rows.map((row) => row.reports))
+  return (
+    <div class="mt-2 space-y-2">
+      {rows.map((row) => (
+        <div key={row.key} class="flex items-center gap-3 text-sm" title={`${row.key}: ${row.reports} of ${total} reports`}>
+          <span class="mono w-20 shrink-0 truncate text-ink-300">{row.key}</span>
+          <span class="flex h-2.5 min-w-0 flex-1 items-center">
+            <span class="h-full rounded-r bg-brand" style={{ width: `${(row.reports / largest) * 100}%`, minWidth: '3px' }} />
+          </span>
+          <span class="w-8 shrink-0 text-right tabular-nums text-ink-100">{row.reports}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Stat({ label, value, hint }: { label: string; value: number | string; hint?: string | undefined }) {
+  return (
+    <div class="rounded-xl bg-ink-900 px-4 py-3 ring-1 ring-ink-800" title={hint}>
+      <div class="text-2xl font-medium tabular-nums text-ink-100">{value}</div>
+      <div class="mt-0.5 text-xs uppercase tracking-wide text-ink-500">{label}</div>
+    </div>
+  )
+}
+
+const stamp = (iso: string | null): string => (iso === null ? '—' : new Date(iso).toLocaleString())
+
+/**
+ * Counts, never rates. Twenty-eight reports is not a population, so the sample size and how much of it is
+ * this project's own CI lead the panel instead of sitting in a footnote — a percentage taken from it would be
+ * inventing confidence the data does not carry.
  */
 export function Telemetry({ data }: { data: TelemetryPanel }) {
   if (!data.available) {
     return (
-      <section class="mb-6 rounded-xl bg-ink-900 p-4 ring-1 ring-ink-800">
+      <section class="mb-8 rounded-xl bg-ink-900 p-4 ring-1 ring-ink-800">
         <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-state-withheld">
           <TriangleAlert {...ICON_SMALL} />
           Telemetry unavailable
@@ -45,91 +68,120 @@ export function Telemetry({ data }: { data: TelemetryPanel }) {
     )
   }
 
-  const window =
-    data.firstSeen === null || data.lastSeen === null
-      ? '—'
-      : `${new Date(data.firstSeen).toLocaleString()} → ${new Date(data.lastSeen).toLocaleString()}`
+  const ours = data.fromOurCi
+  const outside = data.reports - ours
+  const single = data.versions.length === 1 ? data.versions[0] : undefined
+  const onlyNode = data.nodeMajors.length === 1 ? data.nodeMajors[0] : undefined
 
   return (
-    <section class="mb-6">
-      <h2 class="text-lg font-medium text-ink-100">Telemetry</h2>
-      <p class="mt-1 max-w-3xl text-sm text-ink-500">
-        Live from the ingest database, read under a SELECT-only role. Counts only — no rates, no projections.{' '}
-        <span class="text-ink-300">
-          {data.fromOurCi} of {data.reports} reports are this project&rsquo;s own CI runs
-        </span>
-        , so read every figure below as a sample of {data.reports}, not as usage.
-      </p>
+    <section class="mb-8">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-lg font-medium text-ink-100">Telemetry</h2>
+        <span class="text-xs text-ink-700">{stamp(data.firstSeen)} → {stamp(data.lastSeen)}</span>
+      </div>
 
-      <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile icon={BookTextAnimated} label="Reports" value={data.reports} />
-        <Tile icon={ShieldCheckAnimated} label="Distinct checkouts" value={data.projects} delay={60} />
-        <Tile
-          icon={BookTextAnimated}
-          label="Median files scanned"
+      {/* The caveat is the headline, not an aside: most of this sample is us. */}
+      <div class="mt-2 rounded-xl bg-brand/8 px-4 py-3 ring-1 ring-brand/25">
+        <p class="text-sm text-ink-300">
+          <span class="font-medium text-ink-100">{data.reports} reports</span> from{' '}
+          <span class="font-medium text-ink-100">{data.projects} checkouts</span>, of which{' '}
+          <span class="font-medium text-brand">{ours} are this project&rsquo;s own CI</span> and {outside} are not. Read
+          everything below as counts out of {data.reports} — there is not enough here for a rate, so none is shown.
+        </p>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Reports" value={data.reports} hint="Rows in telemetry_report" />
+        <Stat label="Checkouts" value={data.projects} hint="Distinct project ids. CI runners are ephemeral, so each CI run is its own." />
+        <Stat
+          label="Median files"
           value={data.runs === null ? '—' : data.runs.medianFilesScanned}
-          delay={120}
+          hint="Median files_scanned across all reports"
         />
-        <Tile
-          icon={GaugeAnimated}
+        <Stat
           label="Median run"
-          value={data.runs === null ? '—' : `${data.runs.medianDurationMs} ms`}
-          delay={180}
+          value={data.runs === null ? '—' : `${(data.runs.medianDurationMs / 1000).toFixed(1)} s`}
+          hint={data.runs === null ? undefined : `${data.runs.medianDurationMs} ms`}
         />
       </div>
 
-      <div class="mt-4 grid gap-4 md:grid-cols-3">
-        <Bars label="Platform" rows={data.platforms.map((row) => ({ key: row.platform, reports: row.reports }))} />
-        <Bars label="slop-gate version" rows={data.versions.map((row) => ({ key: row.version, reports: row.reports }))} />
-        <Bars label="Node major" rows={data.nodeMajors.map((row) => ({ key: row.node, reports: row.reports }))} />
-      </div>
+      <div class="mt-5 grid gap-5 md:grid-cols-2">
+        <Section icon={Languages} label="Platform">
+          <Distribution rows={data.platforms.map((row) => ({ key: row.platform, reports: row.reports }))} total={data.reports} />
+        </Section>
 
-      <div class="mt-5 overflow-x-auto rounded-xl ring-1 ring-ink-800">
-        <table class="w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              <th class={HEAD}>Rule</th>
-              <th class={HEAD}>Checkouts</th>
-              <th class={HEAD}>Of those, finding</th>
-              <th class={HEAD}>Findings</th>
-              <th class={HEAD}>Suppressed</th>
-              <th class={HEAD}>Baselined</th>
-              <th class={HEAD}>Last seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.rules.map((rule) => (
-              <tr key={rule.rule} class="border-t border-ink-850">
-                <td class="mono px-3 py-2 text-ink-100">{rule.rule}</td>
-                <td class="px-3 py-2 tabular-nums text-ink-300">{rule.checkouts}</td>
-                <td class="px-3 py-2 tabular-nums text-ink-300">{rule.checkoutsFinding}</td>
-                <td class="px-3 py-2 tabular-nums text-ink-300">{rule.findings}</td>
-                {/* A rule with suppressions and no findings is the interesting case: it fires, and people say no. */}
-                <td class="px-3 py-2 tabular-nums text-state-withheld">{rule.suppressed}</td>
-                <td class="px-3 py-2 tabular-nums text-ink-300">{rule.baselined}</td>
-                <td class="px-3 py-2 text-ink-500">{rule.lastSeen === null ? '—' : new Date(rule.lastSeen).toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {data.rules.length === 0 ? (
-          <div class="px-4 py-8 text-center text-ink-500">No rule has reported a finding or a suppression yet.</div>
-        ) : null}
-      </div>
-
-      <div class="mt-4 grid gap-4 md:grid-cols-2">
-        <Bars
-          label="Concepts turned off in a config"
-          rows={data.disabledConcepts.map((row) => ({ key: row.concept, reports: row.checkouts }))}
-        />
-        <div>
-          <div class="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-500">
-            <Target {...ICON_SMALL} />
-            Window
+        {/* A single value is a fact, not a distribution — a one-bar chart says less than a sentence. */}
+        <Section icon={Target} label="Build">
+          <div class="mt-2 space-y-1.5 text-sm text-ink-300">
+            <div>
+              slop-gate{' '}
+              {single === undefined ? (
+                <Distribution rows={data.versions.map((row) => ({ key: row.version, reports: row.reports }))} total={data.reports} />
+              ) : (
+                <span class="mono text-ink-100">{single.version}</span>
+              )}
+              {single === undefined ? null : <span class="text-ink-500"> on every report</span>}
+            </div>
+            <div>
+              Node{' '}
+              {onlyNode === undefined ? (
+                <Distribution rows={data.nodeMajors.map((row) => ({ key: row.node, reports: row.reports }))} total={data.reports} />
+              ) : (
+                <span class="mono text-ink-100">{onlyNode.node}</span>
+              )}
+              {onlyNode === undefined ? null : <span class="text-ink-500"> on every report</span>}
+            </div>
+            <div class="pt-1 text-ink-500">
+              {data.disabledConcepts.length === 0
+                ? 'No report has turned a concept off in its config.'
+                : `${data.disabledConcepts.length} concept(s) turned off in a config — see the table below.`}
+            </div>
           </div>
-          <div class="mt-2 text-sm text-ink-300">{window}</div>
-        </div>
+        </Section>
       </div>
+
+      <Section icon={Gauge} label="What the rules did out there">
+        <div class="mt-2 overflow-x-auto rounded-xl ring-1 ring-ink-800">
+          <table class="w-full border-collapse text-sm">
+            <thead>
+              <tr class="bg-ink-900">
+                <th class={HEAD}>Rule</th>
+                <th class={`${HEAD} text-right`} title="Checkouts that ran this rule at all">
+                  Ran in
+                </th>
+                <th class={`${HEAD} text-right`} title="Of those, how many saw at least one finding">
+                  Found
+                </th>
+                <th class={`${HEAD} text-right`}>Findings</th>
+                <th class={`${HEAD} text-right`} title="A human wrote an inline directive to refuse the finding">
+                  Refused
+                </th>
+                <th class={`${HEAD} text-right`}>Baselined</th>
+                <th class={HEAD}>Last seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rules.map((rule) => (
+                <tr key={rule.rule} class="border-t border-ink-850 hover:bg-ink-900">
+                  <td class="mono px-3 py-2 text-ink-100">{rule.rule}</td>
+                  <td class={`${NUM} text-ink-300`}>{rule.checkouts}</td>
+                  <td class={`${NUM} text-ink-300`}>{rule.checkoutsFinding}</td>
+                  <td class={`${NUM} text-ink-300`}>{rule.findings}</td>
+                  {/* Refusals with no findings is the signal this table exists for: the rule fires, a human says no. */}
+                  <td class={`${NUM} ${rule.suppressed > 0 ? 'font-medium text-state-withheld' : 'text-ink-700'}`}>
+                    {rule.suppressed}
+                  </td>
+                  <td class={`${NUM} text-ink-300`}>{rule.baselined}</td>
+                  <td class="px-3 py-2 text-ink-500">{stamp(rule.lastSeen)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.rules.length === 0 ? (
+            <div class="px-4 py-8 text-center text-ink-500">No rule has reported a finding or a refusal yet.</div>
+          ) : null}
+        </div>
+      </Section>
     </section>
   )
 }
