@@ -1,4 +1,5 @@
 import type { CatalogueStatus, Impact } from '@misaon/slop-gate-core'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import logo from '../../../docs/assets/logo-wide-darkmode-360.webp'
 import { Tile, Toggle } from './components/chrome.tsx'
@@ -20,9 +21,6 @@ import {
   onCatalogueChange,
   STATUS_HELP,
   STATUS_LABEL,
-  type Row,
-  type RulesPayload,
-  type TelemetryPanel,
 } from './data.ts'
 import { useTable } from './use-table.ts'
 
@@ -36,22 +34,23 @@ function toggled<T>(set: ReadonlySet<T>, value: T): ReadonlySet<T> {
 }
 
 export function App() {
-  const [state, setState] = useState<{ rows: Row[]; payload: RulesPayload } | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [telemetry, setTelemetry] = useState<TelemetryPanel | null>(null)
+  const client = useQueryClient()
   const [query, setQuery] = useState('')
   const [engines, setEngines] = useState<ReadonlySet<string>>(new Set())
   const [statuses, setStatuses] = useState<ReadonlySet<CatalogueStatus>>(new Set())
   const [impacts, setImpacts] = useState<ReadonlySet<Impact>>(new Set())
 
-  useEffect(() => {
-    const load = (): void => {
-      void fetchRules().then(setState, (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
-      void fetchTelemetry().then(setTelemetry, () => setTelemetry(null))
-    }
-    load()
-    return onCatalogueChange(load)
-  }, [])
+  const catalogue = useQuery({ queryKey: ['rules'], queryFn: fetchRules })
+  // Telemetry is a nice-to-have beside the catalogue: its own key, so a database that refuses the read leaves
+  // the rules table working instead of taking the page down with it.
+  const telemetryQuery = useQuery({ queryKey: ['telemetry'], queryFn: fetchTelemetry })
+
+  // The server already knows when the registry moved, so the stream invalidates rather than the client polling.
+  useEffect(() => onCatalogueChange(() => void client.invalidateQueries({ queryKey: ['rules'] })), [client])
+
+  const state = catalogue.data ?? null
+  const error = catalogue.error === null ? null : (catalogue.error as Error).message
+  const telemetry = telemetryQuery.data ?? null
 
   const rows = state?.rows
   const filtered = useMemo(() => {
