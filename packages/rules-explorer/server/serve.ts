@@ -5,6 +5,7 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { openCatalogue } from './catalogue.ts'
+import { openTelemetry } from './telemetry.ts'
 
 const here = import.meta.dirname
 const repoRoot = resolve(here, '../../..')
@@ -20,10 +21,13 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 }
 
 const catalogue = openCatalogue(repoRoot)
+const telemetry = openTelemetry()
 
 const app = new Hono()
 
 app.get('/api/rules', async (context) => context.json(await catalogue.get()))
+
+app.get('/api/telemetry', async (context) => context.json(await telemetry.read()))
 
 app.get('/api/health', (context) => context.json({ ok: true, generation: catalogue.generation() }))
 

@@ -62,3 +62,33 @@ export function onCatalogueChange(refetch: () => void): () => void {
   source.addEventListener('changed', refetch)
   return () => source.close()
 }
+
+export type TelemetryPanel = {
+  readonly available: boolean
+  readonly reason?: string
+  readonly reports: number
+  readonly projects: number
+  readonly fromOurCi: number
+  readonly firstSeen: string | null
+  readonly lastSeen: string | null
+  readonly platforms: readonly { readonly platform: string; readonly reports: number }[]
+  readonly versions: readonly { readonly version: string; readonly reports: number }[]
+  readonly nodeMajors: readonly { readonly node: string; readonly reports: number }[]
+  readonly runs: { readonly medianFilesScanned: number; readonly medianDurationMs: number } | null
+  readonly rules: readonly {
+    readonly rule: string
+    readonly checkouts: number
+    readonly checkoutsFinding: number
+    readonly findings: number
+    readonly suppressed: number
+    readonly baselined: number
+    readonly lastSeen: string | null
+  }[]
+  readonly disabledConcepts: readonly { readonly concept: string; readonly checkouts: number }[]
+}
+
+export async function fetchTelemetry(): Promise<TelemetryPanel> {
+  const response = await fetch('/api/telemetry')
+  if (!response.ok) throw new Error(`/api/telemetry responded ${response.status}`)
+  return (await response.json()) as TelemetryPanel
+}

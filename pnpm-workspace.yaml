@@ -55,7 +55,7 @@ catalog:
   tailwindcss: ^4.1.0
   vite: ^8.2.0
 
-  # telemetry-ingest.
+  # telemetry-ingest, and the explorer reads the same database under a SELECT-only role.
   '@neondatabase/serverless': ^1.0.2
 
 # `typescript` is the one dependency with three deliberate versions rather than one, so it gets the two

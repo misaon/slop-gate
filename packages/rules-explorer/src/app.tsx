@@ -12,7 +12,17 @@ import {
 } from './components/animated/icons.tsx'
 import { ICON, Spinner, X } from './components/icons.tsx'
 import { columns, RulesTable } from './components/rules-table.tsx'
-import { fetchRules, onCatalogueChange, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
+import { Telemetry } from './components/telemetry.tsx'
+import {
+  fetchRules,
+  fetchTelemetry,
+  onCatalogueChange,
+  STATUS_HELP,
+  STATUS_LABEL,
+  type Row,
+  type RulesPayload,
+  type TelemetryPanel,
+} from './data.ts'
 import { useTable } from './use-table.ts'
 
 const STATUSES: readonly CatalogueStatus[] = ['recommended', 'withheld', 'unlisted']
@@ -27,6 +37,7 @@ function toggled<T>(set: ReadonlySet<T>, value: T): ReadonlySet<T> {
 export function App() {
   const [state, setState] = useState<{ rows: Row[]; payload: RulesPayload } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [telemetry, setTelemetry] = useState<TelemetryPanel | null>(null)
   const [query, setQuery] = useState('')
   const [engines, setEngines] = useState<ReadonlySet<string>>(new Set())
   const [statuses, setStatuses] = useState<ReadonlySet<CatalogueStatus>>(new Set())
@@ -35,6 +46,7 @@ export function App() {
   useEffect(() => {
     const load = () =>
       fetchRules().then(setState, (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
+      fetchTelemetry().then(setTelemetry, () => setTelemetry(null))
     void load()
     return onCatalogueChange(() => void load())
   }, [])
@@ -117,6 +129,8 @@ export function App() {
           delay={180}
         />
       </section>
+
+      {telemetry === null ? null : <Telemetry data={telemetry} />}
 
       <section class="mb-4 space-y-3">
         <div class="group relative">
