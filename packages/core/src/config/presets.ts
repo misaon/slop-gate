@@ -227,6 +227,12 @@ const recommended: RuleMap = {
   'style.prefer-default-parameters': 'warn',
   'style.prefer-class-fields': 'warn',
 
+  // knip's three that an import graph can answer. The two about dependencies cannot — see
+  // not-recommended.ts — and `formatting.unformatted` is a formatter, which is the project's own choice.
+  'deps.unlisted-binary': 'warn',
+  'dead-code.duplicate-export': 'warn',
+  'dead-code.unused-enum-member': 'warn',
+
   'config.compose-schema': 'error',
   'config.rule-overlap': 'info',
   'config.dead-override': 'warn',

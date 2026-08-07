@@ -773,6 +773,32 @@ impact 2 — `security.target-blank`, `security.dangerous-html`, `security.scrip
 `security.eval-usage`, `security.function-constructor`. That also closes the third entry this audit
 briefly added to `impact.test.ts`'s mismatch list: the XSS sink now reports where it belongs.
 
+## knip's dependency rules, and oxfmt as a gate
+
+<a id="engine-audit"></a>
+
+The six non-oxlint rules no preset named, trialled against this repository rather than argued from
+their descriptions.
+
+**`knip/dependencies` and `knip/devDependencies` — 5 findings, 5 false, one cause.** Every one is a
+dependency that is used and never imported: `oxlint` and `oxfmt` are resolved by path from their engine
+packages so a binary can be spawned, `@commitlint/cli` is invoked by CI through `pnpm exec`,
+`@misaon/slop-gate` is a `sgate` bin, and `@misaon/slop-gate-core` reaches `apps/telemetry-ingest` as a
+type. An import graph sees none of those shapes and no option teaches it one. The direction is what
+settles it: acting on the finding removes a package the build needs.
+
+**`oxfmt/unformatted` — 446 findings, which is nearly the whole tree**, because it reports every file
+oxfmt would rewrite and this project formats with something else. Its own help text offers the way out
+("turn `format.unformatted` off to keep your own formatter"), which is a rule saying it is not a default.
+It also costs a second time: oxfmt is file-granularity, so adding it took `analysed` from 445 to 490 and
+multiplied the synthesised `config.unused-suppression` and `config.suppression-missing-reason` counts —
+the same effect §"Duplicate synthetic diagnostics after ast-grep was added" records.
+
+**Promoted: `knip/binaries`, `knip/duplicates`, `knip/enumMembers`** — 0 findings each, and each asks a
+question an import graph can actually answer. `binaries` is the inverse of the two rejected above: a
+binary a script invokes and no manifest declares, which is a build that works only where someone already
+installed it.
+
 ## hadolint/DL3066 — hadolint cannot catch a container running as root
 
 <a id="hadolint-dl3066"></a>
