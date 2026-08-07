@@ -19,10 +19,10 @@ let originalSnapshotPath: string | undefined
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'sgate-mcp-tools-'))
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture' }))
-  await writeFile(join(dir, 'clean.ts'), 'export const a = 1\n')
+  await writeFile(join(dir, 'clean.ts'), 'export const value = 1\n')
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
-    "export default { extends: ['recommended'], rules: { 'types.type-error': 'off', 'dead-code.unused-file': 'off' } }\n",
+    "export default { extends: ['recommended'], rules: { 'dead-code.unused-file': 'off', 'types.type-error': 'off' } }\n",
   )
   originalSnapshotPath = process.env[SNAPSHOT_PATH_ENV]
   process.env[SNAPSHOT_PATH_ENV] = await installAdvisoryFixture(dir)

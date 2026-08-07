@@ -7,7 +7,7 @@ import type { FrameworkAdjustment, FrameworkApplication, FrameworkDetection, Fra
 
 const UNSTABLE = 'suspicious.no-unstable-nested-components' as ConceptId
 const EXTRANEOUS = 'suspicious.no-extraneous-class' as ConceptId
-const HOOKS = 'pedantic.max-lines' as ConceptId
+const HOOKS = 'restriction.no-restricted-imports' as ConceptId
 
 const evidence = [
   { kind: 'manifest-dependency', file: 'package.json', workspace: '', name: 'next', field: 'dependencies' },

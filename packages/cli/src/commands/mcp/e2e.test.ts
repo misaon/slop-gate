@@ -24,9 +24,9 @@ beforeEach(async () => {
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
     'export default { extends: [\'recommended\'], rules: { ' +
-      "'types.type-error': 'off', 'dead-code.unused-file': 'off', " +
-      "'security.vulnerable-dependency': 'off', 'security.malicious-dependency': 'off', " +
-      "'deps.advisory-coverage-gap': 'off' } }\n",
+      "'dead-code.unused-file': 'off', 'deps.advisory-coverage-gap': 'off', " +
+      "'security.malicious-dependency': 'off', 'security.vulnerable-dependency': 'off', " +
+      "'types.type-error': 'off' } }\n",
   )
   client = await open({ pin: REVISION })
 })
