@@ -16,6 +16,29 @@ export const NOT_RECOMMENDED_UNCATALOGUED: Readonly<Record<string, NotRecommende
       'looked like true positives. `dead-code.unused-file` in a config restores it.',
     evidence: 'knip-files',
   },
+  'knip/dependencies': {
+    reason:
+      '**5 findings across this repository, 5 false**, and every one is the same structural gap: a dependency ' +
+      'that is used but never imported. `oxlint` and `oxfmt` are resolved by path from their own engine ' +
+      'packages so a binary can be spawned; `@commitlint/cli` is run by CI through `pnpm exec`; ' +
+      '`@misaon/slop-gate` is a `sgate` bin.\n\n' +
+      'An import graph cannot see any of those, and no option adds them — the shapes are a spawn, a script and ' +
+      'a bin entry rather than a specifier. Removing what it reports breaks the build that uses it, which is ' +
+      'the worst direction for a wrong finding to point. `knip/devDependencies` is excluded with it.',
+    evidence: 'engine-audit',
+  },
+  'knip/devDependencies': { reason: '**2 of the 5 findings** in `knip/dependencies` above, on the identical argument: a devDependency invoked as a binary is invisible to an import graph.' },
+  'oxfmt/unformatted': {
+    reason:
+      '**446 findings — nearly every file in the repository**, because it reports any file oxfmt would ' +
+      'rewrite, and this project formats with something else. Its own help text says as much: "turn ' +
+      '`format.unformatted` off to keep your own formatter".\n\n' +
+      'A formatter is a decision a project has already made, and a quality gate that arrives with a different ' +
+      'one reformats the tree on first run. It also costs twice: adding a file-granularity engine multiplies ' +
+      'the synthesised `config.unused-suppression` and `config.suppression-missing-reason` counts, which is ' +
+      'the effect docs/measurements.md records for ast-grep.',
+    evidence: 'engine-audit',
+  },
   'deps-security/missing-lockfile-entry': {
     reason:
       'The one rule in this engine with a structural false-positive mode: a manifest entry absent from ' +
