@@ -35,7 +35,7 @@ test('looks a concept up by id', () => {
 })
 
 test('separates generated descriptions from written ones', () => {
-  expect(GENERATED_CONCEPT_IDS.has('pedantic.accessor-pairs')).toBe(true)
+  expect(GENERATED_CONCEPT_IDS.has('nursery.no-restricted-exports')).toBe(true)
   expect(GENERATED_CONCEPT_IDS.has('correctness.no-debugger')).toBe(false)
   expect(GENERATED_CONCEPT_IDS.has('correctness.no-useless-spread')).toBe(false)
   for (const concept of HAND_WRITTEN_CONCEPTS) expect(GENERATED_CONCEPT_IDS.has(concept.id)).toBe(false)
