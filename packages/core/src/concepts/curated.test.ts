@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import { compareStrings } from '../ordering.ts'
+import { PRESETS } from '../config/presets.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
-import { GENERATED_RECOMMENDED_RULES } from '../registry/entries.generated.ts'
 import { CONCEPTS, CURATED_CONCEPTS, GENERATED_CONCEPT_IDS, HAND_WRITTEN_CONCEPTS } from './catalogue.ts'
 import { validateCatalogue } from './validate.ts'
 
@@ -34,10 +34,12 @@ test('every curated concept is still claimed by a rule', () => {
   expect(orphans).toEqual([])
 })
 
+// The whole preset, not just `GENERATED_RECOMMENDED_RULES`: a concept promoted by hand in `presets.ts`
+// fails a build exactly as hard as one the generator promoted, and used to escape this check.
 test('every concept `recommended` enables at `error` has a curated rationale', () => {
   const curated = new Set([...HAND_WRITTEN_CONCEPTS, ...CURATED_CONCEPTS].map((concept) => concept.id as string))
-  const missing = Object.entries(GENERATED_RECOMMENDED_RULES)
-    .filter(([concept, level]) => level === 'error' && !curated.has(concept))
+  const missing = Object.entries(PRESETS.recommended)
+    .filter(([concept, setting]) => (Array.isArray(setting) ? setting[0] : setting) === 'error' && !curated.has(concept))
     .map(([concept]) => concept)
     .sort(compareStrings)
   expect(missing).toEqual([])
