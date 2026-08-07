@@ -230,6 +230,33 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       '`recommended` combined, and the default figure is the largest ever measured for this registry.',
     evidence: 'no-underscore-dangle',
   },
+  'no-template-curly-in-string': {
+    reason:
+      '**9 findings, zero true positives, and all of them the same syntax**: `${{ … }}` written as text — ' +
+      'GitHub Actions expressions in workflow fixtures and in the concept descriptions that explain them. ' +
+      'Actions interpolation is not JavaScript interpolation, and the rule matches on the braces.\n\n' +
+      'The bug it exists for is real — a `${…}` inside single quotes never substitutes — and on a codebase ' +
+      'that does not quote another language’s templates it would find it.',
+    evidence: 'style-audit',
+  },
+  'unicorn/prefer-structured-clone': {
+    reason:
+      '**2 findings, and at least one is deliberate.** `JSON.parse(JSON.stringify(buildTelemetryPayload(…)))` ' +
+      'is not a deep clone: it is the test modelling what the payload becomes over the wire, and ' +
+      '`structuredClone` would keep the `Date` objects that the transport is supposed to flatten.\n\n' +
+      'The rule is right that a JSON round-trip loses dates, maps and `undefined` and throws on a cycle. It ' +
+      'cannot tell a clone written that way from a serialisation written that way on purpose.',
+    evidence: 'style-audit',
+  },
+  'jest/no-done-callback': {
+    reason:
+      '**2 findings, 2 false, and one cause**: both are `test.for(TABLE)(\'…\', ([a, b]) => …)`, where the ' +
+      'second parameter is the table row. The jest rule does not know vitest’s `test.for` and reads any ' +
+      'second parameter as a `done` callback.\n\n' +
+      'The pattern it targets is real — a callback never called times the test out, and called twice fails ' +
+      'confusingly — so this is an engine mismatch rather than a verdict.',
+    evidence: 'style-audit',
+  },
   'sort-keys': {
     reason:
       '**4,513 findings, the largest count this registry has ever recorded on this repository.** It wants ' +

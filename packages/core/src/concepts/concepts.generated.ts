@@ -878,12 +878,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/curly` rule (category: style). Curly.',
   },
   {
-    id: 'style.custom-error-definition',
-    group: 'style',
-    title: 'unicorn/custom-error-definition',
-    description: 'Generated from oxlint\'s `unicorn/custom-error-definition` rule (category: style). Custom Error Definition.',
-  },
-  {
     id: 'style.define-emits-declaration',
     group: 'style',
     title: 'vue/define-emits-declaration',
@@ -1038,12 +1032,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'jest/no-hooks',
     description: 'Generated from oxlint\'s `jest/no-hooks` rule (category: style). No Hooks.',
-  },
-  {
-    id: 'style.jest-no-interpolation-in-snapshots',
-    group: 'style',
-    title: 'jest/no-interpolation-in-snapshots',
-    description: 'Generated from oxlint\'s `jest/no-interpolation-in-snapshots` rule (category: style). No Interpolation In Snapshots.',
   },
   {
     id: 'style.jest-no-large-snapshots',
@@ -1628,12 +1616,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/prefer-named-capture-group` rule (category: style). Prefer Named Capture Group.',
   },
   {
-    id: 'style.prefer-negative-index',
-    group: 'style',
-    title: 'unicorn/prefer-negative-index',
-    description: 'Generated from oxlint\'s `unicorn/prefer-negative-index` rule (category: style). Prefer Negative Index.',
-  },
-  {
     id: 'style.prefer-optional-catch-binding',
     group: 'style',
     title: 'unicorn/prefer-optional-catch-binding',
@@ -1766,12 +1748,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `jsdoc/require-throws-description` rule (category: style). Require Throws Description.',
   },
   {
-    id: 'style.require-typed-ref',
-    group: 'style',
-    title: 'vue/require-typed-ref',
-    description: 'Generated from oxlint\'s `vue/require-typed-ref` rule (category: style). Require Typed Ref.',
-  },
-  {
     id: 'style.require-yields-description',
     group: 'style',
     title: 'jsdoc/require-yields-description',
@@ -1854,12 +1830,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'vitest/no-hooks',
     description: 'Generated from oxlint\'s `vitest/no-hooks` rule (category: style). No Hooks.',
-  },
-  {
-    id: 'style.vitest-no-interpolation-in-snapshots',
-    group: 'style',
-    title: 'vitest/no-interpolation-in-snapshots',
-    description: 'Generated from oxlint\'s `vitest/no-interpolation-in-snapshots` rule (category: style). No Interpolation In Snapshots.',
   },
   {
     id: 'style.vitest-no-large-snapshots',

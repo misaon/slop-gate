@@ -2796,6 +2796,14 @@ export const CURATED_CONCEPTS = [
       'the first element.',
   },
   {
+    id: 'style.custom-error-definition',
+    group: 'style',
+    title: 'Error subclass that does not set its name',
+    description:
+      '`name` comes from the prototype, so a subclass that does not assign it reports as `Error` in a ' +
+      'log, in a serialised payload and in anything matching on the name.',
+  },
+  {
     id: 'style.default-case-last',
     group: 'style',
     title: 'Default clause placed before a case',
@@ -2866,6 +2874,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Both run, and the report names them identically — so a failure cannot be traced to one of them ' +
       'without counting.',
+  },
+  {
+    id: 'style.jest-no-interpolation-in-snapshots',
+    group: 'style',
+    title: 'Value interpolated into a snapshot',
+    description:
+      'A snapshot holding an interpolation cannot be rewritten by the runner’s update mode, so the ' +
+      'assertion has to be maintained by hand from then on.',
   },
   {
     id: 'style.jest-no-mocks-import',
@@ -3135,6 +3151,14 @@ export const CURATED_CONCEPTS = [
       'that is easy to reverse; the modern methods are called on the node itself.',
   },
   {
+    id: 'style.prefer-negative-index',
+    group: 'style',
+    title: 'Index counted back from the length by hand',
+    description:
+      '`slice(0, x.length - 2)` names the receiver twice to say “two from the end”, and the arithmetic ' +
+      'has to be revisited whenever the expression before it changes. A negative index says it once.',
+  },
+  {
     id: 'style.prefer-numeric-literals',
     group: 'style',
     title: 'Number parsed from a literal string',
@@ -3223,6 +3247,14 @@ export const CURATED_CONCEPTS = [
       'meant to choose.',
   },
   {
+    id: 'style.require-typed-ref',
+    group: 'style',
+    title: 'Reactive reference with no type',
+    description:
+      '`ref()` with neither a type argument nor an initial value is `Ref<any>`, which passes ' +
+      '`noImplicitAny` without ever being checked.',
+  },
+  {
     id: 'style.text-encoding-identifier-case',
     group: 'style',
     title: 'Encoding name written in the wrong case',
@@ -3269,6 +3301,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Both run, and the report names them identically — so a failure cannot be traced to one of them ' +
       'without counting.',
+  },
+  {
+    id: 'style.vitest-no-interpolation-in-snapshots',
+    group: 'style',
+    title: 'Value interpolated into a snapshot',
+    description:
+      'A snapshot holding an interpolation cannot be rewritten by the runner’s update mode, so the ' +
+      'assertion has to be maintained by hand from then on.',
   },
   {
     id: 'style.vitest-no-mocks-import',

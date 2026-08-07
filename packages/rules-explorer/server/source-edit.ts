@@ -14,7 +14,9 @@ type Located = {
   readonly close: number
 }
 
-class SourceEditError extends Error {}
+class SourceEditError extends Error {
+  override readonly name = 'SourceEditError'
+}
 
 function fail(message: string): never {
   throw new SourceEditError(message)
