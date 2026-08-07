@@ -381,6 +381,12 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/rule-corpus:
+    dependencies:
+      '@misaon/slop-gate-core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/rules-explorer:
     dependencies:
       '@hono/node-server':
