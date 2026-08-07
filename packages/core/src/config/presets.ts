@@ -30,6 +30,22 @@ const recommended: RuleMap = {
   'pedantic.prefer-ts-expect-error': 'warn',
   'restriction.no-import-type-side-effects': 'warn',
   'perf.no-accumulating-spread': 'warn',
+
+  // `perf` and `nursery` are outside the two categories the generator promotes, so these are named here
+  // one by one. Each was read against its documentation; see docs/measurements.md#perf-nursery-audit.
+  'perf.prefer-array-find': 'warn',
+  'perf.prefer-array-flat-map': 'warn',
+  'perf.prefer-set-has': 'warn',
+  'perf.no-useless-call': 'warn',
+  'perf.jsx-no-constructed-context-values': 'warn',
+  'perf.no-object-type-as-default-prop': 'warn',
+  'perf.useless-iterator-to-array': 'warn',
+  'correctness.duplicate-export-name': 'error',
+  'correctness.missing-named-export': 'error',
+  'correctness.return-in-finally': 'error',
+  'correctness.component-missing-return': 'error',
+  'dead-code.useless-assignment': 'warn',
+
   'restriction.no-non-null-asserted-nullish-coalescing': 'warn',
   'config.compose-schema': 'error',
   'config.rule-overlap': 'info',

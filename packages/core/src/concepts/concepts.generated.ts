@@ -272,28 +272,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `vitest/valid-expect` rule (category: correctness). Valid Expect.',
   },
   {
-    id: 'nursery.export',
-    group: 'nursery',
-    title: 'import/export',
-    description: 'Generated from oxlint\'s `import/export` rule (category: nursery). Export.',
-  },
-  {
-    id: 'nursery.named',
-    group: 'nursery',
-    title: 'import/named',
-    description: 'Generated from oxlint\'s `import/named` rule (category: nursery). Named.',
-  },
-  {
     id: 'nursery.no-restricted-exports',
     group: 'nursery',
     title: 'no-restricted-exports',
     description: 'Generated from oxlint\'s `eslint/no-restricted-exports` rule (category: nursery). No Restricted Exports.',
-  },
-  {
-    id: 'nursery.no-return-in-finally',
-    group: 'nursery',
-    title: 'promise/no-return-in-finally',
-    description: 'Generated from oxlint\'s `promise/no-return-in-finally` rule (category: nursery). No Return In Finally.',
   },
   {
     id: 'nursery.no-undef',
@@ -314,18 +296,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/no-unreachable-loop` rule (category: nursery). No Unreachable Loop.',
   },
   {
-    id: 'nursery.no-useless-assignment',
-    group: 'nursery',
-    title: 'no-useless-assignment',
-    description: 'Generated from oxlint\'s `eslint/no-useless-assignment` rule (category: nursery). No Useless Assignment.',
-  },
-  {
-    id: 'nursery.no-useless-iterator-to-array',
-    group: 'nursery',
-    title: 'unicorn/no-useless-iterator-to-array',
-    description: 'Generated from oxlint\'s `unicorn/no-useless-iterator-to-array` rule (category: nursery). No Useless Iterator To Array.',
-  },
-  {
     id: 'nursery.prefer-optional-chain',
     group: 'nursery',
     title: 'typescript/prefer-optional-chain',
@@ -336,12 +306,6 @@ export const GENERATED_CONCEPTS = [
     group: 'nursery',
     title: 'react/react-compiler',
     description: 'Generated from oxlint\'s `react/react-compiler` rule (category: nursery). React Compiler.',
-  },
-  {
-    id: 'nursery.require-render-return',
-    group: 'nursery',
-    title: 'react/require-render-return',
-    description: 'Generated from oxlint\'s `react/require-render-return` rule (category: nursery). Require Render Return.',
   },
   {
     id: 'pedantic.accessor-pairs',
@@ -1122,12 +1086,6 @@ export const GENERATED_CONCEPTS = [
     group: 'perf',
     title: 'oxc/no-accumulating-spread',
     description: 'Generated from oxlint\'s `oxc/no-accumulating-spread` rule (category: perf). No Accumulating Spread.',
-  },
-  {
-    id: 'perf.no-array-index-key',
-    group: 'perf',
-    title: 'react/no-array-index-key',
-    description: 'Generated from oxlint\'s `react/no-array-index-key` rule (category: perf). No Array Index Key.',
   },
   {
     id: 'perf.no-await-in-loop',

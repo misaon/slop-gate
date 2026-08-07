@@ -83,7 +83,7 @@ async function rawCodes(file: string): Promise<string[]> {
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')
   const run = promisify(execFile)
-  let stdout = ''
+  let stdout: string
   try {
     ;({ stdout } = await run(installed?.command ?? 'hadolint', ['-f', 'json', '--no-fail', join(root, file)], { encoding: 'utf8' }))
   } catch (error) {

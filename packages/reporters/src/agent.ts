@@ -594,7 +594,7 @@ function nextActionLines(
 
   if (automated.length > 0) {
     const findings = automated.reduce((sum, group) => sum + group.findings.length, 0)
-    const highest = (['safe', 'suggested', 'unsafe'] as const).filter((tier) => automated.some((group) => group.tier === tier)).at(-1) ?? 'safe'
+    const highest = (['safe', 'suggested', 'unsafe'] as const).findLast((tier) => automated.some((group) => group.tier === tier)) ?? 'safe'
     const flag = highest === 'safe' ? 'sgate fix' : highest === 'suggested' ? 'sgate fix --suggest' : 'sgate fix --unsafe'
     actions.push(`Run \`${flag}\` — it covers ${findings} finding(s). Leave those files alone until it has run; a hand edit and a tool edit on the same range conflict.`)
     actions.push('Run this repository\'s formatter afterwards. `sgate fix` does not run one — no formatter engine exists yet — so an applied edit can leave formatting your formatter would undo.')

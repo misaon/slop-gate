@@ -189,6 +189,55 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       '`recommended` combined, and the default figure is the largest ever measured for this registry.',
     evidence: 'no-underscore-dangle',
   },
+  'no-await-in-loop': {
+    reason:
+      '**77 findings here, and one of them is `await Promise.all(...)`** — the very construct the rule tells ' +
+      'you to use, reported because it sits inside an outer loop. The rest are sequential reads and writes ' +
+      'whose order is the point.\n\n' +
+      'It takes no options. And this repository has already measured the advice it gives: `PROBE_CONCURRENCY` ' +
+      'bounds a fan-out that unbounded cost 49 MB of peak RSS to save 41 ms, because `readFile` runs on a ' +
+      'four-wide threadpool and the surplus only queues. A rule that argues with that on every loop is not a gate.',
+    evidence: 'perf-nursery-audit',
+  },
+  'oxc/no-map-spread': {
+    reason:
+      '8 findings here, every one `.map(([key, value]) => ({ key, ...value }))` over a fixed-size object — not ' +
+      'the accumulation the name suggests, which is `oxc/no-accumulating-spread` and is in `recommended`.\n\n' +
+      '**The documented fix is `Object.assign(element, …)`, which mutates the array being mapped.** Trading an ' +
+      'allocation for in-place mutation of data the caller still holds is a worse defect than the one it removes.',
+    evidence: 'perf-nursery-audit',
+  },
+  'react/no-array-index-key': {
+    reason:
+      '**Revisit trigger, not a verdict.** 3 findings here, 3 false, and the rule is right about the general ' +
+      'case: an index is a position, so after an insertion every later item inherits its neighbour’s key.\n\n' +
+      'All three are one component that re-derives its whole list from a single string and never reorders or ' +
+      'filters it. There an index key is not merely safe, it is the better one — a content key would unmount ' +
+      'and remount every node the text changed. The rule cannot see which shape it is looking at, and this ' +
+      'corpus has no React application in it, so 3/3 is a fact about one file rather than a measurement.\n\n' +
+      '**What settles it:** running it over real React applications. If it earns `recommended`, delete this row.',
+    evidence: 'perf-nursery-audit',
+  },
+  'no-undef': {
+    reason:
+      '**564 findings here, zero true positives.** 20 distinct names, 19 of them standard globals — `process` ' +
+      '383 times, then `AbortSignal`, `TextEncoder`, `fetch`, `URL`, `Buffer`, `console`. The twentieth is in a ' +
+      'deliberately-invalid ast-grep fixture.\n\n' +
+      'Two reasons it cannot be rescued here. It needs an `env`/`globals` declaration, which is a section of ' +
+      'oxlint config the engine never writes (§13: rules, categories and plugins only). And in TypeScript an ' +
+      'undefined identifier is a compile error `types.type-error` already reports, with a better message.',
+    evidence: 'perf-nursery-audit',
+  },
+  'no-unreachable-loop': {
+    reason:
+      '2 findings, both false. `cache/atomic-write.ts` is a retry loop whose `catch` either rethrows or delays ' +
+      'and falls through to the next attempt; the rule reports it as allowing one iteration, because it does not ' +
+      'follow the path that leaves a `catch` without throwing.\n\n' +
+      '`nursery` upstream, and with `no-undef` that is two of the four nursery rules which fire here being wrong ' +
+      'or unusable. Read that as the reason to promote a nursery rule on its own argument and never on the ' +
+      'category — not as a verdict on the check, which is real.',
+    evidence: 'perf-nursery-audit',
+  },
   'no-implied-eval': {
     reason:
       'Verified against oxlint 1.76.0: the rule loads (`number_of_rules: 1`) and produces **zero diagnostics ' +

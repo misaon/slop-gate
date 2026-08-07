@@ -377,7 +377,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'import/export',
-    concepts: ['nursery.export'],
+    concepts: ['correctness.duplicate-export-name'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -463,7 +463,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'import/named',
-    concepts: ['nursery.named'],
+    concepts: ['correctness.missing-named-export'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -4552,7 +4552,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'no-useless-assignment',
-    concepts: ['nursery.no-useless-assignment'],
+    concepts: ['dead-code.useless-assignment'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -5645,7 +5645,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'promise/no-return-in-finally',
-    concepts: ['nursery.no-return-in-finally'],
+    concepts: ['correctness.return-in-finally'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -6263,7 +6263,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'react/no-array-index-key',
-    concepts: ['perf.no-array-index-key'],
+    concepts: ['correctness.jsx-key-index'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -6681,7 +6681,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'react/require-render-return',
-    concepts: ['nursery.require-render-return'],
+    concepts: ['correctness.component-missing-return'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -9390,7 +9390,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'unicorn/no-useless-iterator-to-array',
-    concepts: ['nursery.no-useless-iterator-to-array'],
+    concepts: ['perf.useless-iterator-to-array'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',

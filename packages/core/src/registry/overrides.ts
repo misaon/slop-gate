@@ -23,6 +23,18 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'vitest/valid-title': {
     severityDefault: 'warn',
   },
+  // `nursery` is oxlint's readiness label, not a subject. A concept id is a config key a user writes
+  // down, so it cannot be one that stops being true the day upstream graduates the rule.
+  'import/export': { concepts: ['correctness.duplicate-export-name'] },
+  'import/named': { concepts: ['correctness.missing-named-export'] },
+  'promise/no-return-in-finally': { concepts: ['correctness.return-in-finally'] },
+  'react/require-render-return': { concepts: ['correctness.component-missing-return'] },
+  'no-useless-assignment': { concepts: ['dead-code.useless-assignment'] },
+  'unicorn/no-useless-iterator-to-array': { concepts: ['perf.useless-iterator-to-array'] },
+  // Filed under `perf` upstream because an index key defeats reconciliation. The cost is state landing
+  // on the wrong row, which is a defect and not a slow render.
+  'react/no-array-index-key': { concepts: ['correctness.jsx-key-index'] },
+
   'no-var': { concepts: ['style.no-var'] },
   'typescript/no-explicit-any': { concepts: ['slop.as-any-cast'] },
 
