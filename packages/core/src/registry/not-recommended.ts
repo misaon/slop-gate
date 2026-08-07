@@ -189,6 +189,42 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       '`recommended` combined, and the default figure is the largest ever measured for this registry.',
     evidence: 'no-underscore-dangle',
   },
+  'sort-keys': {
+    reason:
+      '**4,513 findings, the largest count this registry has ever recorded on this repository.** It wants ' +
+      'every object literal alphabetised, including the ones whose order is the meaning — a preset read ' +
+      'top-down, a table of exit codes, a record whose keys are steps in sequence.\n\n' +
+      'The head of a category oxlint fills with formatting and house style: 96 of `style`\'s 270 reachable ' +
+      'rules fire here and not one holds a defect. `oxfmt` owns the formatting half; the rest is a decision ' +
+      'a team makes once, and `sort-imports` (787), `capitalized-comments` (139) and `id-length` (574) are ' +
+      'excluded on the identical argument.',
+    evidence: 'style-audit',
+  },
+  'no-magic-numbers': { reason: '**2,517 findings.** Every literal that is not 0, 1 or -1 has to become a named constant, including the ones in a test\'s expected values and in a byte-offset calculation, where the number is the point.' },
+  'vitest/prefer-expect-assertions': { reason: '**1,828 findings — one per test.** It wants `expect.assertions(n)` at the top of each, which is a count to keep in step with the body by hand. `jest/prefer-expect-assertions` is the same rule and excluded with it.' },
+  'jest/prefer-expect-assertions': { reason: '**1,828 findings**, the jest twin of `vitest/prefer-expect-assertions` above.' },
+  'vitest/require-top-level-describe': { reason: '**1,799 findings.** A file whose tests are all one subject does not need a wrapper to say so, and the file name already does. `jest/require-top-level-describe` is excluded with it.' },
+  'jest/require-top-level-describe': { reason: '**1,799 findings**, the jest twin of `vitest/require-top-level-describe` above.' },
+  'curly': { reason: '**936 findings.** Brace style on a single-statement body, which is formatting — `oxfmt` owns that and does not add them.' },
+  'import/no-named-export': { reason: '**930 findings.** It requires every module to export only a default. The mirror image of `import/no-default-export`, which is also excluded: the two cannot both be right, which is what makes them house style.' },
+  'vitest/prefer-strict-equal': { reason: '**869 findings.** `toStrictEqual` also compares `undefined` keys and prototypes, which is stricter than most assertions want; where it matters the test says so. `jest/prefer-strict-equal` is excluded with it.' },
+  'jest/prefer-strict-equal': { reason: '**869 findings**, the jest twin of `vitest/prefer-strict-equal` above.' },
+  'sort-imports': { reason: '**787 findings.** Import order, which `oxfmt` does not sort and no runtime depends on.' },
+  'func-style': { reason: '**660 findings.** `function foo()` against `const foo = () =>`, where the difference that matters — hoisting — is the reason to keep both.' },
+  'import/group-exports': { reason: '**656 findings.** One export statement per module, which turns every export into a maintenance point far from what it exports.' },
+  'no-ternary': { reason: '**617 findings.** It bans the conditional operator outright.' },
+  'id-length': { reason: '**574 findings** at a two-character minimum, so `a`, `b` in a comparator and `i` in a loop are reported.' },
+  'import/no-nodejs-modules': { reason: '**409 findings.** It bans importing Node built-ins, which is aimed at code that must run in a browser. Four of the fifteen packages here are a CLI.' },
+  'import/exports-last': { reason: '**373 findings.** Export placement within a file.' },
+  'import/consistent-type-specifier-style': { reason: '**331 findings.** `import type { X }` against `import { type X }`, where both erase identically and TypeScript accepts each.' },
+  'unicorn/no-null': { reason: '**293 findings.** It bans `null` in favour of `undefined`. This registry distinguishes them deliberately — `null` is "measured and absent", `undefined` is "not measured" — and several public types depend on that.' },
+  'typescript/consistent-type-definitions': { reason: '**275 findings.** `interface` against `type`, where the difference that matters — declaration merging — is a reason to choose per declaration.' },
+  'max-statements': { reason: '**195 findings** at a default of 10. A threshold argument, the same as the `max-*` family in `pedantic`.' },
+  'no-continue': { reason: '**154 findings.** `continue` is how a loop states a guard clause; the alternative is a nested `if` around the rest of the body.' },
+  'vitest/no-importing-vitest-globals': { reason: '**151 findings.** It wants the globals used implicitly rather than imported. This repository imports them on purpose — see `vitest/no-importing-vitest-globals` in docs/measurements.md#oxlint-multi-label-anchoring, where the same rule is one of the eight multi-label cases.' },
+  'capitalized-comments': { reason: '**139 findings.** The first letter of a comment.' },
+  'unicorn/max-nested-calls': { reason: '**138 findings** at a default depth of 3. A threshold argument, and the calls it counts are `join(dirname(fileURLToPath(x)))`-shaped composition.' },
+  'init-declarations': { reason: '**126 findings.** It requires (or forbids) an initialiser on every `let`, and `dead-code.useless-assignment` — promoted by this audit — reports the initialisers that are actually dead.' },
   'vitest/require-test-timeout': {
     reason:
       '**1,790 findings — every test in the repository**, because it wants an explicit timeout argument on ' +

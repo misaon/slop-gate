@@ -1509,6 +1509,30 @@ export const CURATED_CONCEPTS = [
       'of it that came from outside the program is executed rather than displayed.',
   },
   {
+    id: 'security.function-constructor',
+    group: 'security',
+    title: 'Function built from a string',
+    description:
+      '`new Function(body)` compiles source at run time exactly as `eval` does, so anything that reaches ' +
+      'the string is executed with the privileges of the page.',
+  },
+  {
+    id: 'security.jsx-script-url',
+    group: 'security',
+    title: '`javascript:` URL in JSX',
+    description:
+      'The JSX form of a `javascript:` href, which React has warned about since 16.9 and refuses to render ' +
+      'at all from 19.',
+  },
+  {
+    id: 'security.script-url',
+    group: 'security',
+    title: '`javascript:` URL in an attribute',
+    description:
+      'A `javascript:` href is a script the document runs on click, in a position nothing escapes — so any ' +
+      'part of the URL that came from outside the program executes. React 19 refuses to render one at all.',
+  },
+  {
     id: 'security.target-blank',
     group: 'security',
     title: 'New tab opened without `noopener`',

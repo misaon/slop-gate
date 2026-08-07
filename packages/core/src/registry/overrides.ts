@@ -59,6 +59,11 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'no-duplicate-case': { concepts: ['correctness.duplicate-switch-case'] },
   'no-empty-pattern': { concepts: ['correctness.empty-destructuring-pattern'] },
   'no-eval': { concepts: ['security.eval-usage'] },
+  // One concept per rule, never one shared: two rules on one concept go to arbitration and the loser is
+  // switched off, so `new Function` would stop being checked at all.
+  'no-new-func': { concepts: ['security.function-constructor'] },
+  'no-script-url': { concepts: ['security.script-url'] },
+  'react/jsx-no-script-url': { concepts: ['security.jsx-script-url'] },
   'no-ex-assign': { concepts: ['correctness.caught-error-reassigned'] },
   'no-func-assign': { concepts: ['correctness.function-reassigned'] },
   'no-global-assign': { concepts: ['correctness.global-reassigned'] },

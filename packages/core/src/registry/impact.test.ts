@@ -56,11 +56,15 @@ test('a rule whose impact outranks the level it is reported at is a gap worth se
     (entry) => entry.status === 'recommended' && entry.impact === 3 && entry.level !== 'error',
   )
 
-  // A published advisory, a credential in CI and an XSS sink all exit 0 today. Recorded rather than
-  // fixed here: aligning what gates a build to impact is a breaking change and wants its own release.
+  // A published advisory and a credential in CI both exit 0 today. Recorded rather than fixed here:
+  // aligning what gates a build to impact is a breaking change and wants its own release.
+  //
+  // The security rules the audits added do not join them, and the line is deliberate: one that reports an
+  // API a caller may be using safely — `security.target-blank`, `security.dangerous-html`,
+  // `security.script-url` — is impact 2, and one that reports a hole whatever the value —
+  // `security.eval-usage`, `security.function-constructor` — is impact 3 at `error`.
   expect(mismatched.map((entry) => entry.concept).sort()).toEqual([
     'security.vulnerable-dependency',
     'security.workflow-hardcoded-credential',
-    'suspicious.jsx-no-script-url',
   ])
 })

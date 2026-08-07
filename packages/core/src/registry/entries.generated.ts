@@ -3874,7 +3874,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'no-new-func',
-    concepts: ['style.no-new-func'],
+    concepts: ['security.function-constructor'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -4132,7 +4132,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'no-script-url',
-    concepts: ['style.no-script-url'],
+    concepts: ['security.script-url'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -6161,7 +6161,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'react/jsx-no-script-url',
-    concepts: ['suspicious.jsx-no-script-url'],
+    concepts: ['security.jsx-script-url'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',
@@ -12450,6 +12450,7 @@ export const GENERATED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, 'er
   'dead-code.unused-import': 'warn',
   'dead-code.unused-variable': 'warn',
   'security.eval-usage': 'error',
+  'security.jsx-script-url': 'warn',
   'suspicious.always-return': 'warn',
   'suspicious.approx-constant': 'warn',
   'suspicious.block-scoped-var': 'warn',
@@ -12457,7 +12458,6 @@ export const GENERATED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, 'er
   'suspicious.iframe-missing-sandbox': 'warn',
   'suspicious.jest-no-commented-out-tests': 'warn',
   'suspicious.jsx-no-comment-textnodes': 'warn',
-  'suspicious.jsx-no-script-url': 'warn',
   'suspicious.misrefactored-assign-op': 'warn',
   'suspicious.no-absolute-path': 'warn',
   'suspicious.no-accessor-recursion': 'warn',
