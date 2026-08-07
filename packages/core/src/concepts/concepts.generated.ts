@@ -1328,12 +1328,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `import/no-cycle` rule (category: restriction). No Cycle.',
   },
   {
-    id: 'restriction.no-danger',
-    group: 'restriction',
-    title: 'react/no-danger',
-    description: 'Generated from oxlint\'s `react/no-danger` rule (category: restriction). No Danger.',
-  },
-  {
     id: 'restriction.no-default-export',
     group: 'restriction',
     title: 'import/no-default-export',

@@ -704,6 +704,42 @@ unchanged either way, since a surrogate half fails `code > 0x7e` exactly as a co
 an inline `sgate-disable-next-line` with that figure, which is what the directive is for. Unlike `nursery`, the label does not expire, and
 `pedantic.prefer-ts-expect-error` was already in `recommended` under that name.
 
+## The `restriction` audit — 95 reachable rules, 38 promoted and 37 rejected
+
+<a id="restriction-audit"></a>
+
+`restriction` is a menu upstream, not a standard — oxlint files a rule here when it forbids something on
+preference. **All 37 that fire on this repository are preferences, and several are mutually exclusive with
+rules in the same category.** The four largest are the shape of it: `vitest/require-test-timeout` reports
+1,790 findings, one per test; `oxc/no-async-await` 1,190, banning `async`/`await` outright;
+`oxc/no-optional-chaining` 712; `no-undefined` 542.
+
+Two of the 37 are worth reading rather than counting.
+
+**`react/no-unknown-property` — 187, zero true positives, one cause.** Every one is `class=` in a Preact
+component, where the DOM attribute name is the correct one and `className` is the alias. The rule carries
+React's property table and has no way to know which renderer it is looking at. It stands down under
+framework detection (§23), which the inventory already has the signal for.
+
+**`typescript/no-non-null-assertion` — 234, and this one is uncomfortable.** AGENTS.md does say null and
+undefined go explicit rather than through `!`. Nearly all 234 are `array[index]!` under
+`noUncheckedIndexedAccess`, immediately after a bound was checked, where the alternative is a branch that
+cannot be taken and cannot be tested. The rule is right about the pattern AGENTS.md means and wrong about
+the one that dominates the count. Recorded rather than resolved.
+
+**38 promoted, all silent here, and they are the ones that restrict for a reason.** Four hold a defect a
+reader would otherwise ship: `react/button-has-type` (a `<button>` with no type submits the form around
+it), `promise/catch-or-return`, `oxc/bad-bitwise-operator`, `typescript/no-empty-object-type` (`{}` means
+anything non-null, not an empty object). Eight enforce what AGENTS.md already states about ESM —
+`no-commonjs`, `no-require-imports`, `no-var-requires`, `no-amd`, `no-dynamic-require`,
+`no-webpack-loader-syntax`, `prefer-node-protocol`, `no-new-require`. And `react/no-danger` is re-homed to
+`security.dangerous-html`: it is the one React API that writes unescaped markup into the document.
+
+**`import/no-cycle` is left `unlisted` on purpose.** Its 2 findings are a real cycle between
+`frameworks/profiles.ts` and `frameworks/detect.ts`. Whether that cycle is harmless — ESM tolerates one
+whose bindings are not read during evaluation — is a question about this codebase, and answering it is not
+part of deciding whether the rule belongs in a preset.
+
 ## hadolint/DL3066 — hadolint cannot catch a container running as root
 
 <a id="hadolint-dl3066"></a>
