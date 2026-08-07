@@ -27,6 +27,7 @@
     "kysely-neon": "catalog:",
     "lucide-preact": "catalog:",
     "motion": "catalog:",
+    "oxc-parser": "catalog:",
     "preact": "catalog:"
   },
   "devDependencies": {

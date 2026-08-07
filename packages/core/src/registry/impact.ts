@@ -25,7 +25,7 @@ export const IMPACTS: Readonly<Record<Impact, ImpactDefinition>> = {
 }
 
 // The default for a group; the exceptions below are where the group predicts badly.
-const GROUP_IMPACT: Readonly<Record<ConceptGroup, Impact>> = {
+export const GROUP_IMPACT: Readonly<Record<ConceptGroup, Impact>> = {
   security: 3,
   types: 3,
   correctness: 2,

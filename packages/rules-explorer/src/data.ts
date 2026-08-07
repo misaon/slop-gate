@@ -14,6 +14,7 @@ export type RulesPayload = {
   readonly rules: readonly CatalogueEntry[]
   readonly summary: CatalogueSummary
   readonly impacts: Readonly<Record<Impact, ImpactDefinition>>
+  readonly groupImpact: Readonly<Record<string, Impact>>
   readonly history: {
     readonly origins: Readonly<Record<string, RuleOrigin>>
     readonly removed: readonly { readonly ruleRefKey: string; readonly lastSeen: RuleOrigin }[]
@@ -26,6 +27,8 @@ export type Row = CatalogueEntry & {
   // core's node builtins into the browser bundle.
   readonly impactLabel: string
   readonly impactTest: string
+  /** What the concept's group gives it, so the editor knows whether a change needs an exception. */
+  readonly impactFromGroup: Impact | null
 }
 
 export async function fetchRules(): Promise<{ rows: Row[]; payload: RulesPayload }> {
@@ -39,9 +42,30 @@ export async function fetchRules(): Promise<{ rows: Row[]; payload: RulesPayload
       origin: payload.history.origins[rule.ruleRefKey] ?? null,
       impactLabel: payload.impacts[rule.impact].label,
       impactTest: payload.impacts[rule.impact].test,
+      impactFromGroup: payload.groupImpact[rule.group] ?? null,
     }),
   )
   return { rows, payload }
+}
+
+export type RuleEdit = {
+  readonly ruleRefKey: string
+  readonly status?: CatalogueStatus
+  readonly impact?: Impact
+  readonly reason?: string
+  readonly evidence?: string
+  readonly impactNote?: string
+}
+
+/** The server writes the registry, runs its tests and reverts on a red one, so a rejection arrives as prose. */
+export async function editRule(edit: RuleEdit): Promise<void> {
+  const response = await fetch('/api/rules', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(edit),
+  })
+  const result = (await response.json()) as { ok: boolean; error?: string }
+  if (!result.ok) throw new Error(result.error ?? `/api/rules responded ${response.status}`)
 }
 
 export const STATUS_LABEL: Readonly<Record<CatalogueStatus, string>> = {

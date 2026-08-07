@@ -90,6 +90,9 @@ catalogs:
     motion:
       specifier: ^13.0.0
       version: 13.0.0
+    oxc-parser:
+      specifier: ^0.142.0
+      version: 0.142.0
     oxc-transform:
       specifier: ^0.142.0
       version: 0.142.0
@@ -410,6 +413,9 @@ importers:
       motion:
         specifier: 'catalog:'
         version: 13.0.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      oxc-parser:
+        specifier: 'catalog:'
+        version: 0.142.0
       preact:
         specifier: 'catalog:'
         version: 10.29.8
