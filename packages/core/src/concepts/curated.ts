@@ -1934,6 +1934,14 @@ export const CURATED_CONCEPTS = [
       'that is exactly an array. `Array.isArray` is not.',
   },
   {
+    id: 'pedantic.no-loop-func',
+    group: 'pedantic',
+    title: 'Function created in a loop that captures the loop',
+    description:
+      'A closure made per iteration referencing a binding the loop mutates sees the value at call time, ' +
+      'not at creation, so every one of them reads the last.',
+  },
+  {
     id: 'pedantic.no-misused-promises',
     group: 'pedantic',
     title: 'Promise passed where a plain value belongs',
@@ -2517,6 +2525,14 @@ export const CURATED_CONCEPTS = [
       'Type-only cycles are erased and are not reported.',
   },
   {
+    id: 'restriction.no-div-regex',
+    group: 'restriction',
+    title: 'Pattern beginning with an equals sign',
+    description:
+      '`/=/` opens ambiguously: a reader and some parsers see the start of a division-assignment before ' +
+      'they see a regular expression.',
+  },
+  {
     id: 'restriction.no-document-cookie',
     group: 'restriction',
     title: 'Cookie written by string assignment',
@@ -2780,6 +2796,30 @@ export const CURATED_CONCEPTS = [
       'signatures stop applying to one another.',
   },
   {
+    id: 'style.ban-tslint-comment',
+    group: 'style',
+    title: 'TSLint directive left in the source',
+    description:
+      'TSLint is discontinued and nothing reads the comment, so the suppression it looks like it ' +
+      'applies does not.',
+  },
+  {
+    id: 'style.class-literal-property-style',
+    group: 'style',
+    title: 'Constant exposed inconsistently',
+    description:
+      'A value that never changes can be a getter or a readonly field, and the two differ in whether ' +
+      'every instance carries a copy.',
+  },
+  {
+    id: 'style.component-definition-name-casing',
+    group: 'style',
+    title: 'Component registered with an inconsistent name',
+    description:
+      'The template matches the registered name, so a file that registers one casing and uses another ' +
+      'silently renders nothing.',
+  },
+  {
     id: 'style.consistent-date-clone',
     group: 'style',
     title: 'Date copied through its own number',
@@ -2788,12 +2828,59 @@ export const CURATED_CONCEPTS = [
       'intent the moment either half is edited.',
   },
   {
+    id: 'style.consistent-each-for',
+    group: 'style',
+    title: 'Table-driven test written with the other helper',
+    description:
+      '`each` and `for` differ in whether the row is spread into the arguments, so mixing them means ' +
+      'reading the signature to know which.',
+  },
+  {
     id: 'style.consistent-existence-index-check',
     group: 'style',
     title: 'Index compared inconsistently for existence',
     description:
       '`!== -1` and `>= 0` say the same thing, and `> 0` — one character away — silently stops matching ' +
       'the first element.',
+  },
+  {
+    id: 'style.consistent-generic-constructors',
+    group: 'style',
+    title: 'Type argument stated on the wrong side',
+    description:
+      '`const x: Foo<T> = new Foo()` and `const x = new Foo<T>()` differ in which side infers, so ' +
+      'mixing them hides where a type actually comes from.',
+  },
+  {
+    id: 'style.consistent-template-literal-escape',
+    group: 'style',
+    title: 'Escape written inconsistently inside a template',
+    description:
+      'A backtick and a `${` need escaping in a template and nothing else does; escaping more makes a ' +
+      'reader check which characters were meant literally.',
+  },
+  {
+    id: 'style.consistent-test-filename',
+    group: 'style',
+    title: 'Test file named against the convention',
+    description:
+      'The runner picks up tests by a filename pattern, so a file outside it is not run and nothing ' +
+      'reports that.',
+  },
+  {
+    id: 'style.consistent-type-assertions',
+    group: 'style',
+    title: 'Assertion written in the angle-bracket form',
+    description:
+      '`<T>value` is ambiguous with JSX and is a parse error in a `.tsx` file, so one of the two forms ' +
+      'does not work everywhere.',
+  },
+  {
+    id: 'style.consistent-vitest-vi',
+    group: 'style',
+    title: 'Test API reached through the compatibility alias',
+    description:
+      '`vi` is the API and `jest` is a shim for it; a file mixing them has two names for one object.',
   },
   {
     id: 'style.custom-error-definition',
@@ -2820,6 +2907,28 @@ export const CURATED_CONCEPTS = [
       'parameters after it.',
   },
   {
+    id: 'style.define-emits-declaration',
+    group: 'style',
+    title: 'Emits declared in the runtime form',
+    description:
+      'The runtime form is not checked against the calls that raise the events; the type form is.',
+  },
+  {
+    id: 'style.define-props-declaration',
+    group: 'style',
+    title: 'Props declared in the runtime form',
+    description:
+      'The runtime form gives every prop `any` unless a validator is supplied, which the type form does ' +
+      'not need.',
+  },
+  {
+    id: 'style.empty-brace-spaces',
+    group: 'style',
+    title: 'Space inside an empty block',
+    description:
+      '`{ }` and `{}` are the same block, and the space suggests something was removed from it.',
+  },
+  {
     id: 'style.error-message',
     group: 'style',
     title: 'Error constructed with no message',
@@ -2844,12 +2953,44 @@ export const CURATED_CONCEPTS = [
       'what a reader needs to know.',
   },
   {
+    id: 'style.first',
+    group: 'style',
+    title: 'Import placed after other statements',
+    description:
+      'Imports are hoisted whatever their position, so code written above one runs after the module it ' +
+      'appears to precede.',
+  },
+  {
+    id: 'style.func-name-matching',
+    group: 'style',
+    title: 'Function name that disagrees with its binding',
+    description:
+      'A function expression named one thing and assigned to another shows the name in a stack trace ' +
+      'and the binding everywhere else, so a search for either finds half the story.',
+  },
+  {
+    id: 'style.grouped-accessor-pairs',
+    group: 'style',
+    title: 'Getter and setter separated',
+    description:
+      'A getter and its setter describe one property; declaring them apart lets a reader change one ' +
+      'without seeing the other.',
+  },
+  {
     id: 'style.guard-for-in',
     group: 'style',
     title: '`for…in` that does not filter inherited keys',
     description:
       'The loop walks the prototype chain, so anything added to a shared prototype joins the iteration ' +
       'of every object of that shape.',
+  },
+  {
+    id: 'style.hook-use-state',
+    group: 'style',
+    title: 'State pair destructured with unrelated names',
+    description:
+      'The setter’s name is what tells a reader which state it writes; naming it independently means ' +
+      'every call site has to be traced.',
   },
   {
     id: 'style.jest-no-alias-methods',
@@ -2892,6 +3033,14 @@ export const CURATED_CONCEPTS = [
       'and gets a second, unregistered copy.',
   },
   {
+    id: 'style.jest-no-test-prefixes',
+    group: 'style',
+    title: 'Focused or skipped test written as a prefix',
+    description:
+      '`fit` and `xit` mean the same as `it.only` and `it.skip`, and a search for one form does not ' +
+      'find the other.',
+  },
+  {
     id: 'style.jest-no-test-return-statement',
     group: 'style',
     title: 'Test that returns instead of awaiting',
@@ -2900,12 +3049,160 @@ export const CURATED_CONCEPTS = [
       'done callback makes the completion ambiguous.',
   },
   {
+    id: 'style.jest-no-unneeded-async-expect-function',
+    group: 'style',
+    title: 'Async wrapper around a synchronous assertion',
+    description:
+      'An `async` callback given to a matcher that does not await it returns a promise nobody reads, so ' +
+      'a rejection inside it is unhandled.',
+  },
+  {
+    id: 'style.jest-prefer-comparison-matcher',
+    group: 'style',
+    title: 'Comparison asserted through its boolean result',
+    description:
+      '`expect(a > b).toBe(true)` reports “expected false to be true” on failure; the comparison ' +
+      'matcher reports both numbers.',
+  },
+  {
+    id: 'style.jest-prefer-each',
+    group: 'style',
+    title: 'Table of cases written as a loop',
+    description:
+      'A loop around a test names every case the same, so a failure report cannot say which row failed.',
+  },
+  {
+    id: 'style.jest-prefer-equality-matcher',
+    group: 'style',
+    title: 'Equality asserted through its boolean result',
+    description:
+      '`expect(a === b).toBe(true)` discards both values before the matcher sees them, so the failure ' +
+      'says nothing about what they were.',
+  },
+  {
+    id: 'style.jest-prefer-expect-resolves',
+    group: 'style',
+    title: 'Promise awaited before the assertion rather than by it',
+    description:
+      '`expect(await p)` fails with an unhandled rejection when the promise rejects; ' +
+      '`expect(p).resolves` reports it as the assertion that failed.',
+  },
+  {
+    id: 'style.jest-prefer-hooks-in-order',
+    group: 'style',
+    title: 'Setup hooks declared out of order',
+    description:
+      'Hooks run in a fixed order whatever their position, so a file that lists them differently ' +
+      'describes a sequence that does not happen.',
+  },
+  {
+    id: 'style.jest-prefer-hooks-on-top',
+    group: 'style',
+    title: 'Hook declared below the tests it sets up',
+    description:
+      'The hook still runs first, so a reader meeting the tests before it has no way to know what state ' +
+      'they start in.',
+  },
+  {
+    id: 'style.jest-prefer-mock-promise-shorthand',
+    group: 'style',
+    title: 'Mock resolution written as an implementation',
+    description:
+      '`mockImplementation(() => Promise.resolve(x))` and `mockResolvedValue(x)` do the same thing, and ' +
+      'only one says which.',
+  },
+  {
+    id: 'style.jest-prefer-mock-return-shorthand',
+    group: 'style',
+    title: 'Mock return written as an implementation',
+    description:
+      'An implementation that only returns a constant hides that the mock has no behaviour.',
+  },
+  {
+    id: 'style.jest-prefer-spy-on',
+    group: 'style',
+    title: 'Method replaced rather than spied on',
+    description:
+      'Assigning a mock over a method loses the original, so nothing restores it and every later test ' +
+      'in the file inherits the replacement.',
+  },
+  {
+    id: 'style.jest-prefer-to-contain',
+    group: 'style',
+    title: 'Membership asserted through an index',
+    description:
+      '`expect(xs.indexOf(x)).not.toBe(-1)` reports a number on failure; `toContain` reports the ' +
+      'collection and the value.',
+  },
+  {
+    id: 'style.jest-prefer-to-have-been-called-times',
+    group: 'style',
+    title: 'Call count asserted the long way',
+    description:
+      'Comparing `mock.calls.length` reports two integers on failure where the matcher reports which ' +
+      'calls happened.',
+  },
+  {
+    id: 'style.jest-prefer-todo',
+    group: 'style',
+    title: 'Empty test left as a passing one',
+    description:
+      'A test with no body passes, so a placeholder counts towards the suite as though it checked ' +
+      'something. `todo` counts separately.',
+  },
+  {
+    id: 'style.jsx-boolean-value',
+    group: 'style',
+    title: 'Boolean prop passed inconsistently',
+    description:
+      '`prop` and `prop={true}` are the same, and mixing them makes a search for how a prop is set miss ' +
+      'half its uses.',
+  },
+  {
+    id: 'style.jsx-curly-brace-presence',
+    group: 'style',
+    title: 'String literal wrapped in braces',
+    description:
+      '`prop={"a"}` is `prop="a"` with an expression container that does nothing.',
+  },
+  {
+    id: 'style.jsx-fragments',
+    group: 'style',
+    title: 'Fragment written in the long form',
+    description:
+      '`<React.Fragment>` and `<>` are the same node, and only the long form needs the import.',
+  },
+  {
+    id: 'style.jsx-handler-names',
+    group: 'style',
+    title: 'Handler prop named unlike its handler',
+    description:
+      'A prop called `onX` bound to a function called something unrelated hides which event reaches ' +
+      'which code.',
+  },
+  {
+    id: 'style.jsx-pascal-case',
+    group: 'style',
+    title: 'Component used with a lower-case name',
+    description:
+      'JSX treats a lower-case tag as a DOM element, so a component named that way is rendered as an ' +
+      'unknown HTML tag rather than called.',
+  },
+  {
     id: 'style.logical-assignment-operators',
     group: 'style',
     title: 'Conditional assignment written the long way',
     description:
       '`x = x || y` reassigns even when nothing changed, which matters for a setter, a proxy or ' +
       'anything watching the property.',
+  },
+  {
+    id: 'style.next-tick-style',
+    group: 'style',
+    title: '`nextTick` used with a callback',
+    description:
+      'The callback and the promise forms both exist, and only one of them lets an error reach the ' +
+      'caller.',
   },
   {
     id: 'style.no-array-method-this-argument',
@@ -2924,12 +3221,28 @@ export const CURATED_CONCEPTS = [
       'so a failure appears in a test that did not change.',
   },
   {
+    id: 'style.no-console-spaces',
+    group: 'style',
+    title: 'Console argument padded with a space',
+    description:
+      'The console inserts a space between arguments, so a trailing one in the string is doubled in the ' +
+      'output.',
+  },
+  {
     id: 'style.no-deprecated-functions',
     group: 'style',
     title: 'Deprecated test API used',
     description:
       'The function is scheduled for removal, so the suite compiles today and stops running on the next ' +
       'major version.',
+  },
+  {
+    id: 'style.no-duplicates',
+    group: 'style',
+    title: 'Same module imported twice',
+    description:
+      'Two import statements from one module bind the same evaluation twice, so a reader has to check ' +
+      'both to know what the file takes from it.',
   },
   {
     id: 'style.no-empty-interface',
@@ -2948,6 +3261,14 @@ export const CURATED_CONCEPTS = [
       'module exports nothing that was written.',
   },
   {
+    id: 'style.no-extra-label',
+    group: 'style',
+    title: 'Label on a loop that has only one',
+    description:
+      'A label is only needed to break out of an outer loop; on the innermost one it names something ' +
+      '`break` already reaches.',
+  },
+  {
     id: 'style.no-import-node-test',
     group: 'style',
     title: 'Node’s test runner imported inside another one',
@@ -2956,12 +3277,51 @@ export const CURATED_CONCEPTS = [
       'import order.',
   },
   {
+    id: 'style.no-inferrable-types',
+    group: 'style',
+    title: 'Annotation the initialiser already states',
+    description:
+      '`const n: number = 1` restates what the literal says and stops the type narrowing to it.',
+  },
+  {
     id: 'style.no-jasmine-globals',
     group: 'style',
     title: 'Jasmine global used inside a modern runner',
     description:
       'The compatibility shims are not part of the runner’s API and are removed without notice, so the ' +
       'suite depends on something nothing documents.',
+  },
+  {
+    id: 'style.no-label-var',
+    group: 'style',
+    title: 'Label sharing a name with a variable',
+    description:
+      'The two live in different namespaces, so the code is legal and reads as though `break x` had ' +
+      'something to do with the value `x`.',
+  },
+  {
+    id: 'style.no-labels',
+    group: 'style',
+    title: 'Labelled statement',
+    description:
+      'A label lets control jump out of arbitrary nesting, which is the one construct that makes a ' +
+      'function unreadable top to bottom.',
+  },
+  {
+    id: 'style.no-lone-blocks',
+    group: 'style',
+    title: 'Block that scopes nothing',
+    description:
+      'A bare block only creates a scope for `let`, `const` and `class`; without one of those it is a ' +
+      'pair of braces that suggests a control structure was removed.',
+  },
+  {
+    id: 'style.no-multi-assign',
+    group: 'style',
+    title: 'One value assigned to several names at once',
+    description:
+      'Chained assignment binds right to left and, with `var`, can leave the leftmost implicitly ' +
+      'global.',
   },
   {
     id: 'style.no-multi-str',
@@ -2980,6 +3340,29 @@ export const CURATED_CONCEPTS = [
       'moment none of them can see.',
   },
   {
+    id: 'style.no-named-default',
+    group: 'style',
+    title: 'Default import written as a named one',
+    description:
+      '`import { default as x }` is the default export in a syntax that reads as a named one.',
+  },
+  {
+    id: 'style.no-nesting',
+    group: 'style',
+    title: 'Promise chain nested inside a handler',
+    description:
+      'A chain started inside `then` is not joined to the outer one, so the outer promise settles ' +
+      'before the inner work finishes and its rejection escapes.',
+  },
+  {
+    id: 'style.no-redundant-should-component-update',
+    group: 'style',
+    title: 'Update check on a pure component',
+    description:
+      '`PureComponent` already implements the comparison, and defining it again silently replaces the ' +
+      'one the base class provides.',
+  },
+  {
     id: 'style.no-return-assign',
     group: 'style',
     title: 'Assignment returned from a function',
@@ -2993,6 +3376,14 @@ export const CURATED_CONCEPTS = [
     description:
       'A `then` handler already wraps what it returns, so resolving explicitly adds a layer and ' +
       'rejecting explicitly hides what a `throw` would have shown.',
+  },
+  {
+    id: 'style.no-set-state',
+    group: 'style',
+    title: 'State written outside the constructor of a class component',
+    description:
+      'Direct `setState` in a class component is the pattern hooks replaced, and it is the one the ' +
+      'concurrent renderer does not schedule.',
   },
   {
     id: 'style.no-unreadable-array-destructuring',
@@ -3009,6 +3400,21 @@ export const CURATED_CONCEPTS = [
     description:
       'Without the parameter the mock is unchecked against the module it replaces, so it keeps ' +
       'compiling after that module’s shape changes.',
+  },
+  {
+    id: 'style.no-useless-collection-argument',
+    group: 'style',
+    title: 'Empty collection passed to a constructor',
+    description:
+      '`new Set([])` and `new Set()` build the same value, and the argument suggests the contents ' +
+      'varied.',
+  },
+  {
+    id: 'style.no-useless-computed-key',
+    group: 'style',
+    title: 'Computed key that is a literal',
+    description:
+      '`{ [’a’]: 1 }` is `{ a: 1 }` written so the reader has to check whether the key varies.',
   },
   {
     id: 'style.no-zero-fractions',
@@ -3050,6 +3456,22 @@ export const CURATED_CONCEPTS = [
       'that cannot be represented.',
   },
   {
+    id: 'style.prefer-called-exactly-once-with',
+    group: 'style',
+    title: 'Single call asserted in two steps',
+    description:
+      'Asserting the count and the arguments separately passes when a second call happened with ' +
+      'different ones.',
+  },
+  {
+    id: 'style.prefer-called-times',
+    group: 'style',
+    title: 'Call count asserted through a comparison',
+    description:
+      'The dedicated matcher names the calls it saw; a comparison reports only that two numbers ' +
+      'differed.',
+  },
+  {
     id: 'style.prefer-class-fields',
     group: 'style',
     title: 'Field assigned in the constructor rather than declared',
@@ -3089,6 +3511,22 @@ export const CURATED_CONCEPTS = [
       'on what is hidden by CSS.',
   },
   {
+    id: 'style.prefer-es6-class',
+    group: 'style',
+    title: 'Component defined with the factory API',
+    description:
+      '`createClass` predates ES2015 classes, is not in any current React release, and its autobinding ' +
+      'does not exist on a class.',
+  },
+  {
+    id: 'style.prefer-expect-type-of',
+    group: 'style',
+    title: 'Type asserted through a runtime check',
+    description:
+      'A runtime assertion about a type passes on `any`, which is the case a type-level assertion ' +
+      'exists to catch.',
+  },
+  {
     id: 'style.prefer-exponentiation-operator',
     group: 'style',
     title: 'Power written as a call',
@@ -3120,12 +3558,28 @@ export const CURATED_CONCEPTS = [
       'undefined wherever the code is moved.',
   },
   {
+    id: 'style.prefer-import-in-mock',
+    group: 'style',
+    title: 'Module reached inside a factory by requiring it',
+    description:
+      'A mock factory is hoisted above the imports, so a `require` inside it loads a second copy of the ' +
+      'module the test then does not control.',
+  },
+  {
     id: 'style.prefer-includes',
     group: 'style',
     title: 'Membership tested through an index',
     description:
       '`indexOf(x) !== -1` answers a yes-or-no question with a position, and the off-by-one that turns ' +
       'it into `> 0` stops matching the first element.',
+  },
+  {
+    id: 'style.prefer-jest-mocked',
+    group: 'style',
+    title: 'Mock reached through a cast',
+    description:
+      'Asserting a module is a mock hides whether it was ever mocked; the helper checks it and keeps ' +
+      'the original signature.',
   },
   {
     id: 'style.prefer-keyboard-event-key',
@@ -3191,6 +3645,13 @@ export const CURATED_CONCEPTS = [
       'it in one expression.',
   },
   {
+    id: 'style.prefer-optional-catch-binding',
+    group: 'style',
+    title: 'Catch binding that is never read',
+    description:
+      'A named binding says the error matters somewhere; leaving it out says it does not.',
+  },
+  {
     id: 'style.prefer-promise-reject-errors',
     group: 'style',
     title: 'Promise rejected with something that is not an error',
@@ -3231,12 +3692,52 @@ export const CURATED_CONCEPTS = [
       'appear in the signature a reader checks.',
   },
   {
+    id: 'style.prefer-string-raw',
+    group: 'style',
+    title: 'String with more backslashes than characters',
+    description:
+      'Every escape has to be counted twice — once in the source and once in the value — and ' +
+      '`String.raw` removes the first count.',
+  },
+  {
     id: 'style.prefer-string-trim-start-end',
     group: 'style',
     title: 'Whitespace trimmed with a legacy alias',
     description:
       '`trimLeft` and `trimRight` are annex-B aliases named after visual direction, which is the ' +
       'opposite end in a right-to-left script.',
+  },
+  {
+    id: 'style.prefer-to-be-object',
+    group: 'style',
+    title: 'Object-ness asserted through its constructor',
+    description:
+      '`instanceof Object` is false across realms and for a null-prototype object; the matcher checks ' +
+      'the shape.',
+  },
+  {
+    id: 'style.prefer-to-have-been-called',
+    group: 'style',
+    title: 'Call count asserted through the mock’s internals',
+    description:
+      'Reading `mock.calls.length` bypasses the matcher, so the failure names a number rather than the ' +
+      'call that was expected.',
+  },
+  {
+    id: 'style.prop-name-casing',
+    group: 'style',
+    title: 'Prop declared in a casing the template cannot use',
+    description:
+      'Attributes are matched case-insensitively in DOM templates, so a prop declared in the wrong ' +
+      'casing is never bound.',
+  },
+  {
+    id: 'style.relative-url-style',
+    group: 'style',
+    title: 'Relative URL written without an explicit prefix',
+    description:
+      '`new URL(’x’, base)` and `new URL(’./x’, base)` resolve differently when the base has no ' +
+      'trailing slash.',
   },
   {
     id: 'style.require-array-join-separator',
@@ -3247,12 +3748,51 @@ export const CURATED_CONCEPTS = [
       'meant to choose.',
   },
   {
+    id: 'style.require-direct-export',
+    group: 'style',
+    title: 'Component exported through a variable',
+    description:
+      'The compiler infers a component’s name from a direct default export; through a variable it has ' +
+      'none, and every stack trace says `Anonymous`.',
+  },
+  {
+    id: 'style.require-module-attributes',
+    group: 'style',
+    title: 'Empty import attribute block',
+    description:
+      '`with {}` states no attribute at all, so it is syntax the loader parses and then discards.',
+  },
+  {
+    id: 'style.require-prop-types',
+    group: 'style',
+    title: 'Prop declared with no type',
+    description:
+      'A prop with no type is validated against nothing, so a wrong value reaches the template rather ' +
+      'than a warning.',
+  },
+  {
     id: 'style.require-typed-ref',
     group: 'style',
     title: 'Reactive reference with no type',
     description:
       '`ref()` with neither a type argument nor an initial value is `Ref<any>`, which passes ' +
       '`noImplicitAny` without ever being checked.',
+  },
+  {
+    id: 'style.state-in-constructor',
+    group: 'style',
+    title: 'State initialised inconsistently',
+    description:
+      'A class that sets state in the constructor and as a field describes its initial shape in two ' +
+      'places.',
+  },
+  {
+    id: 'style.switch-case-break-position',
+    group: 'style',
+    title: 'Break placed inconsistently in a case',
+    description:
+      'Where the `break` sits is what tells a reader whether a case falls through, and a file that ' +
+      'varies it makes every case a question.',
   },
   {
     id: 'style.text-encoding-identifier-case',
@@ -3319,12 +3859,115 @@ export const CURATED_CONCEPTS = [
       'and gets a second, unregistered copy.',
   },
   {
+    id: 'style.vitest-no-test-prefixes',
+    group: 'style',
+    title: 'Focused or skipped test written as a prefix',
+    description:
+      '`fit` and `xit` mean the same as `it.only` and `it.skip`, and a search for one form does not ' +
+      'find the other.',
+  },
+  {
     id: 'style.vitest-no-test-return-statement',
     group: 'style',
     title: 'Test that returns instead of awaiting',
     description:
       'Returning a value that is not a promise tells the runner nothing, and returning one alongside a ' +
       'done callback makes the completion ambiguous.',
+  },
+  {
+    id: 'style.vitest-no-unneeded-async-expect-function',
+    group: 'style',
+    title: 'Async wrapper around a synchronous assertion',
+    description:
+      'An `async` callback given to a matcher that does not await it returns a promise nobody reads, so ' +
+      'a rejection inside it is unhandled.',
+  },
+  {
+    id: 'style.vitest-prefer-comparison-matcher',
+    group: 'style',
+    title: 'Comparison asserted through its boolean result',
+    description:
+      '`expect(a > b).toBe(true)` reports “expected false to be true” on failure; the comparison ' +
+      'matcher reports both numbers.',
+  },
+  {
+    id: 'style.vitest-prefer-equality-matcher',
+    group: 'style',
+    title: 'Equality asserted through its boolean result',
+    description:
+      '`expect(a === b).toBe(true)` discards both values before the matcher sees them, so the failure ' +
+      'says nothing about what they were.',
+  },
+  {
+    id: 'style.vitest-prefer-hooks-in-order',
+    group: 'style',
+    title: 'Setup hooks declared out of order',
+    description:
+      'Hooks run in a fixed order whatever their position, so a file that lists them differently ' +
+      'describes a sequence that does not happen.',
+  },
+  {
+    id: 'style.vitest-prefer-hooks-on-top',
+    group: 'style',
+    title: 'Hook declared below the tests it sets up',
+    description:
+      'The hook still runs first, so a reader meeting the tests before it has no way to know what state ' +
+      'they start in.',
+  },
+  {
+    id: 'style.vitest-prefer-mock-promise-shorthand',
+    group: 'style',
+    title: 'Mock resolution written as an implementation',
+    description:
+      '`mockImplementation(() => Promise.resolve(x))` and `mockResolvedValue(x)` do the same thing, and ' +
+      'only one says which.',
+  },
+  {
+    id: 'style.vitest-prefer-mock-return-shorthand',
+    group: 'style',
+    title: 'Mock return written as an implementation',
+    description:
+      'An implementation that only returns a constant hides that the mock has no behaviour.',
+  },
+  {
+    id: 'style.vitest-prefer-spy-on',
+    group: 'style',
+    title: 'Method replaced rather than spied on',
+    description:
+      'Assigning a mock over a method loses the original, so nothing restores it and every later test ' +
+      'in the file inherits the replacement.',
+  },
+  {
+    id: 'style.vitest-prefer-to-contain',
+    group: 'style',
+    title: 'Membership asserted through an index',
+    description:
+      '`expect(xs.indexOf(x)).not.toBe(-1)` reports a number on failure; `toContain` reports the ' +
+      'collection and the value.',
+  },
+  {
+    id: 'style.vitest-prefer-to-have-been-called-times',
+    group: 'style',
+    title: 'Call count asserted the long way',
+    description:
+      'Comparing `mock.calls.length` reports two integers on failure where the matcher reports which ' +
+      'calls happened.',
+  },
+  {
+    id: 'style.vitest-prefer-todo',
+    group: 'style',
+    title: 'Empty test left as a passing one',
+    description:
+      'A test with no body passes, so a placeholder counts towards the suite as though it checked ' +
+      'something. `todo` counts separately.',
+  },
+  {
+    id: 'style.yoda',
+    group: 'style',
+    title: 'Comparison written with the constant first',
+    description:
+      '`if (’a’ === x)` guards against an assignment typo that `const` and this linter both already ' +
+      'catch, at the cost of reading backwards.',
   },
   {
     id: 'suspicious.always-return',
