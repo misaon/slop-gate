@@ -1,0 +1,5 @@
+@value primary: hsl(0deg 0% 10%); /* HIT */
+
+.a {
+  color: primary;
+}

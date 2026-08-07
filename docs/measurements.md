@@ -1268,3 +1268,104 @@ Re-measured with `packages/rule-corpus` after the change, all fifty at their pin
 set, so this is an order of magnitude more, and the corpus is the reason it can be stated rather than
 guessed at. The frontend/backend gap is not a claim about either: a larger share of a frontend
 repository is markup, styles and configuration, which fewer rules reach at all.
+
+### <a id="return-await"></a>`typescript/return-await` — the option the exclusion described
+
+The rule was held out with the note that `return await` is correct inside a `try` — it keeps the frame
+in the stack trace and lets the block catch the rejection — and costs a microtask outside one, "which
+the default configuration does not distinguish". `in-try-catch` is that distinction: it requires the
+`await` where a `catch` or `finally` depends on it and forbids it everywhere else. The objection was an
+argument for the option, not against the rule.
+
+## Coverage of the non-oxlint engines — what the registry had never looked at
+
+The audit above ran over the rules the registry knows. For oxlint that is every rule the linter ships:
+847 in `configuration_schema.json`, 848 entries counting slop-gate's own `parse-error`. For the other
+engines it was not, and nothing said so.
+
+| tool | ships | slop-gate had considered | after this pass |
+|---|---:|---:|---:|
+| oxlint | 847 | 847 | 847 |
+| hadolint | 72 | 20 | 72 |
+| biome (CSS-language rules) | 35 | 35 | 35 |
+| knip | 17 | 17 | 17 |
+
+biome and knip were already complete — both engines carry their own exclusion list (`EXCLUDED_RULES` in
+`engine-biome-css/src/rules.ts`, `KNIP_EXCLUDED_ISSUE_TYPES` in `engine-knip/src/issue-types.ts`), which
+is a third place a rule can be held out and one the catalogue does not surface. What those lists needed
+was not new rules but the same re-decision as everything else.
+
+### The type-aware block — 20 rules back, 13 still out
+
+32 type-aware rules were held out. Eight of them gave "silent here, and `style`" as the whole argument,
+which is the error the fifty-repository corpus exists to prevent: silence on one codebase is not
+evidence. Six more — the `no-unsafe-*` family — were held out because their findings "trace to
+`JSON.parse`", which is not a false positive but a description of the defect the rules name.
+
+Nineteen went back in on that basis, plus `typescript/return-await` with `in-try-catch`, the option its
+own exclusion note had described without taking. All twenty were then demonstrated against
+`oxlint-tsgolint` on authored fixtures rather than assumed: 15 on the first probe, 4 on a second, and
+`consistent-type-exports` on a third once the fixture was rewritten to the wrong spelling instead of the
+right one.
+
+The thirteen that stay out hold under the narrow bar: `unbound-method` (10 findings, zero true
+positives), `dot-notation` (against `noPropertyAccessFromIndexSignature`), `non-nullable-type-assertion-style`
+(against `no-non-null-assertion`), `prefer-find` (against `perf.prefer-array-find`), `require-await`
+(against the eslint rule already shipped), `prefer-nullish-coalescing` and `prefer-optional-chain`
+(rewrites that change meaning), `no-unnecessary-condition` (the redundant check is the one that survives
+data arriving from outside the types), and four whose findings were measured false here.
+
+### biome — three of nine flipped
+
+`noEmptySource` was excluded as "accurate and not actionable" and `noExcessiveLinesPerFile` because
+"slop-gate has no size policy" — it has several now — and `noValueAtRule` for forbidding a working
+feature, which is what every `restriction` rule does. All three ship.
+
+Six stay out, and two of those were re-verified against biome 2.5.6 rather than trusted:
+`noInvalidGridAreas` still reports the same invalid `grid-template-areas` value when the declaration
+shares a line with its brace and misses it in three other formattings of the identical value, and
+`noExcessiveSelectorClasses` still does not fire on `.a.b.c.d.e.f`. `noUnknownMediaFeatureName` was
+re-measured over 849 corpus stylesheets: 7 findings, 7 false — five `-webkit-min-device-pixel-ratio`,
+one Media Queries Level 4 range syntax, one Tailwind import.
+
+### knip — the catalog pair, and why `cycles` is a collision not a gap
+
+`catalog` and `catalogReferences` were held out as unmeasurable "for want of a catalog-using
+repository". This one is: `pnpm-workspace.yaml` has had a catalog throughout. Running knip over it
+returns nothing, and an authored fixture puts a finding on each — one on a catalog entry no package
+resolves, one on a `catalog:` reference with no entry, which is a broken install rather than untidiness.
+Both ship.
+
+`cycles` stays out, but its recorded reason was a taxonomy argument. The real one is a collision:
+`restriction.no-cycle` is in `recommended` and oxlint reports the same defect with a span on the import
+that closes the loop.
+
+### hadolint — 52 rules nobody had read
+
+The gap. hadolint ships 72 rules and slop-gate had considered 20. Every one of the other 52 was given
+an authored Dockerfile built from its own description, and run with the rule forced to `error` through
+an `override` block so that a default-off severity could not be mistaken for a rule that does not fire.
+
+**32 ship.** Among them three that the 46-Dockerfile corpus had already been reporting unattributed:
+`DL3027` (`apt` instead of `apt-get` — 4 findings), `DL3016` (unpinned `npm install` — 3) and `DL3002`
+(image ends as root — 1).
+
+**20 stay out**, in four groups, each on an argument the registry already made for a sibling:
+
+- `DL3033`, `DL3037`, `DL3041` — version pinning against yum, zypper and dnf, whose archives keep only
+  the current version. Identical to `DL3008` (apt) and `DL3018` (apk). This is why `DL3016` (npm),
+  `DL3028` (gem) and `DL3062` (go) do ship: those registries keep every version published.
+- `DL3032`, `DL3036`, `DL3040`, `DL3060` — cache cleaning, identical to `DL3009` and `DL3019`: an
+  image-size optimisation that a later multi-stage `COPY` discards anyway.
+- `DL3026` and the nine `DL3049`–`DL3058` label rules — no content without a schema the project
+  supplies. Verified: a fixture producing 0 findings alone produced 7 under a `label-schema` block.
+- `DL1000`, `DL3046` — could not be made to fire; `DL1001` — it forbids hadolint's own ignore pragma,
+  which slop-gate already models as a foreign suppression.
+
+Enabling `DL3057` required a change to the engine: hadolint keeps some rules off whatever the failure
+threshold, so a selected rule now goes into an `override` block in the generated config.
+
+**One thing this pass did not fix.** The 34 withheld hadolint rules have no registry entry, so
+`sgate rules list` and the explorer do not show them at all — their reasons live only in
+`not-recommended.ts`. The same is true of the engine-level exclusion lists in biome-css and knip. Three
+places can hold a rule back and only one of them is visible to a user asking what slop-gate decided.

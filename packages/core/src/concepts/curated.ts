@@ -2,6 +2,254 @@ import type { ConceptDefinition } from './catalogue.ts'
 
 export const CURATED_CONCEPTS = [
   {
+    id: 'config.dockerfile-absolute-workdir',
+    group: 'config',
+    title: 'Relative WORKDIR',
+    description:
+      'A relative `WORKDIR` resolves against whatever the previous one left, so the directory a later ' +
+      'instruction runs in depends on every stage above it.',
+  },
+  {
+    id: 'config.dockerfile-add-archive',
+    group: 'config',
+    title: 'Archive copied then extracted',
+    description:
+      'Copying an archive and unpacking it leaves both the archive and its contents in the layer. `ADD` ' +
+      'extracts without keeping the archive.',
+  },
+  {
+    id: 'config.dockerfile-apt-get-yes',
+    group: 'config',
+    title: 'apt-get install without -y',
+    description:
+      'Without `-y` the install waits for a confirmation no build can give, so the step hangs until the builder ' +
+      'times out.',
+  },
+  {
+    id: 'config.dockerfile-apt-not-apt-get',
+    group: 'config',
+    title: 'apt instead of apt-get',
+    description:
+      '`apt` prints "does not have a stable CLI interface" and is documented as interactive-only; its output ' +
+      'and its flags change between releases in ways a script cannot rely on.',
+  },
+  {
+    id: 'config.dockerfile-copy-from-self',
+    group: 'config',
+    title: 'COPY --from names its own stage',
+    description:
+      'A stage cannot copy from itself; the instruction refers to a filesystem that does not exist yet.',
+  },
+  {
+    id: 'config.dockerfile-copy-from-unknown-stage',
+    group: 'config',
+    title: 'COPY --from names no such stage',
+    description:
+      'A `--from` naming a stage that does not exist is read as an image name, so the build silently pulls ' +
+      'something instead of failing.',
+  },
+  {
+    id: 'config.dockerfile-copy-multiple-targets',
+    group: 'config',
+    title: 'COPY with several sources and no trailing slash',
+    description:
+      'With more than one source the destination must be a directory. Without the trailing slash Docker treats ' +
+      'it as a file and the build fails.',
+  },
+  {
+    id: 'config.dockerfile-copy-whole-filesystem',
+    group: 'config',
+    title: 'Entire filesystem copied from another stage',
+    description:
+      'Copying `/` from another stage brings its whole root filesystem into the layer, which is the multi-stage ' +
+      'build doing exactly what it exists to avoid.',
+  },
+  {
+    id: 'config.dockerfile-dnf-yes',
+    group: 'config',
+    title: 'dnf install without -y',
+    description:
+      'Without `-y` the install waits for a confirmation no build can give.',
+  },
+  {
+    id: 'config.dockerfile-duplicate-stage-name',
+    group: 'config',
+    title: 'Two stages with one name',
+    description:
+      'When two stages share a name every `--from` referring to it resolves to one of them, and which one is ' +
+      'not stated anywhere.',
+  },
+  {
+    id: 'config.dockerfile-env-self-reference',
+    group: 'config',
+    title: 'ENV referring to a variable it defines',
+    description:
+      'Variables in one `ENV` are not visible to each other, so the reference expands to whatever the name held ' +
+      'before — usually nothing.',
+  },
+  {
+    id: 'config.dockerfile-instruction-order',
+    group: 'config',
+    title: 'Instruction before the first FROM',
+    description:
+      'A Dockerfile must open with `FROM`, `ARG` or a comment. Anything else is a parse error at build time.',
+  },
+  {
+    id: 'config.dockerfile-invalid-label-key',
+    group: 'config',
+    title: 'Malformed label key',
+    description:
+      'A label key outside the reverse-DNS convention is accepted by the builder and then not found by the ' +
+      'tooling that reads labels by their documented names.',
+  },
+  {
+    id: 'config.dockerfile-invalid-port',
+    group: 'config',
+    title: 'Port outside the valid range',
+    description:
+      'A port above 65535 cannot be bound, so the `EXPOSE` documents a mapping that will never work.',
+  },
+  {
+    id: 'config.dockerfile-last-user-root',
+    group: 'config',
+    title: 'Image ends as root',
+    description:
+      'A container whose final `USER` is root runs every process with full privileges, so a compromise inside ' +
+      'it is a compromise of the host mount points it was given.',
+  },
+  {
+    id: 'config.dockerfile-maintainer-deprecated',
+    group: 'config',
+    title: 'MAINTAINER instruction',
+    description:
+      '`MAINTAINER` was deprecated in Docker 1.13; the value it sets is not where any current tooling looks for ' +
+      'an owner.',
+  },
+  {
+    id: 'config.dockerfile-missing-healthcheck',
+    group: 'config',
+    title: 'No HEALTHCHECK',
+    description:
+      'Without a `HEALTHCHECK` an orchestrator can only see whether the process is running, not whether it is ' +
+      'serving, so a wedged container is never restarted.',
+  },
+  {
+    id: 'config.dockerfile-multiple-cmd',
+    group: 'config',
+    title: 'More than one CMD',
+    description:
+      'Only the last `CMD` in a stage takes effect, so every earlier one is a default command nothing will ever ' +
+      'run.',
+  },
+  {
+    id: 'config.dockerfile-multiple-entrypoint',
+    group: 'config',
+    title: 'More than one ENTRYPOINT',
+    description:
+      'Only the last `ENTRYPOINT` in a stage takes effect, so every earlier one is silently discarded.',
+  },
+  {
+    id: 'config.dockerfile-multiple-healthcheck',
+    group: 'config',
+    title: 'More than one HEALTHCHECK',
+    description:
+      'Only the last `HEALTHCHECK` in a stage takes effect, so every earlier one is a check somebody wrote and ' +
+      'nothing runs.',
+  },
+  {
+    id: 'config.dockerfile-onbuild-onbuild',
+    group: 'config',
+    title: 'ONBUILD applied to ONBUILD',
+    description:
+      '`ONBUILD ONBUILD` is rejected by the builder, as are `ONBUILD FROM` and `ONBUILD MAINTAINER`.',
+  },
+  {
+    id: 'config.dockerfile-pin-gem',
+    group: 'config',
+    title: 'Unpinned gem install',
+    description:
+      'RubyGems keeps every published version, so pinning is achievable and an unpinned install changes what ' +
+      'the image contains between two builds of the same Dockerfile.',
+  },
+  {
+    id: 'config.dockerfile-pin-go',
+    group: 'config',
+    title: 'Unpinned go install',
+    description:
+      'Go modules are immutable and every version stays fetchable, so `@version` is available and its absence ' +
+      'means the build takes whatever is latest.',
+  },
+  {
+    id: 'config.dockerfile-pin-npm',
+    group: 'config',
+    title: 'Unpinned npm install',
+    description:
+      'npm keeps every published version forever, so an unpinned install is reproducible only until the next ' +
+      'release — and unlike a distribution archive, the pin does not expire.',
+  },
+  {
+    id: 'config.dockerfile-pointless-command',
+    group: 'config',
+    title: 'Command that cannot work in a container',
+    description:
+      '`ssh`, `vim`, `shutdown` and their kin need a session, a terminal or an init system that a build step ' +
+      'does not have, so the instruction cannot do what it says.',
+  },
+  {
+    id: 'config.dockerfile-redundant-platform',
+    group: 'config',
+    title: 'FROM --platform set to the default',
+    description:
+      '`$TARGETPLATFORM` is already what `FROM` resolves to, so the flag pins nothing and hides the cases where ' +
+      'a platform really was forced.',
+  },
+  {
+    id: 'config.dockerfile-reserved-stage-name',
+    group: 'config',
+    title: 'Stage named after a reserved word',
+    description:
+      'A stage called `scratch` or `context` shadows a name the builder defines, so a later reference resolves ' +
+      'to the stage rather than to what it meant.',
+  },
+  {
+    id: 'config.dockerfile-shell-via-symlink',
+    group: 'config',
+    title: 'Default shell changed with a symlink',
+    description:
+      'Relinking `/bin/sh` changes the shell for every later `RUN` in a way no instruction records; `SHELL` ' +
+      'states it where a reader will find it.',
+  },
+  {
+    id: 'config.dockerfile-sudo',
+    group: 'config',
+    title: 'sudo in a build step',
+    description:
+      'There is no TTY and no password prompt in a build, so `sudo` either fails or is redundant — the build ' +
+      'already runs as root unless a `USER` says otherwise.',
+  },
+  {
+    id: 'config.dockerfile-yum-yes',
+    group: 'config',
+    title: 'yum install without -y',
+    description:
+      'Without `-y` the install waits for a confirmation no build can give.',
+  },
+  {
+    id: 'config.dockerfile-zypper-dist-upgrade',
+    group: 'config',
+    title: 'zypper dist-upgrade',
+    description:
+      'A distribution upgrade replaces the base image with whatever the repository holds that day, so the image ' +
+      'no longer matches the tag it was built `FROM`.',
+  },
+  {
+    id: 'config.dockerfile-zypper-yes',
+    group: 'config',
+    title: 'zypper without a non-interactive flag',
+    description:
+      'Without `-n` zypper prompts, and a build has nothing to answer with.',
+  },
+  {
     id: 'correctness.alt-text',
     group: 'correctness',
     title: 'Missing alternative text',
@@ -1790,12 +2038,28 @@ export const CURATED_CONCEPTS = [
       'nothing and reads as covered in the summary.',
   },
   {
+    id: 'dead-code.unused-catalog-entry',
+    group: 'dead-code',
+    title: 'Catalog entry nothing references',
+    description:
+      'A version pinned in the workspace catalog that no package resolves through `catalog:` is a dependency ' +
+      'the repository still declares, still updates and never installs.',
+  },
+  {
     id: 'dead-code.useless-assignment',
     group: 'dead-code',
     title: 'Value assigned and never read',
     description:
       'The assigned value is overwritten or goes out of scope before anything reads it. Usually the line ' +
       'that was meant to read it is missing, so this is a symptom rather than untidiness.',
+  },
+  {
+    id: 'deps.unresolved-catalog-reference',
+    group: 'deps',
+    title: 'catalog: reference with no catalog entry',
+    description:
+      'A dependency written as `catalog:` with no matching entry in the workspace catalog has no version to ' +
+      'resolve to, so the install fails rather than picking one.',
   },
   {
     id: 'nursery.react-compiler',
@@ -1868,6 +2132,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Spreading an array in one branch and a non-array in the other produces different shapes from one ' +
       'expression, which the type is unable to describe.',
+  },
+  {
+    id: 'pedantic.css-max-lines',
+    group: 'pedantic',
+    title: 'Oversized stylesheet',
+    description:
+      'A stylesheet longer than the configured limit is edited a section at a time, so a selector duplicated in ' +
+      'two of its parts survives every review that reads only one.',
   },
   {
     id: 'pedantic.display-name',
@@ -2011,6 +2283,14 @@ export const CURATED_CONCEPTS = [
     description:
       'A `let`, `const` or `class` in a case is scoped to the whole switch, so a later case can reach a ' +
       'binding whose initialiser never ran.',
+  },
+  {
+    id: 'pedantic.no-confusing-void-expression',
+    group: 'pedantic',
+    title: 'void expression used as a value',
+    description:
+      'Using the result of something that returns nothing yields `undefined` while reading as though a value ' +
+      'was produced.',
   },
   {
     id: 'pedantic.no-constructor-return',
@@ -2253,12 +2533,52 @@ export const CURATED_CONCEPTS = [
       'the number of parentheses is the only thing that says otherwise.',
   },
   {
+    id: 'pedantic.no-unsafe-argument',
+    group: 'pedantic',
+    title: 'any passed as an argument',
+    description:
+      'An `any` handed to a typed parameter enters the callee with its declared type asserted rather than ' +
+      'checked, so the callee\'s own guarantees no longer hold.',
+  },
+  {
+    id: 'pedantic.no-unsafe-assignment',
+    group: 'pedantic',
+    title: 'any assigned without a check',
+    description:
+      'A value typed `any` assigned into a typed slot makes every later read a guess the compiler has agreed ' +
+      'not to check. The failure surfaces wherever the shape is first relied on, not here.',
+  },
+  {
+    id: 'pedantic.no-unsafe-call',
+    group: 'pedantic',
+    title: 'any invoked as a function',
+    description:
+      'Calling a value typed `any` passes whatever arguments the call site supplies to whatever the value turns ' +
+      'out to be — including `undefined`, which fails as "not a function" at run time.',
+  },
+  {
     id: 'pedantic.no-unsafe-function-type',
     group: 'pedantic',
     title: '`Function` used as a type',
     description:
       'It accepts any callable with any signature and returns `any`, so nothing about the call is ' +
       'checked.',
+  },
+  {
+    id: 'pedantic.no-unsafe-member-access',
+    group: 'pedantic',
+    title: 'Property read off an any',
+    description:
+      'Reading a property from `any` yields `any` and reports nothing when the property is absent, so a renamed ' +
+      'or missing field reads as `undefined` and travels on.',
+  },
+  {
+    id: 'pedantic.no-unsafe-return',
+    group: 'pedantic',
+    title: 'any returned as a typed value',
+    description:
+      'Returning `any` from a function with a declared return type publishes a contract nothing verified, so ' +
+      'every caller trusts a shape that was never established.',
   },
   {
     id: 'pedantic.no-useless-promise-resolve-reject',
@@ -2461,6 +2781,14 @@ export const CURATED_CONCEPTS = [
       'them mixes several selector dialects.',
   },
   {
+    id: 'pedantic.prefer-readonly-parameter-types',
+    group: 'pedantic',
+    title: 'Parameter the callee may mutate',
+    description:
+      'A parameter whose type permits mutation lets a function change a value its caller still holds. Nothing ' +
+      'at the call site says whether it does.',
+  },
+  {
     id: 'pedantic.prefer-regexp-test',
     group: 'pedantic',
     title: 'Match used only as a condition',
@@ -2621,11 +2949,43 @@ export const CURATED_CONCEPTS = [
       'element type from a call site.',
   },
   {
+    id: 'pedantic.restrict-plus-operands',
+    group: 'pedantic',
+    title: 'Addition between different types',
+    description:
+      '`+` is addition for numbers and concatenation for strings, and picks by the operands\' runtime types, so ' +
+      'one unexpected string turns arithmetic into text without any diagnostic.',
+  },
+  {
+    id: 'pedantic.return-await',
+    group: 'pedantic',
+    title: 'return without await inside try',
+    description:
+      '`return somePromise` inside a `try` settles after the block has exited, so the `catch` never sees the ' +
+      'rejection and the stack trace loses the frame that produced it.',
+  },
+  {
     id: 'pedantic.sort-vars',
     group: 'pedantic',
     title: 'Unsorted declarations',
     description:
       'Several variables declared in one statement in no order make a duplicate declaration invisible.',
+  },
+  {
+    id: 'pedantic.strict-boolean-expressions',
+    group: 'pedantic',
+    title: 'Non-boolean used as a condition',
+    description:
+      'Implicit truthiness collapses distinct values into one branch: `\'\'`, `0`, `NaN`, `null` and `undefined` ' +
+      'all take the false path, so an empty result and a missing one are indistinguishable.',
+  },
+  {
+    id: 'pedantic.strict-void-return',
+    group: 'pedantic',
+    title: 'Value returned where void is expected',
+    description:
+      'A callback typed `void` that returns a promise has its rejection discarded — the shape behind an async ' +
+      'function passed to `useEffect` or to an event handler.',
   },
   {
     id: 'pedantic.switch-exhaustiveness-check',
@@ -3369,6 +3729,14 @@ export const CURATED_CONCEPTS = [
       '`parseInt(0.0000005)` is 5. The `Number` versions do not coerce.',
   },
   {
+    id: 'restriction.promise-function-async',
+    group: 'restriction',
+    title: 'Promise-returning function not declared async',
+    description:
+      'A function that returns a promise without being `async` throws synchronously when it fails before the ' +
+      'first `await`, so the caller\'s `.catch` never runs and the error escapes the chain.',
+  },
+  {
     id: 'restriction.require-test-timeout',
     group: 'restriction',
     title: 'Test without a timeout',
@@ -3576,6 +3944,14 @@ export const CURATED_CONCEPTS = [
       'means whether a later declaration extends or collides depends on the spelling.',
   },
   {
+    id: 'style.consistent-type-exports',
+    group: 'style',
+    title: 'Type re-exported as a value',
+    description:
+      'A type re-exported without `type` survives into the emitted JavaScript as a real export, so a type-only ' +
+      'dependency becomes a runtime one.',
+  },
+  {
     id: 'style.consistent-type-imports',
     group: 'style',
     title: 'Type imported as a value',
@@ -3597,6 +3973,14 @@ export const CURATED_CONCEPTS = [
     title: 'Test API reached through the compatibility alias',
     description:
       '`vi` is the API and `jest` is a shim for it; a file mixing them has two names for one object.',
+  },
+  {
+    id: 'style.css-value-at-rule',
+    group: 'style',
+    title: '@value in CSS modules',
+    description:
+      '`@value` is a CSS Modules extension no browser implements, so the declaration only works where a ' +
+      'specific build step is in the pipeline — and silently does nothing anywhere else.',
   },
   {
     id: 'style.curly',
@@ -4454,6 +4838,14 @@ export const CURATED_CONCEPTS = [
       'waits on this one file.',
   },
   {
+    id: 'style.no-unnecessary-qualifier',
+    group: 'style',
+    title: 'Redundant namespace qualifier',
+    description:
+      'Naming the enclosing namespace from inside it adds a prefix that changes nothing, and hides which ' +
+      'references genuinely cross a namespace boundary.',
+  },
+  {
     id: 'style.no-unreadable-array-destructuring',
     group: 'style',
     title: 'Destructuring with a run of holes',
@@ -4840,6 +5232,22 @@ export const CURATED_CONCEPTS = [
       'where it happened.',
   },
   {
+    id: 'style.prefer-readonly',
+    group: 'style',
+    title: 'Private field that is never reassigned',
+    description:
+      'A private field assigned only in the constructor and never again is `readonly` in fact but not in type, ' +
+      'so nothing stops a later edit from reassigning it.',
+  },
+  {
+    id: 'style.prefer-reduce-type-parameter',
+    group: 'style',
+    title: 'Reduce accumulator typed by assertion',
+    description:
+      'Asserting the accumulator\'s type inside the callback puts the claim where nothing checks it; the type ' +
+      'parameter puts it where the compiler does.',
+  },
+  {
     id: 'style.prefer-reflect-apply',
     group: 'style',
     title: '`apply` reached through the function prototype',
@@ -4854,6 +5262,14 @@ export const CURATED_CONCEPTS = [
     description:
       'A pattern in a string needs every backslash doubled, so an escape that is correct in the regular ' +
       'expression is wrong in the source and nothing checks it.',
+  },
+  {
+    id: 'style.prefer-regexp-exec',
+    group: 'style',
+    title: 'match used where exec is meant',
+    description:
+      '`String#match` and `RegExp#exec` return the same thing for a non-global pattern, but `match` reads as ' +
+      'though it might return all matches — which it only does when the pattern is global.',
   },
   {
     id: 'style.prefer-response-static-json',
@@ -4872,12 +5288,28 @@ export const CURATED_CONCEPTS = [
       'appear in the signature a reader checks.',
   },
   {
+    id: 'style.prefer-return-this-type',
+    group: 'style',
+    title: 'Fluent method returning the class name',
+    description:
+      'A chainable method typed as its own class breaks in a subclass: the chain\'s type reverts to the base, so ' +
+      'the subclass\'s own methods are not available after the first call.',
+  },
+  {
     id: 'style.prefer-string-raw',
     group: 'style',
     title: 'String with more backslashes than characters',
     description:
       'Every escape has to be counted twice — once in the source and once in the value — and ' +
       '`String.raw` removes the first count.',
+  },
+  {
+    id: 'style.prefer-string-starts-ends-with',
+    group: 'style',
+    title: 'Prefix test written the long way',
+    description:
+      '`indexOf(x) === 0` and an anchored regular expression both answer "does it start with", but state it in ' +
+      'a form the reader has to decode, and the regular expression allocates.',
   },
   {
     id: 'style.prefer-string-trim-start-end',
@@ -5373,6 +5805,14 @@ export const CURATED_CONCEPTS = [
       'parent, and its placement implies a dependency on that scope which does not exist.',
   },
   {
+    id: 'suspicious.css-empty-source',
+    group: 'suspicious',
+    title: 'Empty stylesheet',
+    description:
+      'A stylesheet with no rules is still fetched, still parsed and still counted as a dependency by every ' +
+      'consumer that imports it.',
+  },
+  {
     id: 'suspicious.iframe-missing-sandbox',
     group: 'suspicious',
     title: 'Frame embedded without a sandbox',
@@ -5641,6 +6081,14 @@ export const CURATED_CONCEPTS = [
     description:
       'An enum compared to a plain number or string is compared by its backing value, so the comparison ' +
       'survives a renumbering that changes what it means.',
+  },
+  {
+    id: 'suspicious.no-unsafe-type-assertion',
+    group: 'suspicious',
+    title: 'Assertion the types cannot support',
+    description:
+      '`as T` on a value that is not known to be a `T` replaces a check with a claim. Where the value came from ' +
+      'outside the program — a response body, a parsed file — nothing has established the claim is true.',
   },
   {
     id: 'suspicious.no-unstable-nested-components',

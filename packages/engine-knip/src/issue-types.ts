@@ -54,24 +54,10 @@ export const KNIP_EXCLUDED_ISSUE_TYPES: Readonly<Record<string, KnipIssueTypeExc
   },
   cycles: {
     reason:
-      'A circular dependency is neither dead code nor dependency hygiene — it belongs to no concept ' +
-      'group the catalogue currently has (spec §5.1), and inventing one is a taxonomy decision that ' +
-      'should be made deliberately rather than as a side effect of enumerating knip output. knip ' +
-      'itself keeps `cycles` off by default for the same reason it is separate: it answers a ' +
-      'different question than the rest of the report.',
-  },
-  catalog: {
-    reason:
-      "pnpm's `catalog:` protocol. Neither repository this adapter was measured against uses " +
-      'catalogs, so there is no evidence for a severity, a false-positive rate, or even that the ' +
-      'category fires at all here. Mapping it blind would claim coverage this adapter has never ' +
-      'once seen produce a finding.',
-  },
-  catalogReferences: {
-    reason:
-      'Same as `catalog` immediately above: the other half of pnpm catalog support, unmeasured for ' +
-      'exactly the same reason, and excluded rather than guessed at so the pair is turned on ' +
-      'together once a catalog-using repository is actually available to measure.',
+      'A collision, not a gap: `restriction.no-cycle` is in `recommended` and oxlint reports the same ' +
+      'defect from the import graph it already builds, with a span on the import that closes the loop ' +
+      'rather than a file-level note. Running both would put two findings on one cycle. knip also keeps ' +
+      'this type off by default, so nothing is lost by leaving it there.',
   },
   optionalPeerDependencies: {
     reason:

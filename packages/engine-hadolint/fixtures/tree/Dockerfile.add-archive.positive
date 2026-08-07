@@ -1,0 +1,3 @@
+FROM alpine:3
+COPY app.tar.gz /tmp/
+RUN tar -xf /tmp/app.tar.gz

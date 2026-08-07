@@ -545,6 +545,75 @@ const recommended: RuleMap = {
   'restriction.max-props': 'warn',
   'style.require-default-prop': 'warn',
 
+  // Type-aware, and re-decided on the same bar as everything else. These were held out for being
+  // traceable to `JSON.parse`, or for being silent on one repository — neither of which says a finding
+  // is wrong. `pedantic.return-await` sits in `rule-options.ts`, which is where its option lives.
+  'pedantic.no-unsafe-assignment': 'warn',
+  'pedantic.no-unsafe-call': 'warn',
+  'pedantic.no-unsafe-argument': 'warn',
+  'pedantic.no-unsafe-return': 'warn',
+  'pedantic.no-unsafe-member-access': 'warn',
+  'suspicious.no-unsafe-type-assertion': 'warn',
+  'style.consistent-type-exports': 'warn',
+  'style.no-unnecessary-qualifier': 'warn',
+  'style.prefer-readonly': 'warn',
+  'style.prefer-reduce-type-parameter': 'warn',
+  'style.prefer-regexp-exec': 'warn',
+  'style.prefer-return-this-type': 'warn',
+  'style.prefer-string-starts-ends-with': 'warn',
+  'pedantic.prefer-readonly-parameter-types': 'warn',
+  'pedantic.strict-boolean-expressions': 'warn',
+  'pedantic.restrict-plus-operands': 'warn',
+  'restriction.promise-function-async': 'warn',
+  'pedantic.strict-void-return': 'warn',
+  'pedantic.no-confusing-void-expression': 'warn',
+
+  // biome's CSS rules, re-decided on the same bar. These three were held out for being accurate but
+  // unactionable, or for measuring a threshold slop-gate had no policy on — it has one now.
+  'suspicious.css-empty-source': 'warn',
+  'style.css-value-at-rule': 'warn',
+  'pedantic.css-max-lines': 'warn',
+
+  // knip's pnpm-catalog pair. Both were held out as unmeasured for want of a catalog-using repository;
+  // this one is, and an authored fixture puts a finding on each.
+  'dead-code.unused-catalog-entry': 'warn',
+  'deps.unresolved-catalog-reference': 'error',
+
+  // hadolint ships 72 rules and slop-gate had looked at 20. These are the ones whose behaviour an
+  // authored Dockerfile reproduces; the rest are in `not-recommended.ts` with what stopped them.
+  'config.dockerfile-absolute-workdir': 'warn',
+  'config.dockerfile-pointless-command': 'warn',
+  'config.dockerfile-last-user-root': 'warn',
+  'config.dockerfile-sudo': 'warn',
+  'config.dockerfile-add-archive': 'warn',
+  'config.dockerfile-invalid-port': 'warn',
+  'config.dockerfile-multiple-healthcheck': 'warn',
+  'config.dockerfile-apt-get-yes': 'warn',
+  'config.dockerfile-pin-npm': 'warn',
+  'config.dockerfile-copy-multiple-targets': 'warn',
+  'config.dockerfile-copy-from-unknown-stage': 'warn',
+  'config.dockerfile-copy-from-self': 'warn',
+  'config.dockerfile-duplicate-stage-name': 'warn',
+  'config.dockerfile-apt-not-apt-get': 'warn',
+  'config.dockerfile-pin-gem': 'warn',
+  'config.dockerfile-yum-yes': 'warn',
+  'config.dockerfile-zypper-yes': 'warn',
+  'config.dockerfile-zypper-dist-upgrade': 'warn',
+  'config.dockerfile-dnf-yes': 'warn',
+  'config.dockerfile-onbuild-onbuild': 'warn',
+  'config.dockerfile-env-self-reference': 'warn',
+  'config.dockerfile-invalid-label-key': 'warn',
+  'config.dockerfile-missing-healthcheck': 'warn',
+  'config.dockerfile-instruction-order': 'warn',
+  'config.dockerfile-pin-go': 'warn',
+  'config.dockerfile-reserved-stage-name': 'warn',
+  'config.dockerfile-redundant-platform': 'warn',
+  'config.dockerfile-copy-whole-filesystem': 'warn',
+  'config.dockerfile-maintainer-deprecated': 'warn',
+  'config.dockerfile-multiple-cmd': 'warn',
+  'config.dockerfile-multiple-entrypoint': 'warn',
+  'config.dockerfile-shell-via-symlink': 'warn',
+
   'config.compose-schema': 'error',
   'config.rule-overlap': 'info',
   'config.dead-override': 'warn',

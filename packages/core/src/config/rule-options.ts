@@ -37,6 +37,15 @@ const TSDOC_BLOCK_TAGS = [
 ] as const
 
 export const OPTIONED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, OptionedRule>>> = {
+  'pedantic.return-await': {
+    setting: ['warn', 'in-try-catch'],
+    reason:
+      'The rule was excluded on the grounds that `return await` is right inside a `try` — where it keeps '
+      + 'the frame in the stack trace and lets the block catch the rejection — and costs a microtask '
+      + 'outside one, "which the default configuration does not distinguish". `in-try-catch` is exactly '
+      + 'that distinction, so the objection is an argument for the option rather than against the rule.',
+    evidence: 'return-await',
+  },
   'correctness.vitest-valid-expect': {
     setting: ['warn', { maxArgs: 2 }],
     reason:

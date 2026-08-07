@@ -1,0 +1,2 @@
+FROM alpine:3
+RUN ln -sfv /bin/bash /bin/sh

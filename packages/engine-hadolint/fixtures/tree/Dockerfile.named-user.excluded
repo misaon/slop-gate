@@ -1,3 +1,4 @@
 FROM debian:12-slim
 USER appuser
+HEALTHCHECK CMD /app/healthy.sh
 ENTRYPOINT ["/app/start.sh"]

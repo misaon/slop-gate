@@ -62,42 +62,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/max-nested-callbacks` rule (category: pedantic). Max Nested Callbacks.',
   },
   {
-    id: 'pedantic.no-confusing-void-expression',
-    group: 'pedantic',
-    title: 'typescript/no-confusing-void-expression',
-    description: 'Generated from oxlint\'s `typescript/no-confusing-void-expression` rule (category: pedantic). No Confusing Void Expression.',
-  },
-  {
-    id: 'pedantic.no-unsafe-argument',
-    group: 'pedantic',
-    title: 'typescript/no-unsafe-argument',
-    description: 'Generated from oxlint\'s `typescript/no-unsafe-argument` rule (category: pedantic). No Unsafe Argument.',
-  },
-  {
-    id: 'pedantic.no-unsafe-assignment',
-    group: 'pedantic',
-    title: 'typescript/no-unsafe-assignment',
-    description: 'Generated from oxlint\'s `typescript/no-unsafe-assignment` rule (category: pedantic). No Unsafe Assignment.',
-  },
-  {
-    id: 'pedantic.no-unsafe-call',
-    group: 'pedantic',
-    title: 'typescript/no-unsafe-call',
-    description: 'Generated from oxlint\'s `typescript/no-unsafe-call` rule (category: pedantic). No Unsafe Call.',
-  },
-  {
-    id: 'pedantic.no-unsafe-member-access',
-    group: 'pedantic',
-    title: 'typescript/no-unsafe-member-access',
-    description: 'Generated from oxlint\'s `typescript/no-unsafe-member-access` rule (category: pedantic). No Unsafe Member Access.',
-  },
-  {
-    id: 'pedantic.no-unsafe-return',
-    group: 'pedantic',
-    title: 'typescript/no-unsafe-return',
-    description: 'Generated from oxlint\'s `typescript/no-unsafe-return` rule (category: pedantic). No Unsafe Return.',
-  },
-  {
     id: 'pedantic.prefer-math-trunc',
     group: 'pedantic',
     title: 'unicorn/prefer-math-trunc',
@@ -108,36 +72,6 @@ export const GENERATED_CONCEPTS = [
     group: 'pedantic',
     title: 'typescript/prefer-nullish-coalescing',
     description: 'Generated from oxlint\'s `typescript/prefer-nullish-coalescing` rule (category: pedantic). Prefer Nullish Coalescing.',
-  },
-  {
-    id: 'pedantic.prefer-readonly-parameter-types',
-    group: 'pedantic',
-    title: 'typescript/prefer-readonly-parameter-types',
-    description: 'Generated from oxlint\'s `typescript/prefer-readonly-parameter-types` rule (category: pedantic). Prefer Readonly Parameter Types.',
-  },
-  {
-    id: 'pedantic.restrict-plus-operands',
-    group: 'pedantic',
-    title: 'typescript/restrict-plus-operands',
-    description: 'Generated from oxlint\'s `typescript/restrict-plus-operands` rule (category: pedantic). Restrict Plus Operands.',
-  },
-  {
-    id: 'pedantic.return-await',
-    group: 'pedantic',
-    title: 'typescript/return-await',
-    description: 'Generated from oxlint\'s `typescript/return-await` rule (category: pedantic). Return Await.',
-  },
-  {
-    id: 'pedantic.strict-boolean-expressions',
-    group: 'pedantic',
-    title: 'typescript/strict-boolean-expressions',
-    description: 'Generated from oxlint\'s `typescript/strict-boolean-expressions` rule (category: pedantic). Strict Boolean Expressions.',
-  },
-  {
-    id: 'pedantic.strict-void-return',
-    group: 'pedantic',
-    title: 'typescript/strict-void-return',
-    description: 'Generated from oxlint\'s `typescript/strict-void-return` rule (category: pedantic). Strict Void Return.',
   },
   {
     id: 'pedantic.typescript-require-await',
@@ -236,12 +170,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `typescript/non-nullable-type-assertion-style` rule (category: restriction). Non Nullable Type Assertion Style.',
   },
   {
-    id: 'restriction.promise-function-async',
-    group: 'restriction',
-    title: 'typescript/promise-function-async',
-    description: 'Generated from oxlint\'s `typescript/promise-function-async` rule (category: restriction). Promise Function Async.',
-  },
-  {
     id: 'restriction.use-unknown-in-catch-callback-variable',
     group: 'restriction',
     title: 'typescript/use-unknown-in-catch-callback-variable',
@@ -258,12 +186,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'unicorn/catch-error-name',
     description: 'Generated from oxlint\'s `unicorn/catch-error-name` rule (category: style). Catch Error Name.',
-  },
-  {
-    id: 'style.consistent-type-exports',
-    group: 'style',
-    title: 'typescript/consistent-type-exports',
-    description: 'Generated from oxlint\'s `typescript/consistent-type-exports` rule (category: style). Consistent Type Exports.',
   },
   {
     id: 'style.dot-notation',
@@ -350,12 +272,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `eslint/no-ternary` rule (category: style). No Ternary.',
   },
   {
-    id: 'style.no-unnecessary-qualifier',
-    group: 'style',
-    title: 'typescript/no-unnecessary-qualifier',
-    description: 'Generated from oxlint\'s `typescript/no-unnecessary-qualifier` rule (category: style). No Unnecessary Qualifier.',
-  },
-  {
     id: 'style.prefer-catch',
     group: 'style',
     title: 'promise/prefer-catch',
@@ -380,40 +296,10 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `typescript/prefer-find` rule (category: style). Prefer Find.',
   },
   {
-    id: 'style.prefer-readonly',
-    group: 'style',
-    title: 'typescript/prefer-readonly',
-    description: 'Generated from oxlint\'s `typescript/prefer-readonly` rule (category: style). Prefer Readonly.',
-  },
-  {
-    id: 'style.prefer-reduce-type-parameter',
-    group: 'style',
-    title: 'typescript/prefer-reduce-type-parameter',
-    description: 'Generated from oxlint\'s `typescript/prefer-reduce-type-parameter` rule (category: style). Prefer Reduce Type Parameter.',
-  },
-  {
-    id: 'style.prefer-regexp-exec',
-    group: 'style',
-    title: 'typescript/prefer-regexp-exec',
-    description: 'Generated from oxlint\'s `typescript/prefer-regexp-exec` rule (category: style). Prefer Regexp Exec.',
-  },
-  {
-    id: 'style.prefer-return-this-type',
-    group: 'style',
-    title: 'typescript/prefer-return-this-type',
-    description: 'Generated from oxlint\'s `typescript/prefer-return-this-type` rule (category: style). Prefer Return This Type.',
-  },
-  {
     id: 'style.prefer-strict-boolean-matchers',
     group: 'style',
     title: 'vitest/prefer-strict-boolean-matchers',
     description: 'Generated from oxlint\'s `vitest/prefer-strict-boolean-matchers` rule (category: style). Prefer Strict Boolean Matchers.',
-  },
-  {
-    id: 'style.prefer-string-starts-ends-with',
-    group: 'style',
-    title: 'typescript/prefer-string-starts-ends-with',
-    description: 'Generated from oxlint\'s `typescript/prefer-string-starts-ends-with` rule (category: style). Prefer String Starts Ends With.',
   },
   {
     id: 'style.prefer-structured-clone',
@@ -492,11 +378,5 @@ export const GENERATED_CONCEPTS = [
     group: 'suspicious',
     title: 'typescript/no-unnecessary-type-parameters',
     description: 'Generated from oxlint\'s `typescript/no-unnecessary-type-parameters` rule (category: suspicious). No Unnecessary Type Parameters.',
-  },
-  {
-    id: 'suspicious.no-unsafe-type-assertion',
-    group: 'suspicious',
-    title: 'typescript/no-unsafe-type-assertion',
-    description: 'Generated from oxlint\'s `typescript/no-unsafe-type-assertion` rule (category: suspicious). No Unsafe Type Assertion.',
   },
 ] as const satisfies readonly ConceptDefinition[]

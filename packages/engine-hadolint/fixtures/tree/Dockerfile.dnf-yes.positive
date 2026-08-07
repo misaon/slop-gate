@@ -1,0 +1,2 @@
+FROM alpine:3
+RUN dnf install foo-1.0
