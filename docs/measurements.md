@@ -331,9 +331,68 @@ in the registry — one excluded, the other enabled by this audit. Whichever a p
 reports every test file it has. That is the shape of collision the corpus is best at finding: on one
 repository only the losing half fires.
 
+### The option sweep, and why it rescued nothing new
+
+Fifty-nine of the withheld rules accept options and fire on the corpus, so each was checked for a value
+that would remove its dominant class rather than its whole content. **None produced a new promotion**, and
+the reasons fall into three shapes worth writing down once:
+
+- **The option needs a value only the project knows.** `node/no-process-env`'s `allowedVariables`,
+  `class-methods-use-this`'s `exceptMethods`, `import/no-unassigned-import`'s `allow` globs — a preset
+  cannot supply any of them. This is the same finding `biome-css/useBaseline` records for browser targets.
+- **Both directions are configurable, which is what makes it a preference.**
+  `import/consistent-type-specifier-style` takes `prefer-top-level` or `prefer-inline` and the corpus is
+  split roughly evenly; so is `typescript/consistent-type-definitions` between `interface` and `type`.
+- **The option is a threshold.** `unicorn/max-nested-calls`, `max-lines`, `import/max-dependencies`: a
+  larger number reports less, which is not the same as reporting better.
+
+`no-implicit-coercion` came closest and is the useful counter-example. `allow: ['!!']` takes it from 537
+findings to 188 over four corpus repositories — excalidraw 175 → 2, vue-core 84 → 14, typeorm 148 → 46 —
+and **fastify 130 → 126**, because its coercions are `+x` and `'' + x` rather than `!!x`. The option
+removes the largest class and leaves the same kind of thing behind, which is a smaller rule rather than a
+better one.
+
+The three rules an option did rescue were already found: `pedantic.eqeqeq` with `smart`,
+`expect-expect` with `assertFunctionNames`, `check-tag-names` with `definedTags`. All three are in
+`config/rule-options.ts` with their figures.
+
 **What the corpus cannot say.** `types.type-error` reports 42,054 findings across 22 repositories, and
 that is an artefact: the corpus installs no dependencies, so every third-party import is unresolved. A
 figure from this corpus is about rules that read source, not about rules that need a built project.
+
+## What `recommended` actually reports on fifty repositories
+
+<a id="recommended-first-run"></a>
+
+The measurement above enables every concept and answers "how noisy is this rule anywhere". This one runs
+`packages/rule-corpus` with `extends: ['recommended']` and answers the question a user actually asks:
+what does installing slop-gate today report on my repository. All fifty cloned this time.
+
+**50 repositories, 67,616 files, 200,122 findings from 444 concepts.** Take out `types.type-error` — the
+corpus installs no dependencies, so every third-party import is unresolved and that one concept is 45,168
+of the total — and it is **154,954 findings, a median of 2,354 per thousand files**: between two and three
+per file.
+
+    nuxt-com 171   vuestic-admin 363   html5-boilerplate 387   sveltekit 676   ngx-admin 692
+    …  median 2,354  …
+    zod 8,180   solid 10,811   vue-core 11,174   react-router 11,343   preact 11,705   nodemailer 13,755
+
+The spread is the useful part: a repository that already lints hard reads under 700 per thousand files, and
+one that does not reads ten times that. Neither number is the tool being wrong.
+
+**Two false positives only this run could find**, because both need a repository that is not this one:
+
+- **`oxc/no-async-endpoint-handlers`** — 213 findings, and 34 of them are inside **fastify's own tests**
+  with 1 in **elysia's**. Both frameworks handle a rejected async handler natively, which is the failure
+  the rule exists to prevent; it matches `.get(path, async fn)` on any object, and `got` — an HTTP client
+  — contributes 141. Its premise is historical besides: Express 5 routes a rejected promise to the error
+  middleware.
+- **`vitest/require-mock-type-parameters`** — 3,866 findings across 17 repositories, all of them `vi.fn()`
+  written without a type argument, which infers and is what the documentation shows.
+
+**What is left at the top is the product, not noise.** `slop.as-any-cast` is 29,797 findings across 45 of
+50 repositories, and an `any` is what this tool is named after. `style.prefer-const` is 18,394 and every
+one is a `let` that is never reassigned. Those are the numbers a strict gate is supposed to produce.
 
 ## Engine reach and noise floors
 

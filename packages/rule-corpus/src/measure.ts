@@ -14,15 +14,23 @@ const REPO_ROOT = resolve(HERE, '../../..')
 // package is forty-eight more projects for knip to analyse, and a `sgate check` that does not return.
 const CORPUS_DIR = join(REPO_ROOT, '.rule-corpus')
 const LOCK = join(HERE, '..', 'corpus.lock.json')
-const OUT = join(HERE, '..', 'findings.json')
+const OUT = join(HERE, '..', process.argv.includes('--all') ? 'findings.json' : 'findings.recommended.json')
 const SGATE = join(REPO_ROOT, 'packages/cli/bin/sgate.js')
 
-/** Everything the registry knows, at `warn`. `error` would only change the exit code, not the findings. */
+/**
+ * Two questions, two configs. `--all` names every concept the registry knows and answers "how noisy is
+ * this rule anywhere"; the default names the preset and answers the one a user actually asks — what does
+ * installing slop-gate today report on my repository.
+ */
 const EVERY_CONCEPT = `export default ${JSON.stringify(
   { rules: Object.fromEntries([...CONCEPTS].map((concept) => [concept.id, 'warn']).sort(([a], [b]) => compareStrings(String(a), String(b)))) },
   null,
   2,
 )}\n`
+
+const RECOMMENDED = "export default { extends: ['recommended'] }\n"
+const everyRule = process.argv.includes('--all')
+const CONFIG = everyRule ? EVERY_CONCEPT : RECOMMENDED
 
 type Lock = Record<string, string>
 
@@ -56,7 +64,7 @@ type ConceptTally = { readonly concept: string; readonly count: number; readonly
 type RepoResult = { readonly repo: string; readonly side: string; readonly stack: string; readonly scanned: number; readonly total: number; readonly byConcept: readonly ConceptTally[] }
 
 async function measure(repo: CorpusRepo, dir: string): Promise<RepoResult | null> {
-  await writeFile(join(dir, 'slop-gate.config.ts'), EVERY_CONCEPT, 'utf8')
+  await writeFile(join(dir, 'slop-gate.config.ts'), CONFIG, 'utf8')
   try {
     const { stdout } = await run(process.execPath, [SGATE, 'check', '--cwd', dir, '--format', 'json', '--no-cache'], {
       cwd: REPO_ROOT,
