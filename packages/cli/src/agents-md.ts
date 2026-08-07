@@ -10,6 +10,6 @@ export function upsertAgentsSection(existing: string, body: string): string {
     return `${existing.slice(0, startAt)}${section}${existing.slice(endAt + END.length)}`
   }
 
-  const separator = existing === '' ? '' : existing.endsWith('\n') ? '\n' : '\n\n'
+  const separator = existing === '' ? '' : (existing.endsWith('\n') ? '\n' : '\n\n')
   return `${existing}${separator}${section}\n`
 }

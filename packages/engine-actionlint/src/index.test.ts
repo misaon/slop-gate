@@ -72,7 +72,7 @@ test('availability is filesystem-only: it reports on a file that cannot be execu
   await writeFile(notExecutable, 'this is not a program\n', { mode: 0o644 })
 
   const engine = createActionlintEngine({ binaryPath: notExecutable })
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
   await expect(engine.version()).rejects.toThrow(/EACCES|ENOENT/)
 })
 
@@ -82,10 +82,10 @@ test.skipIf(process.platform === 'win32')('availability is filesystem-only: it n
   await writeFile(script, `#!/bin/sh\necho ran >> ${JSON.stringify(marker)}\necho "1.7.12"\n`, { mode: 0o755 })
 
   const engine = createActionlintEngine({ binaryPath: script })
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
   expect(existsSync(marker)).toBe(false)
 
-  expect(await engine.version()).toBe('1.7.12')
+  await expect(engine.version()).resolves.toBe('1.7.12')
   expect(existsSync(marker)).toBe(true)
 })
 
@@ -118,7 +118,7 @@ test('the materialised config is a real file, and it is what suppresses the repo
   const engine = createActionlintEngine({ binaryPath: join(workspace, 'never-executed') })
   const handle = await engine.materializeConfig(new Map([['events', ['warn'] as const]]), context)
   expect(handle.path.startsWith(context.tmpDir)).toBe(true)
-  expect(await readFile(handle.path, 'utf8')).toContain('self-hosted-runner')
+  await expect(readFile(handle.path, 'utf8')).resolves.toContain('self-hosted-runner')
   expect(handle.ruleCount).toBeUndefined()
   await handle.dispose()
 })
@@ -187,7 +187,7 @@ test.skipIf(noBinary)('the repository’s own .github/actionlint.yaml is never r
 
 test.skipIf(noBinary)('an empty batch lints nothing, rather than the whole repository', async () => {
   await workflow('ci.yml', ['on: push', 'jobs:', '  a:', '    runs-on: ubuntu-lastest', '    steps:', '      - run: hi', ''].join('\n'))
-  expect(await lint([], ['runner-label'])).toEqual([])
+  await expect(lint([], ['runner-label'])).resolves.toEqual([])
 })
 
 test.skipIf(noBinary)('messages never carry an absolute path', async () => {

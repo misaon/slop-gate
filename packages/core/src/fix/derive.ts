@@ -8,7 +8,7 @@ function splitLines(buffer: Uint8Array): SourceLine[] {
   const lines: SourceLine[] = []
   let start = 0
   for (let i = 0; i < buffer.length; i += 1) {
-    if (buffer[i] === 0x0a) {
+    if (buffer[i] === 0x0A) {
       lines.push({ text: decodeUtf8(buffer.subarray(start, i + 1)), start, end: i + 1 })
       start = i + 1
     }
@@ -71,7 +71,7 @@ export function editsFromRewrite(before: Uint8Array, after: Uint8Array): Edit[] 
   return edits
 }
 
-const isContinuation = (byte: number | undefined): boolean => byte !== undefined && (byte & 0xc0) === 0x80
+const isContinuation = (byte: number | undefined): boolean => byte !== undefined && (byte & 0xC0) === 0x80
 
 function narrowEditToChangedBytes(before: Uint8Array, start: number, end: number, replacement: string): Edit {
   const removed = before.subarray(start, end)

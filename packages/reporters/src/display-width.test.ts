@@ -29,7 +29,7 @@ test('counts CJK mixed with ASCII correctly', () => {
 
 test('a combining mark contributes zero width to its base character', () => {
   const decomposed = 'é'
-  expect(decomposed.length).toBe(2)
+  expect(decomposed).toHaveLength(2)
   expect(displayWidth(decomposed)).toBe(1)
   expect(displayWidth(`caf${decomposed}`)).toBe(4)
 })
@@ -65,7 +65,7 @@ test('padEndDisplay pads plain text to the target width', () => {
 
 test('padEndDisplay accounts for an emoji already consuming two columns', () => {
   const text = '🔴x'
-  expect(text.length).toBe(3)
+  expect(text).toHaveLength(3)
   const padded = padEndDisplay(text, 5)
   expect(padded).toBe('🔴x  ')
   expect(displayWidth(padded)).toBe(5)
@@ -115,7 +115,7 @@ test('truncateStart accounts for display width, not string length, when a path c
   expect(result.endsWith('file.ts')).toBe(true)
 })
 
-test('ANSI colour escape codes contribute zero width', () => {
+test('aNSI colour escape codes contribute zero width', () => {
   const colored = styleText('bold', 'slop-gate', { validateStream: false })
   expect(colored).not.toBe('slop-gate')
   expect(displayWidth(colored)).toBe(displayWidth('slop-gate'))

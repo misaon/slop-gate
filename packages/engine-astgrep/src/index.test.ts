@@ -28,7 +28,7 @@ afterEach(async () => {
 })
 
 test('reports its version', async () => {
-  expect(await createAstGrepEngine().version()).toMatch(/^\d+\.\d+\.\d+/)
+  await expect(createAstGrepEngine().version()).resolves.toMatch(/^\d+\.\d+\.\d+/)
 })
 
 test('declares file granularity and exactly the four languages its rule documents cover', () => {
@@ -72,7 +72,7 @@ test('yields nothing for a clean file', async () => {
   const engine = createAstGrepEngine()
   const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
-  expect(await collect(engine.run({ files: [file('src/clean.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [file('src/clean.ts')] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
   await handle.dispose()
 })
 
@@ -81,7 +81,7 @@ test('yields nothing for an empty batch instead of scanning the whole repository
   const engine = createAstGrepEngine()
   const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
-  expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
   await handle.dispose()
 })
 
@@ -90,7 +90,7 @@ test('yields nothing for an empty ruleset instead of failing on an empty rule fi
   const engine = createAstGrepEngine()
   const handle = await engine.materializeConfig(new Map(), context)
 
-  expect(await collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [file('src/a.ts')] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
   await handle.dispose()
 })
 
@@ -130,7 +130,7 @@ test('does not fail on a zero-byte file, which ast-grep counts as skipped', asyn
   const engine = createAstGrepEngine()
   const handle = await engine.materializeConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
-  expect(await collect(engine.run({ files: [emptyFile('src/empty.d.ts')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [emptyFile('src/empty.d.ts')] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
   await handle.dispose()
 })
 

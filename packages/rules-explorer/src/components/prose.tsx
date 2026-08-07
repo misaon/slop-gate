@@ -13,13 +13,13 @@ export function Prose({ text }: { text: string }) {
               >
                 {token.value}
               </code>
-            ) : token.bold ? (
+            ) : (token.bold ? (
               <strong key={position} class="font-semibold text-ink-100">
                 {token.value}
               </strong>
             ) : (
               token.value
-            ),
+            )),
           )}
         </p>
       ))}

@@ -1,6 +1,5 @@
 import { execFile } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { readFile,mkdir,mkdtemp,rm,stat,writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -71,7 +70,7 @@ afterEach(async () => {
 })
 
 test('reports its version', async () => {
-  expect(await createKnipEngine().version()).toMatch(/^\d+\.\d+\.\d+/)
+  await expect(createKnipEngine().version()).resolves.toMatch(/^\d+\.\d+\.\d+/)
 })
 
 test('declares project granularity, and json alongside the script languages', () => {
@@ -201,11 +200,9 @@ test(
     const engine = createKnipEngine()
     const handle = await engine.materializeConfig(everything(), context)
 
-    expect(
-      await collect(
+    await expect(collect(
         engine.run({ files: [file('package.json'), file('index.ts')] }, handle, context, AbortSignal.timeout(TIMEOUT)),
-      ),
-    ).toEqual([])
+      )).resolves.toEqual([])
     await handle.dispose()
   },
   TIMEOUT,
@@ -263,7 +260,7 @@ test(
       { cwd: dir, encoding: 'utf8' },
     )
 
-    const report = JSON.parse(stdout) as { issues: Array<Record<string, unknown>> }
+    const report = JSON.parse(stdout) as { issues: Record<string, unknown>[] }
     const reported = new Set(Object.keys(report.issues[0] ?? {}))
     reported.delete('file')
     expect(reported.has('owners')).toBe(false)
@@ -422,7 +419,7 @@ test('is unavailable when a manifest declares dependencies that are not installe
   await write('package.json', JSON.stringify({ name: 'root', dependencies: { 'used-dep': '^1.0.0' } }))
   const engine = createKnipEngine({ rootDir: dir })
 
-  expect(await engine.availability?.()).toEqual({
+  await expect(engine.availability?.()).resolves.toEqual({
     available: false,
     reason: expect.stringContaining('node_modules'),
     install: expect.stringContaining('install'),
@@ -434,14 +431,14 @@ test('is available when the declared dependencies are installed', async () => {
   await mkdir(join(dir, 'node_modules'), { recursive: true })
   const engine = createKnipEngine({ rootDir: dir })
 
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
 })
 
 test('is available in a repository that declares no dependencies at all', async () => {
   await write('package.json', JSON.stringify({ name: 'root' }))
   const engine = createKnipEngine({ rootDir: dir })
 
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
 })
 
 

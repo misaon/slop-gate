@@ -103,7 +103,7 @@ test('the fromJSON(bool) class is filtered, and other argument-type errors are n
   expect(result.map((diagnostic) => diagnostic.message)).toEqual([kept])
 })
 
-test('YAML parse errors and duplicate keys are dropped, because the schema engine owns both', () => {
+test('yAML parse errors and duplicate keys are dropped, because the schema engine owns both', () => {
   const schemaOwned =
     'unexpected key "queue" for "concurrency" section. expected one of "cancel-in-progress", "group"'
   const kept = parse([
@@ -145,7 +145,7 @@ test('every prefix is stripped, longest first, so a nested root does not leave a
 })
 
 test('a Windows-shaped absolute path is stripped too', () => {
-  expect(sanitize('defined at "C:\\repo\\.github\\actions\\x"', ['C:\\repo'])).toBe('defined at ".github\\actions\\x"')
+  expect(sanitize(String.raw`defined at "C:\repo\.github\actions\x"`, [String.raw`C:\repo`])).toBe(String.raw`defined at ".github\actions\x"`)
 })
 
 test('backslash file paths are normalised to POSIX', () => {

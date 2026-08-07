@@ -167,7 +167,7 @@ test('refuses to touch a directory that is not a git worktree', async () => {
 
   expect(output).toContain('refused to run')
   expect(output).toContain('Not a git worktree')
-  expect(await readFile(join(dir, 'src/a.ts'), 'utf8')).toBe('let z = 3\nexport { z }\n')
+  await expect(readFile(join(dir, 'src/a.ts'), 'utf8')).resolves.toBe('let z = 3\nexport { z }\n')
   expect(process.exitCode).toBe(EXIT_CODES.config)
 })
 
@@ -178,7 +178,7 @@ test('--dry-run works without git and writes nothing', async () => {
   const output = await runFixCommand({ 'dry-run': true })
 
   expect(output).not.toContain('refused to run')
-  expect(await readFile(join(dir, 'src/a.ts'), 'utf8')).toBe('let z = 3\nexport { z }\n')
+  await expect(readFile(join(dir, 'src/a.ts'), 'utf8')).resolves.toBe('let z = 3\nexport { z }\n')
 })
 
 test('fixes a real finding in a real git repository, end to end through the real oxlint', async () => {
@@ -193,7 +193,7 @@ test('fixes a real finding in a real git repository, end to end through the real
 
   const output = await runFixCommand({})
 
-  expect(await readFile(join(dir, 'src/a.ts'), 'utf8')).toBe('const z = 3\nexport { z }\n')
+  await expect(readFile(join(dir, 'src/a.ts'), 'utf8')).resolves.toBe('const z = 3\nexport { z }\n')
   expect(output).toContain('oxlint/prefer-const')
   expect(output).toContain('Formatting is not run afterwards')
   expect(process.exitCode).toBe(EXIT_CODES.clean)
@@ -210,9 +210,9 @@ test('a dirty git repository is refused until --allow-dirty', async () => {
   await exec('git', ['commit', '-qm', 'fixture'], { cwd: dir })
   await writeFile(join(dir, 'src/a.ts'), 'let z = 3\nlet y = 4\nexport { z, y }\n')
 
-  expect(await runFixCommand({})).toContain('uncommitted changes')
-  expect(await readFile(join(dir, 'src/a.ts'), 'utf8')).toBe('let z = 3\nlet y = 4\nexport { z, y }\n')
+  await expect(runFixCommand({})).resolves.toContain('uncommitted changes')
+  await expect(readFile(join(dir, 'src/a.ts'), 'utf8')).resolves.toBe('let z = 3\nlet y = 4\nexport { z, y }\n')
 
   await runFixCommand({ 'allow-dirty': true })
-  expect(await readFile(join(dir, 'src/a.ts'), 'utf8')).toBe('const z = 3\nconst y = 4\nexport { z, y }\n')
+  await expect(readFile(join(dir, 'src/a.ts'), 'utf8')).resolves.toBe('const z = 3\nconst y = 4\nexport { z, y }\n')
 })

@@ -221,7 +221,7 @@ test('leaves every rule with no declared anchor on its first label', () => {
 })
 
 test('anchors on the declared label wherever oxlint puts it in the array', () => {
-  const reversed = JSON.parse(MULTI_LABEL) as { diagnostics: Array<{ labels: unknown[] }> }
+  const reversed = JSON.parse(MULTI_LABEL) as { diagnostics: { labels: unknown[] }[] }
   reversed.diagnostics[0]!.labels.reverse()
   expect(parseOxlintOutput(JSON.stringify(reversed), '/repo')[0]?.range).toEqual({ start: 93, end: 104 })
 })

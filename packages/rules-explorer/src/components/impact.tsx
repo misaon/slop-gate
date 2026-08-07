@@ -39,7 +39,7 @@ export function ImpactBar({
 
 /** Under 50% is worse than useless; over 80% is a rule you can act on without checking. */
 function tone(percent: number): string {
-  return percent < 50 ? 'text-severity-error' : percent < 80 ? 'text-brand' : 'text-state-on'
+  return percent < 50 ? 'text-severity-error' : (percent < 80 ? 'text-brand' : 'text-state-on')
 }
 
 export function ReliabilityCell({ percent, sampled }: { percent: number | null; sampled: number | null }) {

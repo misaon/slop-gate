@@ -143,7 +143,7 @@ async function importTransformed(file: string, originalCause: unknown): Promise<
 const MODULE_TYPELESS_WARNING_CODE = 'MODULE_TYPELESS_PACKAGE_JSON'
 
 let suppressionDepth = 0
-let suppressedListeners: Array<(warning: Error) => void> = []
+let suppressedListeners: ((warning: Error) => void)[] = []
 
 const filterWarning = (warning: NodeJS.ErrnoException): void => {
   if (warning.code === MODULE_TYPELESS_WARNING_CODE) return

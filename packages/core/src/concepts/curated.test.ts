@@ -51,5 +51,5 @@ test('the curated concepts are sorted by id', () => {
 })
 
 test('the merged catalogue is the three halves and nothing else', () => {
-  expect(CONCEPTS.length).toBe(HAND_WRITTEN_CONCEPTS.length + CURATED_CONCEPTS.length + GENERATED_CONCEPT_IDS.size)
+  expect(CONCEPTS).toHaveLength(HAND_WRITTEN_CONCEPTS.length + CURATED_CONCEPTS.length + GENERATED_CONCEPT_IDS.size)
 })

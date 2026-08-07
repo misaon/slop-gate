@@ -208,11 +208,11 @@ export function App() {
             <RulesTable table={table} />
 
             </>
-          ) : telemetry === null ? (
+          ) : (telemetry === null ? (
             <p class="text-sm text-ink-500">Reading the ingest database…</p>
           ) : (
             <Telemetry data={telemetry} />
-          )
+          ))
         }
       </Tabs>
       <footer class="mt-6 text-xs text-ink-500">

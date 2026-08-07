@@ -32,7 +32,7 @@ test('probes on first sight', async () => {
   await write('#!/bin/sh\n')
   const cache = await openToolVersionCache(cacheDir)
 
-  expect(await cache.resolve([binary], async () => '1.2.3')).toBe('1.2.3')
+  await expect(cache.resolve([binary], async () => '1.2.3')).resolves.toBe('1.2.3')
   expect(cache.probeCount()).toBe(1)
 })
 
@@ -43,11 +43,9 @@ test('serves the stored version across processes when the binary is unchanged', 
   await first.persist()
 
   const second = await openToolVersionCache(cacheDir)
-  expect(
-    await second.resolve([binary], async () => {
+  await expect(second.resolve([binary], async () => {
       throw new Error('must not spawn')
-    }),
-  ).toBe('1.2.3')
+    })).resolves.toBe('1.2.3')
   expect(second.probeCount()).toBe(0)
 })
 
@@ -59,7 +57,7 @@ test('re-probes when the binary is replaced with one of a different size', async
 
   await write('#!/bin/sh\nlonger\n')
   const second = await openToolVersionCache(cacheDir)
-  expect(await second.resolve([binary], async () => '2.0.0')).toBe('2.0.0')
+  await expect(second.resolve([binary], async () => '2.0.0')).resolves.toBe('2.0.0')
   expect(second.probeCount()).toBe(1)
 })
 
@@ -72,7 +70,7 @@ test('re-probes when a same-size replacement kept the mtime, because the inode m
   await rm(binary)
   await write('#!/bin/sh\nBBB\n')
   const second = await openToolVersionCache(cacheDir)
-  expect(await second.resolve([binary], async () => '2.0.0')).toBe('2.0.0')
+  await expect(second.resolve([binary], async () => '2.0.0')).resolves.toBe('2.0.0')
 })
 
 test('re-probes a binary written inside the racy window even when its identity matches', async () => {
@@ -85,7 +83,7 @@ test('re-probes a binary written inside the racy window even when its identity m
   await utimes(binary, now, now)
 
   const second = await openToolVersionCache(cacheDir)
-  expect(await second.resolve([binary], async () => '2.0.0')).toBe('2.0.0')
+  await expect(second.resolve([binary], async () => '2.0.0')).resolves.toBe('2.0.0')
   expect(second.probeCount()).toBe(1)
 })
 
@@ -98,12 +96,12 @@ test('keys on the whole invocation, so two scripts run through one Node do not c
   await backdate(tsc)
 
   const cache = await openToolVersionCache(cacheDir)
-  expect(await cache.resolve([process.execPath, oxlint], async () => '1.2.3')).toBe('1.2.3')
-  expect(await cache.resolve([process.execPath, tsc], async () => '5.9.3')).toBe('5.9.3')
+  await expect(cache.resolve([process.execPath, oxlint], async () => '1.2.3')).resolves.toBe('1.2.3')
+  await expect(cache.resolve([process.execPath, tsc], async () => '5.9.3')).resolves.toBe('5.9.3')
   await cache.persist()
 
   const reopened = await openToolVersionCache(cacheDir)
-  expect(await reopened.resolve([process.execPath, tsc], async () => 'wrong')).toBe('5.9.3')
+  await expect(reopened.resolve([process.execPath, tsc], async () => 'wrong')).resolves.toBe('5.9.3')
 })
 
 test('re-probes when the script changes but the interpreter does not', async () => {
@@ -118,16 +116,16 @@ test('re-probes when the script changes but the interpreter does not', async () 
   await writeFile(script, 'bb')
   await backdate(script)
   const second = await openToolVersionCache(cacheDir)
-  expect(await second.resolve([process.execPath, script], async () => '2.0.0')).toBe('2.0.0')
+  await expect(second.resolve([process.execPath, script], async () => '2.0.0')).resolves.toBe('2.0.0')
 })
 
 test('probes, and stores nothing, when the binary cannot be stat-ed', async () => {
   const cache = await openToolVersionCache(cacheDir)
-  expect(await cache.resolve([join(dir, 'absent')], async () => '1.2.3')).toBe('1.2.3')
+  await expect(cache.resolve([join(dir, 'absent')], async () => '1.2.3')).resolves.toBe('1.2.3')
   await cache.persist()
 
   const reopened = await openToolVersionCache(cacheDir)
-  expect(await reopened.resolve([join(dir, 'absent')], async () => '2.0.0')).toBe('2.0.0')
+  await expect(reopened.resolve([join(dir, 'absent')], async () => '2.0.0')).resolves.toBe('2.0.0')
 })
 
 test('caches nothing when the probe throws', async () => {
@@ -139,13 +137,13 @@ test('caches nothing when the probe throws', async () => {
     }),
   ).rejects.toThrow('boom')
 
-  expect(await cache.resolve([binary], async () => '1.2.3')).toBe('1.2.3')
+  await expect(cache.resolve([binary], async () => '1.2.3')).resolves.toBe('1.2.3')
 })
 
 test('starts empty when the cache directory does not exist', async () => {
   await write('#!/bin/sh\n')
   const cache = await openToolVersionCache(join(dir, 'missing', 'cache'))
-  expect(await cache.resolve([binary], async () => '1.2.3')).toBe('1.2.3')
+  await expect(cache.resolve([binary], async () => '1.2.3')).resolves.toBe('1.2.3')
 })
 
 test('survives a corrupt cache file', async () => {
@@ -156,5 +154,5 @@ test('survives a corrupt cache file', async () => {
   await writeFile(join(cacheDir, 'tool-versions.json'), '{ not json')
 
   const reopened = await openToolVersionCache(cacheDir)
-  expect(await reopened.resolve([binary], async () => '2.0.0')).toBe('2.0.0')
+  await expect(reopened.resolve([binary], async () => '2.0.0')).resolves.toBe('2.0.0')
 })

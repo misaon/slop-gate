@@ -49,8 +49,8 @@ export function useTable<T extends RowData>(data: readonly T[], columns: readonl
 
   table.setOptions((previous) => ({
     ...previous,
-    data: data,
-    columns: columns,
+    data,
+    columns,
     state: { sorting },
     onSortingChange: setSorting,
   }))

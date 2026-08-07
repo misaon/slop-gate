@@ -57,8 +57,8 @@ test('a real safe fix is derived from the real binary and reproduces oxlint own 
 
   expect(derived).toHaveLength(1)
   expect(derived[0]?.engineRuleId).toBe('prefer-const')
-  expect(await applyDerived('a.ts', derived[0]!.edits)).toBe('const z = 3\nexport { z }\n')
-  expect(await readFile(join(dir, 'a.ts'), 'utf8')).toBe('let z = 3\nexport { z }\n')
+  await expect(applyDerived('a.ts', derived[0]!.edits)).resolves.toBe('const z = 3\nexport { z }\n')
+  await expect(readFile(join(dir, 'a.ts'), 'utf8')).resolves.toBe('let z = 3\nexport { z }\n')
 })
 
 test('the derivation runs the rule at the options the check run used, not at oxlint\'s defaults', async () => {
@@ -79,10 +79,10 @@ test('the derivation runs the rule at the options the check run used, not at oxl
     signal: new AbortController().signal,
   })
 
-  expect(await applyDerived('a.ts', strict[0]!.edits)).toBe(
+  await expect(applyDerived('a.ts', strict[0]!.edits)).resolves.toBe(
     'export const f = (a: unknown, b: unknown) => a === null || a === b\n',
   )
-  expect(await applyDerived('a.ts', smart[0]!.edits)).toBe(
+  await expect(applyDerived('a.ts', smart[0]!.edits)).resolves.toBe(
     'export const f = (a: unknown, b: unknown) => a == null || a === b\n',
   )
 })
@@ -98,7 +98,7 @@ test('a dangerous fix is derived using the flag its catalogue entry calls for', 
     signal: new AbortController().signal,
   })
 
-  expect(await applyDerived('a.ts', derived[0]!.edits)).toBe('const copy = [1, 2, 3]\nexport { copy }\n')
+  await expect(applyDerived('a.ts', derived[0]!.edits)).resolves.toBe('const copy = [1, 2, 3]\nexport { copy }\n')
 })
 
 test('a rule whose only fix data is a dangerous suggestion is still derived', async () => {
@@ -113,7 +113,7 @@ test('a rule whose only fix data is a dangerous suggestion is still derived', as
   })
 
   expect(derived).toHaveLength(1)
-  expect(await applyDerived('a.ts', derived[0]!.edits)).toBe('const x = Array.from({length: 5})\nexport { x }\n')
+  await expect(applyDerived('a.ts', derived[0]!.edits)).resolves.toBe('const x = Array.from({length: 5})\nexport { x }\n')
 })
 
 test('two occurrences of one rule in a file become two separate edits, not one spanning both', async () => {
@@ -127,8 +127,8 @@ test('two occurrences of one rule in a file become two separate edits, not one s
     signal: new AbortController().signal,
   })
 
-  expect(derived[0]!.edits.length).toBe(2)
-  expect(await applyDerived('a.ts', derived[0]!.edits)).toBe(
+  expect(derived[0]!.edits).toHaveLength(2)
+  await expect(applyDerived('a.ts', derived[0]!.edits)).resolves.toBe(
     'const a = 1\nconst spacer = 2\nconst b = 3\nexport { a, b, spacer }\n',
   )
 })
@@ -201,7 +201,7 @@ test('a file whose content is multi-byte survives the copy-fix-diff round trip',
     signal: new AbortController().signal,
   })
 
-  expect(await applyDerived('a.ts', derived[0]!.edits)).toBe(
+  await expect(applyDerived('a.ts', derived[0]!.edits)).resolves.toBe(
     'const emoji = "🚀 héllo"\nconst z = 3\nexport { z, emoji }\n',
   )
 })
@@ -239,5 +239,5 @@ test('a nested path is copied into the sandbox with its directory structure inta
   })
 
   expect(derived[0]?.file).toBe('packages/core/src/a.ts')
-  expect(await applyDerived('packages/core/src/a.ts', derived[0]!.edits)).toBe('const z = 3\nexport { z }\n')
+  await expect(applyDerived('packages/core/src/a.ts', derived[0]!.edits)).resolves.toBe('const z = 3\nexport { z }\n')
 })

@@ -53,7 +53,7 @@ export type EngineCacheStats = {
 export type CheckResult = {
   diagnostics: Diagnostic[]
   counts: Record<Severity, number>
-  engineFailures: Array<{ engine: string; message: string }>
+  engineFailures: { engine: string; message: string }[]
   unavailableEngines: readonly UnavailableEngine[]
   baseline: BaselineSummary | null
   stats: {
@@ -166,7 +166,7 @@ export async function* streamCheck(options: CheckOptions): AsyncIterable<CheckEv
     baseline: new Map<string, number>(),
     generated: new Map<string, number>(),
   }
-  const engineFailures: Array<{ engine: string; message: string }> = []
+  const engineFailures: { engine: string; message: string }[] = []
   let enginesRun = 0
 
   const seenSynthetic = new Set<string>()

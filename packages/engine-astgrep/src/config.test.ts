@@ -111,7 +111,7 @@ test('ruleCount counts documents, which is what --inspect summary reports back',
 test('writes the rule file and removes it on dispose', async () => {
   const handle = await materializeAstGrepConfig(new Map([['slop-double-cast', ['warn'] as const]]), context)
 
-  expect(await readFile(handle.path, 'utf8')).toContain('id: slop-double-cast')
+  await expect(readFile(handle.path, 'utf8')).resolves.toContain('id: slop-double-cast')
   await handle.dispose()
   await expect(readFile(handle.path, 'utf8')).rejects.toThrow(/ENOENT/)
 })

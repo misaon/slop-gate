@@ -15,8 +15,8 @@ const diagnostic = (ruleRefKey: string): Diagnostic => ({
   fingerprint: 'abc',
 })
 
-test('NO_TIMING runs the work and measures nothing', async () => {
-  expect(await NO_TIMING.phase('p', async () => 1)).toBe(1)
+test('nO_TIMING runs the work and measures nothing', async () => {
+  await expect(NO_TIMING.phase('p', async () => 1)).resolves.toBe(1)
   expect(NO_TIMING.wrap('w', () => 2)).toBe(2)
   expect(NO_TIMING.measured()).toEqual([])
   expect(NO_TIMING.enabled).toBe(false)

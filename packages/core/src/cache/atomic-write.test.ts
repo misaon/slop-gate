@@ -34,7 +34,7 @@ afterEach(async () => {
 test('writes a file that can be read back', async () => {
   const target = join(dir, 'out.json')
   await writeFileAtomic(target, 'hello')
-  expect(await readFile(target, 'utf8')).toBe('hello')
+  await expect(readFile(target, 'utf8')).resolves.toBe('hello')
 })
 
 test('concurrent writers to the same target do not collide on the scratch filename', async () => {
@@ -51,7 +51,7 @@ test('retries a rename that fails transiently and still writes the file', async 
 
   await writeFileAtomic(target, 'hello', { renameFile })
 
-  expect(await readFile(target, 'utf8')).toBe('hello')
+  await expect(readFile(target, 'utf8')).resolves.toBe('hello')
   expect(calls.count).toBe(4)
 })
 
@@ -76,5 +76,5 @@ test('removes the scratch file when the rename ultimately fails', async () => {
   const { renameFile } = renameFailing(Number.POSITIVE_INFINITY)
 
   await expect(writeFileAtomic(target, 'hello', { renameFile })).rejects.toThrow('EPERM')
-  expect(await readdir(dir)).toEqual([])
+  await expect(readdir(dir)).resolves.toEqual([])
 })

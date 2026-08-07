@@ -145,8 +145,7 @@ export function createDepsSecurityEngine(options: CreateDepsSecurityEngineOption
         path,
         rulesetHash: hashJson(payload),
         ruleCount: enabled.length,
-        async dispose() {
-        },
+        async dispose() {},
       }
     },
 

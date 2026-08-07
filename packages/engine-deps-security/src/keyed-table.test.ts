@@ -38,14 +38,14 @@ describe('keyed advisory table', () => {
       expect((await keyed.lookup(name)).map((entry) => entry.id)).toEqual(table[name]!.map((entry) => entry.id))
     }
     for (const absent of ['chal', 'chalkk', 'aaa', 'zzzz', '', '@scope/other']) {
-      expect(await keyed.lookup(absent)).toEqual([])
+      await expect(keyed.lookup(absent)).resolves.toEqual([])
     }
     await keyed.close()
   })
 
   it('returns the whole record, not just its id', async () => {
     const keyed = await write({ chalk: [record('MAL-2025-46969')] })
-    expect(await keyed.lookup('chalk')).toEqual([
+    await expect(keyed.lookup('chalk')).resolves.toEqual([
       { id: 'MAL-2025-46969', versions: ['1.0.0'], ranges: [], severity: 'HIGH', summary: 'MAL-2025-46969 summary' },
     ])
     await keyed.close()
@@ -67,7 +67,7 @@ describe('keyed advisory table', () => {
 
   it('handles an empty table', async () => {
     const keyed = await write({})
-    expect(await keyed.lookup('anything')).toEqual([])
+    await expect(keyed.lookup('anything')).resolves.toEqual([])
     await keyed.close()
   })
 
@@ -80,7 +80,7 @@ describe('keyed advisory table', () => {
   it('never opens the records file when nothing matches', async () => {
     const { index } = buildKeyedTable({ chalk: [record('MAL-1')] })
     const keyed = await openKeyedTable(index, join(dir, 'does-not-exist.rec'))
-    expect(await keyed.lookup('something-else')).toEqual([])
+    await expect(keyed.lookup('something-else')).resolves.toEqual([])
     await keyed.close()
   })
 })

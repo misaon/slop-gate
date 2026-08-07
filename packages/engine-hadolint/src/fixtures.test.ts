@@ -53,22 +53,22 @@ for (const { file, engineRuleId } of POSITIVE) {
 }
 
 test.skipIf(noBinary)('every shipped rule stays silent on a well-formed Dockerfile', async () => {
-  expect(await runOn('Dockerfile.clean.negative')).toEqual([])
+  await expect(runOn('Dockerfile.clean.negative')).resolves.toEqual([])
 })
 
-test.skipIf(noBinary)('DL3025 is filtered on HEALTHCHECK, and hadolint really does report it', async () => {
+test.skipIf(noBinary)('dL3025 is filtered on HEALTHCHECK, and hadolint really does report it', async () => {
   const raw = await rawCodes('Dockerfile.healthcheck.filtered')
   expect(raw).toContain('DL3025')
-  expect(await runOn('Dockerfile.healthcheck.filtered')).toEqual([])
+  await expect(runOn('Dockerfile.healthcheck.filtered')).resolves.toEqual([])
 })
 
 test.skipIf(noBinary)('hadolint reports nothing at all about a Dockerfile with no USER', async () => {
-  expect(await rawCodes('Dockerfile.no-user.excluded')).toEqual([])
+  await expect(rawCodes('Dockerfile.no-user.excluded')).resolves.toEqual([])
 })
 
-test.skipIf(noBinary)('DL3066 fires on a named non-root user, and is excluded for exactly that reason', async () => {
-  expect(await rawCodes('Dockerfile.named-user.excluded')).toContain('DL3066')
-  expect(await runOn('Dockerfile.named-user.excluded')).toEqual([])
+test.skipIf(noBinary)('dL3066 fires on a named non-root user, and is excluded for exactly that reason', async () => {
+  await expect(rawCodes('Dockerfile.named-user.excluded')).resolves.toContain('DL3066')
+  await expect(runOn('Dockerfile.named-user.excluded')).resolves.toEqual([])
 })
 
 test.skipIf(noBinary)('a rule set to off with options is still off', async () => {

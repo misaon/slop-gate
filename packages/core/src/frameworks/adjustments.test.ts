@@ -22,7 +22,7 @@ const applied = (id: FrameworkId, adjustments: readonly FrameworkAdjustment[]): 
 })
 
 const detection = (...applications: readonly FrameworkApplication[]): FrameworkDetection => ({
-  applied: [...applications].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+  applied: [...applications].sort((a, b) => (a.id < b.id ? -1 : (a.id > b.id ? 1 : 0))),
   inapplicable: [],
 })
 
@@ -83,7 +83,7 @@ test('one profile contradicting itself resolves by the same join rather than by 
 
 const resolve = (rules: Record<string, RuleLevel>, ...applications: readonly FrameworkApplication[]) =>
   createRuleSetResolver({
-    config: { rules: rules },
+    config: { rules },
     frameworks: frameworkRuleLayers(detection(...applications)),
   })
 

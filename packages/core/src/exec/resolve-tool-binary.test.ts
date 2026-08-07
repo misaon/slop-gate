@@ -43,7 +43,7 @@ test('an environment override naming a file that does not exist resolves to noth
   expect(resolved).toBeUndefined()
 })
 
-test('PATH is searched in order, and the first hit wins', () => {
+test('pATH is searched in order, and the first hit wins', () => {
   const resolved = resolveToolBinary(
     SPEC,
     options({
@@ -93,8 +93,8 @@ test('an absent PATH is not a crash', () => {
   expect(resolveToolBinary(SPEC, options({ env: {} }))).toBeUndefined()
 })
 
-test('Windows looks for toolish.exe, on PATH and in the cache alike', () => {
-  const onPath = join('C:\\tools', 'toolish.exe')
+test('windows looks for toolish.exe, on PATH and in the cache alike', () => {
+  const onPath = join(String.raw`C:\tools`, 'toolish.exe')
   expect(
     resolveToolBinary(SPEC, options({ platform: 'win32', env: { PATH: 'C:\\tools' }, fileExists: exists(onPath) })),
   ).toEqual({ command: onPath, source: 'path' })
@@ -109,11 +109,11 @@ test('Windows looks for toolish.exe, on PATH and in the cache alike', () => {
 })
 
 test('the PATH separator follows the requested platform, not the host', () => {
-  const onPath = join('C:\\tools', 'toolish.exe')
+  const onPath = join(String.raw`C:\tools`, 'toolish.exe')
   expect(
     resolveToolBinary(
       SPEC,
-      options({ platform: 'win32', env: { PATH: ['C:\\Windows', 'C:\\tools'].join(';') }, fileExists: exists(onPath) }),
+      options({ platform: 'win32', env: { PATH: [String.raw`C:\Windows`, String.raw`C:\tools`].join(';') }, fileExists: exists(onPath) }),
     ),
   ).toEqual({ command: onPath, source: 'path' })
 })
@@ -139,10 +139,10 @@ test('the cache directory honours SLOP_GATE_CACHE_DIR, then XDG_CACHE_HOME, then
   )
   expect(
     toolCacheDir(SPEC, { env: { LOCALAPPDATA: 'C:\\Users\\dev\\AppData\\Local' }, homeDir: 'C:\\Users\\dev', platform: 'win32' }),
-  ).toBe(join('C:\\Users\\dev\\AppData\\Local', 'slop-gate', 'toolish', '1.2.3'))
+  ).toBe(join(String.raw`C:\Users\dev\AppData\Local`, 'slop-gate', 'toolish', '1.2.3'))
 })
 
-test('LOCALAPPDATA is honoured only on Windows, so a POSIX machine that happens to set it is unaffected', () => {
+test('lOCALAPPDATA is honoured only on Windows, so a POSIX machine that happens to set it is unaffected', () => {
   expect(
     toolCacheDir(SPEC, { env: { LOCALAPPDATA: 'C:\\Users\\dev\\AppData\\Local' }, homeDir: '/home/dev', platform: 'linux' }),
   ).toBe(join('/home/dev', '.cache', 'slop-gate', 'toolish', '1.2.3'))

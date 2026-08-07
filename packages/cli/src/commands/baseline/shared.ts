@@ -65,7 +65,7 @@ export async function warnGitignored(rootDir: string): Promise<void> {
   )
 }
 
-function conceptBreakdown(entries: readonly BaselineEntry[]): Array<{ concept: string; count: number }> {
+function conceptBreakdown(entries: readonly BaselineEntry[]): { concept: string; count: number }[] {
   const counts = new Map<string, number>()
   for (const entry of entries) counts.set(entry.concept, (counts.get(entry.concept) ?? 0) + 1)
   return [...counts]

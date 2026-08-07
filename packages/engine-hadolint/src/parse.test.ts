@@ -53,7 +53,7 @@ test('embedded ShellCheck findings are dropped whatever their code', () => {
   expect(parseHadolintOutput(shell, options('FROM x\nRUN y\n'))).toEqual([])
 })
 
-test('DL3025 is dropped on HEALTHCHECK and kept on a real ENTRYPOINT', () => {
+test('dL3025 is dropped on HEALTHCHECK and kept on a real ENTRYPOINT', () => {
   const source = ['FROM debian:12-slim', 'HEALTHCHECK --interval=30s CMD curl -f http://localhost/', 'ENTRYPOINT /app/run'].join('\n')
   const message = 'Use arguments JSON notation for CMD and ENTRYPOINT arguments'
 
@@ -88,7 +88,7 @@ test('stripping is one function, because `index.ts` keys its source map on the s
   expect(stripPrefixes('/repo/root/Dockerfile', ['/repo/root'])).toBe('Dockerfile')
   expect(stripPrefixes('/repo/root/Dockerfile', ['/repo/root/'])).toBe('Dockerfile')
   expect(stripPrefixes('/repo/root/tmp/Dockerfile', ['/repo/root', '/repo/root/tmp'])).toBe('Dockerfile')
-  expect(stripPrefixes('C:\\repo\\root\\Dockerfile', ['C:\\repo\\root'])).toBe('Dockerfile')
+  expect(stripPrefixes(String.raw`C:\repo\root\Dockerfile`, [String.raw`C:\repo\root`])).toBe('Dockerfile')
   expect(stripPrefixes('docker/Dockerfile', ['/elsewhere', ''])).toBe('docker/Dockerfile')
   expect(stripPrefixes('/repo/root/Dockerfile', [])).toBe('/repo/root/Dockerfile')
   expect(stripPrefixes('/repo/root/', ['/repo/root'])).toBe('')

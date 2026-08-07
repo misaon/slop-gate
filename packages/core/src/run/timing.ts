@@ -38,7 +38,7 @@ export const NO_TIMING: Timing = {
 
 export function createTiming(): Timing {
   const totals = new Map<string, { durationMs: number; count: number }>()
-  const intervals: Array<{ start: number; end: number }> = []
+  const intervals: { start: number; end: number }[] = []
   let sequence = 0
 
   const record = (name: string, startMark: string): void => {

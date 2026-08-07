@@ -88,11 +88,11 @@ test('the check tool round-trips a real finding, with the report as text and the
   const result = await client.callTool({ name: 'check', arguments: {} })
 
   expect(result.isError).toBeFalsy()
-  const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? ''
+  const text = (result.content as { type: string; text: string }[])[0]?.text ?? ''
   expect(text).toContain('slop-gate agent report v1')
   expect(text).toContain('nextActions')
 
-  const data = result.structuredContent as { outcome: string; complete: boolean; concepts: Array<{ concept: string }> }
+  const data = result.structuredContent as { outcome: string; complete: boolean; concepts: { concept: string }[] }
   expect(data.outcome).toBe('findings')
   expect(data.complete).toBe(true)
   expect(data.concepts.length).toBeGreaterThan(0)
@@ -113,12 +113,12 @@ test('propose_fixes returns a diff over the wire and leaves the file alone', asy
   const before = await readFile(join(dir, 'spread.ts'), 'utf8')
 
   const result = await client.callTool({ name: 'propose_fixes', arguments: { tier: 'unsafe' } })
-  const data = result.structuredContent as { applied: boolean; command: string; files: Array<{ diff: string }> }
+  const data = result.structuredContent as { applied: boolean; command: string; files: { diff: string }[] }
 
   expect(data.applied).toBe(false)
   expect(data.command).toBe('sgate fix --unsafe')
   expect(data.files[0]?.diff).toContain('spread.ts')
-  expect(await readFile(join(dir, 'spread.ts'), 'utf8')).toBe(before)
+  await expect(readFile(join(dir, 'spread.ts'), 'utf8')).resolves.toBe(before)
 }, 120_000)
 
 test('explain_concept answers over the wire, and a rule id comes back as a correctable tool error', async () => {
@@ -128,14 +128,14 @@ test('explain_concept answers over the wire, and a rule id comes back as a corre
 
   const misused = await client.callTool({ name: 'explain_concept', arguments: { concept: 'oxlint/no-debugger' } })
   expect(misused.isError).toBe(true)
-  expect((misused.content as Array<{ text: string }>)[0]?.text).toContain('is a rule id, not a concept id')
+  expect((misused.content as { text: string }[])[0]?.text).toContain('is a rule id, not a concept id')
 }, 60_000)
 
 test('a bad argument is rejected by the declared input schema rather than reaching the handler', async () => {
   const result = await client.callTool({ name: 'check', arguments: { maxTokens: -5 } })
 
   expect(result.isError).toBe(true)
-  expect((result.content as Array<{ text: string }>)[0]?.text).toContain('validation')
+  expect((result.content as { text: string }[])[0]?.text).toContain('validation')
 }, 60_000)
 
 test('the server writes nothing to stderr on a normal run', async () => {

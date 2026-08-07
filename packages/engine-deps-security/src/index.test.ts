@@ -74,12 +74,12 @@ describe('availability', () => {
 
   it('is available once a snapshot is installed', async () => {
     await installSnapshot()
-    expect(await engineFor().availability?.()).toEqual({ available: true })
+    await expect(engineFor().availability?.()).resolves.toEqual({ available: true })
   })
 
   it('stays available when the snapshot is old, and says so as a finding instead', async () => {
     await installSnapshot(new Date(Date.now() - 200 * 86_400_000).toISOString())
-    expect(await engineFor().availability?.()).toEqual({ available: true })
+    await expect(engineFor().availability?.()).resolves.toEqual({ available: true })
 
     await writeFile(join(root, 'package.json'), JSON.stringify({ dependencies: { lodash: '4.17.21' } }))
     await writeFile(join(root, 'package-lock.json'), npmLock({ '': { dependencies: { lodash: '4.17.21' } }, 'node_modules/lodash': { version: '4.17.21' } }))
@@ -92,7 +92,7 @@ describe('availability', () => {
 describe('version', () => {
   it('identifies the snapshot rather than this package, so a refresh invalidates the cache', async () => {
     await installSnapshot('2026-08-01T00:00:00.000Z')
-    expect(await engineFor().version()).toBe(`osv-npm@2026-08-01+${'d'.repeat(12)}`)
+    await expect(engineFor().version()).resolves.toBe(`osv-npm@2026-08-01+${'d'.repeat(12)}`)
   })
 
   it('refuses rather than inventing a version when no snapshot exists', async () => {
@@ -178,13 +178,13 @@ describe('run', () => {
       "lockfileVersion: '9.0'\n\nimporters:\n  .:\n    dependencies:\n      axios:\n        specifier: 0.21.0\n        version: 0.21.0\nsnapshots:\n  axios@0.21.0: {}\n",
     )
 
-    expect(await runEngine(engineFor())).toHaveLength(25)
+    await expect(runEngine(engineFor())).resolves.toHaveLength(25)
   })
 
   it('emits nothing when every rule is off', async () => {
     await installSnapshot()
     await withLockfile()
-    expect(await runEngine(engineFor(), new Map())).toEqual([])
+    await expect(runEngine(engineFor(), new Map())).resolves.toEqual([])
   })
 
   it('reports an unreadable lockfile format rather than reporting nothing', async () => {
@@ -212,7 +212,7 @@ describe('run', () => {
     await installSnapshot()
     await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'app' }))
 
-    expect(await runEngine(engineFor())).toEqual([])
+    await expect(runEngine(engineFor())).resolves.toEqual([])
   })
 
   it('turns an unreadable lockfile into a coverage gap rather than an empty result', async () => {
@@ -248,8 +248,7 @@ describe('run', () => {
     await rm(snapshotDir, { recursive: true, force: true })
 
     await expect(async () => {
-      for await (const _ of engine.run({ files: [] }, handle, context(), AbortSignal.timeout(5000))) {
-      }
+      for await (const _ of engine.run({ files: [] }, handle, context(), AbortSignal.timeout(5000))) {}
     }).rejects.toThrow(EngineError)
   })
 
@@ -275,10 +274,10 @@ describe('run', () => {
     )
 
     const off = new Map<string, EngineRuleSetting>([['vulnerability', ['warn'] as const]])
-    expect(await runEngine(engineFor(), off)).toEqual([])
+    await expect(runEngine(engineFor(), off)).resolves.toEqual([])
 
     const on = new Map<string, EngineRuleSetting>([['malware', ['warn'] as const]])
-    expect(await runEngine(engineFor(), on)).toHaveLength(1)
+    await expect(runEngine(engineFor(), on)).resolves.toHaveLength(1)
   })
 })
 

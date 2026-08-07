@@ -111,7 +111,7 @@ test('losing a trailing newline round-trips', () => {
   expect(roundTrips('let a = 1\n', 'let a = 1')).toBe(true)
 })
 
-test('CRLF content round-trips without rewriting the untouched lines', () => {
+test('cRLF content round-trips without rewriting the untouched lines', () => {
   const before = 'a\r\nlet b = 1\r\nc\r\n'
   const after = 'a\r\nconst b = 1\r\nc\r\n'
 

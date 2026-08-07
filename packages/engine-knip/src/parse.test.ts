@@ -36,7 +36,7 @@ test('throws on output that is not json, and on json with no issues array', asyn
 })
 
 test('yields nothing for a clean repository', async () => {
-  expect(await collect(parseKnipOutput('{"issues":[]}', dir))).toEqual([])
+  await expect(collect(parseKnipOutput('{"issues":[]}', dir))).resolves.toEqual([])
 })
 
 test('an unused file becomes a whole-file diagnostic at offset zero', async () => {
@@ -148,7 +148,7 @@ test('never yields a diagnostic for an excluded issue type, even when knip repor
     ],
   })
 
-  expect(await collect(parseKnipOutput(stdout, dir))).toEqual([])
+  await expect(collect(parseKnipOutput(stdout, dir))).resolves.toEqual([])
 })
 
 test('converts an absolute path back to a repo-relative one', async () => {
@@ -169,12 +169,12 @@ test('raises when knip reported a different set of issue types than was elected'
 })
 
 test('does not check the reported type set when there is nothing to check it against', async () => {
-  expect(await collect(parseKnipOutput('{"issues":[]}', dir, { issueTypes: ['files'] }))).toEqual([])
+  await expect(collect(parseKnipOutput('{"issues":[]}', dir, { issueTypes: ['files'] }))).resolves.toEqual([])
 })
 
 test('accepts the elected type set in any order', async () => {
   const stdout = JSON.stringify({ issues: [row('src/a.ts', { exports: [], files: [] })] })
-  expect(await collect(parseKnipOutput(stdout, dir, { issueTypes: ['files', 'exports'] }))).toEqual([])
+  await expect(collect(parseKnipOutput(stdout, dir, { issueTypes: ['files', 'exports'] }))).resolves.toEqual([])
 })
 
 test('parses the report when knip prefixes it with its dotenv banner', async () => {

@@ -91,7 +91,7 @@ test.each(CASES.filter((c) => c.polarity === 'positive'))('$engineRuleId lands o
 })
 
 test.each(CASES.filter((c) => c.polarity === 'negative'))('$engineRuleId stays silent on $file', async ({ engineRuleId, file }) => {
-  expect(await lint(file, [engineRuleId, CSS_PARSE_ERROR_RULE_ID])).toEqual([])
+  await expect(lint(file, [engineRuleId, CSS_PARSE_ERROR_RULE_ID])).resolves.toEqual([])
 })
 
 test.each(CASES.filter((c) => c.polarity === 'excluded'))(
@@ -107,7 +107,7 @@ test.each(CASES.filter((c) => c.polarity === 'excluded'))(
 
 test('the whole recommended set on the clean stylesheet reports nothing', async () => {
   const all = [...SHIPPED.map((rule) => rule.engineRuleId), CSS_PARSE_ERROR_RULE_ID, FOREIGN_SUPPRESSION_RULE_ID]
-  expect(await lint('clean.negative.css', all)).toEqual([])
+  await expect(lint('clean.negative.css', all)).resolves.toEqual([])
 })
 
 test('a foreign suppression is reported even though biome reports nothing at all', async () => {
@@ -128,5 +128,5 @@ test('an unparseable stylesheet reports once and discards its recovered findings
 })
 
 test('a rule left out of the selection does not report', async () => {
-  expect(await lint('excluded.icon-font.css', ['noDuplicateProperties'])).toEqual([])
+  await expect(lint('excluded.icon-font.css', ['noDuplicateProperties'])).resolves.toEqual([])
 })

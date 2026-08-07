@@ -177,7 +177,7 @@ test('update leaves the file untouched when nothing is fixed', { timeout: REAL_R
 
   const { out } = await run(update, {})
 
-  expect(await readFile(baselinePathFor(dir), 'utf8')).toBe(before)
+  await expect(readFile(baselinePathFor(dir), 'utf8')).resolves.toBe(before)
   expect(out).toContain('already current')
 })
 

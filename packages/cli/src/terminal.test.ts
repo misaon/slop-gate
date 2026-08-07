@@ -14,25 +14,25 @@ afterEach(() => {
   }
 })
 
-test('NO_COLOR disables colour regardless of TTY status', () => {
+test('nO_COLOR disables colour regardless of TTY status', () => {
   process.env['NO_COLOR'] = '1'
   delete process.env['FORCE_COLOR']
   expect(supportsColor()).toBe(false)
 })
 
-test('FORCE_COLOR enables colour even when not a TTY', () => {
+test('fORCE_COLOR enables colour even when not a TTY', () => {
   delete process.env['NO_COLOR']
   process.env['FORCE_COLOR'] = '1'
   expect(supportsColor()).toBe(true)
 })
 
-test('NO_COLOR takes precedence over FORCE_COLOR', () => {
+test('nO_COLOR takes precedence over FORCE_COLOR', () => {
   process.env['NO_COLOR'] = '1'
   process.env['FORCE_COLOR'] = '1'
   expect(supportsColor()).toBe(false)
 })
 
-test('TERM=dumb disables unicode', () => {
+test('tERM=dumb disables unicode', () => {
   process.env['TERM'] = 'dumb'
   expect(supportsUnicode()).toBe(false)
 })

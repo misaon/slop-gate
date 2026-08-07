@@ -1,6 +1,5 @@
-import type { ComponentChildren } from 'preact'
+import type { ComponentChildren,ComponentType } from 'preact'
 import type { CatalogueStatus } from '@misaon/slop-gate-core'
-import type { ComponentType } from 'preact'
 import { HoverGroup } from './animated/icons.tsx'
 import { ICON_SMALL, STATUS_ICON } from './icons.tsx'
 

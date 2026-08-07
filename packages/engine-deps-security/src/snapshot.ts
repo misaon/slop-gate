@@ -102,13 +102,17 @@ export function stalenessBand(days: number): StalenessBand {
 export function describeStaleness(days: number): string {
   const age = days === 1 ? '1 day' : `${days} days`
   switch (stalenessBand(days)) {
-    case 'ageing':
+    case 'ageing': {
       return `The advisory snapshot is ${age} old, so anything published since is not being checked. Refresh it with \`${INSTALL_COMMAND}\`.`
-    case 'stale':
+    }
+    case 'stale': {
       return `The advisory snapshot is ${age} old. npm gains roughly 240 advisories a month, so this run is missing hundreds of them. Refresh it with \`${INSTALL_COMMAND}\`.`
-    case 'abandoned':
+    }
+    case 'abandoned': {
       return `The advisory snapshot is ${age} old and is no longer a meaningful security check — around a thousand advisories have been published since it was taken. Refresh it with \`${INSTALL_COMMAND}\`, or stop relying on this engine.`
-    case 'fresh':
+    }
+    case 'fresh': {
       return `The advisory snapshot is ${age} old.`
+    }
   }
 }

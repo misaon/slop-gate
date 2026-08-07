@@ -21,8 +21,7 @@ export async function absolutePrefixes(dirs: { readonly rootDir: string; readonl
   for (const path of declared) {
     try {
       prefixes.push(await realpath(path))
-    } catch {
-    }
+    } catch {}
   }
   return prefixes
 }

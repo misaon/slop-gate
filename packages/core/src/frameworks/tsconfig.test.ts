@@ -6,7 +6,7 @@ const from = (files: Record<string, string>) => async (path: string) => files[pa
 const jsx = (value: string) => JSON.stringify({ compilerOptions: { jsx: value } })
 
 test('reads a value the file sets itself', async () => {
-  expect(await resolveJsx('tsconfig.json', from({ 'tsconfig.json': jsx('react-jsx') }))).toEqual({
+  await expect(resolveJsx('tsconfig.json', from({ 'tsconfig.json': jsx('react-jsx') }))).resolves.toEqual({
     kind: 'set',
     transform: 'automatic',
     value: 'react-jsx',
@@ -140,7 +140,7 @@ test('resolves jsxImportSource through the same extends chain as jsx', async () 
 })
 
 test('a chain that configures no jsxImportSource is empty, not unknown', async () => {
-  expect(await resolveJsxImportSource('tsconfig.json', from({ 'tsconfig.json': jsx('react-jsx') }))).toEqual({ kind: 'none' })
+  await expect(resolveJsxImportSource('tsconfig.json', from({ 'tsconfig.json': jsx('react-jsx') }))).resolves.toEqual({ kind: 'none' })
 })
 
 test('reports a jsxImportSource chain it cannot follow rather than calling it empty', async () => {
@@ -153,25 +153,25 @@ test('reports a jsxImportSource chain it cannot follow rather than calling it em
 })
 
 test('scopes a config to its own include patterns, cut back to their literal prefix', async () => {
-  expect(await resolveIncludeScope('tsconfig.spec.json', from({
+  await expect(resolveIncludeScope('tsconfig.spec.json', from({
     'tsconfig.spec.json': JSON.stringify({ include: ['src', 'src/middleware/keys.test.json'] }),
-  }))).toEqual(['src/**'])
+  }))).resolves.toEqual(['src/**'])
 })
 
 test('scopes a config with no include to its whole directory', async () => {
-  expect(await resolveIncludeScope('packages/ui/tsconfig.json', from({
+  await expect(resolveIncludeScope('packages/ui/tsconfig.json', from({
     'packages/ui/tsconfig.json': jsx('react-jsx'),
-  }))).toEqual(['packages/ui/**'])
+  }))).resolves.toEqual(['packages/ui/**'])
 })
 
 test('resolves include patterns relative to the config, not the repository root', async () => {
-  expect(await resolveIncludeScope('packages/dash/tsconfig.json', from({
+  await expect(resolveIncludeScope('packages/dash/tsconfig.json', from({
     'packages/dash/tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react-jsx' }, include: ['src'] }),
-  }))).toEqual(['packages/dash/src/**'])
+  }))).resolves.toEqual(['packages/dash/src/**'])
 })
 
 test('an include list that is not plain string literals falls back to the whole directory', async () => {
-  expect(await resolveIncludeScope('packages/ui/tsconfig.json', from({
+  await expect(resolveIncludeScope('packages/ui/tsconfig.json', from({
     'packages/ui/tsconfig.json': '{ "include": [1, 2] }',
-  }))).toEqual(['packages/ui/**'])
+  }))).resolves.toEqual(['packages/ui/**'])
 })

@@ -16,7 +16,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-test('DO_NOT_TRACK is honoured before our own switch, because it is the shared convention', () => {
+test('dO_NOT_TRACK is honoured before our own switch, because it is the shared convention', () => {
   expect(telemetryDisabled({ DO_NOT_TRACK: '1' })).toBe('do-not-track')
   expect(telemetryDisabled({ DO_NOT_TRACK: '1', SLOP_GATE_TELEMETRY: '1' })).toBe('do-not-track')
   // `DO_NOT_TRACK=0` is an explicit "tracking is fine", not an absence.
@@ -33,7 +33,7 @@ test('anything other than an explicit on turns our own switch off', () => {
 })
 
 test('an empty endpoint means nowhere, whatever the switches say', async () => {
-  expect(await decideConsent({ env: { SLOP_GATE_TELEMETRY_URL: '' }, stateDir: dir })).toEqual({
+  await expect(decideConsent({ env: { SLOP_GATE_TELEMETRY_URL: '' }, stateDir: dir })).resolves.toEqual({
     send: false,
     why: 'no-endpoint',
   })
@@ -41,7 +41,7 @@ test('an empty endpoint means nowhere, whatever the switches say', async () => {
 
 test('an unset endpoint falls back to the built-in one, so telemetry is opt-out rather than opt-in', async () => {
   expect(telemetryEndpoint({})).toBe(DEFAULT_TELEMETRY_ENDPOINT)
-  expect(await decideConsent({ env: {}, stateDir: dir })).toMatchObject({ send: true })
+  await expect(decideConsent({ env: {}, stateDir: dir })).resolves.toMatchObject({ send: true })
 })
 
 test('a configured endpoint wins over the built-in one', () => {
@@ -61,8 +61,8 @@ test('at most one report an hour, so a heavy user does not outweigh everyone els
   await decideConsent({ env: ON, stateDir: dir })
   await markSent(dir)
 
-  expect(await decideConsent({ env: ON, stateDir: dir })).toEqual({ send: false, why: 'too-soon' })
-  expect(await decideConsent({ env: ON, stateDir: dir, now: Date.now() + 61 * 60 * 1000 })).toMatchObject({ send: true })
+  await expect(decideConsent({ env: ON, stateDir: dir })).resolves.toEqual({ send: false, why: 'too-soon' })
+  await expect(decideConsent({ env: ON, stateDir: dir, now: Date.now() + 61 * 60 * 1000 })).resolves.toMatchObject({ send: true })
 })
 
 test('the project id is random and persists, and is derived from nothing', async () => {

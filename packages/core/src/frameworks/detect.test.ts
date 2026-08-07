@@ -100,7 +100,7 @@ test('two profiles disabling the same concept is idempotent, not a conflict', as
   expect(new Set(reasons).size).toBe(2)
 })
 
-test('NestJS on Express ignores the transitively-provided express dependency', async () => {
+test('nestJS on Express ignores the transitively-provided express dependency', async () => {
   const detection = await detect({ 'package.json': manifest({ '@nestjs/platform-express': '^11.0.0' }) })
   expect(engineAdjustmentsFor('knip', detection)).toEqual([
     { key: 'ignoreDependencies', workspace: '', values: ['express'] },

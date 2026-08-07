@@ -32,7 +32,7 @@ export function parseSuppressions(source: string): SuppressionDirective[] {
       directives.push({
         kind,
         line: lineNumber,
-        appliesToLine: kind === 'disable-file' ? null : kind === 'disable-line' ? lineNumber : lineNumber + 1,
+        appliesToLine: kind === 'disable-file' ? null : (kind === 'disable-line' ? lineNumber : lineNumber + 1),
         targets,
         reason,
       })

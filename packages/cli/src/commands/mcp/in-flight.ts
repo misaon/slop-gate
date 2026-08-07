@@ -5,7 +5,7 @@ export type InFlight = {
 
 export function createInFlight(): InFlight {
   let count = 0
-  const waiting: Array<() => void> = []
+  const waiting: (() => void)[] = []
 
   return {
     async track<T>(work: () => Promise<T>): Promise<T> {

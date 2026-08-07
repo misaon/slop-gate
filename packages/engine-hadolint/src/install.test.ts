@@ -94,7 +94,7 @@ test('a second install is served from the cache without fetching', async () => {
   expect(fetched).toBe(false)
 })
 
-test('Windows arm64 refuses with the reason, since upstream builds nothing for it', async () => {
+test('windows arm64 refuses with the reason, since upstream builds nothing for it', async () => {
   await expect(installHadolint({ platform: 'win32', arch: 'arm64', env: {}, homeDir: await scratch() })).rejects.toThrow(
     /no Windows arm64 binary/,
   )

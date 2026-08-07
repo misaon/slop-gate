@@ -204,7 +204,7 @@ test('bounds the document and says what it dropped', () => {
   const diagnostics = [diagnostic('a.ts'), diagnostic('b.ts'), diagnostic('c.ts')]
   const document = render({ diagnostics }, 2)
 
-  expect((document['diagnostics'] as unknown[]).length).toBe(2)
+  expect((document['diagnostics'] as unknown[])).toHaveLength(2)
   expect(document['truncated']).toEqual({ dropped: 1, of: 3 })
 })
 

@@ -218,7 +218,7 @@ function buildGeneratedRecommended(generated: readonly GeneratedEntry[]): Readon
 }
 
 function quote(value: string): string {
-  return `'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
+  return `'${value.replaceAll('\\', String.raw`\\`).replaceAll("'", String.raw`\'`)}'`
 }
 
 function formatStringArray(values: readonly string[]): string {

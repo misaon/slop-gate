@@ -51,7 +51,7 @@ export function parseAstGrepOutput(stdout: string, rootDir: string): RawDiagnost
   return results
 }
 
-function fixOf(match: AstGrepMatch): { fix: { edits: Array<{ range: { start: number; end: number }; replacement: string }> } } | Record<string, never> {
+function fixOf(match: AstGrepMatch): { fix: { edits: { range: { start: number; end: number }; replacement: string }[] } } | Record<string, never> {
   const start = match.replacementOffsets?.start
   const end = match.replacementOffsets?.end
   if (match.replacement === undefined || start === undefined || end === undefined) return {}

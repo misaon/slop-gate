@@ -24,5 +24,5 @@ test('nothing unformatted means no findings, not one for an empty line', () => {
 })
 
 test('windows separators are normalised, so a finding matches the inventory path', () => {
-  expect(parseUnformattedFiles('src\\a.ts').map((d) => d.file)).toEqual(['src/a.ts'])
+  expect(parseUnformattedFiles(String.raw`src\a.ts`).map((d) => d.file)).toEqual(['src/a.ts'])
 })
