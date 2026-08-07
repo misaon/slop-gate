@@ -2480,12 +2480,6 @@ export const GENERATED_CONCEPTS = [
     description: 'Generated from oxlint\'s `promise/no-nesting` rule (category: style). No Nesting.',
   },
   {
-    id: 'style.no-new-func',
-    group: 'style',
-    title: 'no-new-func',
-    description: 'Generated from oxlint\'s `eslint/no-new-func` rule (category: style). No New Func.',
-  },
-  {
     id: 'style.no-nodejs-modules',
     group: 'style',
     title: 'import/no-nodejs-modules',
@@ -2526,12 +2520,6 @@ export const GENERATED_CONCEPTS = [
     group: 'style',
     title: 'promise/no-return-wrap',
     description: 'Generated from oxlint\'s `promise/no-return-wrap` rule (category: style). No Return Wrap.',
-  },
-  {
-    id: 'style.no-script-url',
-    group: 'style',
-    title: 'no-script-url',
-    description: 'Generated from oxlint\'s `eslint/no-script-url` rule (category: style). No Script Url.',
   },
   {
     id: 'style.no-set-state',
@@ -3384,12 +3372,6 @@ export const GENERATED_CONCEPTS = [
     group: 'suspicious',
     title: 'react/jsx-no-comment-textnodes',
     description: 'Generated from oxlint\'s `react/jsx-no-comment-textnodes` rule (category: suspicious). Jsx No Comment Textnodes.',
-  },
-  {
-    id: 'suspicious.jsx-no-script-url',
-    group: 'suspicious',
-    title: 'react/jsx-no-script-url',
-    description: 'Generated from oxlint\'s `react/jsx-no-script-url` rule (category: suspicious). Jsx No Script Url.',
   },
   {
     id: 'suspicious.misrefactored-assign-op',

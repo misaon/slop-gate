@@ -72,8 +72,9 @@ const CONCEPT_IMPACT: Readonly<Record<string, Impact>> = {
   'security.target-blank': 2,
   // The rule reports the API, not the value passed to it, and a constant string is not a hole.
   'security.dangerous-html': 2,
-  // A `javascript:` URL in an href is an XSS sink, and React 19 refuses to render one at all.
-  'suspicious.jsx-no-script-url': 3,
+  // The rule reports the attribute, and a constant `javascript:void(0)` is a habit rather than a hole.
+  'security.script-url': 2,
+  'security.jsx-script-url': 2,
   // Executing a string is the same hole `security.eval-usage` names, reached through a timer.
   'suspicious.no-implied-eval': 3,
   // Quadratic on data the user supplies, which is a hang rather than an untidy line.

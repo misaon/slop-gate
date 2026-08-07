@@ -740,6 +740,39 @@ anything non-null, not an empty object). Eight enforce what AGENTS.md already st
 whose bindings are not read during evaluation — is a question about this codebase, and answering it is not
 part of deciding whether the rule belongs in a preset.
 
+## The `style` audit — 270 reachable rules, 65 promoted and 96 rejected
+
+<a id="style-audit"></a>
+
+**All 96 that fire here are formatting or house style, and not one holds a defect.** `oxfmt` owns the
+formatting half and does not want a second opinion; the rest is a decision a team makes once. The scale is
+the argument: `sort-keys` 4,513 — the largest count ever recorded here — `no-magic-numbers` 2,517,
+`prefer-expect-assertions` 1,828 (one per test), `require-top-level-describe` 1,799, `curly` 936.
+
+Two pairs in there cannot both be right, which is the clearest statement of what the category is:
+`import/no-named-export` (930) and `import/no-default-export` (15, in `restriction`) forbid each other, and
+`no-negated-condition` and `unicorn/no-negated-condition` want the inverse of what `no-else-return` does.
+
+**But 65 of the 174 silent ones hold a defect, and oxlint files them here anyway.** That is the finding:
+`style` is not a category of harmless rules, it is a category of rules sorted by how often people argue
+about them. `no-return-assign` catches `return a = b` where `===` was meant; `unicorn/error-message` catches
+`new Error()` with nothing in it; `prefer-promise-reject-errors` catches a rejection that arrives with no
+stack; `guard-for-in` catches a `for…in` that walks the prototype; `no-identical-title` catches two tests
+with one name; `import/no-mutable-exports` catches a `let` export whose value changes under its consumers.
+
+**Four are re-homed into `security`, and one of them exposed a modelling mistake worth recording.**
+`no-new-func` and `no-script-url` were first mapped onto `security.eval-usage` and `security.script-url`
+alongside the rules already there — and the dogfood reported `config.rule-overlap`: two rules on one concept
+go to arbitration, and the loser is switched off. Mapping `no-new-func` onto `eval-usage` would have stopped
+`new Function` being checked at all. One concept per rule, always; the sharing that arbitration exists for is
+between *engines*, not between two rules of one engine that read different syntax.
+
+The security line the audits settled on: a rule that reports **an API a caller may be using safely** is
+impact 2 — `security.target-blank`, `security.dangerous-html`, `security.script-url`,
+`security.jsx-script-url`. A rule that reports **a hole whatever the value** is impact 3 at `error` —
+`security.eval-usage`, `security.function-constructor`. That also closes the third entry this audit
+briefly added to `impact.test.ts`'s mismatch list: the XSS sink now reports where it belongs.
+
 ## hadolint/DL3066 — hadolint cannot catch a container running as root
 
 <a id="hadolint-dl3066"></a>
