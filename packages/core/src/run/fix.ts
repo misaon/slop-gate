@@ -264,7 +264,7 @@ async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveC
   const isSuppressionFree = async (file: string): Promise<boolean> => {
     const known = suppressionFree.get(file)
     if (known !== undefined) return known
-    let clean = false
+    let clean: boolean
     try {
       clean = parseSuppressions(await readFile(join(ctx.rootDir, file), 'utf8')).length === 0
     } catch {

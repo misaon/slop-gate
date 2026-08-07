@@ -598,6 +598,56 @@ Measured against the srvc-bat playground: 5 of its 6 total `recommended` finding
 Verified directly against oxlint 1.76.0: `number_of_rules: 1` (the rule is genuinely active) but zero diagnostics against every canonical trigger pattern (setTimeout/setInterval/Function/execScript with a string-literal first argument). A rule that never fires is worse than no rule — recommending it would claim coverage of `security.implied-eval`-shaped bugs this registry does not actually provide. Dropped from the M0 hand-written registry for the same reason; recorded in docs/superpowers/specs/2026-07-31-m0-followups.md, "Test gaps worth closing". Scoped to the bare `eslint`-scope rule specifically — `typescript/no-implied-eval` is a separate, type-aware rule (excluded from `recommended` on that basis alone regardless of this entry).
 
 
+## The `perf` and `nursery` audit — 27 rules read, 4 rejected, 13 promoted
+
+<a id="perf-nursery-audit"></a>
+
+Both categories in full, against each rule's documentation rather than its name. Counts are from every
+oxlint rule enabled at once over `packages`, `apps` and `scripts` — 34,727 diagnostics from 186 rules on a
+tree that reports none under the 349 in `recommended`.
+
+**`no-await-in-loop` — 77, and the shape is the argument.** 74 distinct lines across 39 files: sequential
+`readFile`s inside a bounded loop, ordered writes into a sandbox, and test assertions. One of the 77 is
+`const sources = await Promise.all(…)`, reported because that already-parallel call sits inside an outer
+loop. The rule takes no options, and §`PROBE_CONCURRENCY` above is this repository measuring the opposite
+of its advice: unbounded fan-out cost 49 MB of peak RSS to save 41 ms.
+
+**`oxc/no-map-spread` — 8, all the same shape.** Every one is `.map(([key, value]) => ({ key, ...value }))`
+building a record from a `Map` entry: a fixed-size spread, not an accumulator. The rule's own documented
+replacement is `Object.assign(element, …)`, which mutates the element in the array being mapped.
+`oxc/no-accumulating-spread`, which catches the genuine quadratic case, is in `recommended` and reports 0.
+
+**`no-undef` — 564, zero true positives.** 20 distinct names: `process` 383, `AbortSignal` 55,
+`TextEncoder` 35, `AbortController` 27, `TextDecoder` 18, `Response` 8, `fetch` 7, `performance` 7, `URL` 6,
+`Buffer` 3, `setImmediate` 3, and so down. The twentieth is `work`, in
+`engine-astgrep/fixtures/swallowed-error.positive.js` — a deliberately-invalid fixture. It would need an
+`env`/`globals` declaration, and §13 has the engine write rules, categories and plugins and nothing else.
+
+**`no-unreachable-loop` — 2, both false.** `cache/atomic-write.ts:27` is `for (let attempt = 0; ; attempt += 1)`
+whose `catch` rethrows past the retry budget and otherwise `await delay(…)`s and continues. The rule does not
+follow the path that leaves a `catch` without throwing.
+
+**`react/no-array-index-key` — 3, and all three false, which is not the same as the rule being wrong.**
+Every one is `prose.tsx`, a component that re-derives its whole list from one string and never reorders or
+filters it; there an index key is the *better* one, because a content key would remount every node whenever
+the text changed. The rule cannot see which shape it has. Withheld as a revisit trigger rather than promoted,
+because 3/3 is a fact about one file and this corpus has no React application to measure against.
+
+**Promoted, 12:** `perf` — `prefer-array-find`, `prefer-array-flat-map`, `prefer-set-has`, `no-useless-call`,
+`jsx-no-constructed-context-values`, `no-object-type-as-default-prop`. `nursery` — `import/export`,
+`import/named`, `promise/no-return-in-finally`, `react/require-render-return`, `no-useless-assignment`,
+`unicorn/no-useless-iterator-to-array`. Six carried a mechanical `nursery.*` concept id, which is a category
+name and not a durable config key, so `overrides.ts` re-homes them first.
+
+They cost this repository four fixes, all of them improvements: a dead `let stdout = ''`, and two
+`filter(…).at(-1)` chains that are `findLast(…)` — the same value without materialising the matches.
+
+**Left `unlisted`, and why they are not `withheld`:** the four `react-perf/jsx-no-new-*` rules and
+`react/react-compiler` fire on inline props and hook shapes that are idiomatic React, and 0 findings on a
+corpus with no React application in it says nothing about them. They need a measurement before they get a
+verdict, not a reason written from the rule name. `no-restricted-exports` has no content at all without an
+option naming what to restrict, which is a per-repository decision.
+
 ## hadolint/DL3066 — hadolint cannot catch a container running as root
 
 <a id="hadolint-dl3066"></a>

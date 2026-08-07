@@ -137,7 +137,7 @@ function describeOwnership(ownership: readonly ConceptOwnership[]): string {
 function verdict(explanation: ConceptWhy): string {
   if (explanation.servicedBySlopGate) return 'Emitted by slop-gate itself, not by any engine rule.'
   if (!explanation.enablement.enabled) {
-    const framework = explanation.frameworks.filter((entry) => entry.setting === 'off').at(-1)
+    const framework = explanation.frameworks.findLast((entry) => entry.setting === 'off')
     return framework === undefined
       ? 'Produces no findings: not enabled by any layer.'
       : `Produces no findings: framework \`${framework.id}\` turned it off.`

@@ -140,6 +140,14 @@ export const CURATED_CONCEPTS = [
       'cannot use a pointer.',
   },
   {
+    id: 'correctness.component-missing-return',
+    group: 'correctness',
+    title: 'Component render with no return',
+    description:
+      'A render method that falls off its end returns `undefined`, which React treats as an error rather ' +
+      'than as an empty component.',
+  },
+  {
     id: 'correctness.const-comparisons',
     group: 'correctness',
     title: 'Comparison with a fixed result',
@@ -162,6 +170,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Two comparisons combined in one expression where one already implies the other reduce to a ' +
       'single comparison, so the expression does not constrain what it appears to.',
+  },
+  {
+    id: 'correctness.duplicate-export-name',
+    group: 'correctness',
+    title: 'Name exported twice from one module',
+    description:
+      'A module exporting the same name more than once — directly and again through a `export *` — leaves ' +
+      'which binding an importer receives up to resolution order rather than to the author.',
   },
   {
     id: 'correctness.erasing-op',
@@ -323,6 +339,14 @@ export const CURATED_CONCEPTS = [
       'attaches existing element state to the wrong item.',
   },
   {
+    id: 'correctness.jsx-key-index',
+    group: 'correctness',
+    title: 'List key taken from the array index',
+    description:
+      'An index is a position, not an identity, so every item after an insertion or a sort gets the key ' +
+      'its neighbour had. That is the same failure as no key at all, hidden behind one that looks present.',
+  },
+  {
     id: 'correctness.jsx-no-duplicate-props',
     group: 'correctness',
     title: 'Duplicate JSX prop',
@@ -369,6 +393,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Audio and video without a caption track carry information that is simply unavailable to ' +
       'anyone who cannot hear it, and to anyone in a context where sound is off.',
+  },
+  {
+    id: 'correctness.missing-named-export',
+    group: 'correctness',
+    title: 'Named import the module does not export',
+    description:
+      'The binding is `undefined` at run time rather than an import error, so the failure surfaces wherever ' +
+      'it is first called, not where it was imported.',
   },
   {
     id: 'correctness.missing-throw',
@@ -1237,6 +1269,14 @@ export const CURATED_CONCEPTS = [
       'and the warning it produces says nothing about the real cause.',
   },
   {
+    id: 'correctness.return-in-finally',
+    group: 'correctness',
+    title: 'Value returned from a finally block',
+    description:
+      'A `return` inside `finally` replaces whatever the `try` or `catch` was returning, and discards an ' +
+      'in-flight exception with it, so an error disappears with no trace that it happened.',
+  },
+  {
     id: 'correctness.role-has-required-aria-props',
     group: 'correctness',
     title: 'Role missing a required attribute',
@@ -1413,12 +1453,28 @@ export const CURATED_CONCEPTS = [
       'nothing and reads as covered in the summary.',
   },
   {
+    id: 'dead-code.useless-assignment',
+    group: 'dead-code',
+    title: 'Value assigned and never read',
+    description:
+      'The assigned value is overwritten or goes out of scope before anything reads it. Usually the line ' +
+      'that was meant to read it is missing, so this is a symptom rather than untidiness.',
+  },
+  {
     id: 'pedantic.prefer-ts-expect-error',
     group: 'pedantic',
     title: 'Suppression that outlives its error',
     description:
       '`@ts-ignore` stays silent once the error beneath it is fixed, so the suppression accumulates ' +
       'and hides the next error on that line. `@ts-expect-error` fails when it is no longer needed.',
+  },
+  {
+    id: 'perf.useless-iterator-to-array',
+    group: 'perf',
+    title: 'Iterator materialised for no reason',
+    description:
+      'Collecting an iterator into an array only to iterate it once allocates the whole sequence to read ' +
+      'it in order, which is what the iterator already did.',
   },
   {
     id: 'restriction.no-import-type-side-effects',
