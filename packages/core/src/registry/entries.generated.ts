@@ -6305,7 +6305,7 @@ export const GENERATED_RULE_ENTRIES: readonly RuleEntry[] = [
   {
     engine: 'oxlint',
     engineRuleId: 'react/no-danger',
-    concepts: ['restriction.no-danger'],
+    concepts: ['security.dangerous-html'],
     tier: 0,
     priority: 50,
     severityDefault: 'warn',

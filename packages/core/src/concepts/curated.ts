@@ -1501,6 +1501,14 @@ export const CURATED_CONCEPTS = [
       'claims the fallback is unreachable. One of the two is wrong.',
   },
   {
+    id: 'security.dangerous-html',
+    group: 'security',
+    title: 'Markup written to the DOM unescaped',
+    description:
+      'Setting inner HTML from a value bypasses every escape the framework would have applied, so any part ' +
+      'of it that came from outside the program is executed rather than displayed.',
+  },
+  {
     id: 'security.target-blank',
     group: 'security',
     title: 'New tab opened without `noopener`',

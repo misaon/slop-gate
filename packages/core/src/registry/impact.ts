@@ -70,6 +70,8 @@ const CONCEPT_IMPACT: Readonly<Record<string, Impact>> = {
   'pedantic.ban-ts-comment': 2,
   // Every current browser implies `noopener` on a `_blank` link, so this is a hole only where one does not.
   'security.target-blank': 2,
+  // The rule reports the API, not the value passed to it, and a constant string is not a hole.
+  'security.dangerous-html': 2,
   // A `javascript:` URL in an href is an XSS sink, and React 19 refuses to render one at all.
   'suspicious.jsx-no-script-url': 3,
   // Executing a string is the same hole `security.eval-usage` names, reached through a timer.

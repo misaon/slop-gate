@@ -27,6 +27,8 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'react/rules-of-hooks': { concepts: ['correctness.rules-of-hooks'] },
   // Reverse tabnabbing: the opened page can rewrite `window.opener.location`.
   'react/jsx-no-target-blank': { concepts: ['security.target-blank'] },
+  // The one React API that writes unescaped markup into the document.
+  'react/no-danger': { concepts: ['security.dangerous-html'] },
 
   // `nursery` is oxlint's readiness label, not a subject. A concept id is a config key a user writes
   // down, so it cannot be one that stops being true the day upstream graduates the rule.

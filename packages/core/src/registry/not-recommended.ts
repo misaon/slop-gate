@@ -189,6 +189,67 @@ export const NOT_RECOMMENDED_GENERATED: Readonly<Record<string, NotRecommended>>
       '`recommended` combined, and the default figure is the largest ever measured for this registry.',
     evidence: 'no-underscore-dangle',
   },
+  'vitest/require-test-timeout': {
+    reason:
+      '**1,790 findings — every test in the repository**, because it wants an explicit timeout argument on ' +
+      'each one. A suite\'s timeout is a property of the suite and belongs in its config, where vitest already ' +
+      'takes it; repeating it per test is 1,790 copies of one number to keep in step.\n\n' +
+      'The largest single class in the `restriction` category and a fair summary of what that category is: ' +
+      'oxlint files a rule there when it restricts something on preference rather than on a defect, and 37 ' +
+      'of them fire here. The others below are excluded on that same reading, each with its own count.',
+    evidence: 'restriction-audit',
+  },
+  'oxc/no-async-await': { reason: '**1,190 findings.** It bans `async`/`await` outright, in favour of raw promise chains. There is no reading of this repository, or of modern JavaScript, where that is the safer form.' },
+  'oxc/no-optional-chaining': { reason: '**712 findings.** It bans `?.`, whose entire purpose is to make an absent value explicit rather than a `TypeError`. Aimed at output-size budgets on old transpile targets, which is a build decision.' },
+  'no-undefined': { reason: '**542 findings.** It bans the `undefined` literal. In TypeScript it is a value the type system names, and `void 0` is not clearer than it.' },
+  'oxc/no-rest-spread-properties': { reason: '**336 findings.** It bans object rest and spread, for the same transpile-target reason as `oxc/no-optional-chaining` above.' },
+  'import/no-relative-parent-imports': { reason: '**349 findings.** It bans `../`, which requires either a path alias in every consumer\'s toolchain or a flat tree. A repository layout decision, not a defect.' },
+  'no-use-before-define': { reason: '**245 findings.** Function declarations hoist and TypeScript reports a genuine use-before-initialisation as an error, so what is left is ordering — and reading a file top-down from its exports is a defensible order.' },
+  'typescript/no-non-null-assertion': {
+    reason:
+      '**234 findings, and this one is uncomfortable**: AGENTS.md does say null and undefined go explicit ' +
+      'rather than through `!`. Nearly all 234 are `array[index]!` under `noUncheckedIndexedAccess`, ' +
+      'immediately after a bound has been checked — where the alternative is a branch that cannot be taken ' +
+      'and cannot be tested.\n\n' +
+      'Recorded rather than resolved. The rule is right about the pattern AGENTS.md means and wrong about the ' +
+      'one that dominates the count, and separating them needs the index type, not this rule.',
+    evidence: 'restriction-audit',
+  },
+  'typescript/explicit-function-return-type': { reason: '**226 findings.** Inference is a feature of the language, and an annotation on every arrow is noise that also goes stale. `explicit-module-boundary-types` is the narrower version and is excluded with it — 46 findings, same argument.' },
+  'typescript/explicit-module-boundary-types': { reason: '**46 findings**, the exported-surface half of `typescript/explicit-function-return-type` above.' },
+  'react/no-unknown-property': {
+    reason:
+      '**187 findings, zero true positives, and one cause**: every one is `class=` in a Preact component. ' +
+      'Preact takes the DOM attribute names, so `class` and `for` are correct there and `className` is the ' +
+      'alias. The rule is React\'s property table with no way to know which renderer it is looking at.\n\n' +
+      'Real for a React codebase, which is why this is an exclusion and not a repair. Revisit if framework ' +
+      'detection (§23) can stand it down on a Preact tree, which is a signal the inventory already carries.',
+    evidence: 'restriction-audit',
+  },
+  'unicorn/import-style': { reason: '**131 findings.** It prescribes namespace against named against default per module, from a built-in table — a house style, and one that disagrees with `node:path` being imported named.' },
+  'node/no-process-env': { reason: '**89 findings.** Reading the environment is how a process is configured; the rule wants it funnelled through one module, which is a design a project chooses rather than a defect.' },
+  'react/jsx-no-literals': { reason: '**40 findings.** It requires every visible string to come from a translation call. That is an internationalisation decision, and on a project without one it reports all text.' },
+  'no-plusplus': { reason: '**21 findings.** `index += 1` against `index++`, with the ASI hazard it was written for removed by every formatter in use.' },
+  'react/no-multi-comp': { reason: '**20 findings.** One component per file is a layout preference; a small presentational helper beside its only caller is not a defect.' },
+  'no-bitwise': { reason: '**18 findings**, all deliberate — a seeded PRNG and a hash. Bitwise operators are how those are written.' },
+  'node/no-top-level-await': { reason: '**18 findings.** Top-level await is ES2022 and this repository is ESM-only on Node 24. The rule targets bundling for environments neither of those includes.' },
+  'no-void': { reason: '**16 findings**, all `void promise` — the idiom for marking a floating promise deliberate, which is the opposite of a defect.' },
+  'complexity': { reason: '**15 findings at the default of 20.** A threshold argument, the same as the `max-*` family: a cyclomatic number says nothing about whether a function does one thing.' },
+  'import/no-default-export': { reason: '**15 findings.** Default against named exports is a convention, and several tools in this tree require a default export from a config file.' },
+  'no-empty-function': { reason: '**13 findings.** An empty function is how a no-op callback and a default handler are spelled.' },
+  'react/jsx-filename-extension': { reason: '**12 findings.** A file-naming convention with no behaviour behind it.' },
+  'typescript/explicit-member-accessibility': { reason: '**12 findings.** `public` on every member restates the default in front of each one.' },
+  'unicorn/no-process-exit': { reason: '**8 findings**, all in build scripts. The concern is real — `process.exit` can truncate a buffered write — but the CLI already sets `process.exitCode` by policy, and these are scripts whose last act is the exit. Revisit when the scripts share the CLI\'s exit handling.' },
+  'typescript/no-dynamic-delete': { reason: '**7 findings.** `delete map[key]` on a record used as a map, which is what a record used as a map is for.' },
+  'typescript/no-invalid-void-type': { reason: '**7 findings**, all `Promise<void>` and `void` returns in generic positions the rule reads as invalid but TypeScript accepts.' },
+  'unicorn/no-array-for-each': { reason: '**6 findings.** `forEach` against `for…of` is a preference, and the argument for it — no `break`, no `await` — does not apply where neither is wanted.' },
+  'no-empty': { reason: '**4 findings.** An empty block with a comment in it is deliberate, and a swallowed error is already caught by `slop.swallowed-error`, which reads the catch rather than counting braces.' },
+  'react/only-export-components': { reason: '**4 findings.** A Fast Refresh constraint from one bundler\'s HMR implementation, not a property of the code.' },
+  'default-case': { reason: '**3 findings.** On a discriminated union an exhaustive `switch` without a default is what makes TypeScript check exhaustiveness, so the rule asks for the branch that turns that check off.' },
+  'no-console': { reason: '**2 findings.** For a CLI the console is the product. Where output discipline matters this repository already writes through `process.stdout`, which the rule does not distinguish.' },
+  'no-eq-null': { reason: '**2 findings.** `!= null` is the deliberate two-value check, and `pedantic.eqeqeq` is configured with `smart` for exactly that reason — see docs/measurements.md#pedantic-eqeqeq.' },
+  'class-methods-use-this': { reason: '**1 finding.** A method that does not read `this` is often an interface implementation that must stay a method.' },
+  'unicorn/prefer-module': { reason: '**1 finding**, a test asserting that a resolver handles `require.resolve`. This repository is ESM-only and the rules that enforce that — `no-commonjs`, `no-require-imports`, `no-var-requires`, `no-amd` — are in `recommended` as of this audit.' },
   'require-unicode-regexp': {
     reason:
       '**305 findings, zero defects.** Every one is an ASCII pattern where `u` changes nothing — `/\\\\/g`, ' +
