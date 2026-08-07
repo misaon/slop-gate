@@ -7,10 +7,7 @@ const NUM = 'px-3 py-2 text-right tabular-nums'
 
 const stamp = (iso: string | null): string => (iso === null ? '—' : new Date(iso).toLocaleString())
 
-/**
- * Counts, never rates. The sample is small enough that a percentage would be inventing confidence, so the
- * headline says how small it is and how much of it is this project's own CI before any number is shown.
- */
+// Counts, never rates: the sample is small enough that a percentage would be inventing confidence.
 export function Telemetry({ data }: { data: TelemetryPanel }) {
   if (!data.available) {
     return (
@@ -67,7 +64,6 @@ export function Telemetry({ data }: { data: TelemetryPanel }) {
 
       <div class="grid gap-4 md:grid-cols-3">
         <Card icon={Wrench} label="Build" delay={80}>
-          {/* A single value is a fact. A one-bar chart would say less than this sentence does. */}
           <dl class="space-y-2 text-sm">
             <div class="flex items-baseline justify-between gap-3">
               <dt class="text-ink-500">slop-gate</dt>
@@ -122,7 +118,6 @@ export function Telemetry({ data }: { data: TelemetryPanel }) {
                   <td class={`${NUM} text-ink-300`}>{rule.checkouts}</td>
                   <td class={`${NUM} text-ink-300`}>{rule.checkoutsFinding}</td>
                   <td class={`${NUM} text-ink-300`}>{rule.findings}</td>
-                  {/* Refusals with no findings is the signal: the rule fires and a human says no every time. */}
                   <td class={`${NUM} ${rule.suppressed > 0 ? 'font-semibold text-state-withheld' : 'text-ink-700'}`}>
                     {rule.suppressed}
                   </td>
