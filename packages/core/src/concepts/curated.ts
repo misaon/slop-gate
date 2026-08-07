@@ -74,6 +74,14 @@ export const CURATED_CONCEPTS = [
       'it, so users retype data the browser already holds.',
   },
   {
+    id: 'correctness.await-thenable',
+    group: 'correctness',
+    title: 'Await on something that is not a promise',
+    description:
+      'Awaiting a plain value yields it after an unnecessary microtask, and awaiting a function instead ' +
+      'of its call awaits the function object — which resolves immediately and skips the work entirely.',
+  },
+  {
     id: 'correctness.bad-array-method-on-arguments',
     group: 'correctness',
     title: 'Array method on `arguments`',
@@ -124,6 +132,14 @@ export const CURATED_CONCEPTS = [
     description: '`replaceAll` throws a `TypeError` when its regular expression lacks the `g` flag.',
   },
   {
+    id: 'correctness.check-property-names',
+    group: 'correctness',
+    title: 'Documented property that does not exist',
+    description:
+      'A `@property` naming something the type does not declare, or naming it twice, documents a shape ' +
+      'callers cannot rely on.',
+  },
+  {
     id: 'correctness.check-tag-names',
     group: 'correctness',
     title: 'Unrecognised documentation tag',
@@ -154,6 +170,14 @@ export const CURATED_CONCEPTS = [
     description:
       'A comparison between constants, or of a value against itself, has an outcome fixed at compile ' +
       'time, so one branch is unreachable and the condition does not test what it appears to.',
+  },
+  {
+    id: 'correctness.control-has-associated-label',
+    group: 'correctness',
+    title: 'Interactive control with no accessible name',
+    description:
+      'A control with no label, title or accessible text is announced by its role alone, so a screen ' +
+      'reader user is told there is a button and not what it does.',
   },
   {
     id: 'correctness.default',
@@ -201,7 +225,23 @@ export const CURATED_CONCEPTS = [
     title: 'Ref forwarder that drops its ref',
     description:
       'A forwarding wrapper that ignores its second parameter discards every ref passed to it, so ' +
-      "the caller's ref stays null and the wrapper serves no purpose.",
+      "the caller’s ref stays null and the wrapper serves no purpose.",
+  },
+  {
+    id: 'correctness.google-font-display',
+    group: 'correctness',
+    title: 'Web font loaded without a display strategy',
+    description:
+      'Without `display=swap` the text stays invisible while the font downloads, so a slow connection ' +
+      'shows an empty page rather than unstyled words.',
+  },
+  {
+    id: 'correctness.google-font-preconnect',
+    group: 'correctness',
+    title: 'Font host contacted without a preconnect',
+    description:
+      'The connection to the font host is opened only when the stylesheet is parsed, which adds a full ' +
+      'round trip to the point at which text can first be painted.',
   },
   {
     id: 'correctness.heading-has-content',
@@ -245,6 +285,14 @@ export const CURATED_CONCEPTS = [
       'alternative are read out twice.',
   },
   {
+    id: 'correctness.implements-on-classes',
+    group: 'correctness',
+    title: '`@implements` on something that is not a constructor',
+    description:
+      'The tag only means anything on a class or a constructor function; elsewhere the interface it ' +
+      'claims to satisfy is never checked against anything.',
+  },
+  {
     id: 'correctness.inline-script-id',
     group: 'correctness',
     title: 'Inline script with no id',
@@ -261,12 +309,28 @@ export const CURATED_CONCEPTS = [
       'never reached by keyboard or assistive technology.',
   },
   {
+    id: 'correctness.jest-expect-expect',
+    group: 'correctness',
+    title: 'Test that asserts nothing',
+    description:
+      'A test body with no assertion passes whatever the code does, so it reports coverage of a ' +
+      'behaviour nobody is checking.',
+  },
+  {
     id: 'correctness.jest-no-conditional-expect',
     group: 'correctness',
     title: 'Assertion inside a conditional',
     description:
       'An assertion in a branch or `catch` does not run when that path is not taken, so the test ' +
       'reports success without having checked anything.',
+  },
+  {
+    id: 'correctness.jest-no-disabled-tests',
+    group: 'correctness',
+    title: 'Test switched off in place',
+    description:
+      'A skipped test still appears in the suite and still reports as part of it, so the behaviour it ' +
+      'covered goes unchecked without the count going down.',
   },
   {
     id: 'correctness.jest-no-focused-tests',
@@ -427,6 +491,14 @@ export const CURATED_CONCEPTS = [
       'value is used rather than at the import that promised it.',
   },
   {
+    id: 'correctness.next-script-for-ga',
+    group: 'correctness',
+    title: 'Analytics loaded with a raw script tag',
+    description:
+      'A bare `<script>` blocks parsing and is re-run on client navigation, which the framework’s ' +
+      'script component exists to avoid.',
+  },
+  {
     id: 'correctness.no-access-key',
     group: 'correctness',
     title: 'Access key shortcut',
@@ -443,6 +515,14 @@ export const CURATED_CONCEPTS = [
       'control it has been told not to describe.',
   },
   {
+    id: 'correctness.no-array-delete',
+    group: 'correctness',
+    title: '`delete` used on an array element',
+    description:
+      '`delete` removes the property and leaves the length alone, so the array keeps a hole that reads ' +
+      'as `undefined` and that `map` and `forEach` skip without saying so.',
+  },
+  {
     id: 'correctness.no-arrow-functions-in-watch',
     group: 'correctness',
     title: 'Arrow function as a watcher',
@@ -455,8 +535,16 @@ export const CURATED_CONCEPTS = [
     group: 'correctness',
     title: 'Variable named `module`',
     description:
-      "Declaring `module` shadows the identifier the framework's own module handling relies on, " +
+      "Declaring `module` shadows the identifier the framework’s own module handling relies on, " +
       'breaking the page in ways that point nowhere near this declaration.',
+  },
+  {
+    id: 'correctness.no-async-client-component',
+    group: 'correctness',
+    title: 'Client component declared `async`',
+    description:
+      'Only server components may be async; a client component that returns a promise renders as ' +
+      'nothing and the error names the component rather than the `async` keyword.',
   },
   {
     id: 'correctness.no-async-in-computed-properties',
@@ -482,6 +570,30 @@ export const CURATED_CONCEPTS = [
       'Awaiting a promise before handing it to the combinator serialises the work the combinator ' +
       'exists to run concurrently, and a rejection then throws at the `await` instead of being ' +
       'handled by the combinator.',
+  },
+  {
+    id: 'correctness.no-base-to-string',
+    group: 'correctness',
+    title: 'Value stringified to `[object Object]`',
+    description:
+      'Converting a value whose type has no meaningful `toString` produces `[object Object]`, which ' +
+      'reaches a log, a key or a user interface as text that identifies nothing.',
+  },
+  {
+    id: 'correctness.no-before-interactive-script-outside-document',
+    group: 'correctness',
+    title: '`beforeInteractive` script outside the document',
+    description:
+      'The strategy only takes effect in the custom document; anywhere else the script loads at the ' +
+      'normal time and the guarantee it was chosen for does not hold.',
+  },
+  {
+    id: 'correctness.no-callback-in-promise',
+    group: 'correctness',
+    title: 'Callback invoked from inside a promise chain',
+    description:
+      'Mixing a node-style callback into `then` puts the callback’s own throw inside the promise, where ' +
+      'it is converted to a rejection nobody is watching for.',
   },
   {
     id: 'correctness.no-caller',
@@ -524,12 +636,28 @@ export const CURATED_CONCEPTS = [
       'other than what it matches.',
   },
   {
+    id: 'correctness.no-css-tags',
+    group: 'correctness',
+    title: 'Stylesheet linked by hand',
+    description:
+      'A hand-written `<link>` to a stylesheet skips the bundler, so the file is neither hashed nor ' +
+      'preloaded and a deploy can serve a stale copy.',
+  },
+  {
     id: 'correctness.no-danger-with-children',
     group: 'correctness',
     title: 'Raw HTML alongside children',
     description:
       'An element cannot both have its inner HTML replaced and render children into the same place; ' +
       'one of the two is discarded.',
+  },
+  {
+    id: 'correctness.no-defaults',
+    group: 'correctness',
+    title: 'Default value written into a documentation tag',
+    description:
+      'A default restated in a `@param` tag is a second copy of what the signature already says, and ' +
+      'the two drift apart the first time either changes.',
   },
   {
     id: 'correctness.no-delete-var',
@@ -650,6 +778,14 @@ export const CURATED_CONCEPTS = [
       'order they render in.',
   },
   {
+    id: 'correctness.no-duplicate-type-constituents',
+    group: 'correctness',
+    title: 'Union or intersection member repeated',
+    description:
+      'The same type listed twice in a union or intersection narrows nothing the single occurrence did ' +
+      'not, and usually marks a member someone meant to change rather than repeat.',
+  },
+  {
     id: 'correctness.no-empty-character-class',
     group: 'correctness',
     title: 'Empty character class',
@@ -720,6 +856,31 @@ export const CURATED_CONCEPTS = [
       'reaches past the component boundary into a node the child may have replaced.',
   },
   {
+    id: 'correctness.no-floating-promises',
+    group: 'correctness',
+    title: 'Promise nobody waits for',
+    description:
+      'A promise created and neither awaited nor handled runs outside the caller’s control flow: its ' +
+      'errors surface as an unhandled rejection long after the call, and its work may not finish before ' +
+      'the process exits.',
+  },
+  {
+    id: 'correctness.no-for-in-array',
+    group: 'correctness',
+    title: '`for…in` over an array',
+    description:
+      '`for…in` walks string keys, including inherited ones, so the loop variable is a string index ' +
+      'rather than an element and any property added to the prototype joins the iteration.',
+  },
+  {
+    id: 'correctness.no-head-element',
+    group: 'correctness',
+    title: 'Raw `<head>` element used',
+    description:
+      'A literal `<head>` is not merged or deduplicated, so tags it contains can be emitted twice and ' +
+      'the later one silently wins.',
+  },
+  {
     id: 'correctness.no-head-import-in-document',
     group: 'correctness',
     title: 'Head component inside the document',
@@ -740,8 +901,16 @@ export const CURATED_CONCEPTS = [
     group: 'correctness',
     title: 'Unoptimised image element',
     description:
-      "A raw image element bypasses the framework's image pipeline, so the file ships at full size " +
+      "A raw image element bypasses the framework’s image pipeline, so the file ships at full size " +
       'in its original format and delays the largest contentful paint.',
+  },
+  {
+    id: 'correctness.no-implied-eval',
+    group: 'correctness',
+    title: 'Code compiled from a string',
+    description:
+      'Passing a string to `setTimeout`, `setInterval` or `Function` compiles it at run time with the ' +
+      'privileges of the caller, which is `eval` reached through a different name.',
   },
   {
     id: 'correctness.no-interactive-element-to-noninteractive-role',
@@ -796,6 +965,14 @@ export const CURATED_CONCEPTS = [
     description:
       'A hook registered after an `await` arrives once setup has finished, by which point the ' +
       'component no longer accepts it, so the hook is never called.',
+  },
+  {
+    id: 'correctness.no-meaningless-void-operator',
+    group: 'correctness',
+    title: '`void` applied to something already undefined',
+    description:
+      '`void` exists to discard a value; applying it to an expression that has none says nothing and ' +
+      'hides whether the author meant to discard a result that used to be there.',
   },
   {
     id: 'correctness.no-misleading-character-class',
@@ -870,12 +1047,28 @@ export const CURATED_CONCEPTS = [
       'source appears to spell never ends up in the string.',
   },
   {
+    id: 'correctness.no-page-custom-font',
+    group: 'correctness',
+    title: 'Custom font declared on one page',
+    description:
+      'A font linked from a page rather than the document is re-requested on every navigation to it and ' +
+      'blocks that page’s first paint each time.',
+  },
+  {
     id: 'correctness.no-redundant-roles',
     group: 'correctness',
     title: 'Role identical to the implicit one',
     description:
       'A role that repeats what the element already means adds nothing, and hides that changing the ' +
       'element would change the semantics.',
+  },
+  {
+    id: 'correctness.no-redundant-type-constituents',
+    group: 'correctness',
+    title: 'Union member the rest already covers',
+    description:
+      'A member absorbed by another — `string | any`, `number | never` — collapses on assignment, so ' +
+      'the type checks far less than it appears to.',
   },
   {
     id: 'correctness.no-render-return-value',
@@ -958,6 +1151,14 @@ export const CURATED_CONCEPTS = [
       'owner lookup that fails under any modern rendering path.',
   },
   {
+    id: 'correctness.no-styled-jsx-in-document',
+    group: 'correctness',
+    title: '`styled-jsx` used in the custom document',
+    description:
+      'The document renders once on the server with no styled-jsx runtime, so the styles are dropped ' +
+      'without any error being raised.',
+  },
+  {
     id: 'correctness.no-sync-scripts',
     group: 'correctness',
     title: 'Parser-blocking script',
@@ -998,6 +1199,22 @@ export const CURATED_CONCEPTS = [
       'scope and every property read from it is wrong.',
   },
   {
+    id: 'correctness.no-title-in-document-head',
+    group: 'correctness',
+    title: '`<title>` placed in the custom document',
+    description:
+      'A title there cannot be overridden per page, so every route inherits it and the per-page title ' +
+      'is ignored.',
+  },
+  {
+    id: 'correctness.no-typos',
+    group: 'correctness',
+    title: 'Misspelled framework data function',
+    description:
+      'The framework matches these exports by exact name, so a misspelling is not an error — the export ' +
+      'is simply never called and the page renders without its data.',
+  },
+  {
     id: 'correctness.no-unassigned-vars',
     group: 'correctness',
     title: 'Variable read but never assigned',
@@ -1022,12 +1239,28 @@ export const CURATED_CONCEPTS = [
       'assigning it again duplicates the write and hides which one is authoritative.',
   },
   {
+    id: 'correctness.no-unsafe',
+    group: 'correctness',
+    title: 'Deprecated unsafe lifecycle method',
+    description:
+      'These lifecycles are not called in concurrent rendering and are scheduled for removal, so the ' +
+      'setup they perform silently stops happening.',
+  },
+  {
     id: 'correctness.no-unsafe-declaration-merging',
     group: 'correctness',
     title: 'Class merged with an interface',
     description:
       'The interface can declare members the class never initialises, and the compiler does not ' +
       'check them, so the `undefined` only shows up at runtime.',
+  },
+  {
+    id: 'correctness.no-unsafe-unary-minus',
+    group: 'correctness',
+    title: 'Negation applied to something that is not a number',
+    description:
+      'Unary minus coerces its operand, so negating a string or an object yields `NaN` and every ' +
+      'comparison downstream of it silently becomes false.',
   },
   {
     id: 'correctness.no-unused-labels',
@@ -1046,6 +1279,14 @@ export const CURATED_CONCEPTS = [
       'unreachable code that still ships.',
   },
   {
+    id: 'correctness.no-unwanted-polyfillio',
+    group: 'correctness',
+    title: 'Polyfill already shipped by the framework',
+    description:
+      'Requesting a polyfill the bundle already contains adds a blocking request for code that is ' +
+      'present, and the two can disagree about which implementation wins.',
+  },
+  {
     id: 'correctness.no-useless-backreference',
     group: 'correctness',
     title: 'Backreference that can never match',
@@ -1060,6 +1301,14 @@ export const CURATED_CONCEPTS = [
     description:
       'Catching an error and immediately rethrowing it changes nothing except to make the code look ' +
       'as though the failure is handled here.',
+  },
+  {
+    id: 'correctness.no-useless-default-assignment',
+    group: 'correctness',
+    title: 'Default that can never apply',
+    description:
+      'A default value on a parameter or a destructured property whose type excludes `undefined` is ' +
+      'dead: the branch that would use it cannot be reached or tested.',
   },
   {
     id: 'correctness.no-useless-empty-export',
@@ -1204,6 +1453,14 @@ export const CURATED_CONCEPTS = [
       'element provides: focus behaviour, keyboard handling, and default semantics.',
   },
   {
+    id: 'correctness.require-array-sort-compare',
+    group: 'correctness',
+    title: '`sort` without a comparator',
+    description:
+      'The default comparator converts each element to a string, so numbers order as `1, 10, 2` and ' +
+      'objects compare as `[object Object]` — stable, and almost never the order that was wanted.',
+  },
+  {
     id: 'correctness.require-awaited-expect-poll',
     group: 'correctness',
     title: 'Unawaited polling assertion',
@@ -1237,6 +1494,38 @@ export const CURATED_CONCEPTS = [
       'validation warns on every value and never actually checks the type.',
   },
   {
+    id: 'correctness.require-property',
+    group: 'correctness',
+    title: 'Documented object type with no properties listed',
+    description:
+      'A `@typedef` for an object that names none of its properties documents that the type exists and ' +
+      'nothing about what it holds.',
+  },
+  {
+    id: 'correctness.require-property-description',
+    group: 'correctness',
+    title: 'Documented property with no description',
+    description:
+      'A `@property` tag carrying only a name and a type repeats the declaration and adds nothing a ' +
+      'reader could not already see.',
+  },
+  {
+    id: 'correctness.require-property-name',
+    group: 'correctness',
+    title: 'Documented property with no name',
+    description:
+      'A `@property` tag without a name cannot be matched to anything in the type, so it documents ' +
+      'nothing and no tool can check it.',
+  },
+  {
+    id: 'correctness.require-property-type',
+    group: 'correctness',
+    title: 'Documented property with no type',
+    description:
+      'A `@property` tag without a type leaves the shape unstated in a block whose purpose is to state ' +
+      'it.',
+  },
+  {
     id: 'correctness.require-render-return',
     group: 'correctness',
     title: 'Render function with no return',
@@ -1251,6 +1540,22 @@ export const CURATED_CONCEPTS = [
     description:
       'In Vue 3 a slot is a render function, so treating one as an array of nodes throws as soon as ' +
       'that branch renders.',
+  },
+  {
+    id: 'correctness.require-yields',
+    group: 'correctness',
+    title: 'Generator whose yielded value is undocumented',
+    description:
+      'A generator documented without `@yields` describes how it is called and not what it produces, ' +
+      'which is the half a caller needs.',
+  },
+  {
+    id: 'correctness.restrict-template-expressions',
+    group: 'correctness',
+    title: 'Value interpolated that has no useful text form',
+    description:
+      'Interpolating an object, a nullable or an `any` into a template puts `[object Object]`, `null` ' +
+      'or whatever the value happens to be into text a person or a machine reads.',
   },
   {
     id: 'correctness.return-in-computed-property',
@@ -1365,6 +1670,14 @@ export const CURATED_CONCEPTS = [
       'awaiting it and passing a callback, means the continuation does not run when intended.',
   },
   {
+    id: 'correctness.valid-params',
+    group: 'correctness',
+    title: 'Promise method called with the wrong number of arguments',
+    description:
+      '`then`, `catch` and `finally` take a fixed number of handlers; extra or missing ones are ' +
+      'ignored, so the handler that was meant to run never does.',
+  },
+  {
     id: 'correctness.vitest-expect-expect',
     group: 'correctness',
     title: 'Test with no assertion',
@@ -1379,6 +1692,14 @@ export const CURATED_CONCEPTS = [
     description:
       'An assertion in a branch or `catch` does not run when that path is not taken, so the test ' +
       'reports success without having checked anything.',
+  },
+  {
+    id: 'correctness.vitest-no-disabled-tests',
+    group: 'correctness',
+    title: 'Test switched off in place',
+    description:
+      'A skipped test still appears in the suite and still reports as part of it, so the behaviour it ' +
+      'covered goes unchecked without the count going down.',
   },
   {
     id: 'correctness.vitest-no-focused-tests',
@@ -1483,6 +1804,15 @@ export const CURATED_CONCEPTS = [
     description:
       'Collecting an iterator into an array only to iterate it once allocates the whole sequence to read ' +
       'it in order, which is what the iterator already did.',
+  },
+  {
+    id: 'restriction.no-cycle',
+    group: 'restriction',
+    title: 'Modules that import each other',
+    description:
+      'A cycle between modules is resolved by whichever one the loader enters first: the other sees a ' +
+      'half-initialised namespace, so a binding read during evaluation is `undefined` rather than an error. ' +
+      'Type-only cycles are erased and are not reported.',
   },
   {
     id: 'restriction.no-import-type-side-effects',
