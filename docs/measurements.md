@@ -151,6 +151,42 @@ printable-ASCII fast path.
 `--format=pretty` at 619.6 ms ± 22.2 before and 608.7 ms ± 12.7 after. Sharing `CheckOptions.sources` with
 the reporters is worth 73.7 ms — 417.6 ms ± 2.5 down to 343.9 ms ± 5.9.
 
+## `GROUP_IMPACT.suspicious` — the group default was wrong for 35 of its 54 concepts
+
+`packages/core/src/registry/impact.ts`
+
+The group sat at **1 — "No path to failure. nothing breaks if they do not [fix it]"**, which is a claim about
+every concept in it. Censused all 54, against the rule documentation rather than the rule name:
+
+- **35 have a stated failure path.** `promise/always-return` breaks the chain so the caller's `await`
+  resolves early; `promise/no-multiple-resolved` silently drops the second result;
+  `unicorn/no-array-fill-with-reference-type` shares one array across every slot;
+  `oxc/no-this-in-exported-function` is `undefined` after bundling; `react/no-namespace` is documented
+  as *not supported by React*; `unicorn/require-post-message-target-origin` means no window receives the
+  message at all; `react/react-in-jsx-scope` is a `ReferenceError` under the classic runtime.
+- **10 are genuinely untidy** and are now the exceptions: `no-new`, `no-extra-bind`, `no-useless-concat`,
+  `no-useless-constructor`, `no-unneeded-ternary`, `no-extraneous-class`, `no-empty-named-blocks`,
+  `no-unnecessary-type-constraint`, `consistent-function-scoping`, and `import/no-named-as-default` —
+  whose own documentation says the code "won't break at runtime… confusing rather than broken".
+- **2 are security**, at 3: `react/jsx-no-script-url` is an XSS sink React 19 refuses to render, and
+  `no-implied-eval` is `security.eval-usage` reached through a timer.
+
+So the exception table is 12 rows the other way, against 35 it would need if the default stayed at 1.
+oxlint's own definition of the category — "code that is most likely wrong or useless" — is this
+vocabulary's 2, and reading it as 1 was a mechanical carry-over from the category name.
+
+Catalogue-wide the census moves **621/294/8 to 580/333/10** across impact 1/2/3.
+
+Two corrections the documentation made to a first pass taken from the rule names: `import/no-named-as-default`
+was going to 2 and is explicitly not a runtime problem, and `unicorn/require-post-message-target-origin`
+is not a security rule at all — it is correctness, and it carries a documented false-positive mode
+(`WorkerGlobalScope#postMessage` has a different second parameter and the rule has no type information
+to tell them apart).
+
+`impact.test.ts`'s recorded mismatch list grows from two to three: an XSS sink now reports impact 3 at
+`warn`, and so exits 0. That is the same deferred decision the other two entries record, and this is the
+strongest case yet for taking it.
+
 ## Engine reach and noise floors
 
 - **biome-css** is the quietest engine by design: seventeen rules, of which **thirteen produced no finding
