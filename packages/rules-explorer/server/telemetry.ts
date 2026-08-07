@@ -1,8 +1,9 @@
 import { neon } from '@neondatabase/serverless'
+import { Kysely, sql } from 'kysely'
+import { NeonDialect } from 'kysely-neon'
 
 export type TelemetryPanel = {
   readonly available: boolean
-  /** Why the panel is empty, when it is. Shown rather than rendered as zeroes. */
   readonly reason?: string
   readonly reports: number
   readonly projects: number
@@ -23,8 +24,45 @@ export type TelemetryPanel = {
     readonly lastSeen: string | null
   }[]
   readonly disabledConcepts: readonly { readonly concept: string; readonly checkouts: number }[]
-  /** One bucket per hour the window covers, zero-filled, so a quiet hour reads as a trough and not as absent. */
   readonly overTime: readonly { readonly hour: string; readonly reports: number; readonly ours: number }[]
+}
+
+/**
+ * The two tables and two views of `apps/telemetry-ingest/migrations`. `count` and `sum` are `bigint`,
+ * which the driver hands back as a string rather than a number, so every read of the summary views
+ * below casts to `int` — that cast is what makes the declared `number` true.
+ */
+type Telemetry = {
+  telemetry_report: {
+    run: string
+    ingested_at: Date
+    project: string | null
+    slop_gate: string
+    node: string
+    platform: string
+    ci: boolean
+    duration_ms: number
+    files_scanned: number
+    files_analysed: number
+    preset: string | null
+    baseline: boolean
+    disabled_concepts: string[]
+  }
+  telemetry_rule_summary: {
+    rule: string
+    checkouts: string
+    checkouts_suppressing: string
+    checkouts_finding: string
+    findings: string
+    suppressed: string
+    baselined: string
+    first_seen: Date | null
+    last_seen: Date | null
+  }
+  telemetry_disabled_summary: {
+    concept: string
+    checkouts: string
+  }
 }
 
 const EMPTY = (reason: string): TelemetryPanel => ({
@@ -44,45 +82,96 @@ const EMPTY = (reason: string): TelemetryPanel => ({
   overTime: [],
 })
 
+const count = sql<number>`count(*)::int`
+
+const stamp = (at: Date | null | undefined): string | null => at?.toISOString() ?? null
+
 /**
- * Read under the `telemetry_read` role, which holds `SELECT` on two tables and two views and nothing else —
- * verified by attempting an `INSERT` and a `DROP` and being refused both. The owner connection string is
- * deliberately not accepted here: an internal page has no business holding credentials that can drop a table.
+ * Read under the `telemetry_read` role, which holds `SELECT` on two tables and two views and nothing
+ * else. The owner connection string is deliberately not accepted: an internal page has no business
+ * holding a credential that can drop a table.
  */
 export function openTelemetry(): { read(): Promise<TelemetryPanel> } {
   const url = process.env['TELEMETRY_READ_URL']
+  let db: Kysely<Telemetry> | null = null
 
   return {
     async read() {
       if (url === undefined || url === '') {
         return EMPTY('TELEMETRY_READ_URL is not set, so this page has no read credential and is showing nothing rather than guessing.')
       }
-      const sql = neon(url)
+      db ??= new Kysely<Telemetry>({ dialect: new NeonDialect({ neon: neon(url) }) })
+
       try {
-        const [totals] = await sql`
-          select count(*)::int as reports,
-                 count(distinct project)::int as projects,
-                 count(*) filter (where ci)::int as from_ci,
-                 min(ingested_at) as first_seen,
-                 max(ingested_at) as last_seen
-          from telemetry_report`
+        const totals = await db
+          .selectFrom('telemetry_report')
+          .select((eb) => [
+            count.as('reports'),
+            sql<number>`count(distinct ${eb.ref('project')})::int`.as('projects'),
+            sql<number>`count(*) filter (where ${eb.ref('ci')})::int`.as('fromCi'),
+            eb.fn.min('ingested_at').as('firstSeen'),
+            eb.fn.max('ingested_at').as('lastSeen'),
+          ])
+          .executeTakeFirst()
 
-        const [medians] = await sql`
-          select percentile_cont(0.5) within group (order by files_scanned)::int as files,
-                 percentile_cont(0.5) within group (order by duration_ms)::int as duration
-          from telemetry_report`
+        const medians = await db
+          .selectFrom('telemetry_report')
+          .select([
+            sql<number | null>`percentile_cont(0.5) within group (order by files_scanned)::int`.as('files'),
+            sql<number | null>`percentile_cont(0.5) within group (order by duration_ms)::int`.as('duration'),
+          ])
+          .executeTakeFirst()
 
-        const platforms = await sql`select platform, count(*)::int as reports from telemetry_report group by platform order by reports desc, platform`
-        const versions = await sql`select slop_gate as version, count(*)::int as reports from telemetry_report group by slop_gate order by reports desc, version`
-        const nodes = await sql`select node, count(*)::int as reports from telemetry_report group by node order by reports desc, node`
-        const rules = await sql`
-          select rule, checkouts::int, checkouts_finding::int, findings::int, suppressed::int, baselined::int, last_seen
-          from telemetry_rule_summary order by findings desc, checkouts desc, rule`
-        const disabled = await sql`select concept, checkouts::int from telemetry_disabled_summary order by checkouts desc, concept`
+        const platforms = await db
+          .selectFrom('telemetry_report')
+          .select(['platform', count.as('reports')])
+          .groupBy('platform')
+          .orderBy('reports', 'desc')
+          .orderBy('platform')
+          .execute()
 
-        // `generate_series` zero-fills the gaps: an hour nobody reported has to be a visible trough, because a
-        // series drawn only from the hours that exist invents activity in the ones that do not.
-        const overTime = await sql`
+        const versions = await db
+          .selectFrom('telemetry_report')
+          .select(['slop_gate as version', count.as('reports')])
+          .groupBy('slop_gate')
+          .orderBy('reports', 'desc')
+          .orderBy('version')
+          .execute()
+
+        const nodes = await db
+          .selectFrom('telemetry_report')
+          .select(['node', count.as('reports')])
+          .groupBy('node')
+          .orderBy('reports', 'desc')
+          .orderBy('node')
+          .execute()
+
+        const rules = await db
+          .selectFrom('telemetry_rule_summary')
+          .select((eb) => [
+            'rule',
+            'last_seen',
+            sql<number>`${eb.ref('checkouts')}::int`.as('checkouts'),
+            sql<number>`${eb.ref('checkouts_finding')}::int`.as('checkoutsFinding'),
+            sql<number>`${eb.ref('findings')}::int`.as('findings'),
+            sql<number>`${eb.ref('suppressed')}::int`.as('suppressed'),
+            sql<number>`${eb.ref('baselined')}::int`.as('baselined'),
+          ])
+          .orderBy('findings', 'desc')
+          .orderBy('checkouts', 'desc')
+          .orderBy('rule')
+          .execute()
+
+        const disabled = await db
+          .selectFrom('telemetry_disabled_summary')
+          .select((eb) => ['concept', sql<number>`${eb.ref('checkouts')}::int`.as('checkouts')])
+          .orderBy('checkouts', 'desc')
+          .orderBy('concept')
+          .execute()
+
+        // `generate_series` zero-fills the gaps: a series drawn only from the hours that exist invents
+        // activity in the ones that do not.
+        const overTime = await sql<{ hour: string; reports: number; ours: number }>`
           with bounds as (
             select date_trunc('hour', min(ingested_at)) as lo, date_trunc('hour', max(ingested_at)) as hi
             from telemetry_report
@@ -93,37 +182,25 @@ export function openTelemetry(): { read(): Promise<TelemetryPanel> } {
           from bounds, generate_series(bounds.lo, bounds.hi, interval '1 hour') as h
           left join telemetry_report r on date_trunc('hour', r.ingested_at) = h
           group by h
-          order by h`
+          order by h`.execute(db)
 
         return {
           available: true,
-          reports: totals?.['reports'] ?? 0,
-          projects: totals?.['projects'] ?? 0,
-          fromOurCi: totals?.['from_ci'] ?? 0,
-          firstSeen: totals?.['first_seen'] ?? null,
-          lastSeen: totals?.['last_seen'] ?? null,
-          platforms: platforms.map((row) => ({ platform: String(row['platform']), reports: Number(row['reports']) })),
-          versions: versions.map((row) => ({ version: String(row['version']), reports: Number(row['reports']) })),
-          nodeMajors: nodes.map((row) => ({ node: String(row['node']), reports: Number(row['reports']) })),
+          reports: totals?.reports ?? 0,
+          projects: totals?.projects ?? 0,
+          fromOurCi: totals?.fromCi ?? 0,
+          firstSeen: stamp(totals?.firstSeen),
+          lastSeen: stamp(totals?.lastSeen),
+          platforms,
+          versions,
+          nodeMajors: nodes,
           runs:
-            medians?.['files'] === null || medians?.['files'] === undefined
+            medians?.files === null || medians?.files === undefined || medians.duration === null
               ? null
-              : { medianFilesScanned: Number(medians['files']), medianDurationMs: Number(medians['duration']) },
-          rules: rules.map((row) => ({
-            rule: String(row['rule']),
-            checkouts: Number(row['checkouts']),
-            checkoutsFinding: Number(row['checkouts_finding']),
-            findings: Number(row['findings']),
-            suppressed: Number(row['suppressed']),
-            baselined: Number(row['baselined']),
-            lastSeen: (row['last_seen'] as string | null) ?? null,
-          })),
-          disabledConcepts: disabled.map((row) => ({ concept: String(row['concept']), checkouts: Number(row['checkouts']) })),
-          overTime: overTime.map((row) => ({
-            hour: String(row['hour']),
-            reports: Number(row['reports']),
-            ours: Number(row['ours']),
-          })),
+              : { medianFilesScanned: medians.files, medianDurationMs: medians.duration },
+          rules: rules.map(({ last_seen, ...rest }) => ({ ...rest, lastSeen: stamp(last_seen) })),
+          disabledConcepts: disabled,
+          overTime: overTime.rows,
         }
       } catch (error) {
         return EMPTY(`the database refused the read: ${error instanceof Error ? error.message : String(error)}`)
