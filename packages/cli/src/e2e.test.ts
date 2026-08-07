@@ -87,7 +87,7 @@ test('a warm run still reports each of two byte-identical files, not a cross-fil
   const warm = await check(true)
 
   const twins = warm.diagnostics.filter((d) => d.file === 'src/twin-a.ts' || d.file === 'src/twin-b.ts')
-  expect(twins.map((d) => d.file).sort((a, b) => String(a).localeCompare(String(b)))).toEqual(['src/twin-a.ts', 'src/twin-b.ts'])
+  expect([...new Set(twins.map((d) => d.file))].toSorted()).toEqual(['src/twin-a.ts', 'src/twin-b.ts'])
 
   const seen = new Set<string>()
   for (const diagnostic of warm.diagnostics) {

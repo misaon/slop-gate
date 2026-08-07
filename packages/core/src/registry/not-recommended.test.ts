@@ -30,8 +30,10 @@ test('every evidence anchor resolves to a heading in measurements.md', () => {
 })
 
 test('a reason whose whole argument is a count still carries the count', () => {
-  for (const key of ['hadolint/DL3008', 'actionlint/runner-label', 'no-underscore-dangle']) {
-    const entry = NOT_RECOMMENDED_GENERATED[key] ?? NOT_RECOMMENDED_UNCATALOGUED[key]
-    expect(entry?.reason, key).toMatch(/\d/)
-  }
+  const rows = Object.entries({ ...NOT_RECOMMENDED_GENERATED, ...NOT_RECOMMENDED_UNCATALOGUED })
+  const unquantified = rows
+    .filter(([, entry]) => /\b(findings?|false positives?)\b/.test(entry.reason) && !/\d/.test(entry.reason))
+    .map(([key]) => key)
+
+  expect(unquantified).toEqual([])
 })

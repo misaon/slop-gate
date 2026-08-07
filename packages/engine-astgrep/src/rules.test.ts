@@ -52,26 +52,23 @@ test('every rule carries a message and a documented escape', () => {
   }
 })
 
-test('only the concepts whose measurement supports it are in the slop preset', () => {
-  expect(Object.keys(PRESETS.slop).filter((concept) => concept.startsWith('slop.')).sort()).toEqual([
-    'slop.as-any-cast',
-    'slop.double-cast',
-    'slop.narrative-comment',
-    'slop.stub-implementation',
-  ])
+const SLOP_CONCEPTS = [
+  'slop.as-any-cast',
+  'slop.double-cast',
+  'slop.emoji-in-code',
+  'slop.narrative-comment',
+  'slop.stub-implementation',
+  'slop.swallowed-error',
+]
+
+test('every slop concept the engine implements is in the slop preset', () => {
+  expect(Object.keys(PRESETS.slop).filter((concept) => concept.startsWith('slop.')).sort()).toEqual(SLOP_CONCEPTS)
 })
 
-test('recommended carries exactly the slop preset, and the two held-out concepts stay held out', () => {
+test('recommended carries exactly the slop preset', () => {
   const inRecommended = Object.keys(PRESETS.recommended).filter((concept) => concept.startsWith('slop.'))
 
-  expect(inRecommended.toSorted()).toEqual([
-    'slop.as-any-cast',
-    'slop.double-cast',
-    'slop.narrative-comment',
-    'slop.stub-implementation',
-  ])
-  expect(inRecommended).not.toContain('slop.swallowed-error')
-  expect(inRecommended).not.toContain('slop.emoji-in-code')
+  expect(inRecommended.toSorted()).toEqual(SLOP_CONCEPTS)
   expect(inRecommended.toSorted()).toEqual(Object.keys(PRESETS.slop).toSorted())
 })
 
