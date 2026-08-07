@@ -32,9 +32,9 @@ try {
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
     const target = await resolveHelpTarget(rawArgs)
     printHeader()
-    console.log(`${await renderUsage(target.cmd, target.parent)}\n`)
+    process.stdout.write(`${await renderUsage(target.cmd, target.parent)}\n\n`)
   } else if (rawArgs.length === 1 && (rawArgs[0] === '--version' || rawArgs[0] === '-v')) {
-    console.log(version)
+    process.stdout.write(`${version}\n`)
   } else {
     await runCommand(main, { rawArgs })
   }

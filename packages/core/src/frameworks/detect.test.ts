@@ -696,10 +696,10 @@ test('a repository that never declares Next.js gets the scope turned off, not le
   // This used to assert the profile stayed silent. Silence meant all 21 rules in the scope aimed at
   // a codebase they cannot describe — see the Remix measurement above.
   const detection = await detect({ 'package.json': manifest({ react: '^19.0.0' }) })
-  const applied_ = applied(detection, 'nextjs')
+  const nextjsAdjustments = applied(detection, 'nextjs')
 
-  expect(applied_?.evidence).toEqual([])
-  expect(applied_?.adjustments.every((adjustment) => adjustment.kind === 'disable-concept')).toBe(true)
+  expect(nextjsAdjustments?.evidence).toEqual([])
+  expect(nextjsAdjustments?.adjustments.every((adjustment) => adjustment.kind === 'disable-concept')).toBe(true)
   expect(detection.inapplicable.map((entry) => entry.id)).not.toContain('nextjs')
 })
 
