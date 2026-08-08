@@ -30,14 +30,14 @@ test('writes an .mts config, a gitignore entry and an AGENTS.md section for a no
 
   expect(result.created).toContain('slop-gate.config.mts')
   expect(result.created).toContain('AGENTS.md')
-  expect(await readFile(join(dir, 'slop-gate.config.mts'), 'utf8')).toContain('defineConfig')
-  expect(await readFile(join(dir, '.slop-gate', '.gitignore'), 'utf8')).toContain('*')
-  expect(await readFile(join(dir, 'AGENTS.md'), 'utf8')).toContain('sgate check')
+  await expect(readFile(join(dir, 'slop-gate.config.mts'), 'utf8')).resolves.toContain('defineConfig')
+  await expect(readFile(join(dir, '.slop-gate', '.gitignore'), 'utf8')).resolves.toContain('*')
+  await expect(readFile(join(dir, 'AGENTS.md'), 'utf8')).resolves.toContain('sgate check')
 })
 
 test('exempts the baseline and the gitignore itself from the directory-wide ignore', async () => {
   await runInit({ rootDir: dir })
-  expect(await readFile(join(dir, '.slop-gate', '.gitignore'), 'utf8')).toBe('*\n!.gitignore\n!baseline.json\n')
+  await expect(readFile(join(dir, '.slop-gate', '.gitignore'), 'utf8')).resolves.toBe('*\n!.gitignore\n!baseline.json\n')
 })
 
 test('writes a .ts config for a project that already declares "type": "module"', async () => {
@@ -45,7 +45,7 @@ test('writes a .ts config for a project that already declares "type": "module"',
   const result = await runInit({ rootDir: dir })
 
   expect(result.created).toContain('slop-gate.config.ts')
-  expect(await readFile(join(dir, 'slop-gate.config.ts'), 'utf8')).toContain('defineConfig')
+  await expect(readFile(join(dir, 'slop-gate.config.ts'), 'utf8')).resolves.toContain('defineConfig')
 })
 
 test('the generated config is loadable and yields the recommended preset', async () => {
@@ -61,7 +61,7 @@ test('does not overwrite an existing config', async () => {
   const result = await runInit({ rootDir: dir })
 
   expect(result.skipped).toContain('slop-gate.config.ts')
-  expect(await readFile(join(dir, 'slop-gate.config.ts'), 'utf8')).toContain('// mine')
+  await expect(readFile(join(dir, 'slop-gate.config.ts'), 'utf8')).resolves.toContain('// mine')
 })
 
 test('does not overwrite an existing .mts config either', async () => {
@@ -69,7 +69,7 @@ test('does not overwrite an existing .mts config either', async () => {
   const result = await runInit({ rootDir: dir })
 
   expect(result.skipped).toContain('slop-gate.config.mts')
-  expect(await readFile(join(dir, 'slop-gate.config.mts'), 'utf8')).toContain('// mine')
+  await expect(readFile(join(dir, 'slop-gate.config.mts'), 'utf8')).resolves.toContain('// mine')
 })
 
 test('running init again after the project becomes ESM does not create a second config file', async () => {
@@ -90,7 +90,7 @@ test('overwrites an existing config when forced, in place, without changing its 
   const result = await runInit({ rootDir: dir, force: true })
 
   expect(result.created).toContain('slop-gate.config.ts')
-  expect(await readFile(join(dir, 'slop-gate.config.ts'), 'utf8')).not.toContain('// mine')
+  await expect(readFile(join(dir, 'slop-gate.config.ts'), 'utf8')).resolves.not.toContain('// mine')
   const files = await readdir(dir)
   expect(files.filter((f) => f.startsWith('slop-gate.config.'))).toEqual(['slop-gate.config.ts'])
 })
@@ -121,14 +121,14 @@ test('running init twice changes nothing the second time', async () => {
 
   expect(second.created).not.toContain('slop-gate.config.ts')
   expect(second.created).not.toContain('slop-gate.config.mts')
-  expect(await readFile(join(dir, 'AGENTS.md'), 'utf8')).toBe(before)
+  await expect(readFile(join(dir, 'AGENTS.md'), 'utf8')).resolves.toBe(before)
 })
 
 test('tells the user to install the package when the generated config could not load', async () => {
-  expect(await missingPackageHint(dir)).toMatch(/npm install -D @misaon\/slop-gate/)
+  await expect(missingPackageHint(dir)).resolves.toMatch(/npm install -D @misaon\/slop-gate/)
 })
 
 test('says nothing when the package is already a dependency of the project', async () => {
   await installStubPackage()
-  expect(await missingPackageHint(dir)).toBeUndefined()
+  await expect(missingPackageHint(dir)).resolves.toBeUndefined()
 })

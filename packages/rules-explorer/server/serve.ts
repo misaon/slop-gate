@@ -1,10 +1,13 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import type { CatalogueStatus, Impact } from '@misaon/slop-gate-core'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { openCatalogue } from './catalogue.ts'
+import { openRegistryWriter, type RuleEdit } from './registry-write.ts'
+import { openTelemetry } from './telemetry.ts'
 
 const here = import.meta.dirname
 const repoRoot = resolve(here, '../../..')
@@ -20,10 +23,51 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
 }
 
 const catalogue = openCatalogue(repoRoot)
+const telemetry = openTelemetry()
+const writer = openRegistryWriter(repoRoot, catalogue)
+
+const isStatus = (value: unknown): value is CatalogueStatus =>
+  value === 'recommended' || value === 'withheld' || value === 'unlisted'
+const isImpact = (value: unknown): value is Impact => value === 1 || value === 2 || value === 3
+
+function readEdit(body: unknown): RuleEdit | null {
+  if (typeof body !== 'object' || body === null) return null
+  const fields = body as Record<string, unknown>
+
+  const { ruleRefKey, status, impact, reason, evidence, impactNote } = fields
+  if (typeof ruleRefKey !== 'string') return null
+  if (status !== undefined && !isStatus(status)) return null
+  if (impact !== undefined && !isImpact(impact)) return null
+
+  const edit: { -readonly [K in keyof RuleEdit]: RuleEdit[K] } = { ruleRefKey }
+  if (isStatus(status)) edit.status = status
+  if (isImpact(impact)) edit.impact = impact
+  if (typeof reason === 'string') edit.reason = reason
+  if (typeof evidence === 'string') edit.evidence = evidence
+  if (typeof impactNote === 'string') edit.impactNote = impactNote
+  return edit
+}
 
 const app = new Hono()
 
 app.get('/api/rules', async (context) => context.json(await catalogue.get()))
+
+// This endpoint rewrites `packages/core/src`, and the server listens on every interface. Same-origin
+// only, so a page a developer happens to have open cannot post an exclusion into their registry.
+app.post('/api/rules', async (context) => {
+  const origin = context.req.header('origin')
+  if (origin !== undefined && new URL(origin).host !== new URL(context.req.url).host) {
+    return context.json({ ok: false, error: 'Cross-origin edits are refused.' }, 403)
+  }
+
+  const edit = readEdit(await context.req.json().catch(() => null))
+  if (edit === null) return context.json({ ok: false, error: 'Expected { ruleRefKey, status?, impact?, … }.' }, 400)
+
+  const result = await writer.apply(edit)
+  return context.json(result, result.ok ? 200 : 422)
+})
+
+app.get('/api/telemetry', async (context) => context.json(await telemetry.read()))
 
 app.get('/api/health', (context) => context.json({ ok: true, generation: catalogue.generation() }))
 

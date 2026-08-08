@@ -1,4 +1,5 @@
 import type { CatalogueStatus, Impact } from '@misaon/slop-gate-core'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import logo from '../../../docs/assets/logo-wide-darkmode-360.webp'
 import { Tile, Toggle } from './components/chrome.tsx'
@@ -12,7 +13,15 @@ import {
 } from './components/animated/icons.tsx'
 import { ICON, Spinner, X } from './components/icons.tsx'
 import { columns, RulesTable } from './components/rules-table.tsx'
-import { fetchRules, onCatalogueChange, STATUS_HELP, STATUS_LABEL, type Row, type RulesPayload } from './data.ts'
+import { Tabs } from './components/tabs.tsx'
+import { Telemetry } from './components/telemetry.tsx'
+import {
+  fetchRules,
+  fetchTelemetry,
+  onCatalogueChange,
+  STATUS_HELP,
+  STATUS_LABEL,
+} from './data.ts'
 import { useTable } from './use-table.ts'
 
 const STATUSES: readonly CatalogueStatus[] = ['recommended', 'withheld', 'unlisted']
@@ -25,19 +34,23 @@ function toggled<T>(set: ReadonlySet<T>, value: T): ReadonlySet<T> {
 }
 
 export function App() {
-  const [state, setState] = useState<{ rows: Row[]; payload: RulesPayload } | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const client = useQueryClient()
   const [query, setQuery] = useState('')
   const [engines, setEngines] = useState<ReadonlySet<string>>(new Set())
   const [statuses, setStatuses] = useState<ReadonlySet<CatalogueStatus>>(new Set())
   const [impacts, setImpacts] = useState<ReadonlySet<Impact>>(new Set())
 
-  useEffect(() => {
-    const load = () =>
-      fetchRules().then(setState, (cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))
-    void load()
-    return onCatalogueChange(() => void load())
-  }, [])
+  const catalogue = useQuery({ queryKey: ['rules'], queryFn: fetchRules })
+  // Telemetry is a nice-to-have beside the catalogue: its own key, so a database that refuses the read leaves
+  // the rules table working instead of taking the page down with it.
+  const telemetryQuery = useQuery({ queryKey: ['telemetry'], queryFn: fetchTelemetry })
+
+  // The server already knows when the registry moved, so the stream invalidates rather than the client polling.
+  useEffect(() => onCatalogueChange(() => void client.invalidateQueries({ queryKey: ['rules'] })), [client])
+
+  const state = catalogue.data ?? null
+  const error = catalogue.error === null ? null : (catalogue.error).message
+  const telemetry = telemetryQuery.data ?? null
 
   const rows = state?.rows
   const filtered = useMemo(() => {
@@ -93,98 +106,115 @@ export function App() {
         <div class="brand-rule mt-4 h-px w-full" />
       </header>
 
-      <section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile icon={BookTextAnimated} label="Rules known" value={summary.total} />
-        <Tile
-          icon={ShieldCheckAnimated}
-          label="On in recommended"
-          value={summary.byStatus.recommended}
-          tone="text-state-on"
-          delay={60}
-        />
-        <Tile
-          icon={BanAnimated}
-          label="Withheld, with a reason"
-          value={summary.byStatus.withheld}
-          tone="text-state-withheld"
-          delay={120}
-        />
-        <Tile
-          icon={GaugeAnimated}
-          label="Reliability measured"
-          value={`${summary.measured} of ${summary.total}`}
-          tone="text-ink-300"
-          delay={180}
-        />
-      </section>
+      <Tabs
+        tabs={[
+          { id: 'rules', label: 'Rules', count: summary.total },
+          { id: 'telemetry', label: 'Telemetry', count: telemetry?.reports },
+        ]}
+      >
+        {(active) =>
+          active === 'rules' ? (
+            <>
+            <section class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Tile icon={BookTextAnimated} label="Rules known" value={summary.total} />
+              <Tile
+                icon={ShieldCheckAnimated}
+                label="On in recommended"
+                value={summary.byStatus.recommended}
+                tone="text-state-on"
+                delay={60}
+              />
+              <Tile
+                icon={BanAnimated}
+                label="Withheld, with a reason"
+                value={summary.byStatus.withheld}
+                tone="text-state-withheld"
+                delay={120}
+              />
+              <Tile
+                icon={GaugeAnimated}
+                label="Reliability measured"
+                value={`${summary.measured} of ${summary.total}`}
+                tone="text-ink-300"
+                delay={180}
+              />
+            </section>
 
-      <section class="mb-4 space-y-3">
-        <div class="group relative">
-          <HoverGroup class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">
-            <SearchAnimated class="text-ink-500 transition-colors group-focus-within:text-brand" />
-          </HoverGroup>
-          <input
-            type="search"
-            value={query}
-            onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
-            placeholder="Filter by rule, concept or title…"
-            class="w-full rounded-lg bg-ink-900 py-2 pr-9 pl-9 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-500 focus:ring-brand/60"
-          />
-          {query === '' ? null : (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              aria-label="Clear the filter"
-              class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-ink-500 transition-colors hover:bg-ink-850 hover:text-ink-100"
-            >
-              <X {...ICON} />
-            </button>
-          )}
-        </div>
-        <div class="flex flex-wrap gap-2">
-          {summary.byEngine.map((entry) => (
-            <Toggle
-              key={entry.engine}
-              active={engines.has(entry.engine)}
-              count={entry.total}
-              onClick={() => setEngines(toggled(engines, entry.engine))}
-            >
-              {entry.engine}
-            </Toggle>
-          ))}
-        </div>
-        <div class="flex flex-wrap items-center gap-2">
-          {IMPACT_LEVELS.map((impact) => (
-            <span key={impact} title={definitions[impact].test}>
-              <Toggle
-                active={impacts.has(impact)}
-                count={summary.byImpact[impact]}
-                onClick={() => setImpacts(toggled(impacts, impact))}
-              >
-                {impact} · {definitions[impact].label}
-              </Toggle>
-            </span>
-          ))}
-          <span class="mx-1 h-5 w-px bg-ink-800" />
-          {STATUSES.map((status) => (
-            <span key={status} title={STATUS_HELP[status]}>
-              <Toggle
-                active={statuses.has(status)}
-                count={summary.byStatus[status]}
-                onClick={() => setStatuses(toggled(statuses, status))}
-              >
-                {STATUS_LABEL[status]}
-              </Toggle>
-            </span>
-          ))}
-          <span class="ml-auto text-sm tabular-nums text-ink-500">
-            {filtered.length === state.rows.length ? `${state.rows.length} rules` : `${filtered.length} of ${state.rows.length} rules`}
-          </span>
-        </div>
-      </section>
+            <section class="mb-4 space-y-3">
+              <div class="group relative">
+                <HoverGroup class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">
+                  <SearchAnimated class="text-ink-500 transition-colors group-focus-within:text-brand" />
+                </HoverGroup>
+                <input
+                  type="search"
+                  value={query}
+                  onInput={(event) => setQuery((event.currentTarget).value)}
+                  placeholder="Filter by rule, concept or title…"
+                  class="w-full rounded-lg bg-ink-900 py-2 pr-9 pl-9 text-sm text-ink-100 ring-1 ring-ink-800 outline-none placeholder:text-ink-500 focus:ring-brand/60"
+                />
+                {query === '' ? null : (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    aria-label="Clear the filter"
+                    class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-ink-500 transition-colors hover:bg-ink-850 hover:text-ink-100"
+                  >
+                    <X {...ICON} />
+                  </button>
+                )}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                {summary.byEngine.map((entry) => (
+                  <Toggle
+                    key={entry.engine}
+                    active={engines.has(entry.engine)}
+                    count={entry.total}
+                    onClick={() => setEngines(toggled(engines, entry.engine))}
+                  >
+                    {entry.engine}
+                  </Toggle>
+                ))}
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                {IMPACT_LEVELS.map((impact) => (
+                  <span key={impact} title={definitions[impact].test}>
+                    <Toggle
+                      active={impacts.has(impact)}
+                      count={summary.byImpact[impact]}
+                      onClick={() => setImpacts(toggled(impacts, impact))}
+                    >
+                      {impact} · {definitions[impact].label}
+                    </Toggle>
+                  </span>
+                ))}
+                <span class="mx-1 h-5 w-px bg-ink-800" />
+                {STATUSES.map((status) => (
+                  <span key={status} title={STATUS_HELP[status]}>
+                    <Toggle
+                      active={statuses.has(status)}
+                      count={summary.byStatus[status]}
+                      onClick={() => setStatuses(toggled(statuses, status))}
+                    >
+                      {STATUS_LABEL[status]}
+                    </Toggle>
+                  </span>
+                ))}
+                <span class="ml-auto text-sm tabular-nums text-ink-500">
+                  {filtered.length === state.rows.length ? `${state.rows.length} rules` : `${filtered.length} of ${state.rows.length} rules`}
+                </span>
+              </div>
+            </section>
 
-      <RulesTable table={table} />
+            <RulesTable table={table} />
 
+            </>
+          ) : (telemetry === null ? (
+            <p class="text-sm text-ink-500">Reading the ingest database…</p>
+          ) : (
+            <Telemetry data={telemetry} />
+          ))
+        }
+      </Tabs>
       <footer class="mt-6 text-xs text-ink-500">
         Click a row for the concept, its languages, the commit that introduced it and — where one exists — the recorded
         reason it is not in <code>recommended</code>.

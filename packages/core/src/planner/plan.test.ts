@@ -44,10 +44,10 @@ const planWith = (args: {
   rules: Record<string, RuleSetting>
   electAlso?: readonly string[]
 }) => {
-  const resolver = createRuleSetResolver({ config: { rules: args.rules as never } })
+  const resolver = createRuleSetResolver({ config: { rules: args.rules } })
   const election = electOwners({
     entries: args.entries,
-    enabledConcepts: new Set([...resolver.anyEnabledConcepts, ...(args.electAlso ?? [])]) as never,
+    enabledConcepts: new Set([...resolver.anyEnabledConcepts, ...(args.electAlso ?? [])]),
     capabilities: new Set(),
     languages: new Set(args.files.map((f) => f.language)),
     participatingEngines: new Set(args.engines.map((e) => e.id)),

@@ -19,10 +19,10 @@ let originalSnapshotPath: string | undefined
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'sgate-mcp-tools-'))
   await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'fixture' }))
-  await writeFile(join(dir, 'clean.ts'), 'export const a = 1\n')
+  await writeFile(join(dir, 'clean.ts'), 'export const value = 1\n')
   await writeFile(
     join(dir, 'slop-gate.config.ts'),
-    "export default { extends: ['recommended'], rules: { 'types.type-error': 'off', 'dead-code.unused-file': 'off' } }\n",
+    "export default { extends: ['recommended'], rules: { 'dead-code.unused-file': 'off', 'types.type-error': 'off' } }\n",
   )
   originalSnapshotPath = process.env[SNAPSHOT_PATH_ENV]
   process.env[SNAPSHOT_PATH_ENV] = await installAdvisoryFixture(dir)
@@ -46,9 +46,9 @@ const loadedConfig = async (): Promise<SlopGateConfig> => {
 type CheckStructured = {
   outcome: string
   complete: boolean
-  gaps: Array<{ kind: string; engine?: string; detail: string; remedy?: string; concepts: string[] }>
+  gaps: { kind: string; engine?: string; detail: string; remedy?: string; concepts: string[] }[]
   counts: { error: number; warn: number; info: number }
-  concepts: Array<{ concept: string; section: string; findingCount: number; tier: string | null }>
+  concepts: { concept: string; section: string; findingCount: number; tier: string | null }[]
   reportTruncated: boolean
   uncoveredConcepts: string[]
   unknownConfigKeys: number
@@ -224,7 +224,7 @@ test('a rootDir inside the root is analysed', async () => {
 
 test('explains an enabled concept and names the rule that owns it, without running an engine', async () => {
   const result = await callExplain({ concept: 'correctness.no-debugger' }, context)
-  const data = structured<{ known: boolean; enabled: boolean; owners: Array<{ ruleRefKey: string }> }>(result)
+  const data = structured<{ known: boolean; enabled: boolean; owners: { ruleRefKey: string }[] }>(result)
 
   expect(result.isError).toBeUndefined()
   expect(data.known).toBe(true)
@@ -257,7 +257,7 @@ test('proposes without writing, and says so in the payload and on disk', async (
     applied: boolean
     tier: string
     command: string
-    files: Array<{ file: string; diff: string }>
+    files: { file: string; diff: string }[]
     onePassOnly: boolean
   }>(result)
 
@@ -270,7 +270,7 @@ test('proposes without writing, and says so in the payload and on disk', async (
   expect(result.content[0]?.text).toContain('Nothing has been written')
 
   const { readFile } = await import('node:fs/promises')
-  expect(await readFile(join(dir, 'spread.ts'), 'utf8')).toBe(source)
+  await expect(readFile(join(dir, 'spread.ts'), 'utf8')).resolves.toBe(source)
 })
 
 test('the safe tier is the default, matching plain `sgate fix`', async () => {

@@ -26,7 +26,7 @@ test('reliability is absent rather than assumed', () => {
 
   // The point of the axis: a rule nobody has read the findings of reports nothing, not 100%.
   expect(measured.length).toBeLessThan(catalogue.length / 10)
-  expect(measured.length).toBe(Object.keys(RULE_RELIABILITY).length)
+  expect(measured).toHaveLength(Object.keys(RULE_RELIABILITY).length)
   for (const entry of catalogue) {
     if (entry.reliability === null) continue
     expect(entry.reliability.correct).toBeLessThanOrEqual(entry.reliability.sampled)
@@ -56,10 +56,11 @@ test('a rule whose impact outranks the level it is reported at is a gap worth se
     (entry) => entry.status === 'recommended' && entry.impact === 3 && entry.level !== 'error',
   )
 
-  // A published advisory and a credential in CI both exit 0 today. Recorded rather than fixed here:
-  // aligning what gates a build to impact is a breaking change and wants its own release.
-  expect(mismatched.map((entry) => entry.concept).sort()).toEqual([
-    'security.vulnerable-dependency',
-    'security.workflow-hardcoded-credential',
-  ])
+  // Empty, and it stays empty. Impact 3 says the finding is a security or data-loss risk now, and a
+  // preset that reports one at `warn` exits 0 on it — which is the gap this list used to record.
+  //
+  // The line the audits settled on: a rule reporting an API a caller may be using safely is impact 2
+  // (`security.target-blank`, `security.dangerous-html`, `security.script-url`); a rule reporting a hole
+  // whatever the value is impact 3, and therefore `error`.
+  expect(mismatched.map((entry) => entry.concept).sort()).toEqual([])
 })

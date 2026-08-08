@@ -14,6 +14,7 @@ export type RulesPayload = {
   readonly rules: readonly CatalogueEntry[]
   readonly summary: CatalogueSummary
   readonly impacts: Readonly<Record<Impact, ImpactDefinition>>
+  readonly groupImpact: Readonly<Record<string, Impact>>
   readonly history: {
     readonly origins: Readonly<Record<string, RuleOrigin>>
     readonly removed: readonly { readonly ruleRefKey: string; readonly lastSeen: RuleOrigin }[]
@@ -26,6 +27,8 @@ export type Row = CatalogueEntry & {
   // core's node builtins into the browser bundle.
   readonly impactLabel: string
   readonly impactTest: string
+  /** What the concept's group gives it, so the editor knows whether a change needs an exception. */
+  readonly impactFromGroup: Impact | null
 }
 
 export async function fetchRules(): Promise<{ rows: Row[]; payload: RulesPayload }> {
@@ -39,9 +42,30 @@ export async function fetchRules(): Promise<{ rows: Row[]; payload: RulesPayload
       origin: payload.history.origins[rule.ruleRefKey] ?? null,
       impactLabel: payload.impacts[rule.impact].label,
       impactTest: payload.impacts[rule.impact].test,
+      impactFromGroup: payload.groupImpact[rule.group] ?? null,
     }),
   )
   return { rows, payload }
+}
+
+export type RuleEdit = {
+  readonly ruleRefKey: string
+  readonly status?: CatalogueStatus
+  readonly impact?: Impact
+  readonly reason?: string
+  readonly evidence?: string
+  readonly impactNote?: string
+}
+
+/** The server writes the registry, runs its tests and reverts on a red one, so a rejection arrives as prose. */
+export async function editRule(edit: RuleEdit): Promise<void> {
+  const response = await fetch('/api/rules', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(edit),
+  })
+  const result = (await response.json()) as { ok: boolean; error?: string }
+  if (!result.ok) throw new Error(result.error ?? `/api/rules responded ${response.status}`)
 }
 
 export const STATUS_LABEL: Readonly<Record<CatalogueStatus, string>> = {
@@ -61,4 +85,35 @@ export function onCatalogueChange(refetch: () => void): () => void {
   const source = new EventSource('/api/changes')
   source.addEventListener('changed', refetch)
   return () => source.close()
+}
+
+export type TelemetryPanel = {
+  readonly available: boolean
+  readonly reason?: string
+  readonly reports: number
+  readonly projects: number
+  readonly fromOurCi: number
+  readonly firstSeen: string | null
+  readonly lastSeen: string | null
+  readonly platforms: readonly { readonly platform: string; readonly reports: number }[]
+  readonly versions: readonly { readonly version: string; readonly reports: number }[]
+  readonly nodeMajors: readonly { readonly node: string; readonly reports: number }[]
+  readonly runs: { readonly medianFilesScanned: number; readonly medianDurationMs: number } | null
+  readonly rules: readonly {
+    readonly rule: string
+    readonly checkouts: number
+    readonly checkoutsFinding: number
+    readonly findings: number
+    readonly suppressed: number
+    readonly baselined: number
+    readonly lastSeen: string | null
+  }[]
+  readonly disabledConcepts: readonly { readonly concept: string; readonly checkouts: number }[]
+  readonly overTime: readonly { readonly hour: string; readonly reports: number; readonly ours: number }[]
+}
+
+export async function fetchTelemetry(): Promise<TelemetryPanel> {
+  const response = await fetch('/api/telemetry')
+  if (!response.ok) throw new Error(`/api/telemetry responded ${response.status}`)
+  return (await response.json()) as TelemetryPanel
 }

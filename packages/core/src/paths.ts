@@ -17,12 +17,6 @@ export function toRepoRelative(filename: string, rootDir: string): string {
 
 export async function absolutePrefixes(dirs: { readonly rootDir: string; readonly tmpDir: string }): Promise<readonly string[]> {
   const declared = [dirs.rootDir, dirs.tmpDir]
-  const prefixes = [...declared]
-  for (const path of declared) {
-    try {
-      prefixes.push(await realpath(path))
-    } catch {
-    }
-  }
-  return prefixes
+  const resolved = await Promise.all(declared.map((path) => realpath(path).catch(() => null)))
+  return [...declared, ...resolved.filter((path) => path !== null)]
 }

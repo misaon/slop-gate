@@ -35,7 +35,7 @@ afterAll(async () => {
 const respond = (bytes: Uint8Array) => async () => ({
   ok: true,
   status: 200,
-  arrayBuffer: async () => bytes.slice().buffer as ArrayBuffer,
+  arrayBuffer: async () => bytes.slice().buffer,
 })
 
 const refuse = () => {
@@ -132,7 +132,7 @@ test('Windows is refused by name, with the reason and the two ways out', async (
 
 test('an unsupported platform is refused before any request is made', async () => {
   await expect(installActionlint({ platform: 'aix', arch: 'ppc64', fetch: refuse })).rejects.toThrow(
-    new RegExp(`no actionlint ${ACTIONLINT_VERSION.replaceAll('.', '\\.')} download is available for aix/ppc64`),
+    new RegExp(`no actionlint ${ACTIONLINT_VERSION.replaceAll('.', String.raw`\.`)} download is available for aix/ppc64`),
   )
 })
 

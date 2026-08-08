@@ -38,7 +38,8 @@ test('reports byte offsets, not UTF-16 indices', () => {
   expect(new TextDecoder().decode(bytes.subarray(diagnostic!.range.start, diagnostic!.range.end))).toBe('biome-ignore')
 })
 
-const OURS = `sgate-disable-${'next-line'}`
+const DISABLE = 'sgate-disable'
+const OURS = `${DISABLE}-next-line`
 
 test('says nothing about a file with no foreign suppression', () => {
   expect(findForeignSuppressions('a.css', `a { color: red }\n/* ${OURS} style.css-hex-color -- ours */\n`)).toEqual([])

@@ -28,7 +28,10 @@ const SNIPPET_MAX_CHARS = 160
 const CONFIG_LOCATION = '(configuration)'
 const MAX_LISTED_UNCOVERED = 8
 
-const DISABLE_DIRECTIVE = `sgate-disable${'-next-line'}`
+// Built from a variable so this source never contains a literal directive: a run over this repository
+// would otherwise read the example as a real suppression.
+const DISABLE = 'sgate-disable'
+const DISABLE_DIRECTIVE = `${DISABLE}-next-line`
 
 const estimateTokens = (text: string): number => Math.ceil(encodeUtf8(text).length / BYTES_PER_TOKEN)
 
@@ -526,7 +529,7 @@ function sectionLines(section: Section, groups: readonly Group[]): string[] {
   for (const group of groups) if (group.tier !== null) tiers.set(group.tier, (tiers.get(group.tier) ?? 0) + group.findings.length)
   const present = (['safe', 'suggested', 'unsafe'] as const).filter((tier) => tiers.has(tier))
   const highest = present.at(-1) ?? 'safe'
-  const flag = highest === 'safe' ? 'sgate fix' : highest === 'suggested' ? 'sgate fix --suggest' : 'sgate fix --unsafe'
+  const flag = highest === 'safe' ? 'sgate fix' : (highest === 'suggested' ? 'sgate fix --suggest' : 'sgate fix --unsafe')
 
   const lines = [
     '## automated — `sgate fix` rewrites these. Do not edit them by hand.',
@@ -594,8 +597,8 @@ function nextActionLines(
 
   if (automated.length > 0) {
     const findings = automated.reduce((sum, group) => sum + group.findings.length, 0)
-    const highest = (['safe', 'suggested', 'unsafe'] as const).filter((tier) => automated.some((group) => group.tier === tier)).at(-1) ?? 'safe'
-    const flag = highest === 'safe' ? 'sgate fix' : highest === 'suggested' ? 'sgate fix --suggest' : 'sgate fix --unsafe'
+    const highest = (['safe', 'suggested', 'unsafe'] as const).findLast((tier) => automated.some((group) => group.tier === tier)) ?? 'safe'
+    const flag = highest === 'safe' ? 'sgate fix' : (highest === 'suggested' ? 'sgate fix --suggest' : 'sgate fix --unsafe')
     actions.push(`Run \`${flag}\` — it covers ${findings} finding(s). Leave those files alone until it has run; a hand edit and a tool edit on the same range conflict.`)
     actions.push('Run this repository\'s formatter afterwards. `sgate fix` does not run one — no formatter engine exists yet — so an applied edit can leave formatting your formatter would undo.')
   }

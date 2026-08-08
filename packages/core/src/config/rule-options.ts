@@ -37,6 +37,26 @@ const TSDOC_BLOCK_TAGS = [
 ] as const
 
 export const OPTIONED_RECOMMENDED_RULES: Readonly<Partial<Record<ConceptId, OptionedRule>>> = {
+  'pedantic.return-await': {
+    setting: ['warn', 'in-try-catch'],
+    reason:
+      'The rule was excluded on the grounds that `return await` is right inside a `try` — where it keeps '
+      + 'the frame in the stack trace and lets the block catch the rejection — and costs a microtask '
+      + 'outside one, "which the default configuration does not distinguish". `in-try-catch` is exactly '
+      + 'that distinction, so the objection is an argument for the option rather than against the rule.',
+    evidence: 'return-await',
+  },
+  'correctness.vitest-valid-expect': {
+    setting: ['warn', { maxArgs: 2 }],
+    reason:
+      '**56 findings on defaults in this repository, 0 with `maxArgs: 2`, and every one of the 56 was the ' +
+      'same false positive.** oxlint reports "Expect takes at most 1 argument" whenever the second argument ' +
+      'is not a string *literal*, but vitest\'s signature is `<T>(actual: T, message?: string)` — a message ' +
+      'built from a variable is as valid as one written inline.\n\n' +
+      '`jest/valid-expect` deliberately keeps the default: jest\'s `expect` really does take one argument, ' +
+      'so the same option there would blind a correct rule.',
+    evidence: 'vitest-valid-expect',
+  },
   'correctness.check-tag-names': {
     setting: ['warn', { definedTags: [...TSDOC_BLOCK_TAGS] }],
     reason:

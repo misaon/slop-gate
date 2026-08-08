@@ -17,6 +17,7 @@ process.stdout.write(
     rules,
     summary: core.summariseCatalogue(rules),
     impacts: core.IMPACTS,
+    groupImpact: core.GROUP_IMPACT,
     history,
   }),
 )

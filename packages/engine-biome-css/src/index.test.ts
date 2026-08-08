@@ -52,7 +52,7 @@ test('reports the installed biome version without its label', async () => {
 test('an empty batch never spawns anything', async () => {
   const engine = createBiomeCssEngine({ binaryPath: '/nonexistent/biome' })
   const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
-  expect(await collect(engine, handle, [])).toEqual([])
+  await expect(collect(engine, handle, [])).resolves.toEqual([])
   await handle.dispose()
 })
 
@@ -111,6 +111,6 @@ test('a rule not in the selection produces nothing rather than an error', async 
   const engine = createBiomeCssEngine()
   const handle = await engine.materializeConfig(new Map([['noDuplicateProperties', ['warn'] as const]]), context)
   await writeFile(join(root, 'a.css'), 'a { color: #fff; }\n', 'utf8')
-  expect(await collect(engine, handle, ['a.css'])).toEqual([])
+  await expect(collect(engine, handle, ['a.css'])).resolves.toEqual([])
   await handle.dispose()
 })

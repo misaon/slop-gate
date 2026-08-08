@@ -22,7 +22,7 @@ const sample = new Uint8Array(readFileSync(join(fixtures, 'osv-sample.zip')))
 const maliciousOnly = new Uint8Array(readFileSync(join(fixtures, 'osv-malicious-only.zip')))
 
 const respondWith = (body: Uint8Array) => () =>
-  Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(body.slice().buffer as ArrayBuffer) })
+  Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(body.slice().buffer) })
 
 let dir: string
 

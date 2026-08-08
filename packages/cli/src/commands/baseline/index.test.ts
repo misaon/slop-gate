@@ -14,7 +14,9 @@ import { update } from './update.ts'
 let dir: string
 let originalExitCode: number | undefined
 
-const CONFIG = "export default { extends: ['recommended'], rules: { 'types.type-error': 'off', 'dead-code.unused-file': 'off' } }\n"
+// Not `extends: ['recommended']`. These tests are about what a baseline accepts and re-finds, and every
+// rule beyond the one they seed is a finding they have to subtract again.
+const CONFIG = "export default { rules: { 'correctness.no-debugger': 'error' } }\n"
 
 beforeEach(async () => {
   originalExitCode = typeof process.exitCode === 'number' ? process.exitCode : undefined
@@ -177,7 +179,7 @@ test('update leaves the file untouched when nothing is fixed', { timeout: REAL_R
 
   const { out } = await run(update, {})
 
-  expect(await readFile(baselinePathFor(dir), 'utf8')).toBe(before)
+  await expect(readFile(baselinePathFor(dir), 'utf8')).resolves.toBe(before)
   expect(out).toContain('already current')
 })
 

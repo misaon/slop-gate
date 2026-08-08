@@ -47,6 +47,6 @@ describe('readZipEntries', () => {
 
   it('rejects a truncated archive rather than yielding partial entries', () => {
     const archive = load('classic.zip')
-    expect(() => [...readZipEntries(archive.subarray(0, archive.length - 40))]).toThrow(ZipFormatError)
+    expect(() => [...readZipEntries(archive.subarray(0, -40))]).toThrow(ZipFormatError)
   })
 })

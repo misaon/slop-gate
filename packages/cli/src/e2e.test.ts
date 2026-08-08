@@ -44,7 +44,7 @@ test('finds the seeded problems in the dirty file and nothing in the clean one',
 }, 60_000)
 
 test('reports every diagnostic with a canonical rule id, a concept and a position', async () => {
-  const diagnostics = (await check(false)).diagnostics
+  const {diagnostics} = await check(false)
 
   expect(diagnostics.some((d) => d.concept.startsWith('config.'))).toBe(true)
 
@@ -87,7 +87,7 @@ test('a warm run still reports each of two byte-identical files, not a cross-fil
   const warm = await check(true)
 
   const twins = warm.diagnostics.filter((d) => d.file === 'src/twin-a.ts' || d.file === 'src/twin-b.ts')
-  expect(twins.map((d) => d.file).sort()).toEqual(['src/twin-a.ts', 'src/twin-b.ts'])
+  expect([...new Set(twins.map((d) => d.file))].toSorted()).toEqual(['src/twin-a.ts', 'src/twin-b.ts'])
 
   const seen = new Set<string>()
   for (const diagnostic of warm.diagnostics) {

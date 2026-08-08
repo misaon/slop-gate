@@ -18,7 +18,7 @@ export const STANDARD_CORPUS: CorpusShape = { modules: 400, stylesheets: 24, doc
 function sequence(seed: number): () => number {
   let state = seed >>> 0
   return () => {
-    state = (state + 0x6d2b79f5) >>> 0
+    state = (state + 0x6D2B79F5) >>> 0
     let t = state
     t = Math.imul(t ^ (t >>> 15), t | 1)
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
@@ -37,11 +37,13 @@ const moduleName = (index: number): string => `mod-${String(index).padStart(4, '
 function moduleSource(index: number, total: number): string {
   const next = sequence(index * 2654435761)
   const noun = pick(next, NOUNS)
-  const neighbour = (index + 1) % total
+  // The last module imports nothing: `(index + 1) % total` closed the ring, and a 400-module cycle is not
+  // what a repository this size looks like — `restriction.no-cycle` reported all 400 of them.
+  const neighbour = index + 1 < total ? index + 1 : null
   const fields = 3 + Math.floor(next() * 4)
 
   const lines = [
-    `import { run${neighbour} } from './${moduleName(neighbour)}.ts'`,
+    ...(neighbour === null ? [] : [`import { run${neighbour} } from './${moduleName(neighbour)}.ts'`]),
     '',
     `export type ${noun}${index} = {`,
     ...Array.from({ length: fields }, (_, field) => `  readonly field${field}: ${pick(next, ['string', 'number', 'boolean'])}`),
@@ -50,7 +52,7 @@ function moduleSource(index: number, total: number): string {
     `export function run${index}(input: readonly ${noun}${index}[]): number {`,
     '  let total = 0',
     '  for (const entry of input) total += Object.keys(entry).length',
-    `  return total + run${neighbour}([])`,
+    neighbour === null ? '  return total' : `  return total + run${neighbour}([])`,
     '}',
   ]
 

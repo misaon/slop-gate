@@ -14,7 +14,7 @@ import {
 import { materializeOxlintConfig } from './config.ts'
 import { deriveOxlintFixes } from './derive-fixes.ts'
 import { parseOxlintOutput } from './parse.ts'
-import { resolveOxlintBinary } from './resolve-binary.ts'
+import { resolveOxlintBinary, resolveTsgolint } from './resolve-binary.ts'
 
 export { deriveOxlintFixes, loadFixCatalogue, type DeriveOxlintFixesOptions } from './derive-fixes.ts'
 export { PARSE_ERROR_RULE_ID, parseOxlintOutput, toEngineRuleId } from './parse.ts'
@@ -27,9 +27,13 @@ const MISSING_OXLINT =
   'deliberately will not fall back to an `oxlint` on PATH — the registry is generated from one ' +
   'specific oxlint version, and a different one reports different rules. Reinstall slop-gate.'
 
-export function createOxlintEngine(options: { binaryPath?: string } = {}): Engine {
+export function createOxlintEngine(options: { binaryPath?: string; typeAware?: boolean } = {}): Engine {
   const invocation: ScriptBinInvocation | undefined =
     options.binaryPath === undefined ? resolveOxlintBinary() : { command: options.binaryPath, prefixArgs: [] }
+
+  // Measured at 5.7 s against 0.09 s for the same rules over this repository, so it is never on by
+  // default — the capability exists only where someone installed the checker. docs/measurements.md.
+  const typeAware = options.typeAware ?? resolveTsgolint()
 
   const required = (): ScriptBinInvocation => {
     if (invocation === undefined) throw new EngineError('oxlint', MISSING_OXLINT)
@@ -42,7 +46,7 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
     capabilities: {
       languages: [...SCRIPT_LANGUAGES, 'vue', 'svelte', 'astro'],
       granularity: 'file',
-      provides: [],
+      provides: typeAware ? ['types'] : [],
       fixes: true,
     },
 
@@ -55,7 +59,7 @@ export function createOxlintEngine(options: { binaryPath?: string } = {}): Engin
     },
 
     run(batch: FileBatch, handle: EngineConfigHandle, context: RunContext, signal: AbortSignal) {
-      return execute(required(), batch, handle, context, signal)
+      return execute(required(), batch, handle, context, signal, typeAware)
     },
 
     deriveFixes(targets, selection, context, signal) {
@@ -70,6 +74,7 @@ async function* execute(
   handle: EngineConfigHandle,
   context: RunContext,
   signal: AbortSignal,
+  typeAware: boolean,
 ): AsyncIterable<RawDiagnostic> {
   if (batch.files.length === 0) return
 
@@ -78,6 +83,7 @@ async function* execute(
     '--config',
     handle.path,
     '--disable-nested-config',
+    ...(typeAware ? ['--type-aware'] : []),
     '--format',
     'json',
     ...batch.files.map((file) => file.path),

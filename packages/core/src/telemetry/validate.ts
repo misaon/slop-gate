@@ -130,7 +130,7 @@ export function validateTelemetryPayload(input: unknown): ValidationResult {
       filesAnalysed: input['filesAnalysed'],
       engines: engines.map((engine: Record<string, unknown>) => ({
         id: String(engine['id']),
-        version: engine['version'] === null ? null : String(engine['version']),
+        version: typeof engine['version'] === 'string' ? engine['version'] : null,
         ran: engine['ran'] === true,
       })),
       rules: rules.map((rule: Record<string, unknown>) => ({
@@ -141,7 +141,7 @@ export function validateTelemetryPayload(input: unknown): ValidationResult {
         generated: Number(rule['generated']),
       })),
       disabledConcepts: disabled.map(String),
-      preset: preset,
+      preset,
       baseline: input['baseline'],
     },
   }

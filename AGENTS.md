@@ -47,14 +47,18 @@ because a cached "the gate passed" verdict is not a verdict. `--output-logs=erro
 because turbo replays a cached task's log in full: 229 lines of tsdown output ahead of the findings,
 which in CI is the whole step log a contributor opens. A build that fails still prints everything.
 
-**`--max-warnings 0`, not bare `sgate check`.** Only 211 of the 340 concepts `recommended` enables here
-are `error`; 128 are `warn`, including all four `slop.*` rules. Measured: a file with an `as any` cast
+**`--max-warnings 0`, not bare `sgate check`.** Only 240 of the 889 concepts `recommended` enables here
+are `error`; 648 are `warn`, including all six `slop.*` rules. Measured: a file with an `as any` cast
 and a stub implementation exits `0` from a bare `sgate check` and `1` with the flag. Without it the
 gate would pass on precisely the findings this tool exists to make. One concept is still not gated —
 `config.rule-overlap` is `info`, and there is no threshold flag for `info`.
 
 **No baseline, and CI installs no optional engines.** This repository is at zero findings; a baseline
-would only let that rot silently. A finding gets fixed, or the rule gets argued with. `actionlint`,
+would only let that rot silently. A finding gets fixed, or the rule gets argued with — and since
+`recommended` became maximal, arguing with one means a named entry in `slop-gate.config.ts` under the
+group that says why. That file is the worked example of the split it documents: `recommended` is what
+slop-gate believes, and the config is what one codebase does about it. Turning a rule off there is a
+sentence someone has to write; adding it to a baseline would not be. `actionlint`,
 `hadolint` and `deps-security` are absent on a fresh machine, which a run states out loud as a coverage
 gap naming the command that closes it — installing them in CI and not locally would make CI the first
 place a finding ever appears, and `actionlint`'s installer has no Windows path at all

@@ -3,7 +3,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { writeFileAtomic } from '../cache/atomic-write.ts'
 import { hashJson } from '../cache/keys.ts'
 import type { RuleSetResolver } from '../config/resolve.ts'
-import type { RuleKey, SlopGateConfig } from '../config/types.ts'
+import type { SlopGateConfig } from '../config/types.ts'
 import type { Diagnostic, Edit, FixKind } from '../diagnostics/types.ts'
 import type { FileSource } from '../discovery/inventory.ts'
 import type { Engine, EngineRuleSelection, FixTarget, RunContext } from '../engine/types.ts'
@@ -264,7 +264,7 @@ async function withDerivedFixes(diagnostics: readonly Diagnostic[], ctx: DeriveC
   const isSuppressionFree = async (file: string): Promise<boolean> => {
     const known = suppressionFree.get(file)
     if (known !== undefined) return known
-    let clean = false
+    let clean: boolean
     try {
       clean = parseSuppressions(await readFile(join(ctx.rootDir, file), 'utf8')).length === 0
     } catch {
@@ -436,7 +436,7 @@ function oscillationDiagnostic(
   resolver: RuleSetResolver,
 ): Diagnostic | null {
   const concept = 'config.fix-oscillation'
-  const level = resolver.base.rules.get(concept as RuleKey)?.level
+  const level = resolver.base.rules.get(concept)?.level
   if (level === undefined || level === 'off') return null
 
   const message =

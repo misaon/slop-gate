@@ -228,9 +228,12 @@ test('maps raw severities that have no resolved level', () => {
   expect(advice?.severity).toBe('warn')
 })
 
-const NEXT_LINE = `sgate-disable${'-next-line'}`
-const LINE = `sgate-disable${'-line'}`
-const FILE = `sgate-disable${'-file'}`
+// Built from a variable so this file never contains a literal directive: it is the corpus the suppression
+// parser is tested against, and a real one here would be picked up by a run over this repository.
+const DISABLE = 'sgate-disable'
+const NEXT_LINE = `${DISABLE}-next-line`
+const LINE = `${DISABLE}-line`
+const FILE = `${DISABLE}-file`
 
 test('marks a matching finding as suppressed instead of dropping it', () => {
   const fileSource = `// ${NEXT_LINE} correctness.no-debugger -- test reason\ndebugger\n`
@@ -306,7 +309,7 @@ test('emits config.unused-suppression when a directive matches nothing', () => {
     entries,
     owners,
     sourceOf: () => fileSource,
-    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined),
     suppressionScanFiles: ['src/a.ts'],
   })
 
@@ -346,7 +349,7 @@ test('a directive in a file with zero raws is invisible without suppressionScanF
     entries,
     owners,
     sourceOf: () => fileSource,
-    levelOf: () => 'warn' as never,
+    levelOf: () => 'warn',
   })
 
   expect(result).toEqual([])
@@ -386,7 +389,7 @@ test('a multi-target directive is not unused when only one of its targets matche
     entries,
     owners,
     sourceOf: () => fileSource,
-    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined),
   })
 
   expect(result.some((d) => d.concept === 'config.unused-suppression')).toBe(false)
@@ -397,7 +400,7 @@ test('a file with no directives at all is unaffected', () => {
   expect(result[0]?.suppressed).toBeUndefined()
 })
 
-const directive = (rest: string): string => `// sgate-${'disable-next-line'} ${rest}`
+const directive = (rest: string): string => `// ${NEXT_LINE} ${rest}`
 
 test('an engine that owns none of a directive\'s targets does not call it unused', () => {
   const fileSource = `${directive('slop.double-cast -- checked above')}\nconst a = 1\n`
@@ -411,7 +414,7 @@ test('an engine that owns none of a directive\'s targets does not call it unused
     entries,
     owners: withAstGrep,
     sourceOf: () => fileSource,
-    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined),
     suppressionScanFiles: ['src/a.ts'],
   })
 
@@ -427,7 +430,7 @@ test('the owning engine still calls its own unmatched directive unused', () => {
     entries,
     owners,
     sourceOf: () => fileSource,
-    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined),
     suppressionScanFiles: ['src/a.ts'],
   })
 
@@ -443,7 +446,7 @@ test('a target no participating engine owns is still reported, by whoever is loo
     entries,
     owners,
     sourceOf: () => fileSource,
-    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined),
     suppressionScanFiles: ['src/a.ts'],
   })
 
@@ -459,7 +462,7 @@ test('a rule-id target is resolved by its engine prefix, not through the electio
     entries,
     owners,
     sourceOf: () => fileSource,
-    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined) as never,
+    levelOf: (concept) => (concept === 'config.unused-suppression' ? 'warn' : undefined),
     suppressionScanFiles: ['src/a.ts'],
   })
 
@@ -478,7 +481,7 @@ test('a missing reason is reported regardless of who owns the target', () => {
     entries,
     owners: withAstGrep,
     sourceOf: () => fileSource,
-    levelOf: (concept) => (concept === 'config.suppression-missing-reason' ? 'warn' : undefined) as never,
+    levelOf: (concept) => (concept === 'config.suppression-missing-reason' ? 'warn' : undefined),
     suppressionScanFiles: ['src/a.ts'],
   })
 

@@ -11,12 +11,12 @@ test('the checksum table records nothing that is not a published asset', () => {
   expect(Object.keys(HADOLINT_CHECKSUMS).sort()).toEqual(Object.values(HADOLINT_ASSETS).sort())
 })
 
-test('Windows x86_64 resolves, and Windows arm64 does not', () => {
+test('windows x86_64 resolves, and Windows arm64 does not', () => {
   expect(hadolintAsset('win32', 'x64')).toBe('hadolint-windows-x86_64.exe')
   expect(hadolintAsset('win32', 'arm64')).toBeUndefined()
 })
 
-test('Linux resolves for both architectures, because the static Alpine build covers musl too', () => {
+test('linux resolves for both architectures, because the static Alpine build covers musl too', () => {
   expect(hadolintAsset('linux', 'x64')).toBe('hadolint-linux-x86_64')
   expect(hadolintAsset('linux', 'arm64')).toBe('hadolint-linux-arm64')
 })

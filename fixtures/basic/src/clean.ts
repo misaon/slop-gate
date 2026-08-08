@@ -1,3 +1,3 @@
-export function clean(value: number): number {
-  return value * 2
-}
+const DOUBLE = 2
+
+export const clean = (value: number): number => value * DOUBLE

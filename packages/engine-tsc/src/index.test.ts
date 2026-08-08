@@ -33,7 +33,7 @@ afterEach(async () => {
 })
 
 test('reports its version', async () => {
-  expect(await createTscEngine({ rootDir: dir }).version()).toMatch(/^\d+\.\d+\.\d+/)
+  await expect(createTscEngine({ rootDir: dir }).version()).resolves.toMatch(/^\d+\.\d+\.\d+/)
 })
 
 test('declares project granularity and ts/tsx languages', () => {
@@ -113,7 +113,7 @@ test('yields nothing for a clean project', async () => {
   const engine = createTscEngine({ rootDir: dir })
   const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
-  expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
   await handle.dispose()
 }, 60_000)
 
@@ -178,13 +178,13 @@ test('yields nothing for an empty batch on a clean project without throwing', as
   const engine = createTscEngine({ rootDir: dir })
   const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
 
-  expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
   await handle.dispose()
 }, 60_000)
 
 test('is available when the resolved tsconfig exists', async () => {
   const engine = createTscEngine({ rootDir: dir })
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
 })
 
 test('is a reported coverage gap, not an engine error, when no tsconfig is there to typecheck', async () => {
@@ -204,7 +204,7 @@ test('honours an explicit tsconfigPath when deciding availability', async () => 
   await writeFile(join(dir, 'tsconfig.build.json'), TSCONFIG)
   const engine = createTscEngine({ rootDir: dir, tsconfigPath: join(dir, 'tsconfig.build.json') })
 
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
 })
 
 test('is a coverage gap, not a crash, when the project has no typescript of its own to run', async () => {
@@ -236,10 +236,10 @@ test('every entry point refuses, not just the availability probe', async () => {
 })
 
 test('a resolvable typescript plus a tsconfig is what makes it available — both, not either', async () => {
-  expect(await createTscEngine({ rootDir: dir }).availability?.()).toEqual({ available: true })
+  await expect(createTscEngine({ rootDir: dir }).availability?.()).resolves.toEqual({ available: true })
 
   await rm(join(dir, 'tsconfig.json'))
-  expect(await createTscEngine({ rootDir: dir }).availability?.()).toMatchObject({ available: false })
+  await expect(createTscEngine({ rootDir: dir }).availability?.()).resolves.toMatchObject({ available: false })
 })
 
 test('reports a coverage gap when a solution tsconfig references nothing that exists', async () => {
@@ -263,7 +263,7 @@ test('stays available for a tsconfig that declares its own inputs alongside refe
     await writeFile(join(bothDir, 'tsconfig.json'), JSON.stringify({ include: ['src'], references: [{ path: 'packages/a' }] }))
     const engine = createTscEngine({ rootDir: process.cwd(), tsconfigPath: join(bothDir, 'tsconfig.json') })
 
-    expect(await engine.availability?.()).toEqual({ available: true })
+    await expect(engine.availability?.()).resolves.toEqual({ available: true })
   } finally {
     await rm(bothDir, { recursive: true, force: true })
   }
@@ -286,7 +286,7 @@ test('typechecks every package of a workspace with no root project of its own', 
     }
 
     const engine = createTscEngine({ rootDir: repo, cacheDir: join(repo, '.cache') })
-    expect(await engine.availability?.()).toEqual({ available: true })
+    await expect(engine.availability?.()).resolves.toEqual({ available: true })
 
     const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
     const found = await collect(engine.run({ files: [] }, handle, { rootDir: repo, tmpDir: join(repo, '.cache') }, AbortSignal.timeout(120_000)))
@@ -315,7 +315,7 @@ test('typechecks a project whose tsconfig sets rootDir and whose tests live outs
 
   const engine = createTscEngine({ rootDir: dir })
   const handle = await engine.materializeConfig(new Map([['type-error', ['error'] as const]]), context)
-  expect(await collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(60_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [] }, handle, context, AbortSignal.timeout(60_000)))).resolves.toEqual([])
 })
 
 test('still reports a real type error in a project that sets rootDir', async () => {
@@ -353,5 +353,5 @@ test('an `extends` that resolves is not a gap', async () => {
   await writeFile(join(dir, 'tsconfig.json'), JSON.stringify({ extends: './base.json', compilerOptions: { noEmit: true } }))
   await writeFile(join(dir, 'src/a.ts'), 'export const a = 1\n')
 
-  expect(await createTscEngine({ rootDir: dir }).availability?.()).toEqual({ available: true })
+  await expect(createTscEngine({ rootDir: dir }).availability?.()).resolves.toEqual({ available: true })
 })

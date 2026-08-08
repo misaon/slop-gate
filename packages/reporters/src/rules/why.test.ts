@@ -29,7 +29,7 @@ const capture = (result: ConceptWhy, contextOver: Partial<RulesReporterContext> 
   return output
 }
 
-const flat = (output: string): string => output.replace(/\s+/g, ' ')
+const flat = (output: string): string => output.replaceAll(/\s+/g, ' ')
 
 test('reports an unknown concept without throwing, and does not attempt to describe it', () => {
   const output = capture(explanation({ concept: 'not.a.concept', isKnownConcept: false, enablement: { enabled: false, level: 'off', options: [], optionsFrom: undefined, baseProvenance: [], overrides: [] } }))
@@ -139,7 +139,7 @@ test('shows the owner and an ineligible non-participating engine — the real ox
   expect(output).toMatch(/produces findings via `oxlint\/no-unused-vars`/i)
 })
 
-test('explains a type-aware candidate blocked on a missing capability, citing the M2 blocker', () => {
+test('explains a type-aware candidate blocked on a missing capability, and names what provides it', () => {
   const output = capture(
     explanation({
       concept: 'correctness.no-floating-promises',
@@ -157,8 +157,8 @@ test('explains a type-aware candidate blocked on a missing capability, citing th
   )
 
   expect(output).toMatch(/uncovered/i)
-  expect(flat(output)).toContain('type-aware support is not wired up')
-  expect(flat(output)).toContain('2026-07-31-m0-followups.md')
+  expect(flat(output)).toContain('oxlint-tsgolint')
+  expect(flat(output)).toContain('type-aware-audit')
 
   const lines = output.split('\n')
   const candidateLine = lines.find((line) => line.includes('oxlint/no-floating-promises'))
@@ -177,8 +177,9 @@ test('explains a type-aware candidate blocked on a missing capability, citing th
     .map((line) => line.trim())
     .join(' ')
   expect(rejoined).toBe(
-    '— requires type information (`types`), which no participating engine provides yet — type-aware ' +
-      'support is not wired up (see "Blocks M2" in docs/superpowers/specs/2026-07-31-m0-followups.md)',
+    '— requires type information (`types`). oxlint provides it once `oxlint-tsgolint` is installed — add ' +
+      'it as a dev dependency. It is not bundled: it costs 21 MB and takes a run on this repository from ' +
+      '3.1 s to 5.9 s (docs/measurements.md#type-aware-audit)',
   )
 })
 

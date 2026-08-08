@@ -29,7 +29,7 @@ const resolved = (
   const election = electOwners({
     entries,
     enabledConcepts: resolver.anyEnabledConcepts,
-    capabilities: new Set((options.capabilities ?? []) as never[]),
+    capabilities: new Set(options.capabilities as never[] | undefined),
     languages: new Set((options.languages ?? ['ts']) as never[]),
     participatingEngines: new Set(options.participatingEngines ?? ['oxlint']),
     pinnedOwners: resolver.base.pinnedOwners,

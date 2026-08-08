@@ -28,7 +28,7 @@ export default defineConfig({
   plugins: [codspeed()],
   resolve: { alias: workspaceAlias },
   test: {
-    include: ['packages/*/src/**/*.test.ts'],
+    include: ['packages/*/{src,server}/**/*.test.ts'],
     setupFiles: ['./vitest.setup.ts'],
     environment: 'node',
     benchmark: { include: ['packages/*/bench/**/*.bench.ts'] },

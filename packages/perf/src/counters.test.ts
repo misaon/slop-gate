@@ -37,10 +37,13 @@ beforeAll(async () => {
 // The corpus is generated from a seed, so these are exact rather than approximate. A change here is a
 // change in how much work a run does, and it should be argued for in the pull request that causes it.
 test('a run analyses exactly the files the corpus contains, and no more', () => {
+  // 51, not 50: the generator's modules used to import their neighbour modulo the total, which closed a
+  // 400-module ring. Opening it left `mod-0000`'s exported type reachable from the entry and unused, which
+  // is one more knip finding and one fewer 400-finding cycle.
   expect(workCounters(cold)).toEqual({
     filesScanned: 439,
     filesAnalysed: 439,
-    findings: 50,
+    findings: 51,
     filesAssigned: { astgrep: 401, 'biome-css': 24, knip: 415, oxlint: 401, tsc: 401 },
   })
 })

@@ -42,10 +42,10 @@ test('every optioned rule reaches recommended and strict with its options intact
   expect(entries.length).toBeGreaterThan(0)
 
   for (const [concept, rule] of entries) {
-    expect(PRESETS.recommended[concept as RuleKey], concept).toEqual(rule!.setting)
-    expect(PRESETS.strict[concept as RuleKey], concept).toEqual(rule!.setting)
-    expect(splitRuleSetting(rule!.setting).options, concept).not.toEqual([])
-    expect(rule!.reason.length, concept).toBeGreaterThan(200)
+    expect(PRESETS.recommended[concept as RuleKey], concept).toEqual(rule.setting)
+    expect(PRESETS.strict[concept as RuleKey], concept).toEqual(rule.setting)
+    expect(splitRuleSetting(rule.setting).options, concept).not.toEqual([])
+    expect(rule.reason.length, concept).toBeGreaterThan(200)
   }
 })
 

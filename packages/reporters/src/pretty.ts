@@ -185,7 +185,7 @@ function writeSummary(surface: Surface, result: CheckResult): void {
   if (total === 0) {
     const caveats: string[] = []
     if (gaps.length > 0) caveats.push(`${plural(gaps.length, 'engine')} could not run`)
-    if (accepted > 0) caveats.push(`${plural(accepted, 'baselined finding')}`)
+    if (accepted > 0) caveats.push(plural(accepted, 'baselined finding'))
     lines.push(
       caveats.length === 0
         ? `  ${surface.paint('green', surface.checkMark)}  No issues found`
@@ -202,9 +202,9 @@ function writeSummary(surface: Surface, result: CheckResult): void {
   const analysedPart =
     filesAnalysed === 0
       ? `${filesAnalysed} analysed`
-      : filesAnalysed === filesFromCache
+      : (filesAnalysed === filesFromCache
         ? `${filesAnalysed} analysed (all cached)`
-        : `${filesAnalysed} analysed${surface.statsSeparator}${filesFromCache} cached`
+        : `${filesAnalysed} analysed${surface.statsSeparator}${filesFromCache} cached`)
   lines.push(`  ${surface.paint('dim', `${filesScanned} scanned${surface.statsSeparator}${analysedPart}${surface.statsSeparator}${durationMs} ms`)}`)
 
   if (cacheByEngine.some((engine) => engine.filesFromCache > filesFromCache)) {
@@ -261,7 +261,7 @@ function writeTimings(surface: Surface, result: CheckResult): void {
     total <= 0 || phase.durationMs >= TIMING_PHASE_MIN_MS || phase.durationMs / total >= TIMING_PHASE_MIN_SHARE
   const large = report.phases.filter(isLarge)
   const folded = report.phases.filter((phase) => !isLarge(phase))
-  const rows: Array<{ name: string; durationMs: number; count: number }> = [
+  const rows: { name: string; durationMs: number; count: number }[] = [
     { name: 'startup', durationMs: report.startupMs, count: 1 },
     ...large,
     ...(folded.length === 0
@@ -277,7 +277,7 @@ function writeTimings(surface: Surface, result: CheckResult): void {
     const spans = row.count > 1 ? `  ${surface.multiplySign}${row.count}` : ''
     lines.push(
       `    ${padEndDisplay(row.name, nameWidth)}  ${padStartDisplay(row.durationMs.toFixed(1), 7)} ms  ` +
-        `${surface.paint('dim', padStartDisplay(share, 6) + spans)}`,
+        surface.paint('dim', padStartDisplay(share, 6) + spans),
     )
   }
   const attributed = report.phases.reduce((sum, phase) => sum + phase.durationMs, 0)

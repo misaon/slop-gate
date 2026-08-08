@@ -112,7 +112,7 @@ export function extractTarGzEntry(archive: Uint8Array, entryName: string): Uint8
     const name = trimNul(decoder.decode(header.subarray(0, 100)))
     const prefix = trimNul(decoder.decode(header.subarray(345, 500)))
     const size = parseOctal(decoder.decode(header.subarray(124, 136)))
-    const typeFlag = String.fromCharCode(header[156] ?? 0)
+    const typeFlag = String.fromCodePoint(header[156] ?? 0)
     const dataStart = offset + TAR_BLOCK
     const isRegularFile = typeFlag === '0' || typeFlag === '\0'
     const fullName = prefix === '' ? name : `${prefix}/${name}`

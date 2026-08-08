@@ -1,7 +1,7 @@
 const graphemeSegmenter = new Intl.Segmenter('en', { granularity: 'grapheme' })
 
-const ESCAPE_CHAR = String.fromCharCode(27)
-const ANSI_ESCAPE_PATTERN = new RegExp(ESCAPE_CHAR + '\\[[0-9;]*[a-zA-Z]', 'g')
+const ESCAPE_CHAR = String.fromCodePoint(27)
+const ANSI_ESCAPE_PATTERN = new RegExp(ESCAPE_CHAR + String.raw`\[[0-9;]*[a-zA-Z]`, 'g')
 
 const isCombiningMark = (codePoint: number): boolean => /\p{M}/u.test(String.fromCodePoint(codePoint))
 
@@ -43,6 +43,7 @@ export function hasWideOrFullwidthCharacter(text: string): boolean {
 
 function isPrintableAscii(text: string): boolean {
   for (let index = 0; index < text.length; index += 1) {
+    // sgate-disable-next-line pedantic.prefer-code-point -- Measured: `codePointAt` costs 10.7% of this loop, and a surrogate half fails the range test the same way a code point does.
     const code = text.charCodeAt(index)
     if (code < 0x20 || code > 0x7e) return false
   }

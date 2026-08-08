@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  compareStrings,
   createLineIndex,
   hashJson,
   type Engine,
@@ -50,7 +51,7 @@ export function createSchemaEngine(): Engine {
 
     async materializeConfig(selection: EngineRuleSelection, context: RunContext) {
       const enabled = [...selection].filter(([, [level]]) => level !== 'off')
-      const rulesetHash = hashJson(enabled.map(([rule, [level]]) => [rule, level]).sort())
+      const rulesetHash = hashJson(enabled.map(([rule, [level]]) => `${rule}:${level}`).sort(compareStrings))
       const path = join(context.tmpDir, `schema-selection.${rulesetHash.slice(0, 12)}.json`)
       selections.set(path, new Set(enabled.map(([rule]) => rule)))
 

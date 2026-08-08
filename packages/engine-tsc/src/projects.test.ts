@@ -27,7 +27,7 @@ afterEach(async () => {
 test('a plain root tsconfig is the only project', async () => {
   const tsconfig = await write('tsconfig.json', { include: ['src'] })
 
-  expect(await discover()).toEqual([tsconfig])
+  await expect(discover()).resolves.toEqual([tsconfig])
 })
 
 test('a solution root resolves to the projects it references, not to itself', async () => {
@@ -35,14 +35,14 @@ test('a solution root resolves to the projects it references, not to itself', as
   const api = await write('apps/api/tsconfig.json', { include: ['src'] })
   const utils = await write('packages/utils/tsconfig.json', { include: ['src'] })
 
-  expect(await discover()).toEqual([api, utils].sort())
+  await expect(discover()).resolves.toEqual([api, utils].sort())
 })
 
 test('a reference naming the config file directly resolves the same as one naming its directory', async () => {
   await write('tsconfig.json', { files: [], references: [{ path: 'apps/api/tsconfig.json' }] })
   const api = await write('apps/api/tsconfig.json', { include: ['src'] })
 
-  expect(await discover()).toEqual([api])
+  await expect(discover()).resolves.toEqual([api])
 })
 
 test('references are followed through a nested solution', async () => {
@@ -50,7 +50,7 @@ test('references are followed through a nested solution', async () => {
   await write('apps/tsconfig.json', { files: [], references: [{ path: 'api' }] })
   const api = await write('apps/api/tsconfig.json', { include: ['src'] })
 
-  expect(await discover()).toEqual([api])
+  await expect(discover()).resolves.toEqual([api])
 })
 
 test('a project two solutions both reference is listed once', async () => {
@@ -59,37 +59,37 @@ test('a project two solutions both reference is listed once', async () => {
   await write('b/tsconfig.json', { files: [], references: [{ path: '../shared' }] })
   const shared = await write('shared/tsconfig.json', { include: ['src'] })
 
-  expect(await discover()).toEqual([shared])
+  await expect(discover()).resolves.toEqual([shared])
 })
 
 test('a config that both declares inputs and references others contributes itself and them', async () => {
   const rootConfig = await write('tsconfig.json', { include: ['src'], references: [{ path: 'apps/api' }] })
   const api = await write('apps/api/tsconfig.json', { include: ['src'] })
 
-  expect(await discover()).toEqual([api, rootConfig].sort())
+  await expect(discover()).resolves.toEqual([api, rootConfig].sort())
 })
 
 test('with no root tsconfig, each workspace package that has one is a project', async () => {
   const api = await write('apps/api/tsconfig.json', { include: ['src'] })
   await write('apps/docs/package.json', { name: 'docs' })
 
-  expect(await discover([join(root, 'apps/api'), join(root, 'apps/docs')])).toEqual([api])
+  await expect(discover([join(root, 'apps/api'), join(root, 'apps/docs')])).resolves.toEqual([api])
 })
 
 test('a root tsconfig that exists suppresses the workspace search, even when it references nothing readable', async () => {
   await write('tsconfig.json', { files: [], references: [{ path: 'apps/gone' }] })
   await write('apps/api/tsconfig.json', { include: ['src'] })
 
-  expect(await discover([join(root, 'apps/api')])).toEqual([])
+  await expect(discover([join(root, 'apps/api')])).resolves.toEqual([])
 })
 
 test('nothing to read yields no projects rather than a guess', async () => {
-  expect(await discover([join(root, 'apps/api')])).toEqual([])
+  await expect(discover([join(root, 'apps/api')])).resolves.toEqual([])
 })
 
 test('comments and trailing commas do not hide the references', async () => {
   await write('tsconfig.json', '{\n  // the real projects\n  "files": [],\n  "references": [{ "path": "apps/api" },]\n}')
   const api = await write('apps/api/tsconfig.json', { include: ['src'] })
 
-  expect(await discover()).toEqual([api])
+  await expect(discover()).resolves.toEqual([api])
 })

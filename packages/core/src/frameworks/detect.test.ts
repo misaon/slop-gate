@@ -1,12 +1,10 @@
 import { expect, test } from 'vitest'
-import type { ConceptId } from '../concepts/catalogue.ts'
 import type { FileInventory, InventoryFile } from '../discovery/types.ts'
 import { RULE_ENTRIES } from '../registry/entries.ts'
 import { createRuleSetResolver } from '../config/resolve.ts'
-import type { RuleKey } from '../config/types.ts'
 import { engineAdjustmentsFor, frameworkOverrideLayers, frameworkRuleLayers } from './adjustments.ts'
 import { detectFrameworks } from './detect.ts'
-import { dualFiringConcepts, scopeConcepts } from './profiles.ts'
+import { dualFiringConcepts, FRAMEWORK_PROFILES, scopeConcepts } from './profiles.ts'
 import type { FrameworkDetection } from './types.ts'
 
 const inventoryFile = (path: string, workspace = ''): InventoryFile => ({
@@ -37,7 +35,7 @@ const manifest = (dependencies: Record<string, string>, field = 'dependencies'):
   JSON.stringify({ name: 'app', [field]: dependencies })
 
 const detect = async (files: Record<string, string>, workspaces?: Record<string, string>): Promise<FrameworkDetection> =>
-  detectFrameworks(repository(files, workspaces))
+  detectFrameworks({ ...repository(files, workspaces), profiles: FRAMEWORK_PROFILES })
 
 const applied = (detection: FrameworkDetection, id: string) => detection.applied.find((a) => a.id === id)
 
@@ -102,7 +100,7 @@ test('two profiles disabling the same concept is idempotent, not a conflict', as
   expect(new Set(reasons).size).toBe(2)
 })
 
-test('NestJS on Express ignores the transitively-provided express dependency', async () => {
+test('nestJS on Express ignores the transitively-provided express dependency', async () => {
   const detection = await detect({ 'package.json': manifest({ '@nestjs/platform-express': '^11.0.0' }) })
   expect(engineAdjustmentsFor('knip', detection)).toEqual([
     { key: 'ignoreDependencies', workspace: '', values: ['express'] },
@@ -480,7 +478,7 @@ test('the dual-firing set contains only rules both plugins implement', () => {
   ).flatMap((entry) => entry.concepts)
 
   expect(jestOnlyConcepts.filter((concept) => disabled.has(concept))).toEqual([])
-  expect(disabled.has('correctness.no-export' as ConceptId)).toBe(false)
+  expect(disabled.has('correctness.no-export')).toBe(false)
 })
 
 test('no concept claimed by a jest- or vitest-scope rule is claimed by any rule outside it', () => {
@@ -512,19 +510,18 @@ test('both installed disables both scopes — the double report would be genuine
   )
 })
 
-test('a jest repository turns the mock-factory false positive off in test files only', async () => {
+test('a jest repository scopes the mock-factory false positive to test files only', async () => {
   const detection = await detect({ 'package.json': manifest({ jest: '^30.0.0' }, 'devDependencies') })
-  const resolver = createRuleSetResolver({
-    config: { extends: ['recommended'] },
-    frameworks: frameworkRuleLayers(detection),
-    frameworkOverrides: frameworkOverrideLayers(detection),
-  })
-  const level = (path: string) =>
-    resolver.forFile(path).rules.get('suspicious.consistent-function-scoping' as RuleKey)?.level
 
-  expect(level('src/service.test.ts')).toBe('off')
-  expect(level('src/__tests__/service.ts')).toBe('off')
-  expect(level('src/service.ts')).toBe('warn')
+  // Asserted on the layer rather than on a resolved level: the corpus took this concept out of
+  // `recommended`, and naming it in a config would outrank the framework layer this test is about.
+  const scoped = frameworkOverrideLayers(detection).filter(
+    (layer) => layer.rules['suspicious.consistent-function-scoping'] === 'off',
+  )
+
+  expect(scoped).toHaveLength(1)
+  expect([...(scoped[0]?.files ?? [])].sort()).toEqual(['**/?(*.)+(spec|test).[jt]s?(x)', '**/__tests__/**/*.[jt]s?(x)'].sort())
+  expect(frameworkRuleLayers(detection).some((layer) => 'suspicious.consistent-function-scoping' in layer.rules)).toBe(false)
 })
 
 test('a chai repository turns the no-op-expression rule off in test files only', async () => {
@@ -534,7 +531,7 @@ test('a chai repository turns the no-op-expression rule off in test files only',
     frameworks: frameworkRuleLayers(detection),
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
-  const level = (path: string) => resolver.forFile(path).rules.get('dead-code.no-op-expression' as RuleKey)?.level
+  const level = (path: string) => resolver.forFile(path).rules.get('dead-code.no-op-expression')?.level
 
   expect(level('test/functional/query-builder.test.ts')).toBe('off')
   expect(level('integration/injector/multiple-providers.spec.ts')).toBe('off')
@@ -550,21 +547,18 @@ test('a repository that does not declare chai keeps the rule on everywhere', asy
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  expect(resolver.forFile('src/thing.test.ts').rules.get('dead-code.no-op-expression' as RuleKey)?.level).toBe('error')
+  expect(resolver.forFile('src/thing.test.ts').rules.get('dead-code.no-op-expression')?.level).toBe('error')
   expect(applied(detection, 'chai')).toBeUndefined()
 })
 
-test('a vitest-only repository keeps the mock-factory rule on, because upstream exempts only jest', async () => {
+test('a vitest-only repository gets no such scoping, because upstream exempts only jest', async () => {
   const detection = await detect({ 'package.json': manifest({ vitest: '^3.0.0' }, 'devDependencies') })
-  const resolver = createRuleSetResolver({
-    config: { extends: ['recommended'] },
-    frameworks: frameworkRuleLayers(detection),
-    frameworkOverrides: frameworkOverrideLayers(detection),
-  })
 
-  expect(resolver.forFile('src/service.test.ts').rules.get('suspicious.consistent-function-scoping' as RuleKey)?.level).toBe(
-    'warn',
+  const scoped = frameworkOverrideLayers(detection).filter(
+    (layer) => layer.rules['suspicious.consistent-function-scoping'] === 'off',
   )
+
+  expect(scoped).toEqual([])
 })
 
 test('neither installed disables both scopes, degrading to the exclusion this replaces', async () => {
@@ -600,6 +594,7 @@ test('the same repository detects identically regardless of manifest key order',
 test('detection reads no manifest the inventory did not list', async () => {
   const read: string[] = []
   await detectFrameworks({
+    profiles: FRAMEWORK_PROFILES,
     inventory: repository({ 'package.json': manifest({ '@nestjs/core': '1' }) }).inventory,
     async readText(path) {
       read.push(path)
@@ -653,11 +648,11 @@ test('the scoped subtraction reaches the sibling package and leaves the applicat
     frameworks: frameworkRuleLayers(detection),
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
-  const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element' as RuleKey)?.level
+  const level = (path: string) => resolver.forFile(path).rules.get('correctness.no-img-element')?.level
 
   expect(level('packages/ui/src/Logo.tsx')).toBe('off')
   expect(level('apps/web/app/page.tsx')).toBe('warn')
-  expect(resolver.base.rules.get('correctness.no-img-element' as RuleKey)?.level).toBe('warn')
+  expect(resolver.base.rules.get('correctness.no-img-element')?.level).toBe('warn')
 })
 
 test('a single-app repository gets evidence and no adjustments at all', async () => {
@@ -701,10 +696,10 @@ test('a repository that never declares Next.js gets the scope turned off, not le
   // This used to assert the profile stayed silent. Silence meant all 21 rules in the scope aimed at
   // a codebase they cannot describe — see the Remix measurement above.
   const detection = await detect({ 'package.json': manifest({ react: '^19.0.0' }) })
-  const applied_ = applied(detection, 'nextjs')
+  const nextjsAdjustments = applied(detection, 'nextjs')
 
-  expect(applied_?.evidence).toEqual([])
-  expect(applied_?.adjustments.every((adjustment) => adjustment.kind === 'disable-concept')).toBe(true)
+  expect(nextjsAdjustments?.evidence).toEqual([])
+  expect(nextjsAdjustments?.adjustments.every((adjustment) => adjustment.kind === 'disable-concept')).toBe(true)
   expect(detection.inapplicable.map((entry) => entry.id)).not.toContain('nextjs')
 })
 
@@ -721,7 +716,7 @@ test('turns the whole Next.js scope off in a repository that has no Next.js at a
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  expect(resolver.forFile('app/routes/_index.tsx').rules.get('correctness.no-img-element' as RuleKey)?.level).toBe('off')
+  expect(resolver.forFile('app/routes/_index.tsx').rules.get('correctness.no-img-element')?.level).toBe('off')
 })
 
 test('leaves the Next.js scope on where Next.js is actually used', async () => {
@@ -735,7 +730,7 @@ test('leaves the Next.js scope on where Next.js is actually used', async () => {
     frameworkOverrides: frameworkOverrideLayers(detection),
   })
 
-  expect(resolver.forFile('app/page.tsx').rules.get('correctness.no-img-element' as RuleKey)?.level).not.toBe('off')
+  expect(resolver.forFile('app/page.tsx').rules.get('correctness.no-img-element')?.level).not.toBe('off')
 })
 
 

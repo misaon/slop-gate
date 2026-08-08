@@ -78,7 +78,7 @@ test('a multi-byte replacement does not disturb a later edit derived from the or
   expect(result).toBe('a = "🚀🚀🚀"; b = "z";')
 })
 
-test('CRLF line endings survive an edit on another line', () => {
+test('cRLF line endings survive an edit on another line', () => {
   const source = 'const a = 1\r\nif (b == 2) {}\r\n'
   const offset = encodeUtf8('const a = 1\r\nif (b ').length
   const result = apply(source, [edit({ range: { start: offset, end: offset + 2 }, replacement: '===' })])

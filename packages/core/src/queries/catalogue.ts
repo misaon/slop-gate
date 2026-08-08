@@ -1,4 +1,4 @@
-import { conceptById, isConceptId, type ConceptDefinition, type ConceptGroup } from '../concepts/catalogue.ts'
+import { conceptById, isConceptId, type ConceptDefinition } from '../concepts/catalogue.ts'
 import { PRESETS } from '../config/presets.ts'
 import { OPTIONED_RECOMMENDED_RULES } from '../config/rule-options.ts'
 import type { RuleLevel } from '../config/types.ts'
@@ -108,13 +108,13 @@ export function buildRuleCatalogue(): CatalogueEntry[] {
       description: described.description,
       languages: [...entry.languages],
       docsUrl: entry.docsUrl,
-      status: level !== null ? 'recommended' : withheld !== null ? 'withheld' : 'unlisted',
+      status: level !== null ? 'recommended' : (withheld !== null ? 'withheld' : 'unlisted'),
       level,
       withheldReason: withheld?.reason ?? null,
       withheldEvidence: withheld?.evidence ?? null,
-      impact: impactOf(concept, described.group as ConceptGroup),
+      impact: impactOf(concept, described.group),
       reliability: measured === null ? null : { ...measured, percent: reliabilityPercent(measured) },
-      options: tuned !== undefined ? 'tuned' : entry.hasOptions === true ? 'default' : 'none',
+      options: tuned !== undefined ? 'tuned' : (entry.hasOptions === true ? 'default' : 'none'),
       optionSetting: tuned?.setting ?? null,
       optionReason: tuned?.reason ?? null,
       optionEvidence: tuned?.evidence ?? null,

@@ -23,6 +23,25 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'vitest/valid-title': {
     severityDefault: 'warn',
   },
+  // A conditionally-called hook is broken React, not a strictness preference.
+  'react/rules-of-hooks': { concepts: ['correctness.rules-of-hooks'] },
+  // Reverse tabnabbing: the opened page can rewrite `window.opener.location`.
+  'react/jsx-no-target-blank': { concepts: ['security.target-blank'] },
+  // The one React API that writes unescaped markup into the document.
+  'react/no-danger': { concepts: ['security.dangerous-html'] },
+
+  // `nursery` is oxlint's readiness label, not a subject. A concept id is a config key a user writes
+  // down, so it cannot be one that stops being true the day upstream graduates the rule.
+  'import/export': { concepts: ['correctness.duplicate-export-name'] },
+  'import/named': { concepts: ['correctness.missing-named-export'] },
+  'promise/no-return-in-finally': { concepts: ['correctness.return-in-finally'] },
+  'react/require-render-return': { concepts: ['correctness.component-missing-return'] },
+  'no-useless-assignment': { concepts: ['dead-code.useless-assignment'] },
+  'unicorn/no-useless-iterator-to-array': { concepts: ['perf.useless-iterator-to-array'] },
+  // Filed under `perf` upstream because an index key defeats reconciliation. The cost is state landing
+  // on the wrong row, which is a defect and not a slow render.
+  'react/no-array-index-key': { concepts: ['correctness.jsx-key-index'] },
+
   'no-var': { concepts: ['style.no-var'] },
   'typescript/no-explicit-any': { concepts: ['slop.as-any-cast'] },
 
@@ -40,6 +59,11 @@ export const RULE_OVERRIDES: Readonly<Record<string, RuleOverride>> = {
   'no-duplicate-case': { concepts: ['correctness.duplicate-switch-case'] },
   'no-empty-pattern': { concepts: ['correctness.empty-destructuring-pattern'] },
   'no-eval': { concepts: ['security.eval-usage'] },
+  // One concept per rule, never one shared: two rules on one concept go to arbitration and the loser is
+  // switched off, so `new Function` would stop being checked at all.
+  'no-new-func': { concepts: ['security.function-constructor'] },
+  'no-script-url': { concepts: ['security.script-url'] },
+  'react/jsx-no-script-url': { concepts: ['security.jsx-script-url'] },
   'no-ex-assign': { concepts: ['correctness.caught-error-reassigned'] },
   'no-func-assign': { concepts: ['correctness.function-reassigned'] },
   'no-global-assign': { concepts: ['correctness.global-reassigned'] },

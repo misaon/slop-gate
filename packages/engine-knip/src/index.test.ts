@@ -1,12 +1,12 @@
 import { execFile } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { readFile,mkdir,mkdtemp,rm,stat,writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import {
   detectFrameworks,
+  FRAMEWORK_PROFILES,
   engineAdjustmentsFor,
   type EngineSettings,
   type EngineRuleSelection,
@@ -70,7 +70,7 @@ afterEach(async () => {
 })
 
 test('reports its version', async () => {
-  expect(await createKnipEngine().version()).toMatch(/^\d+\.\d+\.\d+/)
+  await expect(createKnipEngine().version()).resolves.toMatch(/^\d+\.\d+\.\d+/)
 })
 
 test('declares project granularity, and json alongside the script languages', () => {
@@ -200,11 +200,9 @@ test(
     const engine = createKnipEngine()
     const handle = await engine.materializeConfig(everything(), context)
 
-    expect(
-      await collect(
+    await expect(collect(
         engine.run({ files: [file('package.json'), file('index.ts')] }, handle, context, AbortSignal.timeout(TIMEOUT)),
-      ),
-    ).toEqual([])
+      )).resolves.toEqual([])
     await handle.dispose()
   },
   TIMEOUT,
@@ -262,7 +260,7 @@ test(
       { cwd: dir, encoding: 'utf8' },
     )
 
-    const report = JSON.parse(stdout) as { issues: Array<Record<string, unknown>> }
+    const report = JSON.parse(stdout) as { issues: Record<string, unknown>[] }
     const reported = new Set(Object.keys(report.issues[0] ?? {}))
     reported.delete('file')
     expect(reported.has('owners')).toBe(false)
@@ -292,6 +290,7 @@ test(
 
 const knipAdjustments = async (paths: readonly string[]): Promise<EngineSettings> => {
   const detection = await detectFrameworks({
+    profiles: FRAMEWORK_PROFILES,
     inventory: {
       root: dir,
       files: paths.map((path) => file(path)),
@@ -420,7 +419,7 @@ test('is unavailable when a manifest declares dependencies that are not installe
   await write('package.json', JSON.stringify({ name: 'root', dependencies: { 'used-dep': '^1.0.0' } }))
   const engine = createKnipEngine({ rootDir: dir })
 
-  expect(await engine.availability?.()).toEqual({
+  await expect(engine.availability?.()).resolves.toEqual({
     available: false,
     reason: expect.stringContaining('node_modules'),
     install: expect.stringContaining('install'),
@@ -432,14 +431,14 @@ test('is available when the declared dependencies are installed', async () => {
   await mkdir(join(dir, 'node_modules'), { recursive: true })
   const engine = createKnipEngine({ rootDir: dir })
 
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
 })
 
 test('is available in a repository that declares no dependencies at all', async () => {
   await write('package.json', JSON.stringify({ name: 'root' }))
   const engine = createKnipEngine({ rootDir: dir })
 
-  expect(await engine.availability?.()).toEqual({ available: true })
+  await expect(engine.availability?.()).resolves.toEqual({ available: true })
 })
 
 
@@ -449,7 +448,7 @@ test('a framework may declare a workspace that holds no package.json', async () 
   // own the layer's 77 unused-export findings go to 0, where the same globs on the *root* workspace
   // left 23. The workspace boundary is what makes an entry glob reach inside it.
   await write('package.json', JSON.stringify({ name: 'root' }))
-  const path = (await createKnipEngine().materializeConfig(everything(), context)).path
+  const {path} = await createKnipEngine().materializeConfig(everything(), context)
   const adjustments: EngineSettings = [{ key: 'entry', workspace: 'layers/a', values: ['app/**/*.ts'] }]
 
   await mergeWorkspacesIntoConfig(path, synthesizeKnipWorkspaces([file('package.json')]), adjustments)

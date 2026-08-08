@@ -5,6 +5,7 @@ export type { BaselineEntry } from './baseline/types.ts'
 export { baselinePathFor, entriesOf, readBaseline, writeBaseline } from './baseline/file.ts'
 
 export {
+  CONCEPTS,
   CONCEPT_GROUPS,
   GENERATED_CONCEPT_IDS,
   conceptById,
@@ -64,6 +65,7 @@ export { isAlwaysSkippedPath } from './discovery/sources.ts'
 
 export { engineAdjustmentsFor, settingValues, settingValuesFor } from './frameworks/adjustments.ts'
 export { detectFrameworks } from './frameworks/detect.ts'
+export { FRAMEWORK_PROFILES } from './frameworks/profiles.ts'
 export type { EngineSettings, FrameworkEvidence } from './frameworks/types.ts'
 
 export { hashContent, hashJson } from './cache/keys.ts'
@@ -104,7 +106,7 @@ export {
   type CatalogueSummary,
   type OptionState,
 } from './queries/catalogue.ts'
-export { IMPACTS, impactOf, type Impact, type ImpactDefinition } from './registry/impact.ts'
+export { GROUP_IMPACT, IMPACTS, impactOf, type Impact, type ImpactDefinition } from './registry/impact.ts'
 export { reliabilityOf, reliabilityPercent, type Reliability } from './registry/reliability.ts'
 export { CORPUS_PROJECTS, prevalenceOf, type Prevalence } from './registry/prevalence.ts'
 export { buildRulesConflicts, type RulesConflicts } from './queries/conflicts.ts'

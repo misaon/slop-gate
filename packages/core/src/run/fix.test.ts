@@ -109,7 +109,7 @@ test('a single safe fix is applied and the file is rewritten', async () => {
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('if (a === 1) {}\n')
+  await expect(read('src/a.ts')).resolves.toBe('if (a === 1) {}\n')
   expect(result.files.map((f) => f.file)).toEqual(['src/a.ts'])
   expect(result.rules).toEqual([{ ruleRefKey: 'oxlint/r', count: 1 }])
   expect(result.truncated).toBe(false)
@@ -131,7 +131,7 @@ test('the loop iterates until no fix remains', async () => {
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('bbb\n')
+  await expect(read('src/a.ts')).resolves.toBe('bbb\n')
   expect(result.passes).toBe(4)
   expect(result.truncated).toBe(false)
 })
@@ -150,7 +150,7 @@ test('the pass limit stops a loop that never converges and reports it as truncat
 
   expect(result.passes).toBe(3)
   expect(result.truncated).toBe(true)
-  expect(await read('src/a.ts')).toBe('x\nxxx')
+  await expect(read('src/a.ts')).resolves.toBe('x\nxxx')
 })
 
 test('two rules overlapping on the same range: the higher-priority one wins and the loser runs next pass', async () => {
@@ -174,7 +174,7 @@ test('two rules overlapping on the same range: the higher-priority one wins and 
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('BBzz\n')
+  await expect(read('src/a.ts')).resolves.toBe('BBzz\n')
   expect(result.skipped.overlap).toBe(1)
   expect(result.rules).toEqual([
     { ruleRefKey: 'oxlint/high', count: 1 },
@@ -198,7 +198,7 @@ test('a nested edit inside a higher-priority one never reaches the file', async 
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('let v = 2\n')
+  await expect(read('src/a.ts')).resolves.toBe('let v = 2\n')
 })
 
 test('exactly adjacent edits from two rules are both applied in one pass', async () => {
@@ -215,7 +215,7 @@ test('exactly adjacent edits from two rules are both applied in one pass', async
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('ABCD\n')
+  await expect(read('src/a.ts')).resolves.toBe('ABCD\n')
 })
 
 test('one rule reporting two overlapping findings still drops one deterministically', async () => {
@@ -228,7 +228,7 @@ test('one rule reporting two overlapping findings still drops one deterministica
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('Xdef\n')
+  await expect(read('src/a.ts')).resolves.toBe('Xdef\n')
 })
 
 test('two rules rewriting each other stop the file and name both', async () => {
@@ -260,7 +260,7 @@ test('two rules rewriting each other stop the file and name both', async () => {
   expect(diagnostic?.severity).toBe('error')
 
   expect(result.passes).toBeLessThan(10)
-  expect(await read('src/a.ts')).toBe('const a: number = 1\n')
+  await expect(read('src/a.ts')).resolves.toBe('const a: number = 1\n')
 })
 
 test('an oscillating file does not stop a different file from being fixed', async () => {
@@ -288,7 +288,7 @@ test('an oscillating file does not stop a different file from being fixed', asyn
   )
 
   expect(result.oscillations.map((d) => d.file)).toEqual(['src/spin.ts'])
-  expect(await read('src/calm.ts')).toBe('Q\n')
+  await expect(read('src/calm.ts')).resolves.toBe('Q\n')
 })
 
 test('silencing config.fix-oscillation hides the report but never restarts the loop', async () => {
@@ -330,7 +330,7 @@ test('a dirty git worktree is refused and nothing is written', async () => {
   expect(result.refusal?.reason).toBe('dirty-worktree')
   expect(result.refusal?.message).toContain('--allow-dirty')
   expect(result.files).toEqual([])
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
 })
 
 test('--allow-dirty proceeds over a dirty worktree', async () => {
@@ -345,7 +345,7 @@ test('--allow-dirty proceeds over a dirty worktree', async () => {
   )
 
   expect(result.refusal).toBeUndefined()
-  expect(await read('src/a.ts')).toBe('Z\n')
+  await expect(read('src/a.ts')).resolves.toBe('Z\n')
 })
 
 test('a directory with no git repository is refused', async () => {
@@ -364,7 +364,7 @@ test('a directory with no git repository is refused', async () => {
   )
 
   expect(result.refusal?.reason).toBe('no-git')
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
 })
 
 test('git failing to answer is refused rather than assumed clean', async () => {
@@ -384,7 +384,7 @@ test('git failing to answer is refused rather than assumed clean', async () => {
   )
 
   expect(result.refusal?.reason).toBe('worktree-unknown')
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
 })
 
 test('a clean worktree is not refused', async () => {
@@ -399,7 +399,7 @@ test('a clean worktree is not refused', async () => {
   )
 
   expect(result.refusal).toBeUndefined()
-  expect(await read('src/a.ts')).toBe('Z\n')
+  await expect(read('src/a.ts')).resolves.toBe('Z\n')
 })
 
 test('--dry-run writes nothing and returns the diff it would have applied', async () => {
@@ -407,7 +407,7 @@ test('--dry-run writes nothing and returns the diff it would have applied', asyn
 
   const result = await runFix(base({ dryRun: true, engines: [alwaysFixes()] }))
 
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
   expect(result.files).toHaveLength(1)
   expect(result.files[0]?.diff).toContain('-a')
   expect(result.files[0]?.diff).toContain('+Z')
@@ -446,8 +446,8 @@ test('a fix for a file the ignore config excludes is never applied', async () =>
     }),
   )
 
-  expect(await read('src/generated.ts')).toBe('a\n')
-  expect(await read('src/a.ts')).toBe('Z\n')
+  await expect(read('src/generated.ts')).resolves.toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('Z\n')
   expect(result.files.map((f) => f.file)).toEqual(['src/a.ts'])
 })
 
@@ -463,7 +463,7 @@ test('a fix attributed to a file outside the inventory is counted and dropped', 
 
   const result = await runFix(base({ engines: [rogue] }))
 
-  expect(await read('escape.ts')).toBe('a\n')
+  await expect(read('escape.ts')).resolves.toBe('a\n')
   expect(result.files).toEqual([])
   expect(result.skipped.outsideInventory).toBe(1)
 })
@@ -478,7 +478,7 @@ test('a suggested fix is not applied at the default safe tier', async () => {
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
   expect(result.skipped.aboveTier).toBe(1)
   expect(result.initial.withFix).toEqual({ safe: 0, suggested: 1, unsafe: 0 })
 })
@@ -503,8 +503,8 @@ test('--suggest applies a suggested fix but still not an unsafe one', async () =
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('S\n')
-  expect(await read('src/b.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('S\n')
+  await expect(read('src/b.ts')).resolves.toBe('a\n')
 })
 
 test('--unsafe applies every tier', async () => {
@@ -518,7 +518,7 @@ test('--unsafe applies every tier', async () => {
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('Z\n')
+  await expect(read('src/a.ts')).resolves.toBe('Z\n')
 })
 
 test('an engine failure aborts the pass before anything is written', async () => {
@@ -536,11 +536,12 @@ test('an engine failure aborts the pass before anything is written', async () =>
 
   expect(result.refusal?.reason).toBe('engine-failed')
   expect(result.refusal?.message).toContain('astgrep')
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
 })
 
 test('a suppressed finding is never fixed', async () => {
-  const directive = `// sgate-${'disable-next-line'} correctness.no-debugger -- deliberate\n`
+  const DISABLE = 'sgate-disable'
+const directive = `// ${DISABLE}-next-line correctness.no-debugger -- deliberate\n`
   await writeFile(join(dir, 'src/a.ts'), `${directive}a\n`)
   const offset = directive.length
 
@@ -550,7 +551,7 @@ test('a suppressed finding is never fixed', async () => {
     }),
   )
 
-  expect(await read('src/a.ts')).toBe(`${directive}a\n`)
+  await expect(read('src/a.ts')).resolves.toBe(`${directive}a\n`)
   expect(result.files).toEqual([])
 })
 
@@ -567,7 +568,7 @@ test('a fix on a file with multi-byte content lands on the right characters', as
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('const s = "héllo 🚀"\nif (a === 1) {}\n')
+  await expect(read('src/a.ts')).resolves.toBe('const s = "héllo 🚀"\nif (a === 1) {}\n')
 })
 
 test('nothing to fix reports a clean, untruncated result', async () => {
@@ -589,7 +590,7 @@ test('a finding with no fix is counted but leaves the file alone', async () => {
   )
 
   expect(result.initial).toEqual({ findings: 1, withFix: { safe: 0, suggested: 0, unsafe: 0 } })
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
 })
 
 test('a fix a rule the registry calls unfixable offers is never applied', async () => {
@@ -602,7 +603,7 @@ test('a fix a rule the registry calls unfixable offers is never applied', async 
     }),
   )
 
-  expect(await read('src/a.ts')).toBe('a\n')
+  await expect(read('src/a.ts')).resolves.toBe('a\n')
   expect(result.initial).toEqual({ findings: 1, withFix: { safe: 0, suggested: 0, unsafe: 0 } })
 })
 
@@ -613,7 +614,7 @@ test('writes go through writeFileAtomic, leaving no scratch file behind', async 
 
   const { readdir } = await import('node:fs/promises')
   expect((await readdir(join(dir, 'src'))).filter((name) => name.endsWith('.tmp'))).toEqual([])
-  expect(await read('src/a.ts')).toBe('Z\n')
+  await expect(read('src/a.ts')).resolves.toBe('Z\n')
 })
 
 test('no file outside the reported set is modified', async () => {
@@ -627,7 +628,7 @@ test('no file outside the reported set is modified', async () => {
   )
 
   expect(result.files.map((f) => f.file)).toEqual(['src/a.ts'])
-  expect(await read('src/untouched.ts')).toBe('a\n')
+  await expect(read('src/untouched.ts')).resolves.toBe('a\n')
 })
 
 test('the summary counts every applied edit, so a reported file always has at least one', async () => {

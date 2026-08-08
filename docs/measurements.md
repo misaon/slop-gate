@@ -151,6 +151,249 @@ printable-ASCII fast path.
 `--format=pretty` at 619.6 ms ± 22.2 before and 608.7 ms ± 12.7 after. Sharing `CheckOptions.sources` with
 the reporters is worth 73.7 ms — 417.6 ms ± 2.5 down to 343.9 ms ± 5.9.
 
+## `GROUP_IMPACT.suspicious` — the group default was wrong for 35 of its 54 concepts
+
+`packages/core/src/registry/impact.ts`
+
+The group sat at **1 — "No path to failure. nothing breaks if they do not [fix it]"**, which is a claim about
+every concept in it. Censused all 54, against the rule documentation rather than the rule name:
+
+- **35 have a stated failure path.** `promise/always-return` breaks the chain so the caller's `await`
+  resolves early; `promise/no-multiple-resolved` silently drops the second result;
+  `unicorn/no-array-fill-with-reference-type` shares one array across every slot;
+  `oxc/no-this-in-exported-function` is `undefined` after bundling; `react/no-namespace` is documented
+  as *not supported by React*; `unicorn/require-post-message-target-origin` means no window receives the
+  message at all; `react/react-in-jsx-scope` is a `ReferenceError` under the classic runtime.
+- **10 are genuinely untidy** and are now the exceptions: `no-new`, `no-extra-bind`, `no-useless-concat`,
+  `no-useless-constructor`, `no-unneeded-ternary`, `no-extraneous-class`, `no-empty-named-blocks`,
+  `no-unnecessary-type-constraint`, `consistent-function-scoping`, and `import/no-named-as-default` —
+  whose own documentation says the code "won't break at runtime… confusing rather than broken".
+- **2 are security**, at 3: `react/jsx-no-script-url` is an XSS sink React 19 refuses to render, and
+  `no-implied-eval` is `security.eval-usage` reached through a timer.
+
+So the exception table is 12 rows the other way, against 35 it would need if the default stayed at 1.
+oxlint's own definition of the category — "code that is most likely wrong or useless" — is this
+vocabulary's 2, and reading it as 1 was a mechanical carry-over from the category name.
+
+Catalogue-wide the census moves **621/294/8 to 580/333/10** across impact 1/2/3.
+
+Two corrections the documentation made to a first pass taken from the rule names: `import/no-named-as-default`
+was going to 2 and is explicitly not a runtime problem, and `unicorn/require-post-message-target-origin`
+is not a security rule at all — it is correctness, and it carries a documented false-positive mode
+(`WorkerGlobalScope#postMessage` has a different second parameter and the rule has no type information
+to tell them apart).
+
+`impact.test.ts`'s recorded mismatch list grows from two to three: an XSS sink now reports impact 3 at
+`warn`, and so exits 0. That is the same deferred decision the other two entries record, and this is the
+strongest case yet for taking it.
+
+## Type-aware linting: what it costs, and what it found
+
+<a id="type-aware-audit"></a>
+
+`packages/engine-oxlint/src/index.ts`, `packages/core/src/registry/elect.ts`
+
+Fifty-nine oxlint rules carry `requires: ['types']`, and until this audit no engine declared
+`provides: ['types']`, so `elect.ts` reported every one as `missing-capability` and none could ever own a
+concept. They read as `unlisted`, which understated it: they were unreachable, not merely off.
+
+**Wired up, and deliberately not bundled.** `createOxlintEngine` resolves `oxlint-tsgolint`; if it is there
+the engine declares the capability and passes `--type-aware`, and if it is not, the 27 promoted concepts
+report as a coverage gap with the remedy in `sgate rules why`. Two numbers decide that it is opt-in:
+
+| | without | with |
+|---|---:|---:|
+| `sgate check` on this repository | 3.1 s | **5.9 s** |
+| the same 59 rules, oxlint alone | 0.087 s | **5.73 s** |
+| install size | — | **21 MB** (`@oxlint-tsgolint/<platform>`) |
+
+Six platform packages cover the whole CI matrix, unlike `actionlint`, so the only objection is cost. That
+puts it on the same footing as the other optional engines (§13.7): present, reported when absent, and never
+installed by CI.
+
+**27 promoted of 59.** All 15 `correctness` rules and the `suspicious` and `pedantic` ones that hold a
+defect — `no-floating-promises`, `await-thenable`, `no-misused-promises`, `switch-exhaustiveness-check`,
+`only-throw-error`, `no-unsafe-enum-comparison`. Nineteen of them are silent on this tree, which is what a
+defect finder looks like on a repository already at zero.
+
+**They cost 63 fixes**, and the largest class was real: `no-unnecessary-type-assertion` reported 49
+assertions that provably do nothing, and removing them left five type imports dead as well.
+
+### Two things the fix pipeline got wrong, and both are recorded because they were nearly missed
+
+**`sgate fix` derived type-aware fixes against the wrong compiler options.** `derive-fixes.ts` copies the
+target files into a sandbox and runs `oxlint --fix` there — and the sandbox holds no `tsconfig.json`, so
+tsgolint fell back to defaults. Without `noUncheckedIndexedAccess`, every `array[index]!` looks
+unnecessary: the fixer removed six assertions from `position.ts` where the real run reports one, and the
+result did not compile. Verified in isolation that the rule itself is correct — given a real tsconfig, and
+given one reached through `extends`, it reports nothing on `xs[i]!`. `--type-aware` is therefore
+deliberately *not* passed to fix derivation, and the reason is a comment at that call site.
+
+**`no-unnecessary-template-expression` collapsed the splitting that keeps directives out of source.** Six
+files write `` `sgate-disable${'-next-line'}` `` so that the file itself never contains a literal
+directive — including `reporters/src/agent.ts`, which puts one in a report. The autofix joined them, and
+the next run read them as real suppressions: 12 `config.unused-suppression` and 11
+`config.suppression-missing-reason` findings appeared out of nowhere. The rule is right that the template
+is unnecessary and cannot see what the split is for. Fixed by building the marker from a `const DISABLE`
+variable, which is a genuine expression the rule leaves alone and the reader can follow.
+
+### Four rejected, each on what it reported here
+
+- **`unbound-method`** — 10, all method-shorthand properties on object literals returned by factories,
+  closing over locals rather than reading `this`. Its only option is `ignoreStatic`.
+- **`no-misused-spread`** — 4, all `[...someString]` in the two modules whose subject is counting code
+  points. Its `allow` option would exempt the accidental case with the deliberate one.
+- **`consistent-return`** — 4, all exhaustive `switch` statements over a discriminated union, where the
+  missing fall-through is what makes TypeScript check exhaustiveness. Same argument as `default-case`.
+- **`no-unnecessary-type-parameters`** — 2, both a parameter that constrains the implementation rather
+  than the call. It counts appearances in the signature only.
+
+**`prefer-readonly-parameter-types` reports 1,123 on its own** and is not promoted; `no-unsafe-type-assertion`
+reports 225, which is every `as` that is not provably safe, and is a different rule from the one that finds
+the assertions doing nothing.
+
+## Moving the registry's prose out of TypeScript — measured and rejected
+
+`packages/core/src/concepts/curated.ts`, `packages/core/src/registry/not-recommended.ts`
+
+The registry now holds **164 kB of prose in an 878 kB bundle** — 120 kB of concept descriptions and 44 kB
+of withheld reasons, 19% of what a user installs. That is enough to ask whether it belongs in `.ts` files
+at all, so it was measured rather than argued.
+
+**Cost: about 2.5 ms, and the ranges overlap.** `dist/index.js` was copied twice, once with every
+`description:` and `reason:` string replaced by `"x"`, and the two imported interleaved, six runs each:
+
+| | runs | mean |
+|---|---|---:|
+| full (878 kB) | 96.5 / 93.1 / 93.0 / 89.4 / 90.2 / 91.1 | **92.2 ms** |
+| prose stripped (714 kB) | 91.5 / 92.0 / 89.3 / 88.0 / 89.8 / 87.8 | **89.7 ms** |
+
+Uncached, and `bin/sgate.js` calls `module.enableCompileCache()`, which removes most of what that
+difference is. Touching the data after import costs **0.07 ms** — the literals are built during module
+evaluation and reading them is free. §"`module.enableCompileCache()`" above already measured the other
+half of this: the same 922 entries as a `.json` file parse in 22.6 ms against 23.5 ms as a literal, inside
+one σ. V8 parses a data literal about as fast as it parses JSON, so extraction buys nothing either way.
+
+**And it costs the type.** `ConceptId` is `(typeof CONCEPTS)[number]['id']` — a union derived from the
+literal array, which is what makes a mistyped concept in `presets.ts`, `overrides.ts` or `rule-options.ts`
+a compile error rather than a preset that silently enables nothing. JSON or YAML collapses that to
+`string` unless a `.d.ts` is generated back, which trades a free guarantee for a build step.
+
+**The split the question is really about has already been made.** AGENTS.md puts the conclusion in the
+source, capped at 900 characters by `not-recommended.test.ts`, and the corpus and the method in this file.
+That move took 36 kB of prose out of the registry once. The remaining text is not documentation embedded
+in logic — those two modules contain no logic — it is the product's content, typed.
+
+What is worth revisiting is bundling rather than authoring: a `sgate check` never reads a withheld reason,
+because a withheld rule does not run. Splitting the reasons into a chunk that only `rules why`, `rules
+list` and the explorer load would remove 44 kB from the common path. On the numbers above that is worth
+well under a millisecond, so it is recorded as available rather than as an improvement.
+
+## The fifty-repository corpus, and what it said about rules that were already on
+
+<a id="rule-corpus"></a>
+
+`packages/rule-corpus`
+
+Every figure this file cited before was taken against a corpus nobody can re-run. This one is a tool:
+fifty repositories pinned by commit in `corpus.lock.json`, checked through `sgate check` itself with a
+config naming every concept the registry knows, so all ten engines are exercised rather than oxlint alone.
+Forty-eight cloned; two refs had moved.
+
+**48 repositories, 66,741 files, 2,352,953 findings from 677 concepts**, with 249 concepts silent across
+the whole corpus. Density below is findings per thousand files scanned, which is the only figure
+comparable between a 34-file repository and a 6,607-file one.
+
+**The corpus confirmed the audit's rejections and then found the audit's own mistake.** The top of the
+table is almost entirely already-`withheld` — `no-magic-numbers` at 2,443/1k, `no-undef` at 2,238,
+`sort-keys` at 1,188. What it also showed is that *silent on this repository* had been standing in for
+*quiet*, and those are different claims:
+
+| concept | findings | repos | why it is now off |
+|---|---:|---:|---|
+| `suspicious.react-in-jsx-scope` | 56,079 | 23/48 | the automatic runtime removed the requirement in React 17 |
+| `style.jest-require-hook` | 21,629 | 47/48 | fires on `src/index.tsx` and `src/main.ts` — not test files |
+| `correctness.shadows-outer-binding` | 10,605 | 46/48 | `children`, `variant`, `err`: how a callback is written |
+| `style.jest-consistent-test-it` | 10,613 | 28/48 | what a suite is called, not what it checks |
+| `style.arrow-body-style` | 9,546 | 44/48 | whether an arrow body has braces |
+| `restriction.no-commonjs` | 7,059 | 36/48 | a module system is a project's decision, not a defect |
+| `style.prefer-importing-vitest-globals` | 7,893 | 40/48 | the exact opposite of `no-importing-vitest-globals`, also excluded |
+
+Forty concepts came out on that reading, and two of them are the interesting ones.
+
+**`react-in-jsx-scope` is a default that expired rather than a check that is wrong.** Under the classic
+runtime it is correct; the corpus is full of Next.js and Vite projects on the automatic one. What brings
+it back is a framework profile reading the JSX transform from tsconfig, which §23 already resolves for
+`resolveJsx`.
+
+**`prefer-importing-vitest-globals` and `no-importing-vitest-globals` cannot both be right**, and both were
+in the registry — one excluded, the other enabled by this audit. Whichever a project chose, one of the pair
+reports every test file it has. That is the shape of collision the corpus is best at finding: on one
+repository only the losing half fires.
+
+### The option sweep, and why it rescued nothing new
+
+Fifty-nine of the withheld rules accept options and fire on the corpus, so each was checked for a value
+that would remove its dominant class rather than its whole content. **None produced a new promotion**, and
+the reasons fall into three shapes worth writing down once:
+
+- **The option needs a value only the project knows.** `node/no-process-env`'s `allowedVariables`,
+  `class-methods-use-this`'s `exceptMethods`, `import/no-unassigned-import`'s `allow` globs — a preset
+  cannot supply any of them. This is the same finding `biome-css/useBaseline` records for browser targets.
+- **Both directions are configurable, which is what makes it a preference.**
+  `import/consistent-type-specifier-style` takes `prefer-top-level` or `prefer-inline` and the corpus is
+  split roughly evenly; so is `typescript/consistent-type-definitions` between `interface` and `type`.
+- **The option is a threshold.** `unicorn/max-nested-calls`, `max-lines`, `import/max-dependencies`: a
+  larger number reports less, which is not the same as reporting better.
+
+`no-implicit-coercion` came closest and is the useful counter-example. `allow: ['!!']` takes it from 537
+findings to 188 over four corpus repositories — excalidraw 175 → 2, vue-core 84 → 14, typeorm 148 → 46 —
+and **fastify 130 → 126**, because its coercions are `+x` and `'' + x` rather than `!!x`. The option
+removes the largest class and leaves the same kind of thing behind, which is a smaller rule rather than a
+better one.
+
+The three rules an option did rescue were already found: `pedantic.eqeqeq` with `smart`,
+`expect-expect` with `assertFunctionNames`, `check-tag-names` with `definedTags`. All three are in
+`config/rule-options.ts` with their figures.
+
+**What the corpus cannot say.** `types.type-error` reports 42,054 findings across 22 repositories, and
+that is an artefact: the corpus installs no dependencies, so every third-party import is unresolved. A
+figure from this corpus is about rules that read source, not about rules that need a built project.
+
+## What `recommended` actually reports on fifty repositories
+
+<a id="recommended-first-run"></a>
+
+The measurement above enables every concept and answers "how noisy is this rule anywhere". This one runs
+`packages/rule-corpus` with `extends: ['recommended']` and answers the question a user actually asks:
+what does installing slop-gate today report on my repository. All fifty cloned this time.
+
+**50 repositories, 67,616 files, 200,122 findings from 444 concepts.** Take out `types.type-error` — the
+corpus installs no dependencies, so every third-party import is unresolved and that one concept is 45,168
+of the total — and it is **154,954 findings, a median of 2,354 per thousand files**: between two and three
+per file.
+
+    nuxt-com 171   vuestic-admin 363   html5-boilerplate 387   sveltekit 676   ngx-admin 692
+    …  median 2,354  …
+    zod 8,180   solid 10,811   vue-core 11,174   react-router 11,343   preact 11,705   nodemailer 13,755
+
+The spread is the useful part: a repository that already lints hard reads under 700 per thousand files, and
+one that does not reads ten times that. Neither number is the tool being wrong.
+
+**Two false positives only this run could find**, because both need a repository that is not this one:
+
+- **`oxc/no-async-endpoint-handlers`** — 213 findings, and 34 of them are inside **fastify's own tests**
+  with 1 in **elysia's**. Both frameworks handle a rejected async handler natively, which is the failure
+  the rule exists to prevent; it matches `.get(path, async fn)` on any object, and `got` — an HTTP client
+  — contributes 141. Its premise is historical besides: Express 5 routes a rejected promise to the error
+  middleware.
+- **`vitest/require-mock-type-parameters`** — 3,866 findings across 17 repositories, all of them `vi.fn()`
+  written without a type argument, which infers and is what the documentation shows.
+
+**What is left at the top is the product, not noise.** `slop.as-any-cast` is 29,797 findings across 45 of
+50 repositories, and an `any` is what this tool is named after. `style.prefer-const` is 18,394 and every
+one is a `let` that is never reassigned. Those are the numbers a strict gate is supposed to produce.
+
 ## Engine reach and noise floors
 
 - **biome-css** is the quietest engine by design: seventeen rules, of which **thirteen produced no finding
@@ -520,6 +763,274 @@ Measured against the srvc-bat playground: 5 of its 6 total `recommended` finding
 Verified directly against oxlint 1.76.0: `number_of_rules: 1` (the rule is genuinely active) but zero diagnostics against every canonical trigger pattern (setTimeout/setInterval/Function/execScript with a string-literal first argument). A rule that never fires is worse than no rule — recommending it would claim coverage of `security.implied-eval`-shaped bugs this registry does not actually provide. Dropped from the M0 hand-written registry for the same reason; recorded in docs/superpowers/specs/2026-07-31-m0-followups.md, "Test gaps worth closing". Scoped to the bare `eslint`-scope rule specifically — `typescript/no-implied-eval` is a separate, type-aware rule (excluded from `recommended` on that basis alone regardless of this entry).
 
 
+## The `perf` and `nursery` audit — 27 rules read, 4 rejected, 13 promoted
+
+<a id="perf-nursery-audit"></a>
+
+Both categories in full, against each rule's documentation rather than its name. Counts are from every
+oxlint rule enabled at once over `packages`, `apps` and `scripts` — 34,727 diagnostics from 186 rules on a
+tree that reports none under the 349 in `recommended`.
+
+**`no-await-in-loop` — 77, and the shape is the argument.** 74 distinct lines across 39 files: sequential
+`readFile`s inside a bounded loop, ordered writes into a sandbox, and test assertions. One of the 77 is
+`const sources = await Promise.all(…)`, reported because that already-parallel call sits inside an outer
+loop. The rule takes no options, and §`PROBE_CONCURRENCY` above is this repository measuring the opposite
+of its advice: unbounded fan-out cost 49 MB of peak RSS to save 41 ms.
+
+**`oxc/no-map-spread` — 8, all the same shape.** Every one is `.map(([key, value]) => ({ key, ...value }))`
+building a record from a `Map` entry: a fixed-size spread, not an accumulator. The rule's own documented
+replacement is `Object.assign(element, …)`, which mutates the element in the array being mapped.
+`oxc/no-accumulating-spread`, which catches the genuine quadratic case, is in `recommended` and reports 0.
+
+**`no-undef` — 564, zero true positives.** 20 distinct names: `process` 383, `AbortSignal` 55,
+`TextEncoder` 35, `AbortController` 27, `TextDecoder` 18, `Response` 8, `fetch` 7, `performance` 7, `URL` 6,
+`Buffer` 3, `setImmediate` 3, and so down. The twentieth is `work`, in
+`engine-astgrep/fixtures/swallowed-error.positive.js` — a deliberately-invalid fixture. It would need an
+`env`/`globals` declaration, and §13 has the engine write rules, categories and plugins and nothing else.
+
+**`no-unreachable-loop` — 2, both false.** `cache/atomic-write.ts:27` is `for (let attempt = 0; ; attempt += 1)`
+whose `catch` rethrows past the retry budget and otherwise `await delay(…)`s and continues. The rule does not
+follow the path that leaves a `catch` without throwing.
+
+**`react/no-array-index-key` — 3, and all three false, which is not the same as the rule being wrong.**
+Every one is `prose.tsx`, a component that re-derives its whole list from one string and never reorders or
+filters it; there an index key is the *better* one, because a content key would remount every node whenever
+the text changed. The rule cannot see which shape it has. Withheld as a revisit trigger rather than promoted,
+because 3/3 is a fact about one file and this corpus has no React application to measure against.
+
+**Promoted, 12:** `perf` — `prefer-array-find`, `prefer-array-flat-map`, `prefer-set-has`, `no-useless-call`,
+`jsx-no-constructed-context-values`, `no-object-type-as-default-prop`. `nursery` — `import/export`,
+`import/named`, `promise/no-return-in-finally`, `react/require-render-return`, `no-useless-assignment`,
+`unicorn/no-useless-iterator-to-array`. Six carried a mechanical `nursery.*` concept id, which is a category
+name and not a durable config key, so `overrides.ts` re-homes them first.
+
+They cost this repository four fixes, all of them improvements: a dead `let stdout = ''`, and two
+`filter(…).at(-1)` chains that are `findLast(…)` — the same value without materialising the matches.
+
+**Left `unlisted`, and why they are not `withheld`:** the four `react-perf/jsx-no-new-*` rules and
+`react/react-compiler` fire on inline props and hook shapes that are idiomatic React, and 0 findings on a
+corpus with no React application in it says nothing about them. They need a measurement before they get a
+verdict, not a reason written from the rule name. `no-restricted-exports` has no content at all without an
+option naming what to restrict, which is a per-repository decision.
+
+## The `pedantic` audit — 104 reachable rules, 57 promoted and 30 rejected
+
+<a id="pedantic-audit"></a>
+
+`pedantic` is oxlint's largest category outside `correctness` and `style`, and the generator promotes none of
+it. Read in full: 21 of its 125 rules are type-aware and unreachable (see the record above), leaving 104.
+Counts are from the same all-rules run — 34,727 diagnostics over `packages`, `apps` and `scripts`.
+
+**30 fire here, and reading them is what decides the category.** They divide cleanly:
+
+| class | rules | findings | what they are |
+|---|---|---:|---|
+| hardening with no defect | `require-unicode-regexp` | 305 | ASCII patterns where `u` changes nothing |
+| the signature is the contract | `require-await` | 113 | `async version()`, `async dispose()` — interface implementations |
+| cannot see the test's shape | `no-conditional-in-test` ×2 | 306 | mock factories and table-driven loops, no conditional assertion |
+| threshold is not ours to pick | `max-*` ×5, `import/max-dependencies` | 113 | a number, not a property |
+| restates the signature | `jsdoc/*` ×9 | 57 | what AGENTS.md forbids in so many words |
+| style | `no-inline-comments`, `no-negated-condition` ×2, `prefer-single-call`, `escape-case`, `no-else-return`, `no-lonely-if` ×2, `sort-vars`, `explicit-length-check` | 66 | preference |
+| no arity to check against | `no-array-callback-reference` | 24 | `.map(ruleRefKey)`; the real bug is `.map(parseInt)` |
+| TypeScript names `undefined` | `no-useless-undefined` | 37 | `() => undefined` satisfying `X \| undefined` |
+
+**`unicorn/prefer-math-trunc` is the one that would have introduced a bug.** Its 3 findings are the `>>> 0`
+in a seeded PRNG, where the shift is coercion to uint32 and not truncation — `Math.trunc` does not wrap at
+2³², and the generator would stop matching its reference implementation. Bitwise-as-truncation and
+bitwise-as-uint32 read identically and the rule cannot separate them.
+
+**57 promoted, and they cost this repository nothing** — every one is silent here, which is what a rule that
+finds defects rather than habits looks like on a tree already at zero. `no-constructor-return`,
+`no-prototype-builtins`, `no-case-declarations`, `no-fallthrough`, `radix`, `array-callback-return`,
+`no-self-compare`, `no-throw-literal`, `no-new-wrappers`, `unicorn/no-object-as-default-parameter` (one
+mutable default shared by every call), `unicorn/new-for-builtins`, `unicorn/prefer-import-meta-properties`,
+and the rest of the `unicorn/prefer-*` modernisations AGENTS.md's syntax rule already asks for.
+
+**Three are re-homed by `overrides.ts`, because `pedantic` is the wrong place to look for them:**
+
+- `react/rules-of-hooks` → `correctness.rules-of-hooks`, at `error`. React identifies hooks by call order;
+  one behind a condition shifts every later hook onto the wrong slot. That is not a strictness preference.
+- `react/jsx-no-target-blank` → `security.target-blank`, and impact 2 rather than the group's 3: every
+  current browser implies `noopener` on a `_blank` link, so it is a hole only where one does not.
+`typescript/ban-ts-comment` keeps its `pedantic.ban-ts-comment` id and takes an impact exception to 2
+instead. Verified empirically against 1.76.0, because the documentation does not state its defaults: it bans
+`@ts-ignore` outright and requires a description of three characters or more on `@ts-expect-error`. That is
+AGENTS.md's own rule — no `@ts-ignore` without a reason on the same line. Re-homing it to `slop.*` was tried
+and reverted: `engine-astgrep/src/rules.test.ts` gates that namespace on a per-concept measurement, and
+"AGENTS.md already says so" is not one.
+
+`pedantic.*` ids are kept for the other 55.
+
+**`prefer-code-point` cost a measurement and one suppression.** Four of its five findings are
+`String.fromCharCode(27)` and became `fromCodePoint`. The fifth is `isPrintableAscii`'s loop in
+`display-width.ts`, which §`displayWidth` above records as the hottest self-time frame in a large run:
+`codePointAt` there is **3,278,883 hz to 2,928,794 — 10.7% slower at ±0.11% rme**, and the predicate is
+unchanged either way, since a surrogate half fails `code > 0x7e` exactly as a code point does. It carries
+an inline `sgate-disable-next-line` with that figure, which is what the directive is for. Unlike `nursery`, the label does not expire, and
+`pedantic.prefer-ts-expect-error` was already in `recommended` under that name.
+
+## The `restriction` audit — 95 reachable rules, 38 promoted and 37 rejected
+
+<a id="restriction-audit"></a>
+
+`restriction` is a menu upstream, not a standard — oxlint files a rule here when it forbids something on
+preference. **All 37 that fire on this repository are preferences, and several are mutually exclusive with
+rules in the same category.** The four largest are the shape of it: `vitest/require-test-timeout` reports
+1,790 findings, one per test; `oxc/no-async-await` 1,190, banning `async`/`await` outright;
+`oxc/no-optional-chaining` 712; `no-undefined` 542.
+
+Two of the 37 are worth reading rather than counting.
+
+**`react/no-unknown-property` — 187, zero true positives, one cause.** Every one is `class=` in a Preact
+component, where the DOM attribute name is the correct one and `className` is the alias. The rule carries
+React's property table and has no way to know which renderer it is looking at. It stands down under
+framework detection (§23), which the inventory already has the signal for.
+
+**`typescript/no-non-null-assertion` — 234, and this one is uncomfortable.** AGENTS.md does say null and
+undefined go explicit rather than through `!`. Nearly all 234 are `array[index]!` under
+`noUncheckedIndexedAccess`, immediately after a bound was checked, where the alternative is a branch that
+cannot be taken and cannot be tested. The rule is right about the pattern AGENTS.md means and wrong about
+the one that dominates the count. Recorded rather than resolved.
+
+**38 promoted, all silent here, and they are the ones that restrict for a reason.** Four hold a defect a
+reader would otherwise ship: `react/button-has-type` (a `<button>` with no type submits the form around
+it), `promise/catch-or-return`, `oxc/bad-bitwise-operator`, `typescript/no-empty-object-type` (`{}` means
+anything non-null, not an empty object). Eight enforce what AGENTS.md already states about ESM —
+`no-commonjs`, `no-require-imports`, `no-var-requires`, `no-amd`, `no-dynamic-require`,
+`no-webpack-loader-syntax`, `prefer-node-protocol`, `no-new-require`. And `react/no-danger` is re-homed to
+`security.dangerous-html`: it is the one React API that writes unescaped markup into the document.
+
+**`import/no-cycle` found a real cycle, and it is now `error`.** Its 2 findings were
+`frameworks/profiles.ts` ⇄ `frameworks/detect.ts`, and the cycle was safe **only by hoisting**:
+`profiles.ts` calls `defineProfile(…)` at module-evaluation time, and `detect.ts` reads
+`FRAMEWORK_PROFILES` only inside a function body. Entering `detect.ts` first is therefore fine — but only
+because `defineProfile` and its three siblings are `function` declarations. Rewriting any one of them as a
+`const` arrow would have turned it into a `ReferenceError` at import time, on a path that depends on which
+module the bundler happens to enter first.
+
+Fixed by inverting the layering the cycle was a symptom of: `detectFrameworks` now takes `profiles` as a
+required input instead of reaching back for a default, so `detect.ts` is a pure engine over the profiles it
+is handed and no longer imports the module built out of its own helpers. One production call site passes
+`FRAMEWORK_PROFILES`, which core now exports.
+
+## The `style` audit — 270 reachable rules, 65 promoted and 96 rejected
+
+<a id="style-audit"></a>
+
+**All 96 that fire here are formatting or house style, and not one holds a defect.** `oxfmt` owns the
+formatting half and does not want a second opinion; the rest is a decision a team makes once. The scale is
+the argument: `sort-keys` 4,513 — the largest count ever recorded here — `no-magic-numbers` 2,517,
+`prefer-expect-assertions` 1,828 (one per test), `require-top-level-describe` 1,799, `curly` 936.
+
+Two pairs in there cannot both be right, which is the clearest statement of what the category is:
+`import/no-named-export` (930) and `import/no-default-export` (15, in `restriction`) forbid each other, and
+`no-negated-condition` and `unicorn/no-negated-condition` want the inverse of what `no-else-return` does.
+
+**But 65 of the 174 silent ones hold a defect, and oxlint files them here anyway.** That is the finding:
+`style` is not a category of harmless rules, it is a category of rules sorted by how often people argue
+about them. `no-return-assign` catches `return a = b` where `===` was meant; `unicorn/error-message` catches
+`new Error()` with nothing in it; `prefer-promise-reject-errors` catches a rejection that arrives with no
+stack; `guard-for-in` catches a `for…in` that walks the prototype; `no-identical-title` catches two tests
+with one name; `import/no-mutable-exports` catches a `let` export whose value changes under its consumers.
+
+**A spot-check found the first pass had a hole, and the hole was in the method.** The 174 silent rules
+were read one by one and the 96 firing ones were read from the top down — which left the tail dismissed as
+a class. `unicorn/prefer-negative-index` fires once here, so it was never in the silent list, and it is the
+third of a family whose other two (`prefer-at`, `no-length-as-slice-end`) were promoted. Re-reading all 73
+that remained produced four more promotions and three more rejections:
+
+- **`unicorn/prefer-negative-index`** and **`unicorn/custom-error-definition`** — the second is 2 findings
+  and both real: `class KeyedTableFormatError extends Error {}` reports as `Error` in every log and
+  serialised payload, because `name` comes from the prototype.
+- **`vue/require-typed-ref`** — `ref()` with neither a type argument nor an initial value is `Ref<any>`,
+  which its documentation says passes `noImplicitAny` without being checked.
+- **`no-interpolation-in-snapshots`**, both twins — its documentation is explicit that interpolation stops
+  the runner rewriting the snapshot, which is a broken update mechanism rather than a style.
+- Rejected: **`no-template-curly-in-string`** (9, all `${{ }}` GitHub Actions expressions written as text),
+  **`unicorn/prefer-structured-clone`** (2, at least one a deliberate JSON round-trip modelling transport)
+  and **`jest/no-done-callback`** (2, both `test.for(TABLE)(…)` whose row parameter the jest rule reads as
+  a `done` callback).
+
+**Four of eight guesses made from the rule name were wrong, and the documentation is what caught them.**
+`unicorn/require-module-attributes` flags an *empty* `with {}` rather than a missing one.
+`jest/no-test-prefixes` is a spelling preference that accepts `it.only`, so it does not catch a committed
+focused test. `vue/define-props-destructuring` is style, and its default asks for the opposite of what the
+name suggests. `vue/require-default-prop` its own documentation calls a convention rather than a
+correctness problem. None was promoted.
+
+**Four are re-homed into `security`, and one of them exposed a modelling mistake worth recording.**
+`no-new-func` and `no-script-url` were first mapped onto `security.eval-usage` and `security.script-url`
+alongside the rules already there — and the dogfood reported `config.rule-overlap`: two rules on one concept
+go to arbitration, and the loser is switched off. Mapping `no-new-func` onto `eval-usage` would have stopped
+`new Function` being checked at all. One concept per rule, always; the sharing that arbitration exists for is
+between *engines*, not between two rules of one engine that read different syntax.
+
+The security line the audits settled on: a rule that reports **an API a caller may be using safely** is
+impact 2 — `security.target-blank`, `security.dangerous-html`, `security.script-url`,
+`security.jsx-script-url`. A rule that reports **a hole whatever the value** is impact 3 at `error` —
+`security.eval-usage`, `security.function-constructor`. That also closes the third entry this audit
+briefly added to `impact.test.ts`'s mismatch list: the XSS sink now reports where it belongs.
+
+## knip's dependency rules, and oxfmt as a gate
+
+<a id="engine-audit"></a>
+
+The six non-oxlint rules no preset named, trialled against this repository rather than argued from
+their descriptions.
+
+**`knip/dependencies` and `knip/devDependencies` — 5 findings, 5 false, one cause.** Every one is a
+dependency that is used and never imported: `oxlint` and `oxfmt` are resolved by path from their engine
+packages so a binary can be spawned, `@commitlint/cli` is invoked by CI through `pnpm exec`,
+`@misaon/slop-gate` is a `sgate` bin, and `@misaon/slop-gate-core` reaches `apps/telemetry-ingest` as a
+type. An import graph sees none of those shapes and no option teaches it one. The direction is what
+settles it: acting on the finding removes a package the build needs.
+
+**`oxfmt/unformatted` — 446 findings, which is nearly the whole tree**, because it reports every file
+oxfmt would rewrite and this project formats with something else. Its own help text offers the way out
+("turn `format.unformatted` off to keep your own formatter"), which is a rule saying it is not a default.
+It also costs a second time: oxfmt is file-granularity, so adding it took `analysed` from 445 to 490 and
+multiplied the synthesised `config.unused-suppression` and `config.suppression-missing-reason` counts —
+the same effect §"Duplicate synthetic diagnostics after ast-grep was added" records.
+
+**Promoted: `knip/binaries`, `knip/duplicates`, `knip/enumMembers`** — 0 findings each, and each asks a
+question an import graph can actually answer. `binaries` is the inverse of the two rejected above: a
+binary a script invokes and no manifest declares, which is a build that works only where someone already
+installed it.
+
+## The React corpus — the five rules the audits could not judge here
+
+<a id="react-corpus"></a>
+
+Three real React applications, cloned at depth 1 and linted with the five rules the `perf`, `restriction`
+and `nursery` audits left open, because 0 findings on a repository with no React application in it says
+nothing about any of them: **excalidraw** (302 `.tsx`/`.jsx`), **reduxjs/redux-toolkit** (197) and
+**vercel/commerce** (45).
+
+| rule | excalidraw | redux-toolkit | commerce | total |
+|---|---:|---:|---:|---:|
+| `react-perf/jsx-no-new-function-as-prop` | 479 | 289 | 18 | **786** |
+| `react-perf/jsx-no-new-object-as-prop` | 246 | 58 | 7 | **311** |
+| `react/react-compiler` | 101 | 111 | 4 | **216** |
+| `react-perf/jsx-no-new-array-as-prop` | 105 | 27 | 1 | **133** |
+| `react-perf/jsx-no-jsx-as-prop` | 12 | 47 | 5 | **64** |
+| `react/no-array-index-key` | 14 | 11 | 5 | **30** |
+| `react/no-unknown-property` | 0 | 1 | 3 | **4** |
+
+**The `react-perf` family is 1,294 findings over 544 components and no defect among them.** An inline
+`onClick={() => …}` is how React is written; the identity it creates costs nothing unless the child is
+memoised, and the rule cannot see whether it is. Withheld, available by concept for a codebase that has
+memoised its tree.
+
+**`react/no-array-index-key` — 30, and sixteen were read.** Every one is a static list: `<hr key={idx}>`
+between menu sections, `<kbd key={index}>` over the parts of a split string, `<Feature key={idx}>` over a
+constant array. None is inserted into, sorted or filtered. That is the same shape as the three findings in
+this repository's own `prose.tsx`, so the exclusion written from one file survives contact with real code —
+the rule finds the lists that do not move, and cannot see the ones that do.
+
+**`react/no-unknown-property` — 4 on React against 187 here**, and that contrast is the entry. It is
+accurate where it belongs; the 187 are `class=` in Preact, where the DOM attribute name is the correct one.
+Measured against React specifically to establish the rule is not simply wrong before excluding it.
+
 ## hadolint/DL3066 — hadolint cannot catch a container running as root
 
 <a id="hadolint-dl3066"></a>
@@ -684,3 +1195,177 @@ reading +10.5% against an unchanged tool; two left it at +3.2%.
 **A cold run is 5.8× a warm one** on the corpus (2049 ms against 353 ms), and 20× on this repository
 (7,132–7,353 ms against 363–381 ms). That ratio is why the cache-hit counter is a hard gate at zero
 tolerance while the durations are not.
+
+## The maximal preset — 830 rules on, and the three reasons a rule is off
+
+The earlier audits promoted a rule when its findings were mostly defects and rejected it when they were
+mostly noise. That bar answers "would a developer act on this?", which is not the question slop-gate is
+for. A rule that is right every time it fires belongs in `recommended` even when it fires constantly;
+what a project does about the volume is the project's decision, and it has a config file to make it in.
+
+So `recommended` was rebuilt on a narrower bar. A rule is off only if one of three things is true:
+
+1. **It is wrong.** The finding does not describe a defect, or the fixer changes what the code means.
+   35 rules — `unicorn/catch-error-name` rewrites `catch (cause)` into `catch (error)` and the rebuilt
+   `Error` silently loses its cause; `unicorn/prefer-spread` turns `bytes.slice().buffer` into
+   `[...bytes].buffer` and the `.buffer` disappears with the `Uint8Array`.
+2. **It contradicts another rule.** Two rules rewrite the same code in opposite directions, options
+   cannot separate them, and one is more useful. 16 rules — `oxc/no-async-await` against
+   `promise/prefer-await-to-then`, `no-undefined` against `unicorn/no-null` (between them a nullable
+   value has no spelling left), `no-ternary` against `unicorn/prefer-ternary`.
+3. **It cannot be obeyed.** The finding is real and the fix does not exist. One rule:
+   [`import/no-default-export`](#no-default-export).
+
+Nothing is off for being loud. `style.no-magic-numbers` (188,761 corpus findings), `style.sort-keys`
+(100,152) and `style.id-length` (68,238) are all on.
+
+45 further rules stayed out because they have *no content* without options — `no-restricted-syntax`,
+`id-match`, `forbid-elements` and their kin report nothing at all until a project supplies the list, so
+naming them in a preset would be decoration.
+
+**830 recommended (240 error, 590 warn), 68 withheld, 25 unlisted.** On this repository it is 21,947
+findings across 107 concepts, which is what a strict preset meeting a codebase written under a lenient
+one looks like. `slop-gate.config.ts` records which of the 107 this repository declines and why; that
+file is the worked example of the paragraph above, not a weakening of the preset.
+
+### <a id="no-default-export"></a>`import/no-default-export` — the file format is the finding
+
+17 of 17 findings here are configuration files: thirteen `tsdown.config.ts`, plus `vitest.config.ts`,
+`vite.config.ts`, `commitlint.config.js` and `slop-gate.config.ts`. Every one of them is loaded by a
+tool that reads the default export. There is no edit that satisfies both the rule and the loader.
+
+It is not withheld for volume, and it is not a false positive — the rule correctly reports what it sees.
+It is withheld because a preset cannot currently scope a rule to a path glob, so shipping it would put
+an unfixable finding in every project that has a config file. Give `recommended` path scoping with
+`**/*.config.*` exempt and this rule belongs back in it.
+
+### `vitest/valid-expect` — the option its own exclusion named
+
+The rule was previously withheld with a note that `maxArgs: 2` would fix it "and is not promoted, because
+it changes nothing on the 32,035-file corpus". Under the narrower bar that reasoning inverts: the option
+costs nothing and the rule catches a real defect class, so it is promoted with the option rather than
+kept out.
+
+56 findings on defaults in this repository, 0 with `maxArgs: 2`, and all 56 are the same shape — oxlint
+reports "Expect takes at most 1 argument" whenever `expect`'s second argument is not a string *literal*,
+while vitest's signature is `<T>(actual: T, message?: string)`. `jest/valid-expect` keeps the default:
+jest's `expect` really does take one argument, and the same option there would blind a correct rule.
+
+### What the fifty repositories report under it
+
+Re-measured with `packages/rule-corpus` after the change, all fifty at their pinned commits:
+
+| | findings per 1k files |
+|---|---:|
+| median | 27,618 |
+| 25th / 75th percentile | 17,820 / 57,968 |
+| frontend median (25 repos) | 18,224 |
+| backend median (25 repos) | 36,906 |
+| quietest — `html5-boilerplate` | 2,452 |
+| loudest — `got` | 125,438 |
+
+67,616 files, 1,660,597 findings. The previous preset read a median of 2,354 per thousand over the same
+set, so this is an order of magnitude more, and the corpus is the reason it can be stated rather than
+guessed at. The frontend/backend gap is not a claim about either: a larger share of a frontend
+repository is markup, styles and configuration, which fewer rules reach at all.
+
+### <a id="return-await"></a>`typescript/return-await` — the option the exclusion described
+
+The rule was held out with the note that `return await` is correct inside a `try` — it keeps the frame
+in the stack trace and lets the block catch the rejection — and costs a microtask outside one, "which
+the default configuration does not distinguish". `in-try-catch` is that distinction: it requires the
+`await` where a `catch` or `finally` depends on it and forbids it everywhere else. The objection was an
+argument for the option, not against the rule.
+
+## Coverage of the non-oxlint engines — what the registry had never looked at
+
+The audit above ran over the rules the registry knows. For oxlint that is every rule the linter ships:
+847 in `configuration_schema.json`, 848 entries counting slop-gate's own `parse-error`. For the other
+engines it was not, and nothing said so.
+
+| tool | ships | slop-gate had considered | after this pass |
+|---|---:|---:|---:|
+| oxlint | 847 | 847 | 847 |
+| hadolint | 72 | 20 | 72 |
+| biome (CSS-language rules) | 35 | 35 | 35 |
+| knip | 17 | 17 | 17 |
+
+biome and knip were already complete — both engines carry their own exclusion list (`EXCLUDED_RULES` in
+`engine-biome-css/src/rules.ts`, `KNIP_EXCLUDED_ISSUE_TYPES` in `engine-knip/src/issue-types.ts`), which
+is a third place a rule can be held out and one the catalogue does not surface. What those lists needed
+was not new rules but the same re-decision as everything else.
+
+### The type-aware block — 20 rules back, 13 still out
+
+32 type-aware rules were held out. Eight of them gave "silent here, and `style`" as the whole argument,
+which is the error the fifty-repository corpus exists to prevent: silence on one codebase is not
+evidence. Six more — the `no-unsafe-*` family — were held out because their findings "trace to
+`JSON.parse`", which is not a false positive but a description of the defect the rules name.
+
+Nineteen went back in on that basis, plus `typescript/return-await` with `in-try-catch`, the option its
+own exclusion note had described without taking. All twenty were then demonstrated against
+`oxlint-tsgolint` on authored fixtures rather than assumed: 15 on the first probe, 4 on a second, and
+`consistent-type-exports` on a third once the fixture was rewritten to the wrong spelling instead of the
+right one.
+
+The thirteen that stay out hold under the narrow bar: `unbound-method` (10 findings, zero true
+positives), `dot-notation` (against `noPropertyAccessFromIndexSignature`), `non-nullable-type-assertion-style`
+(against `no-non-null-assertion`), `prefer-find` (against `perf.prefer-array-find`), `require-await`
+(against the eslint rule already shipped), `prefer-nullish-coalescing` and `prefer-optional-chain`
+(rewrites that change meaning), `no-unnecessary-condition` (the redundant check is the one that survives
+data arriving from outside the types), and four whose findings were measured false here.
+
+### biome — three of nine flipped
+
+`noEmptySource` was excluded as "accurate and not actionable" and `noExcessiveLinesPerFile` because
+"slop-gate has no size policy" — it has several now — and `noValueAtRule` for forbidding a working
+feature, which is what every `restriction` rule does. All three ship.
+
+Six stay out, and two of those were re-verified against biome 2.5.6 rather than trusted:
+`noInvalidGridAreas` still reports the same invalid `grid-template-areas` value when the declaration
+shares a line with its brace and misses it in three other formattings of the identical value, and
+`noExcessiveSelectorClasses` still does not fire on `.a.b.c.d.e.f`. `noUnknownMediaFeatureName` was
+re-measured over 849 corpus stylesheets: 7 findings, 7 false — five `-webkit-min-device-pixel-ratio`,
+one Media Queries Level 4 range syntax, one Tailwind import.
+
+### knip — the catalog pair, and why `cycles` is a collision not a gap
+
+`catalog` and `catalogReferences` were held out as unmeasurable "for want of a catalog-using
+repository". This one is: `pnpm-workspace.yaml` has had a catalog throughout. Running knip over it
+returns nothing, and an authored fixture puts a finding on each — one on a catalog entry no package
+resolves, one on a `catalog:` reference with no entry, which is a broken install rather than untidiness.
+Both ship.
+
+`cycles` stays out, but its recorded reason was a taxonomy argument. The real one is a collision:
+`restriction.no-cycle` is in `recommended` and oxlint reports the same defect with a span on the import
+that closes the loop.
+
+### hadolint — 52 rules nobody had read
+
+The gap. hadolint ships 72 rules and slop-gate had considered 20. Every one of the other 52 was given
+an authored Dockerfile built from its own description, and run with the rule forced to `error` through
+an `override` block so that a default-off severity could not be mistaken for a rule that does not fire.
+
+**32 ship.** Among them three that the 46-Dockerfile corpus had already been reporting unattributed:
+`DL3027` (`apt` instead of `apt-get` — 4 findings), `DL3016` (unpinned `npm install` — 3) and `DL3002`
+(image ends as root — 1).
+
+**20 stay out**, in four groups, each on an argument the registry already made for a sibling:
+
+- `DL3033`, `DL3037`, `DL3041` — version pinning against yum, zypper and dnf, whose archives keep only
+  the current version. Identical to `DL3008` (apt) and `DL3018` (apk). This is why `DL3016` (npm),
+  `DL3028` (gem) and `DL3062` (go) do ship: those registries keep every version published.
+- `DL3032`, `DL3036`, `DL3040`, `DL3060` — cache cleaning, identical to `DL3009` and `DL3019`: an
+  image-size optimisation that a later multi-stage `COPY` discards anyway.
+- `DL3026` and the nine `DL3049`–`DL3058` label rules — no content without a schema the project
+  supplies. Verified: a fixture producing 0 findings alone produced 7 under a `label-schema` block.
+- `DL1000`, `DL3046` — could not be made to fire; `DL1001` — it forbids hadolint's own ignore pragma,
+  which slop-gate already models as a foreign suppression.
+
+Enabling `DL3057` required a change to the engine: hadolint keeps some rules off whatever the failure
+threshold, so a selected rule now goes into an `override` block in the generated config.
+
+**One thing this pass did not fix.** The 34 withheld hadolint rules have no registry entry, so
+`sgate rules list` and the explorer do not show them at all — their reasons live only in
+`not-recommended.ts`. The same is true of the engine-level exclusion lists in biome-css and knip. Three
+places can hold a rule back and only one of them is visible to a user asking what slop-gate decided.

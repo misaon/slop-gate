@@ -45,7 +45,7 @@ export type ProjectResultKeyInput = {
   engineVersion: string
   engineRulesetHash: string
   configHash: string
-  files: ReadonlyArray<{ path: string; hash: string }>
+  files: readonly { path: string; hash: string }[]
 }
 
 export function deriveProjectResultKey(input: ProjectResultKeyInput): string {

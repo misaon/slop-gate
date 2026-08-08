@@ -8,7 +8,7 @@ import { buildMcpServer } from './server.ts'
 export const mcp = defineCommand({
   meta: { name: 'mcp', description: 'Serve slop-gate over the Model Context Protocol (stdio)' },
   async run() {
-    if (process.stdin.isTTY === true) {
+    if (process.stdin.isTTY) {
       process.stderr.write(
         'sgate mcp speaks the Model Context Protocol on stdin/stdout — it is meant to be launched by an MCP client, not run by hand.\n' +
           'Configure your client to run: sgate mcp (with this repository as its working directory).\n' +

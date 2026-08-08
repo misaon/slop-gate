@@ -25,7 +25,7 @@ export const IMPACTS: Readonly<Record<Impact, ImpactDefinition>> = {
 }
 
 // The default for a group; the exceptions below are where the group predicts badly.
-const GROUP_IMPACT: Readonly<Record<ConceptGroup, Impact>> = {
+export const GROUP_IMPACT: Readonly<Record<ConceptGroup, Impact>> = {
   security: 3,
   types: 3,
   correctness: 2,
@@ -35,7 +35,9 @@ const GROUP_IMPACT: Readonly<Record<ConceptGroup, Impact>> = {
   framework: 2,
   duplication: 1,
   'dead-code': 1,
-  suspicious: 1,
+  // oxlint files a rule here when the code is "most likely wrong or useless", which is this vocabulary's
+  // 2 and not its 1. Measured over all 54 concepts in the group: see docs/measurements.md.
+  suspicious: 2,
   config: 1,
   pedantic: 1,
   restriction: 1,
@@ -64,6 +66,34 @@ const CONCEPT_IMPACT: Readonly<Record<string, Impact>> = {
   'slop.narrative-comment': 1,
   // The check itself did not run, so the verdict is incomplete rather than wrong.
   'deps.advisory-coverage-gap': 2,
+  // A suppressed diagnostic is a defect kept out of the report, not a habit — the same family as `slop.*`.
+  'pedantic.ban-ts-comment': 2,
+  // Every current browser implies `noopener` on a `_blank` link, so this is a hole only where one does not.
+  'security.target-blank': 2,
+  // The rule reports the API, not the value passed to it, and a constant string is not a hole.
+  'security.dangerous-html': 2,
+  // The rule reports the attribute, and a constant `javascript:void(0)` is a habit rather than a hole.
+  'security.script-url': 2,
+  'security.jsx-script-url': 2,
+  // Executing a string is the same hole `security.eval-usage` names, reached through a timer.
+  'suspicious.no-implied-eval': 3,
+  // Quadratic on data the user supplies, which is a hang rather than an untidy line.
+  'perf.no-accumulating-spread': 2,
+  // The nine below are the group's genuine exceptions: no failure path, only a tidier way to write it.
+  'suspicious.consistent-function-scoping': 1,
+  'suspicious.no-empty-named-blocks': 1,
+  'suspicious.no-extra-bind': 1,
+  'suspicious.no-extraneous-class': 1,
+  'suspicious.no-named-as-default': 1,
+  'suspicious.no-new': 1,
+  'suspicious.no-unneeded-ternary': 1,
+  'suspicious.no-unnecessary-type-constraint': 1,
+  'suspicious.no-useless-concat': 1,
+  'suspicious.no-useless-constructor': 1,
+  'suspicious.no-underscore-dangle': 1,
+  'suspicious.no-array-sort': 1,
+  'suspicious.no-array-reverse': 1,
+  'suspicious.no-unassigned-import': 1,
 }
 
 export function impactOf(concept: string, group: ConceptGroup): Impact {

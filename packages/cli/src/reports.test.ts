@@ -26,7 +26,7 @@ test('reads a comma-separated list, with and without a destination', () => {
 })
 
 test('a windows path keeps its drive letter, which is a colon the name parse must not claim', () => {
-  expect(parseReportSpecs('sarif:C:\\out\\report.sarif', 'pretty')).toEqual([
+  expect(parseReportSpecs(String.raw`sarif:C:\out\report.sarif`, 'pretty')).toEqual([
     { name: 'sarif', path: 'C:\\out\\report.sarif' },
   ])
 })

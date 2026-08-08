@@ -7,7 +7,7 @@ import type { FrameworkAdjustment, FrameworkApplication, FrameworkDetection, Fra
 
 const UNSTABLE = 'suspicious.no-unstable-nested-components' as ConceptId
 const EXTRANEOUS = 'suspicious.no-extraneous-class' as ConceptId
-const HOOKS = 'pedantic.rules-of-hooks' as ConceptId
+const HOOKS = 'restriction.no-restricted-imports' as ConceptId
 
 const evidence = [
   { kind: 'manifest-dependency', file: 'package.json', workspace: '', name: 'next', field: 'dependencies' },
@@ -22,7 +22,7 @@ const applied = (id: FrameworkId, adjustments: readonly FrameworkAdjustment[]): 
 })
 
 const detection = (...applications: readonly FrameworkApplication[]): FrameworkDetection => ({
-  applied: [...applications].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+  applied: [...applications].sort((a, b) => (a.id < b.id ? -1 : (a.id > b.id ? 1 : 0))),
   inapplicable: [],
 })
 
@@ -83,11 +83,11 @@ test('one profile contradicting itself resolves by the same join rather than by 
 
 const resolve = (rules: Record<string, RuleLevel>, ...applications: readonly FrameworkApplication[]) =>
   createRuleSetResolver({
-    config: { rules: rules as never },
+    config: { rules },
     frameworks: frameworkRuleLayers(detection(...applications)),
   })
 
-const levelOf = (concept: ConceptId, resolver: ReturnType<typeof resolve>) => resolver.base.rules.get(concept as RuleKey)?.level
+const levelOf = (concept: ConceptId, resolver: ReturnType<typeof resolve>) => resolver.base.rules.get(concept)?.level
 
 test('a user writing `off` beats a profile enabling the same concept at `error`', () => {
   const resolver = resolve({ [UNSTABLE]: 'off' }, applied('nestjs', [enable(UNSTABLE, 'error')]))
@@ -108,7 +108,7 @@ test('a profile enabling below what an earlier layer already set changes nothing
     config: { extends: ['recommended'], rules: {} },
     frameworks: frameworkRuleLayers(detection(applied('nestjs', [enable(UNSTABLE, 'info')]))),
   })
-  const resolution = resolver.base.rules.get(UNSTABLE as RuleKey)
+  const resolution = resolver.base.rules.get(UNSTABLE)
   expect(resolution?.level).toBe('warn')
   expect(resolution?.provenance.map((step) => step.layer)).toEqual(['preset'])
 })
@@ -118,7 +118,7 @@ test('a profile enabling above what an earlier layer set does apply, and is reco
     config: { extends: ['recommended'], rules: {} },
     frameworks: frameworkRuleLayers(detection(applied('nestjs', [enable(UNSTABLE, 'error')]))),
   })
-  const resolution = resolver.base.rules.get(UNSTABLE as RuleKey)
+  const resolution = resolver.base.rules.get(UNSTABLE)
   expect(resolution?.level).toBe('error')
   expect(resolution?.provenance.map((step) => [step.layer, step.setting])).toEqual([
     ['preset', 'warn'],
@@ -207,7 +207,7 @@ test('a user writing `off` still beats a path-scoped profile enabling the same c
 
 test('a path-scoped level below what the base cascade holds changes nothing there', () => {
   const resolver = scoped(applied('nextjs', [scopedEnable(UNSTABLE, 'info', ['apps/web/**'])]))
-  const resolution = resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE as RuleKey)
+  const resolution = resolver.forFile('apps/web/page.tsx').rules.get(UNSTABLE)
   expect(resolution?.level).toBe('warn')
   expect(resolution?.provenance.map((step) => step.layer)).toEqual(['preset'])
 })

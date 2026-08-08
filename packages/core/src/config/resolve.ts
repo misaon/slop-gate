@@ -59,8 +59,8 @@ export type RuleSetResolver = {
   anyEnabledConcepts: ReadonlySet<string>
   maxLevelOf(concept: string): RuleLevel
   optionsOf(concept: string): RuleOptions
-  ignoredOverrideOptions: ReadonlyArray<{ source: string; key: string }>
-  overridesFor(key: string): ReadonlyArray<{ layer: ProvenanceLayer; source: string; setting: RuleSetting }>
+  ignoredOverrideOptions: readonly { source: string; key: string }[]
+  overridesFor(key: string): readonly { layer: ProvenanceLayer; source: string; setting: RuleSetting }[]
 }
 
 const SHIPPED_RULE_KEYS = new Set(RULE_ENTRIES.map(ruleRefKey))
@@ -79,8 +79,8 @@ function compile(layer: ProvenanceLayer, source: string, files: readonly string[
 export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const rootSource = input.configFile ?? 'slop-gate.config.ts'
 
-  const presetLayers: Array<{ layer: ProvenanceLayer; source: string; rules: RuleMap }> = []
-  const configLayers: Array<{ layer: ProvenanceLayer; source: string; rules: RuleMap }> = []
+  const presetLayers: { layer: ProvenanceLayer; source: string; rules: RuleMap }[] = []
+  const configLayers: { layer: ProvenanceLayer; source: string; rules: RuleMap }[] = []
 
   for (const preset of input.config.extends ?? []) {
     presetLayers.push({ layer: 'preset', source: preset, rules: PRESETS[preset] })
@@ -113,7 +113,7 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
   const buckets = new Map<string, ResolvedRuleSet>([['', base]])
 
   const maxLevels = new Map<string, RuleLevel>()
-  const ignoredOverrideOptions: Array<{ source: string; key: string }> = []
+  const ignoredOverrideOptions: { source: string; key: string }[] = []
   for (const [key, resolution] of base.rules) maxLevels.set(key, resolution.level)
   for (const override of overrides) {
     for (const [key, setting] of Object.entries(override.rules)) {
@@ -160,7 +160,7 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
     },
     ignoredOverrideOptions,
     overridesFor(key) {
-      const result: Array<{ layer: ProvenanceLayer; source: string; setting: RuleSetting }> = []
+      const result: { layer: ProvenanceLayer; source: string; setting: RuleSetting }[] = []
       for (const override of overrides) {
         const setting = override.rules[key as RuleKey]
         if (setting !== undefined) result.push({ layer: override.layer, source: override.source, setting })
@@ -171,7 +171,7 @@ export function createRuleSetResolver(input: ResolveInput): RuleSetResolver {
 }
 
 function materialize(
-  layers: ReadonlyArray<{ layer: ProvenanceLayer; source: string; rules: RuleMap }>,
+  layers: readonly { layer: ProvenanceLayer; source: string; rules: RuleMap }[],
   pinnedOwners: Record<string, EngineId>,
 ): ResolvedRuleSet {
   const rules = new Map<RuleKey, RuleResolution>()

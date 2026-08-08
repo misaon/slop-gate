@@ -97,7 +97,7 @@ export async function loadConfig(
     }
   }
 
-  return { config: exported as SlopGateConfig, file }
+  return { config: exported, file }
 }
 
 async function importModule(file: string): Promise<unknown> {
@@ -143,7 +143,7 @@ async function importTransformed(file: string, originalCause: unknown): Promise<
 const MODULE_TYPELESS_WARNING_CODE = 'MODULE_TYPELESS_PACKAGE_JSON'
 
 let suppressionDepth = 0
-let suppressedListeners: Array<(warning: Error) => void> = []
+let suppressedListeners: ((warning: Error) => void)[] = []
 
 const filterWarning = (warning: NodeJS.ErrnoException): void => {
   if (warning.code === MODULE_TYPELESS_WARNING_CODE) return
@@ -152,7 +152,7 @@ const filterWarning = (warning: NodeJS.ErrnoException): void => {
 
 export async function suppressModuleTypelessPackageJsonWarning<T>(fn: () => Promise<T>): Promise<T> {
   if (suppressionDepth === 0) {
-    suppressedListeners = process.listeners('warning') as Array<(warning: Error) => void>
+    suppressedListeners = process.listeners('warning')
     process.removeAllListeners('warning')
     process.on('warning', filterWarning)
   }

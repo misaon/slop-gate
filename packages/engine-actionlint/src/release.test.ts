@@ -14,7 +14,7 @@ test('every recorded digest is a SHA-256 of the pinned version', () => {
   }
 })
 
-test('Windows assets are recorded but deliberately not downloadable', () => {
+test('windows assets are recorded but deliberately not downloadable', () => {
   for (const arch of ['x64', 'arm64', 'ia32']) expect(actionlintAsset('win32', arch)).toBeUndefined()
   expect(Object.keys(ACTIONLINT_CHECKSUMS).filter((asset) => asset.includes('windows'))).toHaveLength(3)
 })

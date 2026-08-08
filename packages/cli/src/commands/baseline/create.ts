@@ -17,7 +17,7 @@ export const create = defineCommand({
     const shown = relative(rootDir, path).replaceAll('\\', '/')
 
     const existing = await readBaseline(path)
-    if (existing !== null && args.force !== true) {
+    if (existing !== null && !args.force) {
       process.stderr.write(
         `${shown} already exists with ${existing.accepted.length} accepted finding(s).\n` +
           'Run `sgate baseline update` to drop the ones that are fixed, or `sgate baseline create --force` ' +

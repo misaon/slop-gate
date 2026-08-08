@@ -79,8 +79,8 @@ export const check = defineCommand({
       return
     }
 
-    const timing = args.timing === true && args.format !== 'agent'
-    if (args.timing === true && !timing) {
+    const timing = args.timing && args.format !== 'agent'
+    if (args.timing && !timing) {
       process.stderr.write('--timing is ignored by `--format=agent`: that report is byte-identical between runs by design.\n')
     }
 
@@ -138,7 +138,7 @@ export const check = defineCommand({
     if (result !== undefined) await reportTelemetry(rootDir, loaded, result)
 
     const unavailableEngines = result?.unavailableEngines ?? []
-    if (args['require-engines'] === true) {
+    if (args['require-engines']) {
       for (const engine of unavailableEngines) {
         const install = engine.install === undefined ? '' : ` Install it with \`${engine.install}\`.`
         process.stderr.write(`--require-engines: \`${engine.engine}\` is not installed — ${engine.reason}.${install}\n`)
@@ -149,7 +149,7 @@ export const check = defineCommand({
       counts: result?.counts ?? { error: 0, warn: 0, info: 0 },
       engineFailures: result?.engineFailures ?? [],
       unavailableEngines,
-      requireEngines: args['require-engines'] === true,
+      requireEngines: args['require-engines'],
       ...(maxWarnings === undefined ? {} : { maxWarnings }),
     })
   },

@@ -44,7 +44,7 @@ afterEach(async () => {
 })
 
 test('reports a version covering both its own release and the vendored schemas', async () => {
-  expect(await createSchemaEngine().version()).toMatch(/^\d+\.\d+\.\d+\+schemas\.[0-9a-f]{12}$/)
+  await expect(createSchemaEngine().version()).resolves.toMatch(/^\d+\.\d+\.\d+\+schemas\.[0-9a-f]{12}$/)
 })
 
 test('declares file granularity over YAML and workflows, and offers no fixes', () => {
@@ -81,7 +81,7 @@ test('finds a compose violation in a real compose file, with a docs link', async
 test('applies the schema only to files bound to one', async () => {
   await writeFile(join(dir, 'values.yaml'), 'services:\n  web:\n    imge: nginx\n')
 
-  expect(await run([file('values.yaml')])).toEqual([])
+  await expect(run([file('values.yaml')])).resolves.toEqual([])
 })
 
 test('finds a file inside a nested directory', async () => {
@@ -135,7 +135,7 @@ test('still validates the schema of a file that also has a duplicate key', async
 test('reads nothing at all when the selection is empty', async () => {
   await writeFile(join(dir, 'compose.yaml'), 'servcies: {}\n')
 
-  expect(await run([file('compose.yaml')], new Map())).toEqual([])
+  await expect(run([file('compose.yaml')], new Map())).resolves.toEqual([])
 })
 
 test('a rule set to off with options is still off', async () => {
@@ -153,7 +153,7 @@ test('a rule set to off with options is still off', async () => {
 })
 
 test('skips a file that vanished between inventory and run rather than failing the engine', async () => {
-  expect(await run([file('gone.yaml')])).toEqual([])
+  await expect(run([file('gone.yaml')])).resolves.toEqual([])
 })
 
 test('reports every file of a batch, not just the first', async () => {
@@ -181,7 +181,7 @@ test('forgets a disposed handle, so a stale selection cannot leak into a later r
   const handle = await engine.materializeConfig(ALL, context)
   await handle.dispose()
 
-  expect(await collect(engine.run({ files: [file('config.yaml')] }, handle, context, AbortSignal.timeout(30_000)))).toEqual([])
+  await expect(collect(engine.run({ files: [file('config.yaml')] }, handle, context, AbortSignal.timeout(30_000)))).resolves.toEqual([])
 })
 
 test('every rule it can emit is one the registry knows about', async () => {

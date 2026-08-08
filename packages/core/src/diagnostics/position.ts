@@ -16,7 +16,7 @@ export function createLineIndex(source: string): LineIndex {
   const bytes = encoder.encode(source)
   const lineStarts = [0]
   for (let i = 0; i < bytes.length; i += 1) {
-    if (bytes[i] === 0x0a) lineStarts.push(i + 1)
+    if (bytes[i] === 0x0A) lineStarts.push(i + 1)
   }
 
   const lineIndexAt = (byteOffset: number): number => {
@@ -34,7 +34,7 @@ export function createLineIndex(source: string): LineIndex {
     positionAt(byteOffset) {
       const clamped = Math.max(0, Math.min(byteOffset, bytes.length))
       const line = lineIndexAt(clamped)
-      const prefix = decoder.decode(bytes.subarray(lineStarts[line]!, clamped))
+      const prefix = decoder.decode(bytes.subarray(lineStarts[line], clamped))
       return { line: line + 1, column: prefix.length + 1 }
     },
     offsetAt(position) {

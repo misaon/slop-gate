@@ -39,7 +39,7 @@ export function unifiedDiff(file: string, before: Uint8Array, after: Uint8Array)
   if (!ops.some((op) => op.kind !== ' ')) return ''
 
   const changed = ops.map((op, index) => (op.kind === ' ' ? -1 : index)).filter((index) => index >= 0)
-  const groups: Array<{ start: number; end: number }> = []
+  const groups: { start: number; end: number }[] = []
   for (const index of changed) {
     const last = groups.at(-1)
     if (last !== undefined && index - last.end <= 2 * CONTEXT_LINES) last.end = index
@@ -65,7 +65,7 @@ export function unifiedDiff(file: string, before: Uint8Array, after: Uint8Array)
     lines.push(`@@ -${oldCount === 0 ? 0 : oldStart + 1},${oldCount} +${newCount === 0 ? 0 : newStart + 1},${newCount} @@`)
     for (const op of slice) {
       lines.push(`${op.kind}${op.line.text}`)
-      if (!op.line.newline) lines.push('\\ No newline at end of file')
+      if (!op.line.newline) lines.push(String.raw`\ No newline at end of file`)
     }
   }
 

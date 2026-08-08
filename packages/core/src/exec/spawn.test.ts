@@ -31,7 +31,7 @@ test('an exit code within the findings budget is tolerated, and its output is st
 })
 
 test('an exit code above the budget is an EngineError carrying stderr, not a clean run', async () => {
-  await expect(invoke('process.stderr.write("bad option --nope\\n"); process.exit(2)')).rejects.toThrow(
+  await expect(invoke(String.raw`process.stderr.write("bad option --nope\n"); process.exit(2)`)).rejects.toThrow(
     /oxlint failed: bad option --nope/,
   )
 })
@@ -99,11 +99,11 @@ const versionProbe = async (output: string) => {
 }
 
 test('the version is what the binary reports, trimmed, with its own label stripped', async () => {
-  expect(await toolVersion(await versionProbe('version: 1.2.3'), /^version:\s*/i)).toBe('1.2.3 [--version]')
-  expect(await toolVersion(await versionProbe('Version 5.9.0'), /^Version\s+/i)).toBe('5.9.0 [--version]')
-  expect(await toolVersion(await versionProbe('ast-grep 0.45.0'), /^ast-grep\s+/i)).toBe('0.45.0 [--version]')
+  await expect(toolVersion(await versionProbe('version: 1.2.3'), /^version:\s*/i)).resolves.toBe('1.2.3 [--version]')
+  await expect(toolVersion(await versionProbe('Version 5.9.0'), /^Version\s+/i)).resolves.toBe('5.9.0 [--version]')
+  await expect(toolVersion(await versionProbe('ast-grep 0.45.0'), /^ast-grep\s+/i)).resolves.toBe('0.45.0 [--version]')
 })
 
 test('output the strip pattern does not match is reported as it came', async () => {
-  expect(await toolVersion(await versionProbe('7.0.1'), /^version:\s*/i)).toBe('7.0.1 [--version]')
+  await expect(toolVersion(await versionProbe('7.0.1'), /^version:\s*/i)).resolves.toBe('7.0.1 [--version]')
 })

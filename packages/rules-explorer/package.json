@@ -13,16 +13,21 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite",
-    "serve": "node --experimental-strip-types server/serve.ts",
+    "serve": "node --experimental-strip-types --env-file-if-exists=../../.env.local server/serve.ts",
     "payload": "node --experimental-strip-types server/build-payload.ts"
   },
   "dependencies": {
     "@hono/node-server": "catalog:",
     "@misaon/slop-gate-core": "workspace:*",
+    "@neondatabase/serverless": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@tanstack/table-core": "catalog:",
     "hono": "catalog:",
+    "kysely": "catalog:",
+    "kysely-neon": "catalog:",
     "lucide-preact": "catalog:",
     "motion": "catalog:",
+    "oxc-parser": "catalog:",
     "preact": "catalog:"
   },
   "devDependencies": {

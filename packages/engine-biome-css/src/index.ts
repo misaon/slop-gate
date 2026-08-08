@@ -89,10 +89,8 @@ async function* execute(
 
   const sources = new Map<string, string>()
   for (const file of batch.files) {
-    try {
-      sources.set(file.path, await readFile(join(context.rootDir, file.path), 'utf8'))
-    } catch {
-    }
+    const source = await readFile(join(context.rootDir, file.path), 'utf8').catch(() => null)
+    if (source !== null) sources.set(file.path, source)
   }
 
   await mkdir(context.tmpDir, { recursive: true })
@@ -128,7 +126,7 @@ async function* execute(
   } catch (cause) {
     throw new EngineError(
       'biome-css',
-      `biome produced no report: ${failure?.stderr?.trim() || failure?.stdout?.trim() || String(failure?.code ?? 'unknown error')}`,
+      `biome produced no report: ${failure?.stderr?.trim() || failure?.stdout?.trim() || (typeof failure?.code === 'number' ? String(failure.code) : 'unknown error')}`,
       { cause },
     )
   } finally {

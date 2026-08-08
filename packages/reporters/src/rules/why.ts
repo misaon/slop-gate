@@ -35,12 +35,15 @@ const LAYER_LABEL: Readonly<Record<ProvenanceLayer, string>> = {
 
 function evidenceText(evidence: FrameworkEvidence): string {
   switch (evidence.kind) {
-    case 'manifest-dependency':
+    case 'manifest-dependency': {
       return `\`${evidence.name}\` in ${evidence.file} (${evidence.field})`
-    case 'path-present':
+    }
+    case 'path-present': {
       return `${evidence.file} is present`
-    case 'config-literal':
+    }
+    case 'config-literal': {
       return `\`${evidence.property}\` is \`${evidence.value}\` in ${evidence.file}`
+    }
   }
 }
 
@@ -100,21 +103,28 @@ function provenanceLines(enablement: ConceptEnablement): string[] {
 
 function ineligibilityText(record: IneligibleCandidate): string {
   switch (record.reason) {
-    case 'deprecated':
+    case 'deprecated': {
       return 'deprecated'
-    case 'engine-not-participating':
+    }
+    case 'engine-not-participating': {
       return `no \`${record.candidate.engine}\` engine is registered in this run`
-    case 'engine-unavailable':
+    }
+    case 'engine-unavailable': {
       return `\`${record.candidate.engine}\` is registered but not installed on this machine`
-    case 'missing-capability':
+    }
+    case 'missing-capability': {
       return record.capability === 'types'
-        ? 'requires type information (`types`), which no participating engine provides yet — ' +
-            'type-aware support is not wired up (see "Blocks M2" in docs/superpowers/specs/2026-07-31-m0-followups.md)'
+        ? 'requires type information (`types`). oxlint provides it once `oxlint-tsgolint` is installed — ' +
+            'add it as a dev dependency. It is not bundled: it costs 21 MB and takes a run on this ' +
+            'repository from 3.1 s to 5.9 s (docs/measurements.md#type-aware-audit)'
         : `requires capability \`${record.capability}\`, which no participating engine provides`
-    case 'language-mismatch':
+    }
+    case 'language-mismatch': {
       return 'this repository has no files in a language this rule applies to'
-    case 'pinned-to-other-engine':
+    }
+    case 'pinned-to-other-engine': {
       return '`owners` pins this concept to a different engine, which offers no rule for it'
+    }
   }
 }
 
@@ -137,7 +147,7 @@ function describeOwnership(ownership: readonly ConceptOwnership[]): string {
 function verdict(explanation: ConceptWhy): string {
   if (explanation.servicedBySlopGate) return 'Emitted by slop-gate itself, not by any engine rule.'
   if (!explanation.enablement.enabled) {
-    const framework = explanation.frameworks.filter((entry) => entry.setting === 'off').at(-1)
+    const framework = explanation.frameworks.findLast((entry) => entry.setting === 'off')
     return framework === undefined
       ? 'Produces no findings: not enabled by any layer.'
       : `Produces no findings: framework \`${framework.id}\` turned it off.`

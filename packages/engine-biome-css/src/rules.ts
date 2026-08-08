@@ -37,6 +37,9 @@ export const BIOME_CSS_RULES: readonly BiomeCssRule[] = [
   rule('suspicious', 'noIrregularWhitespace'),
   rule('suspicious', 'noShorthandPropertyOverrides'),
   rule('suspicious', 'noUnknownAtRules'),
+  rule('suspicious', 'noEmptySource'),
+  rule('style', 'noValueAtRule'),
+  rule('style', 'noExcessiveLinesPerFile'),
 ]
 
 export const BIOME_CSS_RULE_IDS: ReadonlySet<string> = new Set(BIOME_CSS_RULES.map((r) => r.engineRuleId))
@@ -88,29 +91,6 @@ export const EXCLUDED_RULES: readonly ExcludedRule[] = [
       "`-webkit-min-device-pixel-ratio` (VS Code). A vendor prefix is not a typo, and the rule has " +
       "no way to tell the two apart — it holds a list of standard feature names and rejects the " +
       "rest, which makes every deliberate prefix a finding forever.",
-  },
-  {
-    engineRuleId: 'noEmptySource',
-    reason:
-      "4 findings, all accurate and none actionable: files containing only a licence header, which " +
-      "JupyterLab and VS Code ship as placeholders their build expects to exist. 'This file has no " +
-      "rules in it' is a true statement about a file that is deliberately empty.",
-  },
-  {
-    engineRuleId: 'noExcessiveLinesPerFile',
-    reason:
-      "A threshold metric, not a defect: it reports that a file is longer than a configured line " +
-      "count. 130 findings across 1729 stylesheets, which is a statement about the default " +
-      "threshold rather than about any of those files. slop-gate has no size policy and inventing " +
-      "one here would be this engine deciding it on the user's behalf.",
-  },
-  {
-    engineRuleId: 'noValueAtRule',
-    reason:
-      "Flags `@value`, which is a real CSS Modules feature, in order to steer users toward native " +
-      "custom properties. That is a migration preference about a working language feature, so it is " +
-      "not a defect under any browser; zero findings on the corpus, which contains 686 CSS Modules " +
-      "files, so it is not even a preference anybody there disagreed with.",
   },
   {
     engineRuleId: 'noExcessiveSelectorClasses',

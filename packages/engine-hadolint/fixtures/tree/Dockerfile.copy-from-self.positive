@@ -1,0 +1,2 @@
+FROM alpine:3 AS s
+COPY --from=s /a /b

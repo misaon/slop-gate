@@ -29,20 +29,30 @@ Three levels, not five: more buckets means more arguing and less agreement.
 
 Impact starts from the concept's **group**, which is right for most of the 923 rules. Concepts whose
 group is a poor predictor are listed individually with a one-line reason, and an exception without a
-reason does not belong in that list. Current distribution: **621 at 1, 294 at 2, 8 at 3**.
+reason does not belong in that list. Current distribution: **569 at 1, 344 at 2, 10 at 3**.
 
-### The gap this exposed
+`suspicious` was the group the default was most wrong about. It sat at 1 — the claim that nothing
+breaks — and a census of all 54 of its concepts found 35 with a stated failure path, 10 genuinely
+untidy and 2 that are security. It is 2 now, and the exception table is 12 rows the other way instead
+of the 35 it would have needed. See `docs/measurements.md`.
 
-Two concepts are impact 3 and are reported at `warn`, so a bare `sgate check` exits 0 on them:
+### The gap this exposed, and how it closed
 
-    security.vulnerable-dependency          a published advisory in your lockfile
-    security.workflow-hardcoded-credential  a credential in a CI workflow
+Two concepts used to be impact 3 and reported at `warn`, so a bare `sgate check` exited 0 on a
+published advisory and on a credential in a CI workflow. That was recorded rather than fixed, because
+aligning what gates a build to impact is a breaking change; it has since had its release, and both are
+`error`.
 
-That is not an oversight left in — it is the measurement that justifies the next change. Today's
-`error`/`warn` split is inherited from oxlint's categories (212 of 218 errors are the `correctness`
-group), not designed, which is how a CVE ends up quieter than a redundant backslash in a regex.
-Aligning what gates a build to impact is a breaking change and gets its own release; a test pins the
-list so it cannot grow unnoticed.
+The test that pinned the list now asserts it is **empty**, so a concept cannot arrive at impact 3 and
+`warn` unless someone decides to put it there.
+
+The line the registry audit settled on, for the security rules it added: a rule that reports **an API
+a caller may be using safely** is impact 2 — `security.target-blank`, `security.dangerous-html`,
+`security.script-url`. A rule that reports **a hole whatever the value** is impact 3 and therefore
+`error` — `security.eval-usage`, `security.function-constructor`.
+
+228 of the 239 `error` concepts are still the `correctness` group, which is oxlint's category rather
+than a decision, so the split remains something to revisit rule by rule rather than a design.
 
 ## Reliability
 
