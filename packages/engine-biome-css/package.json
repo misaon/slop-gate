@@ -1,6 +1,6 @@
 {
   "name": "@misaon/slop-gate-engine-biome-css",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Biome adapter for slop-gate, scoped to CSS.",
   "keywords": [
     "slop-gate",
