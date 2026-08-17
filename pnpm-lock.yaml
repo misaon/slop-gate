@@ -28,8 +28,8 @@ catalogs:
       specifier: 21.2.0
       version: 21.2.0
     '@hono/node-server':
-      specifier: ^2.1.0
-      version: 2.1.0
+      specifier: ^2.1.1
+      version: 2.1.1
     '@modelcontextprotocol/client':
       specifier: ^2.0.0
       version: 2.0.0
@@ -391,7 +391,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: 'catalog:'
-        version: 2.1.0(hono@4.13.0)
+        version: 2.1.1(hono@4.13.0)
       '@misaon/slop-gate-core':
         specifier: workspace:*
         version: link:../core
@@ -965,8 +965,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@hono/node-server@2.1.0':
-    resolution: {integrity: sha512-XovyyCCnBzW+zKu+z/zq8hwNs4KOR5rEMAOxo2f40Q5xoOI37IMm6MIg2COOUtUApo0i6850MTBKH2u4QLGIqg==}
+  '@hono/node-server@2.1.1':
+    resolution: {integrity: sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
@@ -4415,7 +4415,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@hono/node-server@2.1.0(hono@4.13.0)':
+  '@hono/node-server@2.1.1(hono@4.13.0)':
     dependencies:
       hono: 4.13.0
 
