@@ -9,7 +9,7 @@ catalog:
   # The analysers are the product: which version runs decides what the tool reports, so these are exact
   # and each moves in its own reviewable pull request. See .github/dependabot.yml.
   '@ast-grep/cli': 0.45.0
-  '@biomejs/biome': 2.5.6
+  '@biomejs/biome': 2.5.10
   knip: 6.31.0
   oxfmt: 0.62.0
   oxlint: 1.76.0
