@@ -70,8 +70,8 @@ catalogs:
       specifier: ^0.2.0
       version: 0.2.2
     hono:
-      specifier: ^4.9.0
-      version: 4.13.0
+      specifier: ^4.13.5
+      version: 4.13.7
     ignore:
       specifier: ^7.0.6
       version: 7.0.6
@@ -391,7 +391,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: 'catalog:'
-        version: 2.1.0(hono@4.13.0)
+        version: 2.1.0(hono@4.13.7)
       '@misaon/slop-gate-core':
         specifier: workspace:*
         version: link:../core
@@ -406,7 +406,7 @@ importers:
         version: 9.0.0
       hono:
         specifier: 'catalog:'
-        version: 4.13.0
+        version: 4.13.7
       kysely:
         specifier: 'catalog:'
         version: 0.29.4
@@ -2832,8 +2832,8 @@ packages:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
 
-  hono@4.13.0:
-    resolution: {integrity: sha512-jhunvfHWxd7J5EFfSgH4xsYJzSe/lfqbUCxiyyeaQasUsXeEHXtzVid+7EOGByc5JnFa23SSFL3Y2RV/z1T+eQ==}
+  hono@4.13.7:
+    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
     engines: {node: '>=16.9.0'}
 
   hookable@6.1.1:
@@ -4415,9 +4415,9 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@hono/node-server@2.1.0(hono@4.13.0)':
+  '@hono/node-server@2.1.0(hono@4.13.7)':
     dependencies:
-      hono: 4.13.0
+      hono: 4.13.7
 
   '@inquirer/external-editor@1.0.3(@types/node@24.13.3)':
     dependencies:
@@ -5726,7 +5726,7 @@ snapshots:
 
   he@1.2.0: {}
 
-  hono@4.13.0: {}
+  hono@4.13.7: {}
 
   hookable@6.1.1: {}
 
