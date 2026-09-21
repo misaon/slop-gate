@@ -121,7 +121,7 @@ catalogs:
       specifier: ^2.10.8
       version: 2.10.8
     typescript:
-      specifier: ^7.0.2
+      specifier: 7.0.2
       version: 7.0.2
     vite:
       specifier: ^8.2.0
