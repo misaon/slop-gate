@@ -34,7 +34,7 @@ catalog:
   '@codspeed/vitest-plugin': ^5.7.1
   tsdown: ^0.22.14
   turbo: ^2.10.8
-  typescript: ^7.0.2
+  typescript: 7.0.2
   vitest: ^4.1.10
 
   # Release.
