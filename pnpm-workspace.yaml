@@ -56,7 +56,7 @@ catalog:
   motion: ^13.0.0
   preact: ^10.27.0
   tailwindcss: ^4.1.0
-  vite: ^8.2.0
+  vite: ^8.2.4
 
   # The explorer's server edits `packages/core/src` by rewriting the spans the parser hands back. Pinned
   # to the same minor as `oxc-transform` above: the two share `@oxc-project/types`, and a span means the
