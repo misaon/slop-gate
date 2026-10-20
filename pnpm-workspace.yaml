@@ -16,7 +16,7 @@ catalog:
 
   # What core and the CLI ship to a user.
   '@modelcontextprotocol/client': ^2.0.0
-  '@modelcontextprotocol/server': ^2.0.0
+  '@modelcontextprotocol/server': ^2.3.0
   ajv: ^8.20.0
   ajv-formats: ^3.0.1
   citty: ^0.2.0
